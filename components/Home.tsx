@@ -125,32 +125,7 @@ export function Home() {
             </p>
           </div>
 
-          <FormularioTortas className="card-premium rounded-[34px] bg-white/10 p-6">
-
-            {[
-              'Nombre',
-              'Teléfono',
-              'Tipo de torta',
-              'Fecha de retiro',
-              'Hora de retiro',
-              'Dedicatoria',
-            ].map((x) => (
-              <input
-                key={x}
-                placeholder={x}
-                className="mb-3 w-full rounded-2xl border border-white/10 bg-white/90 px-4 py-4 text-maruxa-chocolate outline-none"
-              />
-            ))}
-
-            <a
-              className="btn-rojo block text-center"
-              href={`https://wa.me/${whatsapp}?text=${encodeURIComponent(
-                'Hola Maruxa, quiero cotizar una torta con retiro en local.'
-              )}`}
-            >
-              Enviar pedido por WhatsApp
-            </a>
-          </FormularioTortas>
+          <FormularioTortas />
         </div>
       </section>
 
