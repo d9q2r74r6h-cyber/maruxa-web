@@ -1,0 +1,58 @@
+@import "tailwindcss";
+:root{--rojo:#A51F2B;--vino:#74151F;--crema:#FFF3DF;--masa:#F5D9A9;--cafe:#4B2818;--chocolate:#2A1710;--dorado:#C69245}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--crema);color:var(--chocolate);font-family:ui-serif,Georgia,Cambria,"Times New Roman",Times,serif}
+button,input,textarea,select{font-family:ui-sans-serif,system-ui,sans-serif}.contenedor{width:min(1180px,calc(100% - 32px));margin-inline:auto}.text-balance{text-wrap:balance}
+.card-premium{border:1px solid rgba(75,40,24,.12);background:rgba(255,255,255,.62);box-shadow:0 24px 80px rgba(42,23,16,.12);backdrop-filter:blur(14px)}
+.btn-rojo{background:var(--rojo);color:white;border-radius:999px;padding:14px 22px;font-weight:800;transition:.25s ease}.btn-rojo:hover{background:var(--vino);transform:translateY(-2px)}
+.btn-crema{background:var(--crema);color:var(--vino);border-radius:999px;padding:14px 22px;font-weight:800}
+
+.rdp {
+    --rdp-cell-size: 48px;
+    --rdp-accent-color: #8f2028;
+    --rdp-background-color: #8f2028;
+    margin: 0;
+  }
+  
+  .rdp-months {
+    justify-content: center;
+  }
+  
+  .rdp-caption_label {
+    font-weight: 900;
+    font-size: 1rem;
+    color: #3b2414;
+  }
+  
+  .rdp-head_cell {
+    font-size: 0.75rem;
+    font-weight: 900;
+    color: #8f2028;
+  }
+  
+  .rdp-day {
+    border-radius: 16px;
+    font-weight: 800;
+  }
+  
+  .rdp-day_selected {
+    background: #8f2028 !important;
+    color: white !important;
+  }
+  
+  .rdp-day_today {
+    border: 2px solid #8f2028;
+  }
+  
+  .rdp-day_disabled {
+    opacity: 0.3;
+  }
+  
+  .rdp-button:hover:not([disabled]):not(.rdp-day_selected) {
+    background: #f6eadc;
+  }
+  
+  @media (max-width: 768px) {
+    .rdp {
+      --rdp-cell-size: 42px;
+    }
+  }

@@ -1,0 +1,14 @@
+import { Camera, MapPin, Phone, ShieldCheck } from 'lucide-react';
+import { MARUXA } from '@/lib/marca';
+
+export function Nosotros(){
+  return <section id="nosotros" className="py-24"><div className="contenedor grid gap-10 lg:grid-cols-2 lg:items-center"><div className="rounded-[3rem] bg-gradient-to-br from-[#e9cdb5] via-[#f6eadc] to-[#bc3038] p-6 sombra-suave"><div className="min-h-[420px] rounded-[2.3rem] border border-white/60 bg-white/30 p-8"><p className="titulo-premium text-7xl font-black">Hecho con oficio</p><p className="mt-5 max-w-md text-lg leading-8 text-[#5b321c]">Una estética cálida que mezcla tradición, producto artesanal y una navegación pensada para vender más fácil.</p></div></div><div><span className="badge">Nuestra historia</span><h2 className="titulo-premium mt-5 text-6xl font-black md:text-7xl">Una panadería de barrio con vitrina digital moderna.</h2><p className="mt-6 text-lg leading-8 text-[#6b4329]">La web está pensada para que el cliente entienda rápido qué puede comprar, cómo encargar y dónde retirar. La siguiente fase puede sumar fotos reales, productos editables y pedidos guardados.</p><div className="mt-8 grid gap-4 sm:grid-cols-2"><div className="card-premium rounded-3xl p-5"><ShieldCheck/><p className="mt-3 font-black">Confianza local</p></div><div className="card-premium rounded-3xl p-5"><Camera/><p className="mt-3 font-black">Preparada para fotos reales</p></div></div></div></div></section>
+}
+
+export function Ubicacion(){
+  return <section id="ubicacion" className="py-24"><div className="contenedor rounded-[3rem] bg-[#fffaf4] p-6 sombra-suave md:p-10"><div className="grid gap-8 lg:grid-cols-[.8fr_1.2fr]"><div><span className="badge">Visítanos</span><h2 className="titulo-premium mt-5 text-6xl font-black">Retiro en local</h2><div className="mt-8 space-y-4 text-lg font-bold text-[#5b321c]"><p className="flex gap-3"><MapPin/> {MARUXA.direccion}</p><p className="flex gap-3"><Phone/> {MARUXA.telefono}</p></div></div><div className="grid min-h-[340px] place-items-center rounded-[2.5rem] bg-[#8f2028] p-8 text-center text-[#f6eadc]"><div><p className="titulo-premium text-6xl font-black">Mapa</p><p className="mx-auto mt-4 max-w-md text-white/75">Aquí podemos insertar Google Maps embebido y horarios reales de atención.</p></div></div></div></div></section>
+}
+
+export function Footer(){
+  return <footer className="border-t border-[#8f2028]/10 py-10"><div className="contenedor flex flex-col justify-between gap-5 md:flex-row md:items-center"><div><img src={MARUXA.logo} alt="Logo Panadería Maruxa" className="w-44"/><p className="mt-2 text-sm font-bold text-[#7a4a2b]">Panadería artesanal · San Miguel</p></div><div className="flex gap-3"><a className="boton-secundario !py-3" href={`tel:${MARUXA.telefonoLink}`}>Llamar</a><a className="boton-principal !py-3" href={`https://wa.me/${MARUXA.whatsapp}`} target="_blank">WhatsApp</a></div></div></footer>
+}

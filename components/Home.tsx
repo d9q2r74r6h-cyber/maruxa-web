@@ -1,0 +1,204 @@
+'use client';
+import { MobileCartBar } from '@/components/MobileCartBar'; 
+import { CartDrawer } from '@/components/CartDrawer';
+import { FormularioTortas } from '@/components/FormularioTortas';
+import Catalogo from '@/components/Catalogo';
+import { motion } from 'framer-motion';
+import {
+  Clock,
+  MapPin,
+  Phone,
+  Sparkles,
+  ShieldCheck,
+} from 'lucide-react';
+
+import { telefonoVisible, whatsapp } from '@/lib/datos';
+
+export function Home() {
+  const mensaje = encodeURIComponent(
+    'Hola Maruxa, quiero hacer un pedido para retiro en local.'
+  );
+
+  return (
+    <>
+      <section className="relative overflow-hidden bg-[radial-gradient(circle_at_top_left,#fff7e8,#f5d9a9_42%,#a51f2b_100%)]">
+        
+        <div className="absolute right-[-80px] top-16 h-80 w-80 rounded-full bg-maruxa-rojo/20 blur-3xl" />
+
+        <div className="contenedor grid min-h-[720px] items-center gap-10 py-20 lg:grid-cols-[1.04fr_.96fr]">
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.65 }}
+          >
+            <p className="mb-5 inline-flex rounded-full bg-white/70 px-4 py-2 text-sm font-black uppercase tracking-[.22em] text-maruxa-vino">
+              Panadería artesanal chilena
+            </p>
+
+            <h1 className="text-balance text-6xl font-black leading-[.92] tracking-[-.06em] text-maruxa-chocolate md:text-8xl">
+              El sabor de barrio, elevado a experiencia premium.
+            </h1>
+
+            <p className="mt-7 max-w-2xl text-xl leading-8 text-maruxa-cafe/85">
+              Panes, pastelería y tortas Maruxa con retiro en local.
+              Pedidos especiales con mínimo 24 horas de anticipación.
+            </p>
+
+            <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+              <a className="btn-rojo" href="#catalogo">
+                Ver catálogo
+              </a>
+
+              <a
+                className="btn-crema"
+                href={`https://wa.me/${whatsapp}?text=${mensaje}`}
+              >
+                Pedir por WhatsApp
+              </a>
+            </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.7, delay: 0.1 }}
+            className="card-premium relative rounded-[48px] p-6"
+          >
+            <div className="rounded-[38px] bg-maruxa-vino p-8 text-maruxa-crema">
+              
+              <div className="text-[10rem] leading-none">🥐</div>
+
+              <h2 className="mt-6 text-4xl font-black">
+                Horneado diario
+              </h2>
+
+              <p className="mt-3 text-lg text-maruxa-crema/80">
+                Vitrina cálida, productos frescos y flujo rápido de pedido.
+              </p>
+
+              <div className="mt-8 grid grid-cols-2 gap-3">
+
+                <div className="rounded-3xl bg-white/10 p-4">
+                  <Clock />
+                  <b>24h mínimo</b>
+                  <p className="text-sm opacity-75">
+                    para tortas
+                  </p>
+                </div>
+
+                <div className="rounded-3xl bg-white/10 p-4">
+                  <MapPin />
+                  <b>Retiro local</b>
+                  <p className="text-sm opacity-75">
+                    sin despacho
+                  </p>
+                </div>
+
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      <Catalogo />
+
+      <section
+        id="tortas"
+        className="bg-maruxa-chocolate py-24 text-maruxa-crema"
+      >
+        <div className="contenedor grid gap-10 lg:grid-cols-2">
+
+          <div>
+            <Sparkles
+              className="mb-6 text-maruxa-dorado"
+              size={40}
+            />
+
+            <h2 className="text-5xl font-black tracking-[-.04em]">
+              Pedido de tortas
+            </h2>
+
+            <p className="mt-5 text-xl leading-8 text-maruxa-crema/78">
+              Flujo simple, directo y con foco en cerrar el pedido.
+              Para tortas, exigir retiro con 24 horas de anticipación.
+            </p>
+          </div>
+
+          <FormularioTortas className="card-premium rounded-[34px] bg-white/10 p-6">
+
+            {[
+              'Nombre',
+              'Teléfono',
+              'Tipo de torta',
+              'Fecha de retiro',
+              'Hora de retiro',
+              'Dedicatoria',
+            ].map((x) => (
+              <input
+                key={x}
+                placeholder={x}
+                className="mb-3 w-full rounded-2xl border border-white/10 bg-white/90 px-4 py-4 text-maruxa-chocolate outline-none"
+              />
+            ))}
+
+            <a
+              className="btn-rojo block text-center"
+              href={`https://wa.me/${whatsapp}?text=${encodeURIComponent(
+                'Hola Maruxa, quiero cotizar una torta con retiro en local.'
+              )}`}
+            >
+              Enviar pedido por WhatsApp
+            </a>
+          </FormularioTortas>
+        </div>
+      </section>
+
+      <section id="retiro" className="py-20">
+        <div className="contenedor grid gap-6 md:grid-cols-3">
+
+          <div className="card-premium rounded-[30px] p-8">
+            <ShieldCheck className="text-maruxa-rojo" />
+
+            <h3 className="mt-4 text-2xl font-black">
+              Retiro en local
+            </h3>
+
+            <p className="mt-2 text-maruxa-cafe/75">
+              Los pedidos se preparan para retiro.
+              No se considera delivery en esta etapa.
+            </p>
+          </div>
+
+          <div className="card-premium rounded-[30px] p-8">
+            <Clock className="text-maruxa-rojo" />
+
+            <h3 className="mt-4 text-2xl font-black">
+              24 horas mínimo
+            </h3>
+
+            <p className="mt-2 text-maruxa-cafe/75">
+              Regla principal para tortas y pedidos especiales.
+            </p>
+          </div>
+
+          <div className="card-premium rounded-[30px] p-8">
+            <Phone className="text-maruxa-rojo" />
+
+            <h3 className="mt-4 text-2xl font-black">
+              {telefonoVisible}
+            </h3>
+
+            <p className="mt-2 text-maruxa-cafe/75">
+              Contacto principal integrado a WhatsApp.
+            </p>
+          </div>
+
+        </div>
+      </section>
+
+      <CartDrawer />
+      <MobileCartBar />     
+    </>
+  );
+}

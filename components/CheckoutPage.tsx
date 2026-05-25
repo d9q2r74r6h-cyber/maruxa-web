@@ -1,0 +1,240 @@
+'use client';
+
+import { useMemo, useState } from 'react';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+
+import { useCart } from '@/lib/cart';
+import { supabase } from '@/lib/supabase';
+import { CalendarioRetiro } from '@/components/CalendarioRetiro';
+
+export function CheckoutPage() {
+  const { items, clearCart } = useCart();
+
+  const [loading, setLoading] = useState(false);
+
+  const [fecha, setFecha] = useState<Date>();
+
+  const total = useMemo(() => {
+    return items.reduce(
+      (acc, item) =>
+        acc + item.precio * item.cantidad,
+      0
+    );
+  }, [items]);
+
+  async function finalizar(
+    e: React.FormEvent<HTMLFormElement>
+  ) {
+    e.preventDefault();
+
+    if (!fecha) {
+      alert('Selecciona una fecha.');
+      return;
+    }
+
+    setLoading(true);
+
+    const form = new FormData(e.currentTarget);
+
+    const cliente = String(form.get('cliente'));
+    const telefono = String(form.get('telefono'));
+    const hora = String(form.get('hora'));
+    const observaciones = String(
+      form.get('observaciones')
+    );
+
+    const fechaTexto = format(
+      fecha,
+      'dd/MM/yyyy',
+      { locale: es }
+    );
+
+    const pedido = {
+      cliente,
+      telefono,
+      productos: items,
+      total,
+      fecha_retiro: fechaTexto,
+      hora_retiro: hora,
+      observaciones,
+      estado: 'pendiente',
+    };
+
+    const { error } = await supabase
+      .from('pedidos')
+      .insert([pedido]);
+
+    if (error) {
+      alert('No se pudo guardar el pedido.');
+      setLoading(false);
+      return;
+    }
+
+    const resumen = items
+      .map(
+        (i) =>
+          `• ${i.nombre} ${
+            i.tamano ? `(${i.tamano})` : ''
+          } x${i.cantidad}`
+      )
+      .join('%0A');
+
+    const mensaje = encodeURIComponent(
+      `Hola Maruxa, quiero confirmar este pedido:%0A%0A` +
+        resumen +
+        `%0A%0ATotal: $${total.toLocaleString(
+          'es-CL'
+        )}` +
+        `%0A%0ACliente: ${cliente}` +
+        `%0ATeléfono: ${telefono}` +
+        `%0AFecha retiro: ${fechaTexto}` +
+        `%0AHora retiro: ${hora}` +
+        `%0AObservaciones: ${observaciones}`
+    );
+
+    clearCart();
+
+    window.location.href =
+      `https://wa.me/56233663241?text=${mensaje}`;
+  }
+
+  if (items.length === 0) {
+    return (
+      <main className="min-h-screen bg-maruxa-crema py-24">
+        <div className="contenedor">
+          <h1 className="text-5xl font-black text-maruxa-chocolate">
+            Tu carrito está vacío
+          </h1>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-maruxa-crema py-20">
+      <div className="contenedor grid gap-10 lg:grid-cols-[1fr_420px]">
+
+        <div>
+
+          <p className="font-black uppercase tracking-[.24em] text-maruxa-rojo">
+            Checkout Maruxa
+          </p>
+
+          <h1 className="mt-4 text-6xl font-black tracking-[-.05em] text-maruxa-chocolate">
+            Finalizar pedido
+          </h1>
+
+          <form
+            onSubmit={finalizar}
+            className="mt-10 space-y-6"
+          >
+
+            <input
+              name="cliente"
+              required
+              placeholder="Nombre"
+              className="w-full rounded-[24px] border border-maruxa-rojo/10 bg-white px-5 py-5 font-bold outline-none"
+            />
+
+            <input
+              name="telefono"
+              required
+              placeholder="Teléfono"
+              className="w-full rounded-[24px] border border-maruxa-rojo/10 bg-white px-5 py-5 font-bold outline-none"
+            />
+
+            <CalendarioRetiro
+              fecha={fecha}
+              setFecha={setFecha}
+            />
+
+            <input
+              name="hora"
+              type="time"
+              required
+              className="w-full rounded-[24px] border border-maruxa-rojo/10 bg-white px-5 py-5 font-bold outline-none"
+            />
+
+            <textarea
+              name="observaciones"
+              placeholder="Observaciones"
+              className="min-h-[160px] w-full rounded-[24px] border border-maruxa-rojo/10 bg-white px-5 py-5 font-bold outline-none"
+            />
+
+            <button
+              disabled={loading}
+              className="btn-rojo w-full"
+            >
+              {loading
+                ? 'Procesando...'
+                : 'Confirmar pedido'}
+            </button>
+
+          </form>
+        </div>
+
+        <aside className="card-premium h-fit rounded-[40px] p-6">
+
+          <h2 className="text-3xl font-black text-maruxa-chocolate">
+            Resumen
+          </h2>
+
+          <div className="mt-6 space-y-4">
+
+            {items.map((item) => (
+              <div
+                key={`${item.id}-${item.tamano}`}
+                className="rounded-[24px] bg-white p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+
+                  <div>
+                    <h3 className="font-black">
+                      {item.nombre}
+                    </h3>
+
+                    {item.tamano && (
+                      <p className="text-sm font-bold text-maruxa-cafe/70">
+                        {item.tamano}
+                      </p>
+                    )}
+
+                    <p className="mt-2 text-sm font-bold">
+                      Cantidad: {item.cantidad}
+                    </p>
+                  </div>
+
+                  <p className="font-black text-maruxa-vino">
+                    $
+                    {(
+                      item.precio *
+                      item.cantidad
+                    ).toLocaleString('es-CL')}
+                  </p>
+
+                </div>
+              </div>
+            ))}
+
+          </div>
+
+          <div className="mt-8 border-t border-maruxa-rojo/10 pt-6">
+
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-black uppercase tracking-widest text-maruxa-cafe/60">
+                Total
+              </p>
+
+              <p className="text-4xl font-black text-maruxa-vino">
+                ${total.toLocaleString('es-CL')}
+              </p>
+            </div>
+
+          </div>
+        </aside>
+
+      </div>
+    </main>
+  );
+}
