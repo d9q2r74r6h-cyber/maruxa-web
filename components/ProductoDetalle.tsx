@@ -28,6 +28,7 @@ export default function ProductoDetalle({ slug }: { slug: string }) {
   const [producto, setProducto] = useState<Producto | null>(null);
   const [tamano, setTamano] = useState(tamanos[0]);
   const [cargando, setCargando] = useState(true);
+
   const addItem = useCart((s) => s.addItem);
 
   useEffect(() => {
@@ -48,7 +49,9 @@ export default function ProductoDetalle({ slug }: { slug: string }) {
   if (cargando) {
     return (
       <main className="min-h-screen bg-maruxa-crema py-20">
-        <div className="contenedor font-black">Cargando producto...</div>
+        <div className="contenedor font-black">
+          Cargando producto...
+        </div>
       </main>
     );
   }
@@ -56,19 +59,21 @@ export default function ProductoDetalle({ slug }: { slug: string }) {
   if (!producto) {
     return (
       <main className="min-h-screen bg-maruxa-crema py-20">
-
-
-
-        
         <div className="contenedor">
-          <h1 className="text-4xl font-black">Producto no encontrado</h1>
+          <h1 className="text-4xl font-black">
+            Producto no encontrado
+          </h1>
         </div>
       </main>
     );
   }
 
-  const esTorta = producto.categoria.toLowerCase().includes('torta');
-  const precioFinal = producto.precio + (esTorta ? tamano.extra : 0);
+  const esTorta = producto.categoria
+    .toLowerCase()
+    .includes('torta');
+
+  const precioFinal =
+    producto.precio + (esTorta ? tamano.extra : 0);
 
   const mensaje = encodeURIComponent(
     `Hola Maruxa, quiero pedir ${producto.nombre}` +
@@ -77,8 +82,32 @@ export default function ProductoDetalle({ slug }: { slug: string }) {
 
   return (
     <main className="min-h-screen bg-maruxa-crema py-20">
+
+      <div className="contenedor mb-8 text-sm font-bold text-maruxa-cafe/70">
+        <a href="/" className="hover:text-maruxa-rojo">
+          Inicio
+        </a>
+
+        <span className="mx-2">/</span>
+
+        <a
+          href="/#catalogo"
+          className="hover:text-maruxa-rojo"
+        >
+          Productos
+        </a>
+
+        <span className="mx-2">/</span>
+
+        <span className="text-maruxa-rojo">
+          {producto.nombre}
+        </span>
+      </div>
+
       <div className="contenedor grid gap-10 lg:grid-cols-2">
+
         <motion.div className="relative h-[620px] overflow-hidden rounded-[44px] bg-white shadow-premium">
+
           {producto.imagen ? (
             <Image
               src={producto.imagen}
@@ -89,11 +118,14 @@ export default function ProductoDetalle({ slug }: { slug: string }) {
               priority
             />
           ) : (
-            <div className="grid h-full place-items-center text-9xl">🥐</div>
+            <div className="grid h-full place-items-center text-9xl">
+              🥐
+            </div>
           )}
         </motion.div>
 
         <motion.div className="flex flex-col justify-center">
+
           <span className="w-fit rounded-full bg-maruxa-rojo/10 px-4 py-2 text-xs font-black uppercase tracking-widest text-maruxa-rojo">
             {producto.categoria}
           </span>
@@ -108,13 +140,16 @@ export default function ProductoDetalle({ slug }: { slug: string }) {
 
           {esTorta && (
             <div className="mt-10">
+
               <p className="mb-4 text-sm font-black uppercase tracking-widest text-maruxa-rojo">
                 Elige tamaño
               </p>
 
               <div className="grid gap-3 sm:grid-cols-2">
+
                 {tamanos.map((t) => {
-                  const activo = tamano.nombre === t.nombre;
+                  const activo =
+                    tamano.nombre === t.nombre;
 
                   return (
                     <button
@@ -126,7 +161,10 @@ export default function ProductoDetalle({ slug }: { slug: string }) {
                           : 'border-maruxa-rojo/10 bg-white text-maruxa-chocolate hover:border-maruxa-rojo/40'
                       }`}
                     >
-                      <p className="text-xl font-black">{t.nombre}</p>
+                      <p className="text-xl font-black">
+                        {t.nombre}
+                      </p>
+
                       <p className="mt-1 text-sm font-bold opacity-80">
                         {t.extra > 0
                           ? `+$${t.extra.toLocaleString('es-CL')}`
@@ -140,79 +178,117 @@ export default function ProductoDetalle({ slug }: { slug: string }) {
           )}
 
           <div className="mt-10 rounded-[34px] bg-white p-6 shadow-premium">
+
             <div className="flex items-center justify-between gap-6">
+
               <div>
                 <p className="text-sm font-black uppercase tracking-widest text-maruxa-cafe/60">
                   Precio
                 </p>
+
                 <p className="mt-1 text-5xl font-black text-maruxa-vino">
                   ${precioFinal.toLocaleString('es-CL')}
                 </p>
               </div>
 
               <button
-onClick={() => {
-  addItem({
-    id: producto.id,
-    nombre: producto.nombre,
-    precio: precioFinal,
-    imagen: producto.imagen,
-    tamano: esTorta
-      ? tamano.nombre
-      : undefined,
-    cantidad: 1,
-  });
+                onClick={() => {
+                  addItem({
+                    id: producto.id,
+                    nombre: producto.nombre,
+                    precio: precioFinal,
+                    imagen: producto.imagen,
+                    tamano: esTorta
+                      ? tamano.nombre
+                      : undefined,
+                    cantidad: 1,
+                  });
 
-  toast.success(
-    'Producto agregado al carrito'
-  );
-}}
-  className="btn-rojo"
->
-  Agregar al carrito
-</button>
+                  toast.success(
+                    'Producto agregado al carrito'
+                  );
+                }}
+                className="btn-rojo"
+              >
+                Agregar al carrito
+              </button>
             </div>
 
             <div className="mt-6 border-t border-maruxa-rojo/10 pt-6 text-sm font-bold leading-7 text-maruxa-cafe/75">
               <p>Retiro en local.</p>
-              <p>Pedidos especiales con mínimo 24 horas.</p>
-              <p>Confirmación final vía WhatsApp.</p>
+              <p>
+                Pedidos especiales con mínimo 24 horas.
+              </p>
+              <p>
+                Confirmación final vía WhatsApp.
+              </p>
             </div>
           </div>
         </motion.div>
       </div>
 
-              <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              '@context': 'https://schema.org',
-              '@type': 'Product',
-              name: producto.nombre,
-              description: producto.descripcion,
-              image: producto.imagen,
-              category: producto.categoria,
-              brand: {
-                '@type': 'Brand',
-                name: 'Panadería Maruxa',
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'Product',
+            name: producto.nombre,
+            description: producto.descripcion,
+            image: producto.imagen,
+            category: producto.categoria,
+            brand: {
+              '@type': 'Brand',
+              name: 'Panadería Maruxa',
+            },
+            offers: {
+              '@type': 'Offer',
+              price: precioFinal,
+              priceCurrency: 'CLP',
+              availability:
+                'https://schema.org/InStock',
+              url: `https://panaderiamaruxa.cl/productos/${producto.slug}`,
+            },
+          }),
+        }}
+      />
+
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'BreadcrumbList',
+            itemListElement: [
+              {
+                '@type': 'ListItem',
+                position: 1,
+                name: 'Inicio',
+                item: 'https://panaderiamaruxa.cl',
               },
-              offers: {
-                '@type': 'Offer',
-                price: precioFinal,
-                priceCurrency: 'CLP',
-                availability: 'https://schema.org/InStock',
-                url: `https://panaderiamaruxa.cl/productos/${producto.slug}`,
+              {
+                '@type': 'ListItem',
+                position: 2,
+                name: 'Productos',
+                item: 'https://panaderiamaruxa.cl/#catalogo',
               },
-            }),
-          }}
-        />
+              {
+                '@type': 'ListItem',
+                position: 3,
+                name: producto.nombre,
+                item: `https://panaderiamaruxa.cl/productos/${producto.slug}`,
+              },
+            ],
+          }),
+        }}
+      />
 
       <div className="contenedor">
-  <ProductosRelacionados
-    categoria={producto.categoria}
-    productoActualId={producto.id}
-  />
-</div>
+        <ProductosRelacionados
+          categoria={producto.categoria}
+          productoActualId={producto.id}
+        />
+      </div>
     </main>
   );
 }
