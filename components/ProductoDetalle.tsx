@@ -56,6 +56,10 @@ export default function ProductoDetalle({ slug }: { slug: string }) {
   if (!producto) {
     return (
       <main className="min-h-screen bg-maruxa-crema py-20">
+
+
+
+        
         <div className="contenedor">
           <h1 className="text-4xl font-black">Producto no encontrado</h1>
         </div>
@@ -177,6 +181,32 @@ onClick={() => {
           </div>
         </motion.div>
       </div>
+
+              <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'Product',
+              name: producto.nombre,
+              description: producto.descripcion,
+              image: producto.imagen,
+              category: producto.categoria,
+              brand: {
+                '@type': 'Brand',
+                name: 'Panadería Maruxa',
+              },
+              offers: {
+                '@type': 'Offer',
+                price: precioFinal,
+                priceCurrency: 'CLP',
+                availability: 'https://schema.org/InStock',
+                url: `https://panaderiamaruxa.cl/productos/${producto.slug}`,
+              },
+            }),
+          }}
+        />
+
       <div className="contenedor">
   <ProductosRelacionados
     categoria={producto.categoria}
