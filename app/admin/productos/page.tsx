@@ -26,20 +26,30 @@ function crearSlug(texto: string) {
     .replace(/(^-|-$)/g, '');
 }
 
+function obtenerNombreArchivo(url: string | null) {
+  if (!url) return '';
+
+  return decodeURIComponent(url.split('/').pop() || '');
+}
+
+const formInicial = {
+  nombre: '',
+  descripcion: '',
+  precio: '',
+  categoria: 'Panadería',
+  imagen: '',
+  destacado: false,
+};
+
 export default function AdminProductosPage() {
   const [clave, setClave] = useState('');
   const [autorizado, setAutorizado] = useState(false);
   const [productos, setProductos] = useState<Producto[]>([]);
   const [cargando, setCargando] = useState(false);
+  const [productoEditando, setProductoEditando] =
+    useState<Producto | null>(null);
 
-  const [form, setForm] = useState({
-    nombre: '',
-    descripcion: '',
-    precio: '',
-    categoria: 'Panadería',
-    imagen: '',
-    destacado: false,
-  });
+  const [form, setForm] = useState(formInicial);
 
   async function cargarProductos() {
     setCargando(true);
@@ -58,14 +68,30 @@ export default function AdminProductosPage() {
   }, [autorizado]);
 
   function entrar() {
-    const claveLimpia = clave.trim();
-  
-    if (claveLimpia === CLAVE_ADMIN) {
+    if (clave.trim() === CLAVE_ADMIN) {
       setAutorizado(true);
       return;
     }
-  
+
     alert('Clave incorrecta');
+  }
+
+  function limpiarFormulario() {
+    setProductoEditando(null);
+    setForm(formInicial);
+  }
+
+  function editarProducto(producto: Producto) {
+    setProductoEditando(producto);
+
+    setForm({
+      nombre: obtenerNombreArchivo(producto.imagen) || producto.nombre,
+      descripcion: producto.descripcion || '',
+      precio: String(producto.precio),
+      categoria: producto.categoria,
+      imagen: producto.imagen || '',
+      destacado: producto.destacado,
+    });
   }
 
   async function crearProducto() {
@@ -74,8 +100,6 @@ export default function AdminProductosPage() {
       return;
     }
 
-    const slug = crearSlug(form.nombre);
-
     const { error } = await supabase.from('productos').insert({
       nombre: form.nombre,
       descripcion: form.descripcion,
@@ -83,7 +107,7 @@ export default function AdminProductosPage() {
       categoria: form.categoria,
       imagen: form.imagen || null,
       destacado: form.destacado,
-      slug,
+      slug: crearSlug(form.nombre),
     });
 
     if (error) {
@@ -91,15 +115,37 @@ export default function AdminProductosPage() {
       return;
     }
 
-    setForm({
-      nombre: '',
-      descripcion: '',
-      precio: '',
-      categoria: 'Panadería',
-      imagen: '',
-      destacado: false,
-    });
+    limpiarFormulario();
+    cargarProductos();
+  }
 
+  async function actualizarProducto() {
+    if (!productoEditando) return;
+
+    if (!form.nombre || !form.precio || !form.categoria) {
+      alert('Completa nombre, precio y categoría');
+      return;
+    }
+
+    const { error } = await supabase
+      .from('productos')
+      .update({
+        nombre: form.nombre,
+        descripcion: form.descripcion,
+        precio: Number(form.precio),
+        categoria: form.categoria,
+        imagen: form.imagen || null,
+        destacado: form.destacado,
+        slug: crearSlug(form.nombre),
+      })
+      .eq('id', productoEditando.id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    limpiarFormulario();
     cargarProductos();
   }
 
@@ -137,7 +183,10 @@ export default function AdminProductosPage() {
     cargarProductos();
   }
 
-  const totalProductos = useMemo(() => productos.length, [productos]);
+  const totalProductos = useMemo(
+    () => productos.length,
+    [productos]
+  );
 
   if (!autorizado) {
     return (
@@ -156,15 +205,14 @@ export default function AdminProductosPage() {
             value={clave}
             onChange={(e) => setClave(e.target.value)}
             onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  entrar();
-                }
-              }}
+              if (e.key === 'Enter') entrar();
+            }}
             placeholder="Clave admin"
             className="mt-8 w-full rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
           />
 
           <button
+            type="button"
             onClick={entrar}
             className="mt-5 w-full rounded-full bg-maruxa-rojo px-5 py-4 font-black text-white"
           >
@@ -194,8 +242,14 @@ export default function AdminProductosPage() {
 
         <section className="mb-10 rounded-[34px] bg-white p-6 shadow-premium">
           <h2 className="text-2xl font-black text-maruxa-chocolate">
-            Crear producto
+            {productoEditando ? 'Editar producto' : 'Crear producto'}
           </h2>
+
+          {productoEditando && (
+            <p className="mt-2 text-sm font-bold text-maruxa-rojo">
+              Editando: {productoEditando.nombre}
+            </p>
+          )}
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <input
@@ -254,36 +308,43 @@ export default function AdminProductosPage() {
                 type="checkbox"
                 checked={form.destacado}
                 onChange={(e) =>
-                  setForm({ ...form, destacado: e.target.checked })
+                  setForm({
+                    ...form,
+                    destacado: e.target.checked,
+                  })
                 }
               />
               Producto destacado
             </label>
           </div>
 
-          <button
-            onClick={crearProducto}
-            className="mt-6 rounded-full bg-maruxa-rojo px-8 py-4 font-black text-white"
-          >
-            Crear producto
-          </button>
-        </section>
-        <div className="mb-6 flex flex-wrap gap-3">
-  <button
-    onClick={cargarProductos}
-    className="rounded-full bg-maruxa-rojo px-6 py-3 text-sm font-black text-white"
-  >
-    Recargar desde Supabase
-  </button>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={
+                productoEditando
+                  ? actualizarProducto
+                  : crearProducto
+              }
+              className="rounded-full bg-maruxa-rojo px-8 py-4 font-black text-white"
+            >
+              {productoEditando
+                ? 'Guardar cambios'
+                : 'Crear producto'}
+            </button>
 
-  <a
-    href="https://supabase.com/dashboard"
-    target="_blank"
-    className="rounded-full bg-white px-6 py-3 text-sm font-black text-maruxa-chocolate shadow-premium"
-  >
-    Abrir Supabase
-  </a>
-</div>
+            {productoEditando && (
+              <button
+                type="button"
+                onClick={limpiarFormulario}
+                className="rounded-full bg-maruxa-crema px-8 py-4 font-black text-maruxa-chocolate"
+              >
+                Cancelar edición
+              </button>
+            )}
+          </div>
+        </section>
+
         <section className="grid gap-4">
           {cargando && (
             <div className="rounded-[28px] bg-white p-6 font-black shadow-premium">
@@ -313,17 +374,35 @@ export default function AdminProductosPage() {
                   <p className="mt-1 text-sm text-maruxa-cafe/60">
                     /productos/{producto.slug}
                   </p>
+
+                  {producto.imagen && (
+                    <p className="mt-1 text-xs text-maruxa-cafe/50">
+                      Imagen: {obtenerNombreArchivo(producto.imagen)}
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap gap-3">
                   <button
-                    onClick={() => toggleDestacado(producto)}
-                    className="rounded-full bg-maruxa-crema px-5 py-3 text-sm font-black text-maruxa-chocolate"
+                    type="button"
+                    onClick={() => editarProducto(producto)}
+                    className="rounded-full bg-maruxa-rojo px-5 py-3 text-sm font-black text-white"
                   >
-                    {producto.destacado ? 'Quitar destacado' : 'Destacar'}
+                    Editar
                   </button>
 
                   <button
+                    type="button"
+                    onClick={() => toggleDestacado(producto)}
+                    className="rounded-full bg-maruxa-crema px-5 py-3 text-sm font-black text-maruxa-chocolate"
+                  >
+                    {producto.destacado
+                      ? 'Quitar destacado'
+                      : 'Destacar'}
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => eliminarProducto(producto.id)}
                     className="rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white"
                   >
