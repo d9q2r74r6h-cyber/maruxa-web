@@ -205,7 +205,10 @@ export default function ProductoDetalle({ slug }: { slug: string }) {
                   });
 
                   toast.success(
-                    'Producto agregado al carrito'
+                    `${producto.nombre}${esTorta ? ` (${tamano.nombre})` : ''} agregado al carrito`,
+                    {
+                      description: `Total producto: $${precioFinal.toLocaleString('es-CL')}`,
+                    }
                   );
                 }}
                 className="btn-rojo"

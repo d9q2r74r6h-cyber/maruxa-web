@@ -55,16 +55,26 @@ export function CartDrawer() {
   return (
     <>
       <button
-        onClick={() => setOpen(true)}
-        className="fixed bottom-5 right-5 z-[90] flex items-center gap-3 rounded-full bg-maruxa-rojo px-5 py-4 text-sm font-black text-white shadow-2xl lg:bottom-8 lg:right-8"
-      >
-        <ShoppingBag size={20} />
+  onClick={() => setOpen(true)}
+  className={`fixed bottom-5 right-5 z-[90] flex items-center gap-3 rounded-full bg-maruxa-rojo px-5 py-4 text-sm font-black text-white shadow-2xl transition hover:scale-105 active:scale-95 lg:bottom-8 lg:right-8 ${
+    cantidadTotal > 0 ? 'animate-pulse' : ''
+  }`}>
+<ShoppingBag
+  size={20}
+  className={cantidadTotal > 0 ? 'animate-bounce' : ''}
+/>
 
-        <span>
-          {cantidadTotal} producto
-          {cantidadTotal !== 1 ? 's' : ''}
-        </span>
-      </button>
+  <span>
+    {cantidadTotal} producto
+    {cantidadTotal !== 1 ? 's' : ''}
+  </span>
+
+  {cantidadTotal > 0 && (
+    <span className="rounded-full bg-white/20 px-3 py-1">
+      ${total.toLocaleString('es-CL')}
+    </span>
+  )}
+</button>
 
       <div
         className={`fixed inset-0 z-[120] transition ${
