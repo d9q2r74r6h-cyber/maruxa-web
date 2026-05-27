@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import ProductoDetalle from '@/components/ProductoDetalle';
+import { supabase } from '@/lib/supabase';
 
 type Props = {
   params: Promise<{
@@ -7,7 +8,22 @@ type Props = {
   }>;
 };
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateStaticParams() {
+  const { data } = await supabase
+    .from('productos')
+    .select('slug')
+    .not('slug', 'is', null);
+
+  return (
+    data?.map((producto) => ({
+      slug: producto.slug,
+    })) ?? []
+  );
+}
+
+export async function generateMetadata({
+  params,
+}: Props): Promise<Metadata> {
   const { slug } = await params;
 
   const nombreProducto = slug.replace(/-/g, ' ');
@@ -27,5 +43,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ProductoPage({ params }: Props) {
   const { slug } = await params;
+
   return <ProductoDetalle slug={slug} />;
 }
