@@ -58,11 +58,14 @@ export default function AdminProductosPage() {
   }, [autorizado]);
 
   function entrar() {
-    if (clave === CLAVE_ADMIN) {
+    const claveLimpia = clave.trim();
+  
+    if (claveLimpia === CLAVE_ADMIN) {
       setAutorizado(true);
-    } else {
-      alert('Clave incorrecta');
+      return;
     }
+  
+    alert('Clave incorrecta');
   }
 
   async function crearProducto() {
@@ -152,6 +155,11 @@ export default function AdminProductosPage() {
             type="password"
             value={clave}
             onChange={(e) => setClave(e.target.value)}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  entrar();
+                }
+              }}
             placeholder="Clave admin"
             className="mt-8 w-full rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
           />
