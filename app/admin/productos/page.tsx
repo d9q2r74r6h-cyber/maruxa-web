@@ -268,7 +268,22 @@ export default function AdminProductosPage() {
             Crear producto
           </button>
         </section>
+        <div className="mb-6 flex flex-wrap gap-3">
+  <button
+    onClick={cargarProductos}
+    className="rounded-full bg-maruxa-rojo px-6 py-3 text-sm font-black text-white"
+  >
+    Recargar desde Supabase
+  </button>
 
+  <a
+    href="https://supabase.com/dashboard"
+    target="_blank"
+    className="rounded-full bg-white px-6 py-3 text-sm font-black text-maruxa-chocolate shadow-premium"
+  >
+    Abrir Supabase
+  </a>
+</div>
         <section className="grid gap-4">
           {cargando && (
             <div className="rounded-[28px] bg-white p-6 font-black shadow-premium">
