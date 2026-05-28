@@ -12,6 +12,10 @@ type Producto = {
   imagen: string | null;
   destacado: boolean;
   slug: string | null;
+  precio_10: number | null;
+    precio_15: number | null;
+    precio_20: number | null;
+    precio_25: number | null;
 };
 
 const CLAVE_ADMIN = 'maruxa1962';
@@ -23,6 +27,10 @@ const formInicial = {
   categoria: 'Panadería',
   imagen: '',
   destacado: false,
+  precio_10: '',
+precio_15: '',
+precio_20: '',
+precio_25: '',
 };
 
 function crearSlug(texto: string) {
@@ -139,13 +147,17 @@ export default function AdminProductosPage() {
     setProductoEditando(producto);
 
     setForm({
-      nombre: producto.nombre,
-      descripcion: producto.descripcion || '',
-      precio: String(producto.precio),
-      categoria: producto.categoria,
-      imagen: producto.imagen || '',
-      destacado: producto.destacado,
-    });
+        nombre: producto.nombre,
+        descripcion: producto.descripcion || '',
+        precio: String(producto.precio || ''),
+        categoria: producto.categoria,
+        imagen: producto.imagen || '',
+        destacado: producto.destacado,
+        precio_10: String(producto.precio_10 || ''),
+        precio_15: String(producto.precio_15 || ''),
+        precio_20: String(producto.precio_20 || ''),
+        precio_25: String(producto.precio_25 || ''),
+      });
 
     window.scrollTo({
       top: 0,
@@ -169,6 +181,10 @@ export default function AdminProductosPage() {
         imagen: form.imagen || null,
         destacado: form.destacado,
         slug: crearSlug(form.nombre),
+        precio_10: form.precio_10 ? Number(form.precio_10) : null,
+precio_15: form.precio_15 ? Number(form.precio_15) : null,
+precio_20: form.precio_20 ? Number(form.precio_20) : null,
+precio_25: form.precio_25 ? Number(form.precio_25) : null,
       });
 
     if (error) {
@@ -193,6 +209,10 @@ export default function AdminProductosPage() {
         imagen: form.imagen || null,
         destacado: form.destacado,
         slug: crearSlug(form.nombre),
+        precio_10: form.precio_10 ? Number(form.precio_10) : null,
+precio_15: form.precio_15 ? Number(form.precio_15) : null,
+precio_20: form.precio_20 ? Number(form.precio_20) : null,
+precio_25: form.precio_25 ? Number(form.precio_25) : null,
       })
       .eq('id', productoEditando.id);
 
@@ -334,6 +354,62 @@ export default function AdminProductosPage() {
               }
               className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
             />
+
+{form.categoria === 'Tortas' && (
+  <>
+    <input
+      placeholder="Precio 10 personas"
+      type="number"
+      value={form.precio_10}
+      onChange={(e) =>
+        setForm({
+          ...form,
+          precio_10: e.target.value,
+        })
+      }
+      className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
+    />
+
+    <input
+      placeholder="Precio 15 personas"
+      type="number"
+      value={form.precio_15}
+      onChange={(e) =>
+        setForm({
+          ...form,
+          precio_15: e.target.value,
+        })
+      }
+      className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
+    />
+
+    <input
+      placeholder="Precio 20 personas"
+      type="number"
+      value={form.precio_20}
+      onChange={(e) =>
+        setForm({
+          ...form,
+          precio_20: e.target.value,
+        })
+      }
+      className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
+    />
+
+    <input
+      placeholder="Precio 25 personas"
+      type="number"
+      value={form.precio_25}
+      onChange={(e) =>
+        setForm({
+          ...form,
+          precio_25: e.target.value,
+        })
+      }
+      className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
+    />
+  </>
+)}
 
             <select
               value={form.categoria}
