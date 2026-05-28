@@ -144,9 +144,23 @@ export default function AdminPedidosPage() {
             >
               <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-widest text-maruxa-rojo">
-                    Pedido #{pedido.id}
-                  </p>
+                <div className="flex items-center gap-3">
+                        <p className="text-xs font-black uppercase tracking-widest text-maruxa-rojo">
+                            Pedido #{pedido.id}
+                        </p>
+
+                        <span
+                            className={`rounded-full px-3 py-1 text-xs font-black ${
+                                pedido.estado === 'pendiente'
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : pedido.estado === 'listo'
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}
+                        >
+                            {pedido.estado}
+                        </span>
+                        </div>
 
                   <h2 className="mt-2 text-3xl font-black text-maruxa-chocolate">
                     {pedido.cliente}
@@ -176,18 +190,53 @@ export default function AdminPedidosPage() {
                   </div>
                 </div>
 
-                <div className="rounded-[28px] bg-maruxa-crema p-6">
-                  <p className="text-xs font-black uppercase tracking-widest text-maruxa-cafe/60">
-                    Total
-                  </p>
+                <div className="rounded-[28px] bg-maruxa-crema p-6 min-w-[260px]">
+  <p className="text-xs font-black uppercase tracking-widest text-maruxa-cafe/60">
+    Total
+  </p>
 
-                  <p className="mt-2 text-4xl font-black text-maruxa-vino">
-                    $
-                    {pedido.total.toLocaleString(
-                      'es-CL'
-                    )}
-                  </p>
-                </div>
+  <p className="mt-2 text-4xl font-black text-maruxa-vino">
+    $
+    {pedido.total.toLocaleString('es-CL')}
+  </p>
+
+  <select
+  value={pedido.estado || 'pendiente'}
+  onChange={(e) =>
+    cambiarEstado(
+      pedido.id,
+      e.target.value
+    )
+  }
+  className="mt-5 w-full rounded-2xl border border-maruxa-rojo/10 bg-white px-4 py-3 font-black"
+>
+  <option value="pendiente">
+    Pendiente
+  </option>
+
+  <option value="listo">
+    Listo para retiro
+  </option>
+
+  <option value="entregado">
+    Entregado
+  </option>
+</select>
+
+  <a
+    href={`https://wa.me/${pedido.telefono.replace(
+      /\D/g,
+      ''
+    )}?text=${encodeURIComponent(
+      `Hola ${pedido.cliente}, te contactamos desde Panadería Maruxa respecto a tu pedido #${pedido.id}.`
+    )}`}
+    target="_blank"
+    rel="noreferrer"
+    className="mt-3 block w-full rounded-2xl bg-green-600 px-4 py-3 text-center font-black text-white transition hover:opacity-90"
+  >
+    WhatsApp Cliente
+  </a>
+</div>
               </div>
 
               <div className="mt-8 rounded-[28px] bg-maruxa-crema p-5">
