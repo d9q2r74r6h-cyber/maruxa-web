@@ -30,6 +30,20 @@ export default function AdminPedidosPage() {
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [loading, setLoading] = useState(true);
 
+  async function cambiarEstado(id: number, estado: string) {
+    const { error } = await supabase
+      .from('pedidos')
+      .update({ estado })
+      .eq('id', id);
+  
+    if (error) {
+      alert(error.message);
+      return;
+    }
+  
+    cargarPedidos();
+  }
+
   async function cargarPedidos() {
     setLoading(true);
 

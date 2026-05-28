@@ -26,54 +26,7 @@ precio_20?: number | null;
 precio_25?: number | null;
 };
 
-const productosFallback: Producto[] = [
-  {
-    id: 1,
-    nombre: 'Pan amasado',
-    descripcion:
-      'Pan tradicional de la casa, horneado todos los días.',
-    precio: 1200,
-    categoria: 'Panadería',
-    imagen: null,
-    destacado: true,
-    slug: 'pan-amasado',
-    
-  },
-  {
-    id: 2,
-    nombre: 'Hallulla',
-    descripcion:
-      'Clásica hallulla chilena, suave y dorada.',
-    precio: 900,
-    categoria: 'Panadería',
-    imagen: null,
-    destacado: true,
-    slug: 'hallulla',
-  },
-  {
-    id: 3,
-    nombre: 'Torta milhojas',
-    descripcion:
-      'Torta artesanal con manjar y capas crujientes.',
-    precio: 18900,
-    categoria: 'Tortas',
-    imagen:
-      'https://kpbmcwtpkavtezwmltnn.supabase.co/storage/v1/object/public/productos/18-Pastel-Pina-2.jpg',
-    destacado: true,
-    slug: 'torta-milhojas',
-  },
-  {
-    id: 4,
-    nombre: 'Kuchen de manzana',
-    descripcion:
-      'Kuchen casero con manzana y masa suave.',
-    precio: 14900,
-    categoria: 'Pastelería',
-    imagen: null,
-    destacado: false,
-    slug: 'kuchen-manzana',
-  },
-];
+
 
 const tamanosTorta = [
   { nombre: '10 personas', extra: 0 },
@@ -84,7 +37,7 @@ const tamanosTorta = [
 
 export default function Catalogo() {
   const [productos, setProductos] =
-    useState<Producto[]>(productosFallback);
+  useState<Producto[]>([]);
 
   const [busqueda, setBusqueda] =
     useState('');
@@ -186,9 +139,9 @@ export default function Catalogo() {
       `.toLowerCase();
 
       const coincideBusqueda =
-        texto.includes(
-          busqueda.toLowerCase()
-        );
+      texto.includes(
+        busquedaDebounced.toLowerCase()
+      );
 
       const coincideCategoria =
         categoriaActiva === 'Todas' ||
