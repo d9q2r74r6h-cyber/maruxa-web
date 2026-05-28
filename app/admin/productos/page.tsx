@@ -355,7 +355,25 @@ precio_25: form.precio_25 ? Number(form.precio_25) : null,
               className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
             />
 
-{form.categoria === 'Tortas' && (
+
+
+            <select
+              value={form.categoria}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  categoria: e.target.value,
+                })
+              }
+              className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
+            >
+              <option>Panadería</option>
+              <option>Pastelería</option>
+              <option>Tortas</option>
+              <option>Empanadas</option>
+              <option>Especiales</option>
+            </select>
+            {form.categoria === 'Tortas' && (
   <>
     <input
       placeholder="Precio 10 personas"
@@ -411,23 +429,6 @@ precio_25: form.precio_25 ? Number(form.precio_25) : null,
   </>
 )}
 
-            <select
-              value={form.categoria}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  categoria: e.target.value,
-                })
-              }
-              className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
-            >
-              <option>Panadería</option>
-              <option>Pastelería</option>
-              <option>Tortas</option>
-              <option>Empanadas</option>
-              <option>Especiales</option>
-            </select>
-
             <input
               placeholder="URL imagen"
               value={form.imagen}
@@ -467,28 +468,28 @@ precio_25: form.precio_25 ? Number(form.precio_25) : null,
               Producto destacado
             </label>
             <div className="mt-6 flex flex-wrap gap-3">
-  <button
-    type="button"
-    onClick={
-      productoEditando
-        ? guardarCambios
-        : crearProducto
-    }
-    className="rounded-full bg-maruxa-rojo px-8 py-4 font-black text-white"
-  >
-    {productoEditando
-      ? 'Guardar cambios'
-      : 'Guardar producto'}
-  </button>
+            <button
+                type="button"
+                onClick={
+                productoEditando
+                    ? guardarCambios
+                    : crearProducto
+                }
+                className="rounded-full bg-maruxa-rojo px-8 py-4 font-black text-white"
+            >
+                {productoEditando
+                ? 'Guardar cambios'
+                : 'Guardar producto'}
+            </button>
 
-  <button
-    type="button"
-    onClick={limpiarFormulario}
-    className="rounded-full bg-maruxa-crema px-8 py-4 font-black text-maruxa-chocolate"
-  >
-    Limpiar formulario
-  </button>
-</div>
+            <button
+                type="button"
+                onClick={limpiarFormulario}
+                className="rounded-full bg-maruxa-crema px-8 py-4 font-black text-maruxa-chocolate"
+            >
+                Limpiar formulario
+            </button>
+            </div>
           </div>
 
           
