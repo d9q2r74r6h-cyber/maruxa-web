@@ -166,17 +166,39 @@ export default function AdminProductosPage() {
   }
 
   async function crearProducto() {
-    if (!form.nombre || !form.precio || !form.categoria) {
-      alert('Completa nombre, precio y categoría');
-      return;
-    }
+    if (!form.nombre || !form.categoria) {
+        alert('Completa nombre y categoría');
+        return;
+      }
+      
+      if (
+        form.categoria !== 'Tortas' &&
+        !form.precio
+      ) {
+        alert('Completa el precio');
+        return;
+      }
+      
+      if (
+        form.categoria === 'Tortas' &&
+        !form.precio_10 &&
+        !form.precio_15 &&
+        !form.precio_20 &&
+        !form.precio_25
+      ) {
+        alert('Completa al menos un precio de torta');
+        return;
+      }
 
     const { error } = await supabase
       .from('productos')
       .insert({
         nombre: form.nombre,
         descripcion: form.descripcion,
-        precio: Number(form.precio),
+        precio:
+        form.categoria === 'Tortas'
+            ? Number(form.precio_10 || 0)
+            : Number(form.precio),
         categoria: form.categoria,
         imagen: form.imagen || null,
         destacado: form.destacado,
@@ -330,50 +352,38 @@ precio_25: form.precio_25 ? Number(form.precio_25) : null,
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
 
-            <input
-              placeholder="Nombre"
-              value={form.nombre}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  nombre: e.target.value,
-                })
-              }
-              className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
-            />
+          <input
+  placeholder="Nombre"
+  value={form.nombre}
+  onChange={(e) =>
+    setForm({
+      ...form,
+      nombre: e.target.value,
+    })
+  }
+  className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
+/>
 
-            <input
-              placeholder="Precio"
-              type="number"
-              value={form.precio}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  precio: e.target.value,
-                })
-              }
-              className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
-            />
+<select
+  value={form.categoria}
+  onChange={(e) =>
+    setForm({
+      ...form,
+      categoria: e.target.value,
+    })
+  }
+  className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
+>
+  <option>Panadería</option>
+  <option>Pastelería</option>
+  <option>Tortas</option>
+  <option>Empanadas</option>
+  <option>Especiales</option>
+</select>
 
 
 
-            <select
-              value={form.categoria}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  categoria: e.target.value,
-                })
-              }
-              className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
-            >
-              <option>Panadería</option>
-              <option>Pastelería</option>
-              <option>Tortas</option>
-              <option>Empanadas</option>
-              <option>Especiales</option>
-            </select>
-            {form.categoria === 'Tortas' && (
+{form.categoria === 'Tortas' && (
   <>
     <input
       placeholder="Precio 10 personas"
@@ -429,44 +439,43 @@ precio_25: form.precio_25 ? Number(form.precio_25) : null,
   </>
 )}
 
-            <input
-              placeholder="URL imagen"
-              value={form.imagen}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  imagen: e.target.value,
-                })
-              }
-              className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
-            />
+<input
+  placeholder="URL imagen"
+  value={form.imagen}
+  onChange={(e) =>
+    setForm({
+      ...form,
+      imagen: e.target.value,
+    })
+  }
+  className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
+/>
 
-            <textarea
-              placeholder="Descripción"
-              value={form.descripcion}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  descripcion: e.target.value,
-                })
-              }
-              className="min-h-32 rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none md:col-span-2"
-            />
+<textarea
+  placeholder="Descripción"
+  value={form.descripcion}
+  onChange={(e) =>
+    setForm({
+      ...form,
+      descripcion: e.target.value,
+    })
+  }
+  className="min-h-32 rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none md:col-span-2"
+/>
 
-            <label className="flex items-center gap-3 font-black text-maruxa-chocolate">
-              <input
-                type="checkbox"
-                checked={form.destacado}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    destacado: e.target.checked,
-                  })
-                }
-              />
-
-              Producto destacado
-            </label>
+<label className="flex items-center gap-3 font-black text-maruxa-chocolate">
+  <input
+    type="checkbox"
+    checked={form.destacado}
+    onChange={(e) =>
+      setForm({
+        ...form,
+        destacado: e.target.checked,
+      })
+    }
+  />
+  Producto destacado
+</label>
             <div className="md:col-span-2 mt-6 flex flex-wrap gap-3">
             <button
                 type="button"
@@ -475,7 +484,7 @@ precio_25: form.precio_25 ? Number(form.precio_25) : null,
                     ? guardarCambios
                     : crearProducto
                 }
-                className="rounded-full bg-maruxa-rojo px-8 py-4 font-black text-white"
+                className="rounded-full bg-yellow-400 px-8 py-4 font-black text-black shadow-lg"
             >
                 {productoEditando
                 ? 'Guardar cambios'
@@ -485,7 +494,7 @@ precio_25: form.precio_25 ? Number(form.precio_25) : null,
             <button
                 type="button"
                 onClick={limpiarFormulario}
-                className="rounded-full bg-maruxa-crema px-8 py-4 font-black text-maruxa-chocolate"
+                className="rounded-full border border-black/10 bg-gray-200 px-8 py-4 font-black text-black"
             >
                 Limpiar formulario
             </button>
@@ -570,12 +579,18 @@ precio_25: form.precio_25 ? Number(form.precio_25) : null,
                     {producto.nombre}
                   </h3>
 
-                  <p className="mt-1 font-bold text-maruxa-cafe/70">
-                    $
-                    {producto.precio.toLocaleString(
-                      'es-CL'
+                  {producto.categoria === 'Tortas' ? (
+                    <div className="mt-1 text-sm font-bold text-maruxa-cafe/70">
+                        <p>10p: ${producto.precio_10?.toLocaleString('es-CL') || '—'}</p>
+                        <p>15p: ${producto.precio_15?.toLocaleString('es-CL') || '—'}</p>
+                        <p>20p: ${producto.precio_20?.toLocaleString('es-CL') || '—'}</p>
+                        <p>25p: ${producto.precio_25?.toLocaleString('es-CL') || '—'}</p>
+                    </div>
+                    ) : (
+                    <p className="mt-1 font-bold text-maruxa-cafe/70">
+                        ${producto.precio.toLocaleString('es-CL')}
+                    </p>
                     )}
-                  </p>
                 </div>
 
                 <div className="flex flex-wrap gap-3">
