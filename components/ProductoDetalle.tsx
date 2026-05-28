@@ -183,28 +183,45 @@ const [tamano, setTamano] = useState<TamanoTorta>(tamanos[0]);
                 </p>
               </div>
 
-              <button
-                onClick={() => {
-                  addItem({
-                    id: producto.id,
-                    nombre: producto.nombre,
-                    precio: precioFinal,
-                    imagen: producto.imagen,
-                    tamano: esTorta ? tamano.nombre : undefined,
-                    cantidad: 1,
-                  });
+              <div className="flex flex-col gap-3">
+  <button
+    onClick={() => {
+      addItem({
+        id: producto.id,
+        nombre: producto.nombre,
+        precio: precioFinal,
+        imagen: producto.imagen,
+        tamano: esTorta
+          ? tamano.nombre
+          : undefined,
+        cantidad: 1,
+      });
 
-                  toast.success(
-                    `${producto.nombre}${esTorta ? ` (${tamano.nombre})` : ''} agregado al carrito`,
-                    {
-                      description: `Total producto: $${precioFinal.toLocaleString('es-CL')}`,
-                    }
-                  );
-                }}
-                className="btn-rojo"
-              >
-                Agregar al carrito
-              </button>
+      toast.success(
+        `${producto.nombre} agregado al carrito`
+      );
+    }}
+    className="btn-rojo"
+  >
+    Agregar al carrito
+  </button>
+
+  <div className="grid grid-cols-2 gap-3">
+    <a
+      href="/"
+     className="rounded-full bg-[#F5E7D2] px-5 py-4 text-center text-sm font-black text-maruxa-chocolate shadow-sm"
+    >
+      Seguir comprando
+    </a>
+
+    <a
+      href="/checkout"
+      className="rounded-full bg-maruxa-rojo px-5 py-4 text-center text-sm font-black text-white shadow-premium"
+    >
+      Ir al pago
+    </a>
+  </div>
+</div>
             </div>
 
             <div className="mt-6 border-t border-maruxa-rojo/10 pt-6 text-sm font-bold leading-7 text-maruxa-cafe/75">

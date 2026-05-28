@@ -12,25 +12,36 @@ export function CheckoutPage() {
   const { items, clearCart } = useCart();
 
   const [loading, setLoading] = useState(false);
-
   const [fecha, setFecha] = useState<Date>();
 
   const total = useMemo(() => {
     return items.reduce(
-      (acc, item) =>
-        acc + item.precio * item.cantidad,
+      (acc, item) => acc + item.precio * item.cantidad,
       0
     );
   }, [items]);
 
-  async function finalizar(
-    e: React.FormEvent<HTMLFormElement>
-  ) {
+  const tieneTortas = useMemo(() => {
+    return items.some((item) => item.tamano);
+  }, [items]);
+
+  async function finalizar(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
     if (!fecha) {
       alert('Selecciona una fecha.');
       return;
+    }
+
+    if (tieneTortas) {
+      const ahora = new Date();
+      const diferencia = fecha.getTime() - ahora.getTime();
+      const horas = diferencia / (1000 * 60 * 60);
+
+      if (horas < 24) {
+        alert('Las tortas requieren mínimo 24 horas de anticipación.');
+        return;
+      }
     }
 
     setLoading(true);
@@ -40,15 +51,12 @@ export function CheckoutPage() {
     const cliente = String(form.get('cliente'));
     const telefono = String(form.get('telefono'));
     const hora = String(form.get('hora'));
-    const observaciones = String(
-      form.get('observaciones')
-    );
+    const observaciones = String(form.get('observaciones'));
 
-    const fechaTexto = format(
-      fecha,
-      'dd/MM/yyyy',
-      { locale: es }
-    );
+    const fechaTexto = format(fecha, 'yyyy-MM-dd');
+const fechaWhatsApp = format(fecha, 'dd/MM/yyyy', {
+  locale: es,
+});
 
     const pedido = {
       cliente,
@@ -61,12 +69,11 @@ export function CheckoutPage() {
       estado: 'pendiente',
     };
 
-    const { error } = await supabase
-      .from('pedidos')
-      .insert([pedido]);
+    const { error } = await supabase.from('pedidos').insert([pedido]);
 
     if (error) {
-      alert('No se pudo guardar el pedido.');
+      console.error('Error guardando pedido:', error);
+      alert(`No se pudo guardar el pedido: ${error.message}`);
       setLoading(false);
       return;
     }
@@ -83,12 +90,10 @@ export function CheckoutPage() {
     const mensaje = encodeURIComponent(
       `Hola Maruxa, quiero confirmar este pedido:%0A%0A` +
         resumen +
-        `%0A%0ATotal: $${total.toLocaleString(
-          'es-CL'
-        )}` +
+        `%0A%0ATotal: $${total.toLocaleString('es-CL')}` +
         `%0A%0ACliente: ${cliente}` +
         `%0ATeléfono: ${telefono}` +
-        `%0AFecha retiro: ${fechaTexto}` +
+        `%0AFecha retiro: ${fechaWhatsApp}` +
         `%0AHora retiro: ${hora}` +
         `%0AObservaciones: ${observaciones}`
     );
@@ -96,13 +101,30 @@ export function CheckoutPage() {
     clearCart();
 
     window.location.href =
-      `https://wa.me/56233663241?text=${mensaje}`;
+  `/pedido-exitoso?mensaje=${mensaje}&total=${total}&cliente=${encodeURIComponent(
+    cliente
+  )}&telefono=${encodeURIComponent(
+    telefono
+  )}&fecha=${encodeURIComponent(
+    fechaWhatsApp
+  )}&hora=${encodeURIComponent(
+    hora
+  )}&observaciones=${encodeURIComponent(
+    observaciones
+  )}`
   }
 
   if (items.length === 0) {
     return (
       <main className="min-h-screen bg-maruxa-crema py-24">
         <div className="contenedor">
+          <a
+            href="/"
+            className="mb-6 inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-black text-maruxa-chocolate shadow-premium transition hover:scale-105"
+          >
+            ← Seguir comprando
+          </a>
+
           <h1 className="text-5xl font-black text-maruxa-chocolate">
             Tu carrito está vacío
           </h1>
@@ -114,8 +136,13 @@ export function CheckoutPage() {
   return (
     <main className="min-h-screen bg-maruxa-crema py-20">
       <div className="contenedor grid gap-10 lg:grid-cols-[1fr_420px]">
-
         <div>
+          <a
+            href="/"
+            className="mb-6 inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-black text-maruxa-chocolate shadow-premium transition hover:scale-105"
+          >
+            ← Seguir comprando
+          </a>
 
           <p className="font-black uppercase tracking-[.24em] text-maruxa-rojo">
             Checkout Maruxa
@@ -125,11 +152,13 @@ export function CheckoutPage() {
             Finalizar pedido
           </h1>
 
-          <form
-            onSubmit={finalizar}
-            className="mt-10 space-y-6"
-          >
+          {tieneTortas && (
+            <div className="mt-6 rounded-[24px] border border-maruxa-rojo/10 bg-white p-5 font-bold text-maruxa-chocolate shadow-premium">
+              Las tortas requieren mínimo 24 horas de anticipación para retiro.
+            </div>
+          )}
 
+          <form onSubmit={finalizar} className="mt-10 space-y-6">
             <input
               name="cliente"
               required
@@ -144,10 +173,11 @@ export function CheckoutPage() {
               className="w-full rounded-[24px] border border-maruxa-rojo/10 bg-white px-5 py-5 font-bold outline-none"
             />
 
-            <CalendarioRetiro
-              fecha={fecha}
-              setFecha={setFecha}
-            />
+            <div className="rounded-[24px] bg-white p-4 shadow-premium">
+              <div className="mx-auto w-fit">
+                <CalendarioRetiro fecha={fecha} setFecha={setFecha} />
+              </div>
+            </div>
 
             <input
               name="hora"
@@ -162,37 +192,26 @@ export function CheckoutPage() {
               className="min-h-[160px] w-full rounded-[24px] border border-maruxa-rojo/10 bg-white px-5 py-5 font-bold outline-none"
             />
 
-            <button
-              disabled={loading}
-              className="btn-rojo w-full"
-            >
-              {loading
-                ? 'Procesando...'
-                : 'Confirmar pedido'}
+            <button disabled={loading} className="btn-rojo w-full">
+              {loading ? 'Procesando...' : 'Confirmar pedido'}
             </button>
-
           </form>
         </div>
 
-        <aside className="card-premium h-fit rounded-[40px] p-6">
-
+        <aside className="card-premium top-24 h-fit rounded-[40px] p-6 lg:sticky">
           <h2 className="text-3xl font-black text-maruxa-chocolate">
             Resumen
           </h2>
 
           <div className="mt-6 space-y-4">
-
             {items.map((item) => (
               <div
                 key={`${item.id}-${item.tamano}`}
                 className="rounded-[24px] bg-white p-4"
               >
                 <div className="flex items-start justify-between gap-3">
-
                   <div>
-                    <h3 className="font-black">
-                      {item.nombre}
-                    </h3>
+                    <h3 className="font-black">{item.nombre}</h3>
 
                     {item.tamano && (
                       <p className="text-sm font-bold text-maruxa-cafe/70">
@@ -206,21 +225,14 @@ export function CheckoutPage() {
                   </div>
 
                   <p className="font-black text-maruxa-vino">
-                    $
-                    {(
-                      item.precio *
-                      item.cantidad
-                    ).toLocaleString('es-CL')}
+                    ${(item.precio * item.cantidad).toLocaleString('es-CL')}
                   </p>
-
                 </div>
               </div>
             ))}
-
           </div>
 
           <div className="mt-8 border-t border-maruxa-rojo/10 pt-6">
-
             <div className="flex items-center justify-between">
               <p className="text-sm font-black uppercase tracking-widest text-maruxa-cafe/60">
                 Total
@@ -230,10 +242,8 @@ export function CheckoutPage() {
                 ${total.toLocaleString('es-CL')}
               </p>
             </div>
-
           </div>
         </aside>
-
       </div>
     </main>
   );

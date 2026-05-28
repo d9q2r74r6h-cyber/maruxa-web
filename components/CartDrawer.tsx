@@ -56,7 +56,7 @@ export function CartDrawer() {
     <>
       <button
   onClick={() => setOpen(true)}
-  className={`fixed bottom-5 right-5 z-[90] flex items-center gap-3 rounded-full bg-maruxa-rojo px-5 py-4 text-sm font-black text-white shadow-2xl transition hover:scale-105 active:scale-95 lg:bottom-8 lg:right-8 ${
+  className={`fixed bottom-5 right-5 z-[90] flex items-center gap-3 rounded-full bg-[#8f2028] px-6 py-5 text-base font-black text-white shadow-[0_18px_45px_rgba(143,32,40,0.45)] ring-4 ring-white transition hover:scale-105 active:scale-95 lg:bottom-8 lg:right-8 ${
     cantidadTotal > 0 ? 'animate-pulse' : ''
   }`}>
 <ShoppingBag
@@ -89,11 +89,11 @@ export function CartDrawer() {
         />
 
         <div
-          className={`absolute right-0 top-0 flex h-full w-full max-w-[480px] flex-col bg-maruxa-crema shadow-2xl transition duration-300 ${
+         className={`absolute right-0 top-0 flex h-full w-full max-w-[500px] flex-col bg-[#F7E8D3] shadow-[0_25px_80px_rgba(0,0,0,0.35)] transition duration-300 ${
             open ? 'translate-x-0' : 'translate-x-full'
           }`}
         >
-          <div className="flex items-center justify-between border-b border-maruxa-rojo/10 p-6">
+          <div className="flex items-center justify-between border-b border-maruxa-rojo/10 bg-white/70 p-6 backdrop-blur-md">
 
             <div>
               <p className="text-xs font-black uppercase tracking-widest text-maruxa-rojo">

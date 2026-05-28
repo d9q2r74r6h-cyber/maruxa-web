@@ -381,7 +381,20 @@ precio_25: form.precio_25 ? Number(form.precio_25) : null,
   <option>Especiales</option>
 </select>
 
-
+{form.categoria !== 'Tortas' && (
+  <input
+    placeholder="Precio"
+    type="number"
+    value={form.precio}
+    onChange={(e) =>
+      setForm({
+        ...form,
+        precio: e.target.value,
+      })
+    }
+    className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
+  />
+)}
 
 {form.categoria === 'Tortas' && (
   <>

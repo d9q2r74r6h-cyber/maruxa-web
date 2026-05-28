@@ -34,9 +34,13 @@ export function Header() {
             />
           </Link>
 
-          <nav className="hidden items-center gap-8 text-sm font-black text-maruxa-cafe lg:flex">
+          <nav className="hidden items-center gap-5 text-[12px] font-black uppercase tracking-[.14em] text-maruxa-cafe/80 lg:flex">
             {links.map((l) => (
-              <Link key={l.href} href={l.href} className="transition hover:text-maruxa-rojo">
+              <Link
+              key={l.href}
+              href={l.href}
+              className="rounded-full px-2 py-2 transition hover:bg-white/60 hover:text-maruxa-rojo"
+            >
                 {l.label}
               </Link>
             ))}

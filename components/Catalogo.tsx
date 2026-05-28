@@ -20,6 +20,10 @@ type Producto = {
   imagen: string | null;
   destacado: boolean;
   slug: string | null;
+  precio_10?: number | null;
+precio_15?: number | null;
+precio_20?: number | null;
+precio_25?: number | null;
 };
 
 const productosFallback: Producto[] = [
@@ -33,6 +37,7 @@ const productosFallback: Producto[] = [
     imagen: null,
     destacado: true,
     slug: 'pan-amasado',
+    
   },
   {
     id: 2,
@@ -130,23 +135,28 @@ export default function Catalogo() {
   }
 
   function precioConTamano(producto: Producto) {
-    if (!esTorta(producto))
-      return producto.precio;
-
+    if (!esTorta(producto)) return producto.precio;
+  
     const seleccionado =
-      tamanoSeleccionado[producto.id] ||
-      '10 personas';
-
-    const tamano =
-      tamanosTorta.find(
-        (t) =>
-          t.nombre === seleccionado
-      );
-
-    return (
-      producto.precio +
-      (tamano?.extra || 0)
-    );
+      tamanoSeleccionado[producto.id] || '10 personas';
+  
+    if (seleccionado === '10 personas') {
+      return producto.precio_10 || producto.precio;
+    }
+  
+    if (seleccionado === '15 personas') {
+      return producto.precio_15 || producto.precio;
+    }
+  
+    if (seleccionado === '20 personas') {
+      return producto.precio_20 || producto.precio;
+    }
+  
+    if (seleccionado === '25 personas') {
+      return producto.precio_25 || producto.precio;
+    }
+  
+    return producto.precio;
   }
 
   function slugProducto(producto: Producto) {
