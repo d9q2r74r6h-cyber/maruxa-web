@@ -1,4 +1,5 @@
 'use client';
+
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { useCart } from '@/lib/cart';
@@ -15,18 +16,24 @@ type Producto = {
   categoria: string;
   imagen: string | null;
   slug: string | null;
+  precio_10: number | null;
+  precio_15: number | null;
+  precio_20: number | null;
+  precio_25: number | null;
 };
 
 const tamanos = [
-  { nombre: '10 personas', extra: 0 },
-  { nombre: '15 personas', extra: 6000 },
-  { nombre: '20 personas', extra: 12000 },
-  { nombre: '25 personas', extra: 18000 },
-];
+  { nombre: '10 personas', campo: 'precio_10' },
+  { nombre: '15 personas', campo: 'precio_15' },
+  { nombre: '20 personas', campo: 'precio_20' },
+  { nombre: '25 personas', campo: 'precio_25' },
+] as const;
 
 export default function ProductoDetalle({ slug }: { slug: string }) {
   const [producto, setProducto] = useState<Producto | null>(null);
-  const [tamano, setTamano] = useState(tamanos[0]);
+  type TamanoTorta = (typeof tamanos)[number];
+
+const [tamano, setTamano] = useState<TamanoTorta>(tamanos[0]);
   const [cargando, setCargando] = useState(true);
 
   const addItem = useCart((s) => s.addItem);
@@ -72,17 +79,12 @@ export default function ProductoDetalle({ slug }: { slug: string }) {
     .toLowerCase()
     .includes('torta');
 
-  const precioFinal =
-    producto.precio + (esTorta ? tamano.extra : 0);
-
-  const mensaje = encodeURIComponent(
-    `Hola Maruxa, quiero pedir ${producto.nombre}` +
-      `${esTorta ? ` tamaño ${tamano.nombre}` : ''}.`
-  );
+  const precioFinal = esTorta
+    ? producto[tamano.campo] || producto.precio
+    : producto.precio;
 
   return (
     <main className="min-h-screen bg-maruxa-crema py-20">
-
       <div className="contenedor mb-8 text-sm font-bold text-maruxa-cafe/70">
         <a href="/" className="hover:text-maruxa-rojo">
           Inicio
@@ -90,10 +92,7 @@ export default function ProductoDetalle({ slug }: { slug: string }) {
 
         <span className="mx-2">/</span>
 
-        <a
-          href="/#catalogo"
-          className="hover:text-maruxa-rojo"
-        >
+        <a href="/#catalogo" className="hover:text-maruxa-rojo">
           Productos
         </a>
 
@@ -105,9 +104,7 @@ export default function ProductoDetalle({ slug }: { slug: string }) {
       </div>
 
       <div className="contenedor grid gap-10 lg:grid-cols-2">
-
         <motion.div className="relative h-[620px] overflow-hidden rounded-[44px] bg-white shadow-premium">
-
           {producto.imagen ? (
             <Image
               src={producto.imagen}
@@ -125,7 +122,6 @@ export default function ProductoDetalle({ slug }: { slug: string }) {
         </motion.div>
 
         <motion.div className="flex flex-col justify-center">
-
           <span className="w-fit rounded-full bg-maruxa-rojo/10 px-4 py-2 text-xs font-black uppercase tracking-widest text-maruxa-rojo">
             {producto.categoria}
           </span>
@@ -140,16 +136,14 @@ export default function ProductoDetalle({ slug }: { slug: string }) {
 
           {esTorta && (
             <div className="mt-10">
-
               <p className="mb-4 text-sm font-black uppercase tracking-widest text-maruxa-rojo">
                 Elige tamaño
               </p>
 
               <div className="grid gap-3 sm:grid-cols-2">
-
                 {tamanos.map((t) => {
-                  const activo =
-                    tamano.nombre === t.nombre;
+                  const activo = tamano.nombre === t.nombre;
+                  const precioTamano = producto[t.campo];
 
                   return (
                     <button
@@ -166,9 +160,9 @@ export default function ProductoDetalle({ slug }: { slug: string }) {
                       </p>
 
                       <p className="mt-1 text-sm font-bold opacity-80">
-                        {t.extra > 0
-                          ? `+$${t.extra.toLocaleString('es-CL')}`
-                          : 'Precio base'}
+                        {precioTamano
+                          ? `$${precioTamano.toLocaleString('es-CL')}`
+                          : 'Sin precio'}
                       </p>
                     </button>
                   );
@@ -178,9 +172,7 @@ export default function ProductoDetalle({ slug }: { slug: string }) {
           )}
 
           <div className="mt-10 rounded-[34px] bg-white p-6 shadow-premium">
-
             <div className="flex items-center justify-between gap-6">
-
               <div>
                 <p className="text-sm font-black uppercase tracking-widest text-maruxa-cafe/60">
                   Precio
@@ -198,9 +190,7 @@ export default function ProductoDetalle({ slug }: { slug: string }) {
                     nombre: producto.nombre,
                     precio: precioFinal,
                     imagen: producto.imagen,
-                    tamano: esTorta
-                      ? tamano.nombre
-                      : undefined,
+                    tamano: esTorta ? tamano.nombre : undefined,
                     cantidad: 1,
                   });
 
@@ -219,12 +209,8 @@ export default function ProductoDetalle({ slug }: { slug: string }) {
 
             <div className="mt-6 border-t border-maruxa-rojo/10 pt-6 text-sm font-bold leading-7 text-maruxa-cafe/75">
               <p>Retiro en local.</p>
-              <p>
-                Pedidos especiales con mínimo 24 horas.
-              </p>
-              <p>
-                Confirmación final vía WhatsApp.
-              </p>
+              <p>Pedidos especiales con mínimo 24 horas.</p>
+              <p>Confirmación final vía WhatsApp.</p>
             </div>
           </div>
         </motion.div>
@@ -248,8 +234,7 @@ export default function ProductoDetalle({ slug }: { slug: string }) {
               '@type': 'Offer',
               price: precioFinal,
               priceCurrency: 'CLP',
-              availability:
-                'https://schema.org/InStock',
+              availability: 'https://schema.org/InStock',
               url: `https://panaderiamaruxa.cl/productos/${producto.slug}`,
             },
           }),
