@@ -16,6 +16,15 @@ type Producto = {
 
 const CLAVE_ADMIN = 'maruxa1962';
 
+const formInicial = {
+  nombre: '',
+  descripcion: '',
+  precio: '',
+  categoria: 'Panadería',
+  imagen: '',
+  destacado: false,
+};
+
 function crearSlug(texto: string) {
   return texto
     .toLowerCase()
@@ -29,42 +38,46 @@ function crearSlug(texto: string) {
 function obtenerNombreArchivo(url: string | null) {
   if (!url) return '';
 
-  return decodeURIComponent(url.split('/').pop() || '');
-}
+  const archivo = decodeURIComponent(url.split('/').pop() || '');
 
-const formInicial = {
-  nombre: '',
-  descripcion: '',
-  precio: '',
-  categoria: 'Panadería',
-  imagen: '',
-  destacado: false,
-};
+  return archivo.replace(/\.[^/.]+$/, '');
+}
 
 export default function AdminProductosPage() {
   const [clave, setClave] = useState('');
   const [autorizado, setAutorizado] = useState(false);
   const [productos, setProductos] = useState<Producto[]>([]);
   const [cargando, setCargando] = useState(false);
-  const [productoEditando, setProductoEditando] =
-    useState<Producto | null>(null);
+  const [productoEditando, setProductoEditando] = useState<Producto | null>(
+    null
+  );
 
   const [form, setForm] = useState(formInicial);
+
+  const totalProductos = useMemo(() => productos.length, [productos]);
 
   async function cargarProductos() {
     setCargando(true);
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('productos')
       .select('*')
       .order('id', { ascending: false });
+
+    if (error) {
+      alert(error.message);
+      setCargando(false);
+      return;
+    }
 
     setProductos((data as Producto[]) || []);
     setCargando(false);
   }
 
   useEffect(() => {
-    if (autorizado) cargarProductos();
+    if (autorizado) {
+      cargarProductos();
+    }
   }, [autorizado]);
 
   function entrar() {
@@ -92,6 +105,8 @@ export default function AdminProductosPage() {
       imagen: producto.imagen || '',
       destacado: producto.destacado,
     });
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   async function crearProducto() {
@@ -119,7 +134,7 @@ export default function AdminProductosPage() {
     cargarProductos();
   }
 
-  async function actualizarProducto() {
+  async function guardarCambios() {
     if (!productoEditando) return;
 
     if (!form.nombre || !form.precio || !form.categoria) {
@@ -154,10 +169,7 @@ export default function AdminProductosPage() {
 
     if (!confirmar) return;
 
-    const { error } = await supabase
-      .from('productos')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from('productos').delete().eq('id', id);
 
     if (error) {
       alert(error.message);
@@ -182,11 +194,6 @@ export default function AdminProductosPage() {
 
     cargarProductos();
   }
-
-  const totalProductos = useMemo(
-    () => productos.length,
-    [productos]
-  );
 
   if (!autorizado) {
     return (
@@ -255,9 +262,7 @@ export default function AdminProductosPage() {
             <input
               placeholder="Nombre"
               value={form.nombre}
-              onChange={(e) =>
-                setForm({ ...form, nombre: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, nombre: e.target.value })}
               className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
             />
 
@@ -265,17 +270,13 @@ export default function AdminProductosPage() {
               placeholder="Precio"
               type="number"
               value={form.precio}
-              onChange={(e) =>
-                setForm({ ...form, precio: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, precio: e.target.value })}
               className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
             />
 
             <select
               value={form.categoria}
-              onChange={(e) =>
-                setForm({ ...form, categoria: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, categoria: e.target.value })}
               className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
             >
               <option>Panadería</option>
@@ -288,9 +289,7 @@ export default function AdminProductosPage() {
             <input
               placeholder="URL imagen"
               value={form.imagen}
-              onChange={(e) =>
-                setForm({ ...form, imagen: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, imagen: e.target.value })}
               className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
             />
 
@@ -308,10 +307,7 @@ export default function AdminProductosPage() {
                 type="checkbox"
                 checked={form.destacado}
                 onChange={(e) =>
-                  setForm({
-                    ...form,
-                    destacado: e.target.checked,
-                  })
+                  setForm({ ...form, destacado: e.target.checked })
                 }
               />
               Producto destacado
@@ -319,19 +315,23 @@ export default function AdminProductosPage() {
           </div>
 
           <div className="mt-6 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={
-                productoEditando
-                  ? actualizarProducto
-                  : crearProducto
-              }
-              className="rounded-full bg-maruxa-rojo px-8 py-4 font-black text-white"
-            >
-              {productoEditando
-                ? 'Guardar cambios'
-                : 'Crear producto'}
-            </button>
+            {productoEditando ? (
+              <button
+                type="button"
+                onClick={guardarCambios}
+                className="rounded-full bg-maruxa-rojo px-8 py-4 font-black text-white"
+              >
+                Guardar cambios
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={crearProducto}
+                className="rounded-full bg-maruxa-rojo px-8 py-4 font-black text-white"
+              >
+                Crear producto
+              </button>
+            )}
 
             {productoEditando && (
               <button
@@ -353,11 +353,11 @@ export default function AdminProductosPage() {
           )}
 
           {productos.map((producto) => (
-           <article
-           key={producto.id}
-           onClick={() => editarProducto(producto)}
-           className="cursor-pointer rounded-[28px] bg-white p-5 shadow-premium transition hover:-translate-y-1 hover:ring-2 hover:ring-maruxa-rojo/20"
-         >
+            <article
+              key={producto.id}
+              onClick={() => editarProducto(producto)}
+              className="cursor-pointer rounded-[28px] bg-white p-5 shadow-premium transition hover:-translate-y-1 hover:ring-2 hover:ring-maruxa-rojo/20"
+            >
               <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
                 <div>
                   <p className="text-xs font-black uppercase tracking-widest text-maruxa-rojo">
@@ -386,7 +386,10 @@ export default function AdminProductosPage() {
                 <div className="flex flex-wrap gap-3">
                   <button
                     type="button"
-                    onClick={() => editarProducto(producto)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      editarProducto(producto);
+                    }}
                     className="rounded-full bg-maruxa-rojo px-5 py-3 text-sm font-black text-white"
                   >
                     Editar
@@ -395,24 +398,22 @@ export default function AdminProductosPage() {
                   <button
                     type="button"
                     onClick={(e) => {
-                        e.stopPropagation();
-                        toggleDestacado(producto);
-                      }}
+                      e.stopPropagation();
+                      toggleDestacado(producto);
+                    }}
                     className="rounded-full bg-maruxa-crema px-5 py-3 text-sm font-black text-maruxa-chocolate"
                   >
-                    {producto.destacado
-                      ? 'Quitar destacado'
-                      : 'Destacar'}
+                    {producto.destacado ? 'Quitar destacado' : 'Destacar'}
                   </button>
 
                   <button
-                        type="button"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            eliminarProducto(producto.id);
-                        }}
-                        className="rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white"
-                        >
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      eliminarProducto(producto.id);
+                    }}
+                    className="rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white"
+                  >
                     Eliminar
                   </button>
                 </div>
