@@ -467,7 +467,7 @@ precio_25: form.precio_25 ? Number(form.precio_25) : null,
 
               Producto destacado
             </label>
-            <div className="mt-6 flex flex-wrap gap-3">
+            <div className="md:col-span-2 mt-6 flex flex-wrap gap-3">
             <button
                 type="button"
                 onClick={
