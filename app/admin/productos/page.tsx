@@ -353,10 +353,11 @@ export default function AdminProductosPage() {
           )}
 
           {productos.map((producto) => (
-            <article
-              key={producto.id}
-              className="rounded-[28px] bg-white p-5 shadow-premium"
-            >
+           <article
+           key={producto.id}
+           onClick={() => editarProducto(producto)}
+           className="cursor-pointer rounded-[28px] bg-white p-5 shadow-premium transition hover:-translate-y-1 hover:ring-2 hover:ring-maruxa-rojo/20"
+         >
               <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
                 <div>
                   <p className="text-xs font-black uppercase tracking-widest text-maruxa-rojo">
@@ -393,7 +394,10 @@ export default function AdminProductosPage() {
 
                   <button
                     type="button"
-                    onClick={() => toggleDestacado(producto)}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        toggleDestacado(producto);
+                      }}
                     className="rounded-full bg-maruxa-crema px-5 py-3 text-sm font-black text-maruxa-chocolate"
                   >
                     {producto.destacado
@@ -402,10 +406,13 @@ export default function AdminProductosPage() {
                   </button>
 
                   <button
-                    type="button"
-                    onClick={() => eliminarProducto(producto.id)}
-                    className="rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white"
-                  >
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            eliminarProducto(producto.id);
+                        }}
+                        className="rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white"
+                        >
                     Eliminar
                   </button>
                 </div>
