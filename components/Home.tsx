@@ -1,18 +1,19 @@
 'use client';
 import { MobileCartBar } from '@/components/MobileCartBar'; 
 import { CartDrawer } from '@/components/CartDrawer';
-import { FormularioTortas } from '@/components/FormularioTortas';
+
 import Catalogo from '@/components/Catalogo';
 import { motion } from 'framer-motion';
 import {
   Clock,
   MapPin,
   Phone,
-  Sparkles,
   ShieldCheck,
 } from 'lucide-react';
 
 import { telefonoVisible, whatsapp } from '@/lib/datos';
+import { Suspense } from 'react';
+
 
 export function Home() {
   const mensaje = encodeURIComponent(
@@ -107,33 +108,11 @@ export function Home() {
         </div>
       </section>
 
-      <Catalogo />
+      <Suspense fallback={<div>Cargando...</div>}>
+        <Catalogo />
+      </Suspense>
 
-      <section
-        id="tortas"
-        className="bg-maruxa-chocolate py-24 text-maruxa-crema"
-      >
-        <div className="contenedor grid gap-10 lg:grid-cols-2">
-
-          <div>
-            <Sparkles
-              className="mb-6 text-maruxa-dorado"
-              size={40}
-            />
-
-            <h2 className="text-5xl font-black tracking-[-.04em]">
-              Pedido de tortas
-            </h2>
-
-            <p className="mt-5 text-xl leading-8 text-maruxa-crema/78">
-              Flujo simple, directo y con foco en cerrar el pedido.
-              Para tortas, exigir retiro con 24 horas de anticipación.
-            </p>
-          </div>
-
-          <FormularioTortas />
-        </div>
-      </section>
+      
 
       <section id="retiro" className="py-20">
         <div className="contenedor grid gap-6 md:grid-cols-3">

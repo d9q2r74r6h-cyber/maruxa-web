@@ -14,15 +14,14 @@ export function Header() {
 
   const links = [
     { href: '/#catalogo', label: 'Catálogo' },
-    { href: '/#tortas', label: 'Tortas' },
+    { href: '/?categoria=Tortas#catalogo', label: 'Tortas' },
     { href: '/#retiro', label: 'Retiro' },
-    { href: '/admin', label: 'Admin' },
   ];
 
   return (
     <>
       <header className="sticky top-0 z-50 border-b border-maruxa-cafe/10 bg-maruxa-crema/85 backdrop-blur-2xl">
-        <div className="contenedor flex h-20 items-center justify-between">
+      <div className="contenedor flex min-h-24 items-center justify-between py-2">
           <Link href="/" className="flex items-center gap-4">
             <Image
               src="/logo-maruxa.png"
@@ -31,6 +30,10 @@ export function Header() {
               height={70}
               className="object-contain"
               priority
+              style={{
+                width: 'auto',
+                height: 'auto',
+              }}
             />
           </Link>
 
@@ -85,7 +88,11 @@ export function Header() {
           }`}
         >
           <div className="flex h-20 items-center justify-between border-b border-maruxa-rojo/10 px-6">
-            <Image src="/logo-maruxa.png" alt="Maruxa" width={140} height={60} className="object-contain" />
+            <Image src="/logo-maruxa.png" alt="Maruxa" width={140} height={60} className="object-contain" 
+               style={{
+                width: 'auto',
+                height: 'auto',
+              }}/>
 
             <button
               onClick={() => setOpen(false)}

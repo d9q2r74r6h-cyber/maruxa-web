@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 
 import { supabase } from '@/lib/supabase';
+import { useSearchParams } from 'next/navigation';
 
 type Producto = {
   id: number;
@@ -36,6 +37,8 @@ const tamanosTorta = [
 ];
 
 export default function Catalogo() {
+
+  const searchParams = useSearchParams();
   const [productos, setProductos] =
   useState<Producto[]>([]);
 
@@ -45,13 +48,23 @@ export default function Catalogo() {
   const [busquedaDebounced, setBusquedaDebounced] = useState('');  
 
   const [categoriaActiva, setCategoriaActiva] =
-    useState('Todas');
+  useState(
+    searchParams.get('categoria') || 'Todas'
+  );
 
   const [orden, setOrden] =
     useState('destacados');
 
   const [tamanoSeleccionado, setTamanoSeleccionado] =
     useState<Record<number, string>>({});
+
+    useEffect(() => {
+      const categoria = searchParams.get('categoria');
+    
+      if (categoria) {
+        setCategoriaActiva(categoria);
+      }
+    }, [searchParams]);   
 
   useEffect(() => {
     async function cargarProductos() {
