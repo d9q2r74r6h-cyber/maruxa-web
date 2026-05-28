@@ -35,26 +35,26 @@ function crearSlug(texto: string) {
     .replace(/(^-|-$)/g, '');
 }
 
-function obtenerNombreArchivo(url: string | null) {
-  if (!url) return '';
-
-  const archivo = decodeURIComponent(url.split('/').pop() || '');
-
-  return archivo.replace(/\.[^/.]+$/, '');
-}
-
 export default function AdminProductosPage() {
   const [clave, setClave] = useState('');
   const [autorizado, setAutorizado] = useState(false);
+
   const [productos, setProductos] = useState<Producto[]>([]);
   const [cargando, setCargando] = useState(false);
-  const [productoEditando, setProductoEditando] = useState<Producto | null>(
-    null
-  );
+
+  const [productoEditando, setProductoEditando] =
+    useState<Producto | null>(null);
+
+  const [imagenesStorage, setImagenesStorage] = useState<
+    { nombre: string; url: string }[]
+  >([]);
 
   const [form, setForm] = useState(formInicial);
 
-  const totalProductos = useMemo(() => productos.length, [productos]);
+  const totalProductos = useMemo(
+    () => productos.length,
+    [productos]
+  );
 
   async function cargarProductos() {
     setCargando(true);
@@ -74,9 +74,45 @@ export default function AdminProductosPage() {
     setCargando(false);
   }
 
+  async function cargarImagenesStorage() {
+    const { data, error } = await supabase.storage
+      .from('productos')
+      .list('', {
+        limit: 100,
+        sortBy: {
+          column: 'name',
+          order: 'asc',
+        },
+      });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    const imagenes =
+      data
+        ?.filter((archivo) =>
+          archivo.name.match(/\.(jpg|jpeg|png|webp)$/i)
+        )
+        .map((archivo) => {
+          const { data: publicUrl } = supabase.storage
+            .from('productos')
+            .getPublicUrl(archivo.name);
+
+          return {
+            nombre: archivo.name,
+            url: publicUrl.publicUrl,
+          };
+        }) || [];
+
+    setImagenesStorage(imagenes);
+  }
+
   useEffect(() => {
     if (autorizado) {
       cargarProductos();
+      cargarImagenesStorage();
     }
   }, [autorizado]);
 
@@ -98,7 +134,7 @@ export default function AdminProductosPage() {
     setProductoEditando(producto);
 
     setForm({
-      nombre: obtenerNombreArchivo(producto.imagen) || producto.nombre,
+      nombre: producto.nombre,
       descripcion: producto.descripcion || '',
       precio: String(producto.precio),
       categoria: producto.categoria,
@@ -106,7 +142,10 @@ export default function AdminProductosPage() {
       destacado: producto.destacado,
     });
 
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth',
+    });
   }
 
   async function crearProducto() {
@@ -115,15 +154,17 @@ export default function AdminProductosPage() {
       return;
     }
 
-    const { error } = await supabase.from('productos').insert({
-      nombre: form.nombre,
-      descripcion: form.descripcion,
-      precio: Number(form.precio),
-      categoria: form.categoria,
-      imagen: form.imagen || null,
-      destacado: form.destacado,
-      slug: crearSlug(form.nombre),
-    });
+    const { error } = await supabase
+      .from('productos')
+      .insert({
+        nombre: form.nombre,
+        descripcion: form.descripcion,
+        precio: Number(form.precio),
+        categoria: form.categoria,
+        imagen: form.imagen || null,
+        destacado: form.destacado,
+        slug: crearSlug(form.nombre),
+      });
 
     if (error) {
       alert(error.message);
@@ -136,11 +177,6 @@ export default function AdminProductosPage() {
 
   async function guardarCambios() {
     if (!productoEditando) return;
-
-    if (!form.nombre || !form.precio || !form.categoria) {
-      alert('Completa nombre, precio y categoría');
-      return;
-    }
 
     const { error } = await supabase
       .from('productos')
@@ -165,11 +201,16 @@ export default function AdminProductosPage() {
   }
 
   async function eliminarProducto(id: number) {
-    const confirmar = confirm('¿Eliminar este producto?');
+    const confirmar = confirm(
+      '¿Eliminar este producto?'
+    );
 
     if (!confirmar) return;
 
-    const { error } = await supabase.from('productos').delete().eq('id', id);
+    const { error } = await supabase
+      .from('productos')
+      .delete()
+      .eq('id', id);
 
     if (error) {
       alert(error.message);
@@ -179,7 +220,9 @@ export default function AdminProductosPage() {
     cargarProductos();
   }
 
-  async function toggleDestacado(producto: Producto) {
+  async function toggleDestacado(
+    producto: Producto
+  ) {
     const { error } = await supabase
       .from('productos')
       .update({
@@ -210,9 +253,13 @@ export default function AdminProductosPage() {
           <input
             type="password"
             value={clave}
-            onChange={(e) => setClave(e.target.value)}
+            onChange={(e) =>
+              setClave(e.target.value)
+            }
             onKeyDown={(e) => {
-              if (e.key === 'Enter') entrar();
+              if (e.key === 'Enter') {
+                entrar();
+              }
             }}
             placeholder="Clave admin"
             className="mt-8 w-full rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
@@ -233,6 +280,7 @@ export default function AdminProductosPage() {
   return (
     <main className="min-h-screen bg-maruxa-crema px-5 py-12">
       <div className="mx-auto max-w-6xl">
+
         <div className="mb-10">
           <p className="font-black uppercase tracking-[.24em] text-maruxa-rojo">
             Panel privado
@@ -248,21 +296,24 @@ export default function AdminProductosPage() {
         </div>
 
         <section className="mb-10 rounded-[34px] bg-white p-6 shadow-premium">
+
           <h2 className="text-2xl font-black text-maruxa-chocolate">
-            {productoEditando ? 'Editar producto' : 'Crear producto'}
+            {productoEditando
+              ? 'Editar producto'
+              : 'Crear producto'}
           </h2>
 
-          {productoEditando && (
-            <p className="mt-2 text-sm font-bold text-maruxa-rojo">
-              Editando: {productoEditando.nombre}
-            </p>
-          )}
-
           <div className="mt-6 grid gap-4 md:grid-cols-2">
+
             <input
               placeholder="Nombre"
               value={form.nombre}
-              onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  nombre: e.target.value,
+                })
+              }
               className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
             />
 
@@ -270,13 +321,23 @@ export default function AdminProductosPage() {
               placeholder="Precio"
               type="number"
               value={form.precio}
-              onChange={(e) => setForm({ ...form, precio: e.target.value })}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  precio: e.target.value,
+                })
+              }
               className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
             />
 
             <select
               value={form.categoria}
-              onChange={(e) => setForm({ ...form, categoria: e.target.value })}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  categoria: e.target.value,
+                })
+              }
               className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
             >
               <option>Panadería</option>
@@ -289,7 +350,12 @@ export default function AdminProductosPage() {
             <input
               placeholder="URL imagen"
               value={form.imagen}
-              onChange={(e) => setForm({ ...form, imagen: e.target.value })}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  imagen: e.target.value,
+                })
+              }
               className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
             />
 
@@ -297,7 +363,10 @@ export default function AdminProductosPage() {
               placeholder="Descripción"
               value={form.descripcion}
               onChange={(e) =>
-                setForm({ ...form, descripcion: e.target.value })
+                setForm({
+                  ...form,
+                  descripcion: e.target.value,
+                })
               }
               className="min-h-32 rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none md:col-span-2"
             />
@@ -307,14 +376,19 @@ export default function AdminProductosPage() {
                 type="checkbox"
                 checked={form.destacado}
                 onChange={(e) =>
-                  setForm({ ...form, destacado: e.target.checked })
+                  setForm({
+                    ...form,
+                    destacado: e.target.checked,
+                  })
                 }
               />
+
               Producto destacado
             </label>
           </div>
 
           <div className="mt-6 flex flex-wrap gap-3">
+
             {productoEditando ? (
               <button
                 type="button"
@@ -345,7 +419,56 @@ export default function AdminProductosPage() {
           </div>
         </section>
 
+        <section className="mb-10 rounded-[34px] bg-white p-6 shadow-premium">
+
+          <h2 className="text-2xl font-black text-maruxa-chocolate">
+            Imágenes del Storage
+          </h2>
+
+          <p className="mt-2 text-sm font-bold text-maruxa-cafe/70">
+            Haz clic en una imagen para completar nombre e imagen automáticamente.
+          </p>
+
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+
+            {imagenesStorage.map((imagen) => {
+              const nombreLimpio =
+                imagen.nombre
+                  .replace(/\.[^/.]+$/, '')
+                  .replace(/[-_]/g, ' ');
+
+              return (
+                <button
+                  key={imagen.url}
+                  type="button"
+                  onClick={() =>
+                    setForm({
+                      ...form,
+                      nombre: nombreLimpio,
+                      imagen: imagen.url,
+                    })
+                  }
+                  className="overflow-hidden rounded-[24px] bg-maruxa-crema text-left shadow-premium transition hover:-translate-y-1"
+                >
+                  <img
+                    src={imagen.url}
+                    alt={imagen.nombre}
+                    className="h-40 w-full object-cover"
+                  />
+
+                  <div className="p-3">
+                    <p className="line-clamp-2 text-xs font-black text-maruxa-chocolate">
+                      {imagen.nombre}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
         <section className="grid gap-4">
+
           {cargando && (
             <div className="rounded-[28px] bg-white p-6 font-black shadow-premium">
               Cargando productos...
@@ -355,10 +478,13 @@ export default function AdminProductosPage() {
           {productos.map((producto) => (
             <article
               key={producto.id}
-              onClick={() => editarProducto(producto)}
+              onClick={() =>
+                editarProducto(producto)
+              }
               className="cursor-pointer rounded-[28px] bg-white p-5 shadow-premium transition hover:-translate-y-1 hover:ring-2 hover:ring-maruxa-rojo/20"
             >
               <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+
                 <div>
                   <p className="text-xs font-black uppercase tracking-widest text-maruxa-rojo">
                     {producto.categoria}
@@ -369,31 +495,14 @@ export default function AdminProductosPage() {
                   </h3>
 
                   <p className="mt-1 font-bold text-maruxa-cafe/70">
-                    ${producto.precio.toLocaleString('es-CL')}
+                    $
+                    {producto.precio.toLocaleString(
+                      'es-CL'
+                    )}
                   </p>
-
-                  <p className="mt-1 text-sm text-maruxa-cafe/60">
-                    /productos/{producto.slug}
-                  </p>
-
-                  {producto.imagen && (
-                    <p className="mt-1 text-xs text-maruxa-cafe/50">
-                      Imagen: {obtenerNombreArchivo(producto.imagen)}
-                    </p>
-                  )}
                 </div>
 
                 <div className="flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      editarProducto(producto);
-                    }}
-                    className="rounded-full bg-maruxa-rojo px-5 py-3 text-sm font-black text-white"
-                  >
-                    Editar
-                  </button>
 
                   <button
                     type="button"
@@ -403,7 +512,9 @@ export default function AdminProductosPage() {
                     }}
                     className="rounded-full bg-maruxa-crema px-5 py-3 text-sm font-black text-maruxa-chocolate"
                   >
-                    {producto.destacado ? 'Quitar destacado' : 'Destacar'}
+                    {producto.destacado
+                      ? 'Quitar destacado'
+                      : 'Destacar'}
                   </button>
 
                   <button
