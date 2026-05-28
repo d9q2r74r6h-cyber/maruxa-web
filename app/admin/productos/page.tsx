@@ -470,23 +470,19 @@ precio_25: form.precio_25 ? Number(form.precio_25) : null,
 
           <div className="mt-6 flex flex-wrap gap-3">
 
-            {productoEditando ? (
-              <button
+          <button
                 type="button"
-                onClick={guardarCambios}
+                onClick={
+                    productoEditando
+                    ? guardarCambios
+                    : crearProducto
+                }
                 className="rounded-full bg-maruxa-rojo px-8 py-4 font-black text-white"
-              >
-                Guardar cambios
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={crearProducto}
-                className="rounded-full bg-maruxa-rojo px-8 py-4 font-black text-white"
-              >
-                Crear producto
-              </button>
-            )}
+                >
+                {productoEditando
+                    ? 'Guardar cambios'
+                    : 'Guardar producto'}
+                </button>
 
             {productoEditando && (
               <button
