@@ -75,38 +75,43 @@ export default function AdminProductosPage() {
   }
 
   async function cargarImagenesStorage() {
-    const { data, error } = await supabase.storage
-      .from('productos')
-      .list('', {
-        limit: 100,
-        sortBy: {
-          column: 'name',
-          order: 'asc',
-        },
-      });
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    const imagenes =
+    const carpetas = ['', 'productos', 'imagenes', 'public'];
+    const todasLasImagenes: { nombre: string; url: string }[] = [];
+  
+    for (const carpeta of carpetas) {
+      const { data, error } = await supabase.storage
+        .from('productos')
+        .list(carpeta, {
+          limit: 100,
+          sortBy: {
+            column: 'name',
+            order: 'asc',
+          },
+        });
+  
+      if (error) continue;
+  
       data
         ?.filter((archivo) =>
           archivo.name.match(/\.(jpg|jpeg|png|webp)$/i)
         )
-        .map((archivo) => {
+        .forEach((archivo) => {
+          const ruta = carpeta
+            ? `${carpeta}/${archivo.name}`
+            : archivo.name;
+  
           const { data: publicUrl } = supabase.storage
             .from('productos')
-            .getPublicUrl(archivo.name);
-
-          return {
+            .getPublicUrl(ruta);
+  
+          todasLasImagenes.push({
             nombre: archivo.name,
             url: publicUrl.publicUrl,
-          };
-        }) || [];
-
-    setImagenesStorage(imagenes);
+          });
+        });
+    }
+  
+    setImagenesStorage(todasLasImagenes);
   }
 
   useEffect(() => {
@@ -426,7 +431,7 @@ export default function AdminProductosPage() {
           </h2>
 
           <p className="mt-2 text-sm font-bold text-maruxa-cafe/70">
-            Haz clic en una imagen para completar nombre e imagen automáticamente.
+          Imágenes cargadas: {imagenesStorage.length}
           </p>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
