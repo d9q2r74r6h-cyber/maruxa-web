@@ -16,6 +16,7 @@ type Pedido = {
     nombre: string;
     cantidad: number;
     precio: number;
+    imagen?: string | null;
     tamano?: string;
   }[];
   created_at?: string;
@@ -29,6 +30,10 @@ export default function AdminPedidosPage() {
 
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [filtroEstado, setFiltroEstado] = useState('todos');
+
+
 
   async function cambiarEstado(id: number, estado: string) {
     const { error } = await supabase
@@ -79,6 +84,50 @@ export default function AdminPedidosPage() {
     alert('Clave incorrecta');
   }
 
+  
+
+  const ventasTotales = pedidos.reduce(
+    (acc, pedido) => acc + pedido.total,
+    0
+  );
+  
+  const pendientes = pedidos.filter(
+    (p) => p.estado === 'pendiente'
+  ).length;
+  
+  const listos = pedidos.filter(
+    (p) => p.estado === 'listo'
+  ).length;
+  
+  const entregados = pedidos.filter(
+    (p) => p.estado === 'entregado'
+  ).length;
+  
+  const hoy = new Date().toISOString().slice(0, 10);
+  
+  const ventasHoy = pedidos
+    .filter((p) => p.created_at?.slice(0, 10) === hoy)
+    .reduce((acc, pedido) => acc + pedido.total, 0);
+  
+  const mesActual = new Date().toISOString().slice(0, 7);
+  
+  const ventasMes = pedidos
+    .filter((p) => p.created_at?.slice(0, 7) === mesActual)
+    .reduce((acc, pedido) => acc + pedido.total, 0);
+  
+  const ticketPromedio =
+    pedidos.length > 0
+      ? ventasTotales / pedidos.length
+      : 0;
+
+      const pedidosFiltrados =
+      filtroEstado === 'todos'
+        ? pedidos
+        : pedidos.filter(
+            (pedido) =>
+              pedido.estado === filtroEstado
+          );   
+
   if (!autorizado) {
     return (
       <main className="min-h-screen bg-maruxa-crema px-5 py-20">
@@ -128,6 +177,75 @@ export default function AdminPedidosPage() {
           <p className="mt-3 font-bold text-maruxa-cafe/70">
             {pedidos.length} pedidos registrados
           </p>
+
+                        <p className="mt-3 font-bold text-maruxa-cafe/70">
+                {pedidos.length} pedidos registrados
+                </p>
+
+                {/* DASHBOARD */}
+
+                <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                ...
+                </div>
+
+                <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                ...
+                </div>
+
+                
+
+          <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-[28px] bg-white p-6 shadow-premium">
+                <p className="text-xs font-black uppercase tracking-widest text-maruxa-cafe/60">
+                Ventas Totales
+                </p>
+
+                <p className="mt-2 text-3xl font-black text-maruxa-vino">
+                ${ventasTotales.toLocaleString('es-CL')}
+                </p>
+            </div>
+
+            <div className="rounded-[28px] bg-white p-6 shadow-premium">
+                <p className="text-xs font-black uppercase tracking-widest text-maruxa-cafe/60">
+                Pedidos
+                </p>
+
+                <p className="mt-2 text-3xl font-black text-maruxa-chocolate">
+                {pedidos.length}
+                </p>
+            </div>
+
+            <div className="rounded-[28px] bg-white p-6 shadow-premium">
+                <p className="text-xs font-black uppercase tracking-widest text-yellow-700">
+                Pendientes
+                </p>
+
+                <p className="mt-2 text-3xl font-black text-yellow-700">
+                {pendientes}
+                </p>
+            </div>
+
+            <div className="rounded-[28px] bg-white p-6 shadow-premium">
+                <p className="text-xs font-black uppercase tracking-widest text-green-700">
+                Entregados
+                </p>
+
+                <p className="mt-2 text-3xl font-black text-green-700">
+                {entregados}
+                </p>
+            </div>
+            </div>
+
+          <select
+            value={filtroEstado}
+            onChange={(e) => setFiltroEstado(e.target.value)}
+            className="mt-5 rounded-2xl border border-maruxa-rojo/10 bg-white px-5 py-3 font-black text-maruxa-chocolate"
+            >
+            <option value="todos">Todos los pedidos</option>
+            <option value="pendiente">Pendientes</option>
+            <option value="listo">Listos para retiro</option>
+            <option value="entregado">Entregados</option>
+            </select>
         </div>
 
         {loading && (
@@ -137,7 +255,7 @@ export default function AdminPedidosPage() {
         )}
 
         <div className="grid gap-5">
-          {pedidos.map((pedido) => (
+        {pedidosFiltrados.map((pedido) => (
             <article
               key={pedido.id}
               className="rounded-[34px] bg-white p-6 shadow-premium"
@@ -149,7 +267,7 @@ export default function AdminPedidosPage() {
                             Pedido #{pedido.id}
                         </p>
 
-                        <span
+                        <span 
                             className={`rounded-full px-3 py-1 text-xs font-black ${
                                 pedido.estado === 'pendiente'
                                 ? 'bg-yellow-100 text-yellow-800'
@@ -251,21 +369,30 @@ export default function AdminPedidosPage() {
                         key={index}
                         className="flex items-center justify-between rounded-[20px] bg-white px-4 py-4"
                       >
+                        <div className="flex items-center gap-4">
+                        {producto.imagen && (
+                            <img
+                            src={producto.imagen}
+                            alt={producto.nombre}
+                            className="h-16 w-16 rounded-2xl object-cover"
+                            />
+                        )}
+
                         <div>
-                          <p className="font-black text-maruxa-chocolate">
+                            <p className="font-black text-maruxa-chocolate">
                             {producto.nombre}
-                          </p>
-
-                          {producto.tamano && (
-                            <p className="text-sm font-bold text-maruxa-cafe/70">
-                              {producto.tamano}
                             </p>
-                          )}
 
-                          <p className="text-sm font-bold text-maruxa-cafe/70">
-                            Cantidad:{' '}
-                            {producto.cantidad}
-                          </p>
+                            {producto.tamano && (
+                            <p className="text-sm font-bold text-maruxa-cafe/70">
+                                {producto.tamano}
+                            </p>
+                            )}
+
+                            <p className="text-sm font-bold text-maruxa-cafe/70">
+                            Cantidad: {producto.cantidad}
+                            </p>
+                        </div>
                         </div>
 
                         <p className="font-black text-maruxa-vino">
