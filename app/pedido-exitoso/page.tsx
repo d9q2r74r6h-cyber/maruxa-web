@@ -7,7 +7,7 @@ import { useSearchParams } from 'next/navigation';
 function PedidoExitosoContent() {
   const params = useSearchParams();
 
-  const mensaje = params.get('mensaje') || '';
+ 
   const total = params.get('total') || '0';
 
   const cliente = params.get('cliente') || '';
@@ -16,6 +16,8 @@ function PedidoExitosoContent() {
   const hora = params.get('hora') || '';
   const observaciones =
     params.get('observaciones') || '';
+
+    const email = params.get('email') || '';  
 
   return (
     <main className="min-h-screen bg-maruxa-crema py-20">
@@ -36,8 +38,7 @@ function PedidoExitosoContent() {
           </h1>
 
           <p className="mx-auto mt-6 max-w-xl text-center text-lg font-bold leading-8 text-maruxa-cafe/75">
-            Tu pedido fue registrado correctamente.
-            Ahora puedes confirmar directamente por WhatsApp con Panadería Maruxa.
+          Tu pedido fue registrado correctamente. Te enviaremos una confirmación al correo ingresado.
           </p>
 
           <div className="mt-10 rounded-[30px] bg-maruxa-crema p-8">
@@ -86,6 +87,15 @@ function PedidoExitosoContent() {
                 {hora}
               </p>
 
+              {email && (
+                  <p>
+                    <span className="font-black text-maruxa-chocolate">
+                      Email:
+                    </span>{' '}
+                    {email}
+                  </p>
+                )}
+
               {observaciones && (
                 <p>
                   <span className="font-black text-maruxa-chocolate">
@@ -97,29 +107,34 @@ function PedidoExitosoContent() {
             </div>
           </div>
 
-          <div className="mt-10 grid gap-4 md:grid-cols-2">
-            <a
-              href={`https://wa.me/56233663241?text=${mensaje}`}
-              className="rounded-full bg-maruxa-rojo px-8 py-5 text-center text-lg font-black text-white shadow-premium transition hover:scale-[1.02]"
-            >
-              Confirmar por WhatsApp
-            </a>
+          <div className="mt-10 rounded-[32px] border-2 border-maruxa-rojo bg-maruxa-rojo/5 p-5 shadow-premium">
+              <div className="grid gap-4 md:grid-cols-2">
+                <Link
+                  href="/"
+                  className="btn-rojo block rounded-full bg-maruxa-rojo px-8 py-5 text-center text-lg font-black text-maruxa-rojo shadow-premium transition hover:scale-[1.02]"
+                >
+                  Seguir comprando
+                </Link>
 
-            <Link
-              href="/"
-              className="rounded-full bg-maruxa-crema px-8 py-5 text-center text-lg font-black text-maruxa-chocolate shadow-sm transition hover:scale-[1.02]"
-            >
-              Seguir comprando
-            </Link>
-          </div>
-
+                <a
+                  href="https://wa.me/56966785041"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn-rojo block rounded-full bg-maruxa-crema px-8 py-5 text-center text-lg font-black text-maruxa-rojo shadow-premium transition hover:bg-white"
+                >
+                  ¿Necesitas ayuda?
+                </a>
+              </div>
+            </div>
           <div className="mt-10 rounded-[24px] border border-maruxa-rojo/10 bg-white p-6">
             <p className="text-sm font-bold leading-7 text-maruxa-cafe/75">
-              • Retiro en local.
+              📍 Retiro en Panadería Maruxa.
               <br />
-              • Las tortas requieren mínimo 24 horas.
+              🎂 Las tortas requieren mínimo 24 horas de anticipación.
               <br />
-              • El pedido será confirmado vía WhatsApp.
+              📧 Recibirás una confirmación por correo electrónico.
+              <br />
+              📞 Si tienes alguna duda sobre tu pedido, puedes contactarnos al WhatsApp +56 9 6678 5041.
             </p>
           </div>
         </div>

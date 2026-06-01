@@ -58,60 +58,61 @@ const fechaWhatsApp = format(fecha, 'dd/MM/yyyy', {
   locale: es,
 });
 
-    const pedido = {
-      cliente,
-      telefono,
-      productos: items,
-      total,
-      fecha_retiro: fechaTexto,
-      hora_retiro: hora,
-      observaciones,
-      estado: 'pendiente',
-    };
 
-    const { error } = await supabase.from('pedidos').insert([pedido]);
 
-    if (error) {
-      console.error('Error guardando pedido:', error);
-      alert(`No se pudo guardar el pedido: ${error.message}`);
-      setLoading(false);
-      return;
-    }
 
-    const resumen = items
-      .map(
-        (i) =>
-          `• ${i.nombre} ${
-            i.tamano ? `(${i.tamano})` : ''
-          } x${i.cantidad}`
-      )
-      .join('%0A');
+const email = String(form.get('email'));
 
-    const mensaje = encodeURIComponent(
-      `Hola Maruxa, quiero confirmar este pedido:%0A%0A` +
-        resumen +
-        `%0A%0ATotal: $${total.toLocaleString('es-CL')}` +
-        `%0A%0ACliente: ${cliente}` +
-        `%0ATeléfono: ${telefono}` +
-        `%0AFecha retiro: ${fechaWhatsApp}` +
-        `%0AHora retiro: ${hora}` +
-        `%0AObservaciones: ${observaciones}`
-    );
+const pedido = {
+  cliente,
+  email,
+  telefono,
+  productos: items,
+  total,
+  fecha_retiro: fechaTexto,
+  hora_retiro: hora,
+  observaciones,
+  estado: 'pendiente',
+};
+
+const { data: pedidoCreado, error } = await supabase
+  .from('pedidos')
+  .insert([pedido])
+  .select()
+  .single();
+
+if (error) {
+  console.error('Error guardando pedido:', error);
+  alert(`No se pudo guardar el pedido: ${error.message}`);
+  setLoading(false);
+  return;
+}
+
+await fetch('/api/enviar-pedido', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify(pedidoCreado),
+});
+    
+
+   
 
     clearCart();
 
     window.location.href =
-  `/pedido-exitoso?mensaje=${mensaje}&total=${total}&cliente=${encodeURIComponent(
-    cliente
-  )}&telefono=${encodeURIComponent(
-    telefono
-  )}&fecha=${encodeURIComponent(
-    fechaWhatsApp
-  )}&hora=${encodeURIComponent(
-    hora
-  )}&observaciones=${encodeURIComponent(
-    observaciones
-  )}`
+    `/pedido-exitoso?total=${total}&cliente=${encodeURIComponent(
+      cliente
+    )}&telefono=${encodeURIComponent(
+      telefono
+    )}&fecha=${encodeURIComponent(
+      fechaWhatsApp
+    )}&hora=${encodeURIComponent(
+      hora
+    )}&observaciones=${encodeURIComponent(
+      observaciones
+    )}`;
   }
 
   if (items.length === 0) {
@@ -183,6 +184,14 @@ const fechaWhatsApp = format(fecha, 'dd/MM/yyyy', {
               name="hora"
               type="time"
               required
+              className="w-full rounded-[24px] border border-maruxa-rojo/10 bg-white px-5 py-5 font-bold outline-none"
+            />
+
+            <input
+              name="email"
+              type="email"
+              required
+              placeholder="Correo electrónico"
               className="w-full rounded-[24px] border border-maruxa-rojo/10 bg-white px-5 py-5 font-bold outline-none"
             />
 

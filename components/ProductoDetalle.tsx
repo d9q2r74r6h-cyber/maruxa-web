@@ -216,7 +216,7 @@ const [tamano, setTamano] = useState<TamanoTorta>(tamanos[0]);
 
     <a
       href="/checkout"
-      className="rounded-full bg-maruxa-rojo px-5 py-4 text-center text-sm font-black text-white shadow-premium"
+      className="rounded-full bg-[#F5E7D2] px-5 py-4 text-center text-sm font-black text-maruxa-chocolate shadow-sm"
     >
       Ir al pago
     </a>
