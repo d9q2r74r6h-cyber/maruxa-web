@@ -30,11 +30,11 @@ precio_25?: number | null;
 
 
 const tamanosTorta = [
-  { nombre: '10 personas', extra: 0 },
-  { nombre: '15 personas', extra: 6000 },
-  { nombre: '20 personas', extra: 12000 },
-  { nombre: '25 personas', extra: 18000 },
-];
+  { nombre: '10 personas', campo: 'precio_10' },
+  { nombre: '15 personas', campo: 'precio_15' },
+  { nombre: '20 personas', campo: 'precio_20' },
+  { nombre: '25 personas', campo: 'precio_25' },
+] as const;
 
 export default function Catalogo() {
 
@@ -411,27 +411,15 @@ export default function Catalogo() {
                         }
                         className="w-full rounded-2xl border border-maruxa-rojo/10 bg-white px-4 py-3 font-bold text-maruxa-chocolate outline-none"
                       >
-                        {tamanosTorta.map(
-                          (t) => (
-                            <option
-                              key={
-                                t.nombre
-                              }
-                              value={
-                                t.nombre
-                              }
-                            >
-                              {t.nombre}
+                        {tamanosTorta.map((t) => {
+                            const precio = p[t.campo] || p.precio;
 
-                              {t.extra >
-                              0
-                                ? ` (+$${t.extra.toLocaleString(
-                                    'es-CL'
-                                  )})`
-                                : ''}
-                            </option>
-                          )
-                        )}
+                            return (
+                              <option key={t.nombre} value={t.nombre}>
+                                {t.nombre} - ${precio.toLocaleString('es-CL')}
+                              </option>
+                            );
+                          })}
                       </select>
                     </div>
                   )}

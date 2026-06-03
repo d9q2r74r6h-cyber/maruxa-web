@@ -7,6 +7,8 @@ import { ProductosRelacionados } from '@/components/ProductosRelacionados';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useRouter } from 'next/navigation';
+
 
 type Producto = {
   id: number;
@@ -35,6 +37,7 @@ export default function ProductoDetalle({ slug }: { slug: string }) {
 
 const [tamano, setTamano] = useState<TamanoTorta>(tamanos[0]);
   const [cargando, setCargando] = useState(true);
+  const router = useRouter();
 
   const addItem = useCart((s) => s.addItem);
 

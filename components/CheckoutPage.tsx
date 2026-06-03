@@ -118,17 +118,31 @@ await fetch('/api/enviar-pedido', {
   if (items.length === 0) {
     return (
       <main className="min-h-screen bg-maruxa-crema py-24">
-        <div className="contenedor">
-          <a
-            href="/"
-            className="mb-6 inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-black text-maruxa-chocolate shadow-premium transition hover:scale-105"
-          >
-            ← Seguir comprando
-          </a>
-
+        <div className="contenedor text-center">
           <h1 className="text-5xl font-black text-maruxa-chocolate">
             Tu carrito está vacío
           </h1>
+  
+          <p className="mt-4 font-bold text-maruxa-cafe/70">
+            Agrega productos antes de continuar al pago.
+          </p>
+  
+          <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => window.history.back()}
+              className="cursor-pointer btn-rojo"
+            >
+              Volver al producto
+            </button>
+  
+            <a
+              href="/"
+              className="btn-rojo"
+            >
+              Ver catálogo
+            </a>
+          </div>
         </div>
       </main>
     );
