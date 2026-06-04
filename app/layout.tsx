@@ -3,36 +3,39 @@ import './globals.css';
 import type { Metadata } from 'next';
 import Script from 'next/script';
 
-export const metadata = {
-    
-    metadataBase: new URL('https://panaderiamaruxa.cl'),
+export const metadata: Metadata = {
+  metadataBase: new URL('https://panaderiamaruxa.cl'),
+
+  title: 'Panadería Maruxa',
+  description:
+    'Panadería artesanal chilena. Tortas, pastelería y productos frescos con retiro en local.',
+
+  icons: {
+    icon: '/favicon.ico',
+    shortcut: '/favicon.ico',
+    apple: '/apple-touch-icon.png',
+  },
+
+  verification: {
+    google: 'Stvm8-p6J2jlL-EAExP7pu2vb2zPYqMk86fsLPGF4hk',
+  },
+
+  openGraph: {
     title: 'Panadería Maruxa',
-    description:
-      'Panadería artesanal chilena. Tortas, pastelería y productos frescos con retiro en local.',
-  
-
-      verification: {
-        google: 'Stvm8-p6J2jlL-EAExP7pu2vb2zPYqMk86fsLPGF4hk',
+    description: 'Panadería artesanal chilena premium.',
+    url: 'https://www.panaderiamaruxa.cl',
+    siteName: 'Maruxa',
+    images: [
+      {
+        url: '/og-maruxa.png',
+        width: 1200,
+        height: 630,
       },
-
-
-    openGraph: {
-      title: 'Panadería Maruxa',
-      description:
-        'Panadería artesanal chilena premium.',
-      url: 'https://www.panaderiamaruxa.cl',
-      siteName: 'Maruxa',
-      images: [
-        {
-          url: '/og-maruxa.png',
-          width: 1200,
-          height: 630,
-        },
-      ],
-      locale: 'es_CL',
-      type: 'website',
-    },
-  };
+    ],
+    locale: 'es_CL',
+    type: 'website',
+  },
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
