@@ -27,6 +27,14 @@ precio_20?: number | null;
 precio_25?: number | null;
 };
 
+function normalizarTexto(texto: string) {
+  return texto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
 
 
 const tamanosTorta = [
@@ -145,16 +153,17 @@ export default function Catalogo() {
 
   const productosFiltrados = productos
     .filter((p) => {
-      const texto = `
-        ${p.nombre}
-        ${p.descripcion}
-        ${p.categoria}
-      `.toLowerCase();
-
+      const texto = normalizarTexto(`
+        ${p.nombre || ''}
+        ${p.descripcion || ''}
+        ${p.categoria || ''}
+      `);
+      
+      const busquedaNormalizada = normalizarTexto(busquedaDebounced);
+      
       const coincideBusqueda =
-      texto.includes(
-        busquedaDebounced.toLowerCase()
-      );
+        busquedaNormalizada === '' ||
+        texto.includes(busquedaNormalizada);
 
       const coincideCategoria =
         categoriaActiva === 'Todas' ||
@@ -167,21 +176,31 @@ export default function Catalogo() {
       );
     })
     .sort((a, b) => {
-      if (orden === 'precio-menor')
-        return a.precio - b.precio;
-
-      if (orden === 'precio-mayor')
-        return b.precio - a.precio;
-
-      if (orden === 'nombre')
-        return a.nombre.localeCompare(
-          b.nombre
-        );
-
-      return (
-        Number(b.destacado) -
-        Number(a.destacado)
-      );
+      const busquedaNormalizada =
+        normalizarTexto(busquedaDebounced);
+    
+      if (busquedaNormalizada) {
+        const nombreA = normalizarTexto(a.nombre || '');
+        const nombreB = normalizarTexto(b.nombre || '');
+    
+        const aEmpieza = nombreA.startsWith(busquedaNormalizada);
+        const bEmpieza = nombreB.startsWith(busquedaNormalizada);
+    
+        if (aEmpieza && !bEmpieza) return -1;
+        if (!aEmpieza && bEmpieza) return 1;
+    
+        const aIncluye = nombreA.includes(busquedaNormalizada);
+        const bIncluye = nombreB.includes(busquedaNormalizada);
+    
+        if (aIncluye && !bIncluye) return -1;
+        if (!aIncluye && bIncluye) return 1;
+      }
+    
+      if (orden === 'precio-menor') return a.precio - b.precio;
+      if (orden === 'precio-mayor') return b.precio - a.precio;
+      if (orden === 'nombre') return a.nombre.localeCompare(b.nombre);
+    
+      return Number(b.destacado) - Number(a.destacado);
     });
 
   return (
@@ -336,15 +355,16 @@ export default function Catalogo() {
                 >
                   <div className="relative h-56 overflow-hidden rounded-[28px]">
 
-                    {p.imagen ? (
-                      <Image
-                        src={p.imagen}
-                        alt={p.nombre}
-                        fill
-                        sizes="(max-width: 768px) 100vw, 33vw"
-                        className="object-cover transition duration-500 group-hover:scale-105"
-                      />
-                    ) : (
+                  {p.imagen ? (
+                            <Image
+                              src={p.imagen}
+                              alt={p.nombre}
+                              fill
+                              priority={p.destacado}
+                              sizes="(max-width: 768px) 100vw, 33vw"
+                              className="object-cover transition duration-500 group-hover:scale-105"
+                            />
+                          ) : (
                       <div className="grid h-full place-items-center bg-gradient-to-br from-white to-maruxa-masa text-8xl">
                         🥐
                       </div>
