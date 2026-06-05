@@ -325,7 +325,7 @@ export default function Catalogo() {
           )}
 
           {productosFiltrados.map(
-            (p) => (
+            (p, index) => (
               <motion.article
                 key={p.id}
                 initial={{
@@ -357,13 +357,13 @@ export default function Catalogo() {
 
                   {p.imagen ? (
                             <Image
-                              src={p.imagen}
-                              alt={p.nombre}
-                              fill
-                              priority={p.destacado}
-                              sizes="(max-width: 768px) 100vw, 33vw"
-                              className="object-cover transition duration-500 group-hover:scale-105"
-                            />
+                            src={p.imagen}
+                            alt={p.nombre}
+                            fill
+                            priority={index === 0}
+                            sizes="(max-width: 768px) 100vw, 33vw"
+                            className="object-cover transition duration-500 group-hover:scale-105"
+                          />
                           ) : (
                       <div className="grid h-full place-items-center bg-gradient-to-br from-white to-maruxa-masa text-8xl">
                         🥐
