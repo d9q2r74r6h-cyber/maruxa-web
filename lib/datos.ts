@@ -1,5 +1,5 @@
 export const telefonoVisible = '+56 2 3366 3241';
-export const whatsapp = '56233663241';
+export const whatsapp = '56966785041';
 
 export const productos = [
   { id:1, nombre:'Pan amasado', categoria:'Panadería', precio:2490, etiqueta:'Tradicional', imagen:'🥖' },
