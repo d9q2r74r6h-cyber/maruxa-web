@@ -23,12 +23,6 @@ export function Home() {
   return (
     <>
       <section className="relative overflow-hidden bg-[radial-gradient(circle_at_top_left,#fff7e8,#f5d9a9_42%,#a51f2b_100%)]">
-
-      <div className="border-b border-yellow-500/20 bg-yellow-100/80 px-4 py-3 text-center backdrop-blur-xl">
-  <p className="text-sm font-black tracking-wide text-yellow-900">
-    🚧 Sitio en construcción · Algunas funciones y productos pueden estar en desarrollo.
-  </p>
-</div>
         
         <div className="absolute right-[-80px] top-16 h-80 w-80 rounded-full bg-maruxa-rojo/20 blur-3xl" />
 
