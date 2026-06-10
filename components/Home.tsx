@@ -144,8 +144,7 @@ export function Home() {
             </h3>
 
             <p className="mt-2 text-maruxa-cafe/75">
-              Contacto principal integrado a WhatsApp.
-            </p>
+              Contacto principal            </p>
           </div>
 
         </div>

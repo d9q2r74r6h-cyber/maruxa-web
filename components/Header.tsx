@@ -5,6 +5,11 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Menu, ShoppingBag, X, ChevronRight } from 'lucide-react';
 import { useCart } from '@/lib/cart';
+import { whatsapp } from '@/lib/datos';
+
+const mensaje = encodeURIComponent(
+  'Hola Maruxa, quiero hacer un pedido para retiro en local.'
+);
 
 export function Header() {
   const [open, setOpen] = useState(false);
@@ -115,7 +120,7 @@ export function Header() {
               </Link>
             ))}
 
-            <a href="https://wa.me/56233663241" className="btn-rojo mt-5 text-center">
+            <a href={`https://wa.me/${whatsapp}?text=${mensaje}`} className="btn-rojo mt-5 text-center">
               WhatsApp Maruxa
             </a>
 
