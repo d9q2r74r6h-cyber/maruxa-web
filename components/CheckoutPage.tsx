@@ -6,6 +6,7 @@ import { es } from 'date-fns/locale';
 
 import { useCart } from '@/lib/cart';
 import { supabase } from '@/lib/supabase';
+import { obtenerEmpresaActual } from '@/lib/empresa';
 import { CalendarioRetiro } from '@/components/CalendarioRetiro';
 
 export function CheckoutPage() {
@@ -62,6 +63,14 @@ const fechaWhatsApp = format(fecha, 'dd/MM/yyyy', {
 
 
 const email = String(form.get('email'));
+
+const empresa = await obtenerEmpresaActual();
+
+if (!empresa) {
+  alert('No se pudo identificar la panadería.');
+  setLoading(false);
+  return;
+}
 
 const pedido = {
   cliente,

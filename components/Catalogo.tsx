@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 
 import { supabase } from '@/lib/supabase';
+import { obtenerEmpresaActual } from '@/lib/empresa';
 import { useSearchParams } from 'next/navigation';
 
 type Producto = {
@@ -76,18 +77,28 @@ export default function Catalogo() {
 
   useEffect(() => {
     async function cargarProductos() {
+      const empresa = await obtenerEmpresaActual();
+    
+      if (!empresa) {
+        console.error('No se pudo identificar la empresa.');
+        return;
+      }
+    
       const { data, error } = await supabase
         .from('productos')
         .select('*')
+        .eq('empresa_id', empresa.id)
         .order('destacado', {
           ascending: false,
         })
         .order('id', {
           ascending: true,
         });
-
-      if (!error && data && data.length > 0) {
+    
+      if (!error && data) {
         setProductos(data as Producto[]);
+      } else {
+        console.error(error);
       }
     }
 
