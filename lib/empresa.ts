@@ -23,12 +23,12 @@ export async function obtenerEmpresaActual(): Promise<Empresa | null> {
   const host =
     typeof window !== 'undefined'
       ? window.location.hostname.replace('www.', '')
-      : '';
+      : 'panaderiamaruxa.cl';
 
   const { data, error } = await supabase
     .from('empresas')
     .select('*')
-    .or(`dominio.eq.${host},slug.eq.maruxa`)
+    .eq('slug', 'maruxa')
     .eq('activo', true)
     .limit(1)
     .maybeSingle();

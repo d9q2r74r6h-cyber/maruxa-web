@@ -82,6 +82,7 @@ const pedido = {
   hora_retiro: hora,
   observaciones,
   estado: 'pendiente',
+  empresa_id: empresa.id,
 };
 
 const { data: pedidoCreado, error } = await supabase
@@ -104,6 +105,18 @@ await fetch('/api/enviar-pedido', {
   },
   body: JSON.stringify(pedidoCreado),
 });
+
+try {
+  await fetch('/api/easypan/pedido', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(pedidoCreado),
+  });
+} catch (error) {
+  console.error('Error enviando pedido a EasyPan:', error);
+}
     
 
    
