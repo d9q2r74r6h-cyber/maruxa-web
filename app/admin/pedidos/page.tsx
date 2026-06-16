@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { obtenerEmpresaActual } from '@/lib/empresa';
 
 type Pedido = {
   id: number;
@@ -36,10 +37,18 @@ export default function AdminPedidosPage() {
 
 
   async function cambiarEstado(id: number, estado: string) {
+    const empresa = await obtenerEmpresaActual();
+  
+    if (!empresa) {
+      alert('No se pudo identificar la empresa.');
+      return;
+    }
+  
     const { error } = await supabase
       .from('pedidos')
       .update({ estado })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('empresa_id', empresa.id);
   
     if (error) {
       alert(error.message);
@@ -51,20 +60,29 @@ export default function AdminPedidosPage() {
 
   async function cargarPedidos() {
     setLoading(true);
-
+  
+    const empresa = await obtenerEmpresaActual();
+  
+    if (!empresa) {
+      alert('No se pudo identificar la empresa.');
+      setLoading(false);
+      return;
+    }
+  
     const { data, error } = await supabase
       .from('pedidos')
       .select('*')
+      .eq('empresa_id', empresa.id)
       .order('created_at', {
         ascending: false,
       });
-
+  
     if (error) {
       alert(error.message);
       setLoading(false);
       return;
     }
-
+  
     setPedidos((data as Pedido[]) || []);
     setLoading(false);
   }

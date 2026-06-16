@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { obtenerEmpresaActual } from '@/lib/empresa';
 
 type Producto = {
   id: number;
@@ -66,21 +67,31 @@ export default function AdminProductosPage() {
 
   async function cargarProductos() {
     setCargando(true);
-
+  
+    const empresa = await obtenerEmpresaActual();
+  
+    if (!empresa) {
+      alert('No se pudo identificar la empresa.');
+      setCargando(false);
+      return;
+    }
+  
     const { data, error } = await supabase
       .from('productos')
       .select('*')
+      .eq('empresa_id', empresa.id)
       .order('id', { ascending: false });
-
+  
     if (error) {
       alert(error.message);
       setCargando(false);
       return;
     }
-
+  
     setProductos((data as Producto[]) || []);
     setCargando(false);
   }
+
 
   async function cargarImagenesStorage() {
     const carpetas = ['', 'productos', 'imagenes', 'public'];
@@ -190,6 +201,13 @@ export default function AdminProductosPage() {
         return;
       }
 
+    const empresa = await obtenerEmpresaActual();
+  
+    if (!empresa) {
+      alert('No se pudo identificar la empresa.');
+      return;
+    }
+  
     const { error } = await supabase
       .from('productos')
       .insert({
@@ -200,6 +218,7 @@ export default function AdminProductosPage() {
             ? Number(form.precio_10 || 0)
             : Number(form.precio),
         categoria: form.categoria,
+        empresa_id: empresa.id,
         imagen: form.imagen || null,
         destacado: form.destacado,
         slug: crearSlug(form.nombre),

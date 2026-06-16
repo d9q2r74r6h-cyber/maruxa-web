@@ -8,6 +8,7 @@ import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
+import { obtenerEmpresaActual } from '@/lib/empresa';
 
 
 type Producto = {
@@ -43,16 +44,25 @@ const [tamano, setTamano] = useState<TamanoTorta>(tamanos[0]);
 
   useEffect(() => {
     async function cargarProducto() {
+      const empresa = await obtenerEmpresaActual();
+  
+      if (!empresa) {
+        console.error('No se pudo identificar la empresa.');
+        setCargando(false);
+        return;
+      }
+  
       const { data } = await supabase
         .from('productos')
         .select('*')
         .eq('slug', slug)
+        .eq('empresa_id', empresa.id)
         .maybeSingle();
-
+  
       setProducto(data as Producto);
       setCargando(false);
     }
-
+  
     cargarProducto();
   }, [slug]);
 
