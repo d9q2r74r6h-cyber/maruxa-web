@@ -22,10 +22,11 @@ type Producto = {
   imagen: string | null;
   destacado: boolean;
   slug: string | null;
+  tipo_producto?: string;
   precio_10?: number | null;
-precio_15?: number | null;
-precio_20?: number | null;
-precio_25?: number | null;
+  precio_15?: number | null;
+  precio_20?: number | null;
+  precio_25?: number | null;
 };
 
 function normalizarTexto(texto: string) {
@@ -85,15 +86,17 @@ export default function Catalogo() {
       }
     
       const { data, error } = await supabase
-        .from('productos')
-        .select('*')
-        .eq('empresa_id', empresa.id)
-        .order('destacado', {
-          ascending: false,
-        })
-        .order('id', {
-          ascending: true,
-        });
+  .from('productos')
+  .select('*')
+  .eq('empresa_id', empresa.id)
+  .eq('activo', true)
+  .eq('tipo_producto', 'producto')
+  .order('destacado', {
+    ascending: false,
+  })
+  .order('id', {
+    ascending: true,
+  });
     
       if (!error && data) {
         setProductos(data as Producto[]);

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { obtenerEmpresaActual } from '@/lib/empresa';
 
+
 type Pedido = {
   id: number;
   cliente: string;
@@ -148,7 +149,7 @@ export default function AdminPedidosPage() {
 
   if (!autorizado) {
     return (
-      <main className="min-h-screen bg-maruxa-crema px-5 py-20">
+      
         <div className="mx-auto max-w-md rounded-[34px] bg-white p-8 shadow-premium">
           <h1 className="text-4xl font-black text-maruxa-chocolate">
             Admin Pedidos
@@ -176,7 +177,7 @@ export default function AdminPedidosPage() {
             Entrar
           </button>
         </div>
-      </main>
+      
     );
   }
 
