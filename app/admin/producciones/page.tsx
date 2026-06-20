@@ -5,30 +5,65 @@ import { supabase } from '@/lib/supabase';
 import { obtenerEmpresaActual } from '@/lib/empresa';
 import { registrarMovimientoInventario } from '@/lib/inventario';
 
+type ProductoRelacionado = {
+  nombre: string;
+};
+
+type IngredienteRelacionado = {
+  id: number;
+  nombre: string;
+  unidad_base: string | null;
+  costo_unitario: number | null;
+  stock_actual: number | null;
+};
+
 type Receta = {
   id: string;
   nombre: string;
-  producto_id: string;
+  producto_id: number;
   rendimiento_kg: number;
   unidades_producidas: number;
-  productos?: {
-    nombre: string;
-  };
+  productos?: ProductoRelacionado | ProductoRelacionado[] | null;
 };
 
 type IngredienteReceta = {
   id: string;
   receta_id: string;
-  ingrediente_id: string;
+  ingrediente_id: number;
   cantidad: number;
-  ingredientes: {
-    id: string;
-    nombre: string;
-    unidad_base: string;
-    costo_unitario: number;
-    stock_actual: number;
-  };
+  ingredientes?: IngredienteRelacionado | IngredienteRelacionado[] | null;
 };
+
+type IngredienteCalculado = IngredienteReceta & {
+  ingrediente: IngredienteRelacionado | null;
+  cantidadNecesaria: number;
+  costo: number;
+  stockActual: number;
+  diferencia: number;
+  stockSuficiente: boolean;
+};
+
+function numero(valor: string | number | null | undefined) {
+  return Number(String(valor ?? 0).replace(',', '.')) || 0;
+}
+
+function dinero(valor: string | number | null | undefined) {
+  return `$${Math.round(numero(valor)).toLocaleString('es-CL')}`;
+}
+
+function obtenerProductoNombre(
+  productos?: ProductoRelacionado | ProductoRelacionado[] | null
+) {
+  if (Array.isArray(productos)) return productos[0]?.nombre || '';
+  return productos?.nombre || '';
+}
+
+function obtenerIngrediente(
+  ingredientes?: IngredienteRelacionado | IngredienteRelacionado[] | null
+) {
+  if (Array.isArray(ingredientes)) return ingredientes[0] || null;
+  return ingredientes || null;
+}
 
 export default function AdminProduccionPage() {
   const [recetas, setRecetas] = useState<Receta[]>([]);
@@ -42,23 +77,25 @@ export default function AdminProduccionPage() {
   const recetaSeleccionada = recetas.find((receta) => receta.id === recetaId);
 
   const factorProduccion = useMemo(() => {
-    const unidadesBase = Number(recetaSeleccionada?.unidades_producidas || 0);
-    const cantidad = Number(cantidadObjetivo || 0);
+    const unidadesBase = numero(recetaSeleccionada?.unidades_producidas);
+    const cantidad = numero(cantidadObjetivo);
 
     if (unidadesBase <= 0) return 0;
 
     return cantidad / unidadesBase;
   }, [recetaSeleccionada, cantidadObjetivo]);
 
-  const ingredientesCalculados = useMemo(() => {
+  const ingredientesCalculados = useMemo<IngredienteCalculado[]>(() => {
     return detalleReceta.map((item) => {
-      const cantidadNecesaria = Number(item.cantidad || 0) * factorProduccion;
-      const costo = cantidadNecesaria * Number(item.ingredientes.costo_unitario || 0);
-      const stockActual = Number(item.ingredientes.stock_actual || 0);
+      const ingrediente = obtenerIngrediente(item.ingredientes);
+      const cantidadNecesaria = numero(item.cantidad) * factorProduccion;
+      const costo = cantidadNecesaria * numero(ingrediente?.costo_unitario);
+      const stockActual = numero(ingrediente?.stock_actual);
       const diferencia = stockActual - cantidadNecesaria;
 
       return {
         ...item,
+        ingrediente,
         cantidadNecesaria,
         costo,
         stockActual,
@@ -68,10 +105,12 @@ export default function AdminProduccionPage() {
     });
   }, [detalleReceta, factorProduccion]);
 
-  const costoTotal = ingredientesCalculados.reduce(
-    (total, item) => total + item.costo,
-    0
-  );
+  const costoTotal = useMemo(() => {
+    return ingredientesCalculados.reduce(
+      (total, item) => total + numero(item.costo),
+      0
+    );
+  }, [ingredientesCalculados]);
 
   const hayFaltantes = ingredientesCalculados.some(
     (item) => !item.stockSuficiente
@@ -110,7 +149,7 @@ export default function AdminProduccionPage() {
       return;
     }
 
-    setRecetas((data as Receta[]) || []);
+    setRecetas((data as unknown as Receta[]) || []);
     setLoading(false);
   }
 
@@ -145,7 +184,7 @@ export default function AdminProduccionPage() {
       return;
     }
 
-    setDetalleReceta((data as IngredienteReceta[]) || []);
+    setDetalleReceta((data as unknown as IngredienteReceta[]) || []);
     setCalculando(false);
   }
 
@@ -166,9 +205,8 @@ export default function AdminProduccionPage() {
 
     setConfirmando(true);
 
-    const cantidadUnidades = Number(cantidadObjetivo || 0);
-    const cantidadKg =
-      Number(recetaSeleccionada.rendimiento_kg || 0) * factorProduccion;
+    const cantidadUnidades = numero(cantidadObjetivo);
+    const cantidadKg = numero(recetaSeleccionada.rendimiento_kg) * factorProduccion;
 
     const { data: produccion, error: errorProduccion } = await supabase
       .from('producciones')
@@ -208,7 +246,7 @@ export default function AdminProduccionPage() {
 
     for (const item of ingredientesCalculados) {
       await registrarMovimientoInventario({
-        ingredienteId: item.ingrediente_id,
+        ingredienteId: String(item.ingrediente_id),
         tipo: 'salida',
         cantidad: item.cantidadNecesaria,
         motivo: 'Consumo por producción',
@@ -247,53 +285,55 @@ export default function AdminProduccionPage() {
           {loading ? (
             <p className="mt-6 font-black">Cargando recetas...</p>
           ) : (
-            <>
-              <div className="mt-6 grid gap-5 md:grid-cols-3">
-                <div className="rounded-2xl border bg-white p-4">
-                  <label className="mb-2 block text-xs font-black uppercase tracking-wide text-gray-500">
-                    Receta
-                  </label>
+            <div className="mt-6 grid gap-5 md:grid-cols-3">
+              <div className="rounded-2xl border bg-white p-4">
+                <label className="mb-2 block text-xs font-black uppercase tracking-wide text-gray-500">
+                  Receta
+                </label>
 
-                  <select
-                    value={recetaId}
-                    onChange={(e) => {
-                      setRecetaId(e.target.value);
-                      setDetalleReceta([]);
-                    }}
-                    className="w-full bg-transparent text-lg font-black outline-none"
-                  >
-                    <option value="">Seleccionar receta</option>
-                    {recetas.map((receta) => (
-                      <option key={receta.id} value={receta.id}>
-                        {receta.productos?.nombre || receta.nombre} — {receta.nombre}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="rounded-2xl border bg-white p-4">
-                  <label className="mb-2 block text-xs font-black uppercase tracking-wide text-gray-500">
-                    Unidades a producir
-                  </label>
-
-                  <input
-                    type="number"
-                    value={cantidadObjetivo}
-                    onChange={(e) => setCantidadObjetivo(e.target.value)}
-                    className="w-full bg-transparent text-lg font-black outline-none"
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  onClick={calcularProduccion}
-                  disabled={calculando}
-                  className="rounded-2xl bg-red-700 px-6 py-4 font-black text-white shadow-lg transition hover:bg-red-800 disabled:opacity-50"
+                <select
+                  value={recetaId}
+                  onChange={(e) => {
+                    setRecetaId(e.target.value);
+                    setDetalleReceta([]);
+                  }}
+                  className="w-full bg-transparent text-lg font-black outline-none"
                 >
-                  {calculando ? 'Calculando...' : 'Calcular producción'}
-                </button>
+                  <option value="">Seleccionar receta</option>
+                  {recetas.map((receta) => {
+                    const productoNombre = obtenerProductoNombre(receta.productos);
+
+                    return (
+                      <option key={receta.id} value={receta.id}>
+                        {productoNombre || receta.nombre} — {receta.nombre}
+                      </option>
+                    );
+                  })}
+                </select>
               </div>
-            </>
+
+              <div className="rounded-2xl border bg-white p-4">
+                <label className="mb-2 block text-xs font-black uppercase tracking-wide text-gray-500">
+                  Unidades a producir
+                </label>
+
+                <input
+                  type="number"
+                  value={cantidadObjetivo}
+                  onChange={(e) => setCantidadObjetivo(e.target.value)}
+                  className="w-full bg-transparent text-lg font-black outline-none"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={calcularProduccion}
+                disabled={calculando}
+                className="rounded-2xl bg-red-700 px-6 py-4 font-black text-white shadow-lg transition hover:bg-red-800 disabled:opacity-50"
+              >
+                {calculando ? 'Calculando...' : 'Calcular producción'}
+              </button>
+            </div>
           )}
         </section>
 
@@ -314,7 +354,7 @@ export default function AdminProduccionPage() {
               </div>
 
               <div className="rounded-2xl bg-maruxa-crema px-5 py-4 font-black text-maruxa-chocolate">
-                Costo estimado: ${costoTotal.toLocaleString('es-CL')}
+                Costo estimado: {dinero(costoTotal)}
               </div>
             </div>
 
@@ -331,45 +371,49 @@ export default function AdminProduccionPage() {
                 </thead>
 
                 <tbody>
-                  {ingredientesCalculados.map((item) => (
-                    <tr
-                      key={item.id}
-                      className="border-b last:border-none hover:bg-maruxa-crema/40"
-                    >
-                      <td className="px-4 py-3 font-bold">
-                        {item.ingredientes.nombre}
-                      </td>
+                  {ingredientesCalculados.map((item) => {
+                    const ingrediente = item.ingrediente;
 
-                      <td className="px-4 py-3 text-right">
-                        {item.stockActual.toLocaleString('es-CL')}{' '}
-                        {item.ingredientes.unidad_base}
-                      </td>
-
-                      <td className="px-4 py-3 text-right font-black">
-                        {item.cantidadNecesaria.toLocaleString('es-CL', {
-                          maximumFractionDigits: 4,
-                        })}{' '}
-                        {item.ingredientes.unidad_base}
-                      </td>
-
-                      <td
-                        className={`px-4 py-3 text-right font-black ${
-                          item.stockSuficiente
-                            ? 'text-green-700'
-                            : 'text-red-700'
-                        }`}
+                    return (
+                      <tr
+                        key={item.id}
+                        className="border-b last:border-none hover:bg-maruxa-crema/40"
                       >
-                        {item.stockSuficiente ? '✅ ' : '❌ '}
-                        {item.diferencia.toLocaleString('es-CL', {
-                          maximumFractionDigits: 4,
-                        })}
-                      </td>
+                        <td className="px-4 py-3 font-bold">
+                          {ingrediente?.nombre || '-'}
+                        </td>
 
-                      <td className="px-4 py-3 text-right font-black text-maruxa-vino">
-                        ${item.costo.toLocaleString('es-CL')}
-                      </td>
-                    </tr>
-                  ))}
+                        <td className="px-4 py-3 text-right">
+                          {item.stockActual.toLocaleString('es-CL')}{' '}
+                          {ingrediente?.unidad_base || ''}
+                        </td>
+
+                        <td className="px-4 py-3 text-right font-black">
+                          {item.cantidadNecesaria.toLocaleString('es-CL', {
+                            maximumFractionDigits: 4,
+                          })}{' '}
+                          {ingrediente?.unidad_base || ''}
+                        </td>
+
+                        <td
+                          className={`px-4 py-3 text-right font-black ${
+                            item.stockSuficiente
+                              ? 'text-green-700'
+                              : 'text-red-700'
+                          }`}
+                        >
+                          {item.stockSuficiente ? '✅ ' : '❌ '}
+                          {item.diferencia.toLocaleString('es-CL', {
+                            maximumFractionDigits: 4,
+                          })}
+                        </td>
+
+                        <td className="px-4 py-3 text-right font-black text-maruxa-vino">
+                          {dinero(item.costo)}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

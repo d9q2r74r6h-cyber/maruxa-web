@@ -237,22 +237,24 @@ const costoFinalConImpuestos =
               className="rounded-2xl border px-5 py-4 font-bold"
             />
             <input
-  type="number"
-  value={form.iva_porcentaje}
-  onChange={(e) =>
-    setForm({ ...form, iva_porcentaje: e.target.value })
-  }
-  placeholder="IVA %"
-  className="rounded-2xl border px-5 py-4 font-bold"
-/>
-
+                type="number"
+                value={form.iva_porcentaje}
+                onChange={(e) =>
+                    setForm({
+                    ...form,
+                    iva_porcentaje: Number(e.target.value || 0),
+                    })
+                }
+                placeholder="IVA %"
+                className="rounded-2xl border px-5 py-4 font-bold"
+                />
 <input
   type="number"
   value={form.impuesto_adicional_porcentaje}
   onChange={(e) =>
     setForm({
       ...form,
-      impuesto_adicional_porcentaje: e.target.value,
+      impuesto_adicional_porcentaje: Number(e.target.value || 0),
     })
   }
   placeholder="Otro impuesto %"
