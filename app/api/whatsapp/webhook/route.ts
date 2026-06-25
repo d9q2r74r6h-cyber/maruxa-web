@@ -52,14 +52,27 @@ export async function GET(request: Request) {
   const modo = url.searchParams.get('hub.mode');
   const token = url.searchParams.get('hub.verify_token');
   const desafio = url.searchParams.get('hub.challenge');
+  const tokenConfigurado = process.env.WHATSAPP_VERIFY_TOKEN?.trim();
+
+  if (!modo && !token && !desafio) {
+    return NextResponse.json({
+      webhook: 'whatsapp',
+      disponible: true,
+      tokenConfigurado: Boolean(tokenConfigurado),
+    });
+  }
 
   if (
     modo === 'subscribe' &&
     token &&
-    token === process.env.WHATSAPP_VERIFY_TOKEN &&
+    tokenConfigurado &&
+    token.trim() === tokenConfigurado &&
     desafio
   ) {
-    return new Response(desafio, { status: 200 });
+    return new Response(desafio, {
+      status: 200,
+      headers: { 'content-type': 'text/plain; charset=utf-8' },
+    });
   }
 
   return NextResponse.json({ error: 'Verificación inválida.' }, { status: 403 });
