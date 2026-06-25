@@ -7,6 +7,8 @@ import { obtenerEmpresaActual } from '@/lib/empresa';
 
 
 type TipoRecurso = 'ingrediente' | 'envase' | 'mano_obra';
+type TipoMargen = 'markup' | 'margen_comercial';
+type ModoPrecio = 'desde_margen' | 'desde_precio';
 
 type Producto = {
   id: number;
@@ -17,6 +19,7 @@ type Producto = {
   margen_personalizado?: number | null;
   tipo_margen_personalizado?: 'markup' | 'margen_comercial' | null;
   redondeo_personalizado?: number | null;
+  iva_porcentaje?: number | null;
   familias_productos?:
     | {
         nombre: string;
@@ -107,6 +110,11 @@ export default function AdminRecetasPage() {
   const [pesoUnidadKg, setPesoUnidadKg] = useState('1');
   const [unidadesProducidas, setUnidadesProducidas] = useState('1');
   const [costosIndirectosPorcentaje, setCostosIndirectosPorcentaje] = useState('0');
+  const [modoPrecio, setModoPrecio] = useState<ModoPrecio>('desde_margen');
+  const [tipoMargenCalculo, setTipoMargenCalculo] =
+    useState<TipoMargen>('markup');
+  const [margenCalculo, setMargenCalculo] = useState('0');
+  const [precioVentaIngresado, setPrecioVentaIngresado] = useState('');
 
   const [items, setItems] = useState<RecetaItemForm[]>([]);
   const [insumos, setInsumos] = useState<RecetaItemForm[]>([]);
@@ -114,6 +122,7 @@ export default function AdminRecetasPage() {
 
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
+  const [guardandoPrecio, setGuardandoPrecio] = useState(false);
 
   const [recetas, setRecetas] = useState<RecetaGuardada[]>([]);
   const [recetaEditando, setRecetaEditando] =
@@ -139,19 +148,13 @@ export default function AdminRecetasPage() {
 
       const cantidad = numero(item.cantidad);
       const costoNeto = numero(recurso?.costo_unitario);
-      const iva = numero(recurso?.iva_porcentaje);
-      const impuestoAdicional = numero(recurso?.impuesto_adicional_porcentaje);
-
-      const costoFinalUnitario =
-        costoNeto * (1 + iva / 100 + impuestoAdicional / 100);
-
-      const costoReceta = cantidad * costoFinalUnitario;
+      const costoReceta = cantidad * costoNeto;
 
       return {
         ...item,
         recurso,
         cantidad,
-        costoUnitario: costoFinalUnitario,
+        costoUnitario: costoNeto,
         costoReceta,
       } as DetalleCalculado;
     });
@@ -234,29 +237,109 @@ export default function AdminRecetasPage() {
   const redondeoAplicado = usaConfiguracionFamilia
     ? numero(familiaSeleccionada?.redondeo_precio)
     : numero(productoSeleccionado?.redondeo_personalizado);
+  const ivaVenta = numero(productoSeleccionado?.iva_porcentaje ?? 19);
 
-  let precioSugerido =
-    tipoMargenAplicado === 'margen_comercial' && margenAplicado < 100
-      ? costoFinalPorUnidad / (1 - margenAplicado / 100)
-      : costoFinalPorUnidad * (1 + margenAplicado / 100);
+  useEffect(() => {
+    setTipoMargenCalculo(tipoMargenAplicado);
+    setMargenCalculo(String(margenAplicado || 0));
+    setPrecioVentaIngresado('');
+    setModoPrecio('desde_margen');
+  }, [productoId, tipoMargenAplicado, margenAplicado]);
 
-  if (redondeoAplicado > 0) {
-    precioSugerido =
-      Math.ceil(precioSugerido / redondeoAplicado) * redondeoAplicado;
+  const margenObjetivo = numero(margenCalculo);
+  const margenSobreVentaValido =
+    tipoMargenCalculo !== 'margen_comercial' || margenObjetivo < 100;
+
+  const precioCalculadoNeto =
+    tipoMargenCalculo === 'margen_comercial' && margenSobreVentaValido
+      ? costoFinalPorUnidad / (1 - margenObjetivo / 100)
+      : tipoMargenCalculo === 'markup'
+        ? costoFinalPorUnidad * (1 + margenObjetivo / 100)
+        : 0;
+  let precioCalculado = precioCalculadoNeto * (1 + ivaVenta / 100);
+
+  if (redondeoAplicado > 0 && precioCalculado > 0) {
+    precioCalculado =
+      Math.ceil(precioCalculado / redondeoAplicado) * redondeoAplicado;
   }
 
-  const gananciaPesos = precioSugerido - costoFinalPorUnidad;
+  const precioVentaAnalizado =
+    modoPrecio === 'desde_precio'
+      ? numero(precioVentaIngresado)
+      : precioCalculado;
 
-  function calcularPrecioVenta(costoBase: number, porcentaje: number) {
-    // Por ahora los subproductos usan utilidad sobre costo.
-    // Cuando activemos la configuración inicial de empresa, este método vendrá preseleccionado.
-    let precio = costoBase * (1 + porcentaje / 100);
+  const precioVentaNeto =
+    precioVentaAnalizado > 0
+      ? precioVentaAnalizado / (1 + ivaVenta / 100)
+      : 0;
+  const gananciaPesos = precioVentaNeto - costoFinalPorUnidad;
+  const porcentajeCalculado =
+    precioVentaNeto > 0 && costoFinalPorUnidad > 0
+      ? tipoMargenCalculo === 'markup'
+        ? (gananciaPesos / costoFinalPorUnidad) * 100
+        : (gananciaPesos / precioVentaNeto) * 100
+      : 0;
+
+  function calcularPrecioVenta(
+    costoBase: number,
+    porcentaje: number,
+    tipo: TipoMargen = tipoMargenCalculo
+  ) {
+    const precioNeto =
+      tipo === 'margen_comercial' && porcentaje < 100
+        ? costoBase / (1 - porcentaje / 100)
+        : tipo === 'markup'
+          ? costoBase * (1 + porcentaje / 100)
+          : 0;
+    let precio = precioNeto * (1 + ivaVenta / 100);
 
     if (redondeoAplicado > 0) {
       precio = Math.ceil(precio / redondeoAplicado) * redondeoAplicado;
     }
 
     return precio;
+  }
+
+  async function guardarConfiguracionComercial() {
+    if (!productoSeleccionado || precioVentaAnalizado <= 0) {
+      alert('Selecciona un producto e ingresa un precio de venta válido.');
+      return;
+    }
+
+    setGuardandoPrecio(true);
+
+    const { error } = await supabase
+      .from('productos')
+      .update({
+        precio: Math.round(precioVentaAnalizado),
+        usar_configuracion_familia: false,
+        margen_personalizado: Number(porcentajeCalculado.toFixed(4)),
+        tipo_margen_personalizado: tipoMargenCalculo,
+        redondeo_personalizado: redondeoAplicado,
+      })
+      .eq('id', productoSeleccionado.id);
+
+    setGuardandoPrecio(false);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setProductos((actuales) =>
+      actuales.map((producto) =>
+        producto.id === productoSeleccionado.id
+          ? {
+              ...producto,
+              usar_configuracion_familia: false,
+              margen_personalizado: porcentajeCalculado,
+              tipo_margen_personalizado: tipoMargenCalculo,
+            }
+          : producto
+      )
+    );
+
+    alert('Precio de venta y margen guardados en el producto.');
   }
 
   async function cargarRecetas() {
@@ -315,6 +398,7 @@ export default function AdminRecetasPage() {
           margen_personalizado,
           tipo_margen_personalizado,
           redondeo_personalizado,
+          iva_porcentaje,
           familias_productos (
             nombre,
             margen_porcentaje,
@@ -980,8 +1064,8 @@ export default function AdminRecetasPage() {
                           <th className="px-4 py-3 text-left">Ingrediente</th>
                           <th className="px-4 py-3 text-right">Cantidad</th>
                           <th className="px-4 py-3 text-center">Unidad</th>
-                          <th className="px-4 py-3 text-right">Impuestos</th>
-                          <th className="px-4 py-3 text-right">Costo aplicado</th>
+                          <th className="px-4 py-3 text-right">IVA referencial</th>
+                          <th className="px-4 py-3 text-right">Costo neto aplicado</th>
                           <th className="px-4 py-3 text-right">Costo</th>
                         </tr>
                       </thead>
@@ -1284,6 +1368,87 @@ export default function AdminRecetasPage() {
                   Resumen final de costos
                 </h3>
 
+                <div className="mt-5 grid gap-4 rounded-2xl border border-[#4B2818]/15 bg-white p-4 lg:grid-cols-[auto_1fr_1fr]">
+                  <div>
+                    <p className="text-xs font-black uppercase text-[#4B2818]/60">
+                      Calcular
+                    </p>
+                    <div className="mt-2 flex rounded-lg bg-maruxa-crema p-1">
+                      <button
+                        type="button"
+                        onClick={() => setModoPrecio('desde_margen')}
+                        className={`h-10 px-4 text-sm font-black ${
+                          modoPrecio === 'desde_margen'
+                            ? 'rounded-md bg-[#A51F2B] text-white'
+                            : 'text-[#4B2818]'
+                        }`}
+                      >
+                        Precio desde margen
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setModoPrecio('desde_precio')}
+                        className={`h-10 px-4 text-sm font-black ${
+                          modoPrecio === 'desde_precio'
+                            ? 'rounded-md bg-[#A51F2B] text-white'
+                            : 'text-[#4B2818]'
+                        }`}
+                      >
+                        Margen desde precio
+                      </button>
+                    </div>
+                  </div>
+
+                  <label className="grid gap-2 text-xs font-black uppercase text-[#4B2818]/60">
+                    Tipo de margen
+                    <select
+                      value={tipoMargenCalculo}
+                      onChange={(event) =>
+                        setTipoMargenCalculo(event.target.value as TipoMargen)
+                      }
+                      className="h-11 rounded-md border border-[#4B2818]/20 bg-white px-3 text-base font-black normal-case text-[#2A1710]"
+                    >
+                      <option value="markup">Sobre costo (markup)</option>
+                      <option value="margen_comercial">Sobre venta</option>
+                    </select>
+                  </label>
+
+                  {modoPrecio === 'desde_margen' ? (
+                    <label className="grid gap-2 text-xs font-black uppercase text-[#4B2818]/60">
+                      Margen objetivo %
+                      <input
+                        type="number"
+                        min="0"
+                        max={tipoMargenCalculo === 'margen_comercial' ? 99.99 : undefined}
+                        step="0.01"
+                        value={margenCalculo}
+                        onChange={(event) => setMargenCalculo(event.target.value)}
+                        className="h-11 rounded-md border border-[#4B2818]/20 px-3 text-base font-black text-[#2A1710]"
+                      />
+                    </label>
+                  ) : (
+                    <label className="grid gap-2 text-xs font-black uppercase text-[#4B2818]/60">
+                      Precio de venta
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={precioVentaIngresado}
+                        onChange={(event) =>
+                          setPrecioVentaIngresado(event.target.value)
+                        }
+                        className="h-11 rounded-md border border-[#4B2818]/20 px-3 text-base font-black text-[#2A1710]"
+                      />
+                    </label>
+                  )}
+                </div>
+
+                {!margenSobreVentaValido && (
+                  <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm font-black text-red-700">
+                    El margen sobre venta debe ser menor a 100%.
+                  </p>
+                )}
+
                 <div className="mt-5 grid gap-4 md:grid-cols-3">
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
                     <p className="text-sm font-black uppercase text-amber-800">
@@ -1332,11 +1497,13 @@ export default function AdminRecetasPage() {
 
                   <div className="rounded-2xl border border-green-200 bg-green-50 p-4">
                     <p className="text-sm font-black uppercase text-green-800">
-                      Precio sugerido
+                      {modoPrecio === 'desde_precio'
+                        ? 'Precio de venta ingresado'
+                        : 'Precio sugerido final'}
                     </p>
                     {productoId ? (
                       <p className="mt-2 text-3xl font-black text-green-900">
-                        {dinero(precioSugerido)}
+                        {dinero(precioVentaAnalizado)}
                       </p>
                     ) : (
                         <p className="mt-2 text-3xl font-black text-green-900">
@@ -1359,12 +1526,20 @@ export default function AdminRecetasPage() {
 
                   <p className="mt-1 text-sm font-bold text-purple-700">
                     Método:{' '}
-                    {tipoMargenAplicado === 'markup'
+                    {tipoMargenCalculo === 'markup'
                       ? 'Utilidad sobre costo'
                       : 'Margen comercial sobre venta'}
                   </p>
                   <p className="mt-1 text-sm font-bold text-purple-700">
-                    Porcentaje aplicado: {margenAplicado.toLocaleString('es-CL')}%
+                    Margen efectivo:{' '}
+                    {porcentajeCalculado.toLocaleString('es-CL', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                    %
+                  </p>
+                  <p className="mt-1 text-sm font-bold text-purple-700">
+                    Venta neta: {dinero(precioVentaNeto)} · IVA: {ivaVenta.toLocaleString('es-CL')}%
                   </p>
                   <p className="mt-1 text-sm font-bold text-purple-700">
                     Redondeo: {dinero(redondeoAplicado)}
@@ -1372,6 +1547,21 @@ export default function AdminRecetasPage() {
                   <p className="mt-1 text-sm font-bold text-purple-700">
                     Ganancia: {dinero(gananciaPesos)} por unidad
                   </p>
+                  <button
+                    type="button"
+                    onClick={guardarConfiguracionComercial}
+                    disabled={
+                      guardandoPrecio ||
+                      !productoId ||
+                      precioVentaAnalizado <= 0 ||
+                      !margenSobreVentaValido
+                    }
+                    className="mt-4 h-10 rounded-md bg-[#A51F2B] px-4 text-sm font-black text-white disabled:opacity-50"
+                  >
+                    {guardandoPrecio
+                      ? 'Guardando...'
+                      : 'Guardar precio y margen en el producto'}
+                  </button>
                 </div>
               </section>
               )}
