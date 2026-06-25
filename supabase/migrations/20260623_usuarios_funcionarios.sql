@@ -280,6 +280,7 @@ begin
       ('compra_detalle', 'compras'),
       ('recetas', 'recetas'),
       ('receta_ingredientes', 'recetas'),
+      ('receta_subproductos', 'recetas'),
       ('producciones', 'produccion'),
       ('planillas', 'planillas'),
       ('planilla_turnos', 'planillas'),
