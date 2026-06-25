@@ -150,6 +150,18 @@ export function Home() {
         </div>
       </section>
 
+      <footer className="border-t border-maruxa-cafe/10 py-8">
+        <div className="contenedor flex flex-col gap-3 text-sm font-bold text-maruxa-cafe/70 sm:flex-row sm:items-center sm:justify-between">
+          <p>Panadería Maruxa · San Miguel</p>
+          <a
+            href="/politica-de-privacidad"
+            className="transition hover:text-maruxa-rojo"
+          >
+            Política de privacidad
+          </a>
+        </div>
+      </footer>
+
       <CartDrawer />
       <MobileCartBar />     
     </>
