@@ -9,6 +9,7 @@ import { obtenerEmpresaActual } from '@/lib/empresa';
 type TipoRecurso = 'ingrediente' | 'envase' | 'mano_obra';
 type TipoMargen = 'markup' | 'margen_comercial';
 type ModoPrecio = 'desde_margen' | 'desde_precio';
+const CLAVE_BORRADOR_RECETA = 'maruxa:receta:borrador:v1';
 
 type Producto = {
   id: number;
@@ -123,6 +124,8 @@ export default function AdminRecetasPage() {
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [guardandoPrecio, setGuardandoPrecio] = useState(false);
+  const [borradorListo, setBorradorListo] = useState(false);
+  const [borradorRecuperado, setBorradorRecuperado] = useState(false);
 
   const [recetas, setRecetas] = useState<RecetaGuardada[]>([]);
   const [recetaEditando, setRecetaEditando] =
@@ -450,6 +453,92 @@ export default function AdminRecetasPage() {
     cargarDatos();
   }, []);
 
+  useEffect(() => {
+    if (loading || borradorListo) return;
+
+    try {
+      const almacenado = window.localStorage.getItem(CLAVE_BORRADOR_RECETA);
+      if (almacenado) {
+        const borrador = JSON.parse(almacenado);
+
+        setProductoId(String(borrador.productoId || ''));
+        setNombre(String(borrador.nombre || ''));
+        setPesoUnidadKg(String(borrador.pesoUnidadKg || '1'));
+        setUnidadesProducidas(String(borrador.unidadesProducidas || '1'));
+        setCostosIndirectosPorcentaje(
+          String(borrador.costosIndirectosPorcentaje || '0')
+        );
+        setItems(Array.isArray(borrador.items) ? borrador.items : []);
+        setInsumos(Array.isArray(borrador.insumos) ? borrador.insumos : []);
+        setSubproductos(
+          Array.isArray(borrador.subproductos) ? borrador.subproductos : []
+        );
+        setTabActiva(
+          ['ingredientes', 'insumos', 'resumen', 'subproductos'].includes(
+            borrador.tabActiva
+          )
+            ? borrador.tabActiva
+            : 'ingredientes'
+        );
+
+        const tieneContenido =
+          borrador.productoId ||
+          borrador.nombre ||
+          borrador.items?.length ||
+          borrador.insumos?.length ||
+          borrador.subproductos?.length;
+        setBorradorRecuperado(Boolean(tieneContenido));
+      }
+    } catch {
+      window.localStorage.removeItem(CLAVE_BORRADOR_RECETA);
+    }
+
+    setBorradorListo(true);
+  }, [loading, borradorListo]);
+
+  useEffect(() => {
+    if (!borradorListo) return;
+
+    const tieneContenido =
+      productoId ||
+      nombre.trim() ||
+      items.length > 0 ||
+      insumos.length > 0 ||
+      subproductos.length > 0;
+
+    if (!tieneContenido) {
+      window.localStorage.removeItem(CLAVE_BORRADOR_RECETA);
+      return;
+    }
+
+    window.localStorage.setItem(
+      CLAVE_BORRADOR_RECETA,
+      JSON.stringify({
+        productoId,
+        nombre,
+        pesoUnidadKg,
+        unidadesProducidas,
+        costosIndirectosPorcentaje,
+        items,
+        insumos,
+        subproductos,
+        tabActiva,
+        guardadoEn: new Date().toISOString(),
+      })
+    );
+  }, [
+    borradorListo,
+    productoId,
+    nombre,
+    pesoUnidadKg,
+    unidadesProducidas,
+    costosIndirectosPorcentaje,
+    items,
+    insumos,
+    subproductos,
+    tabActiva,
+  ]);
+
   function agregarIngrediente() {
     setItems([...items, { ingrediente_id: '', cantidad: '' }]);
   }
@@ -531,6 +620,8 @@ export default function AdminRecetasPage() {
   }
 
   function limpiarFormulario() {
+    window.localStorage.removeItem(CLAVE_BORRADOR_RECETA);
+    setBorradorRecuperado(false);
     setProductoId('');
     setNombre('');
     setPesoUnidadKg('1');
@@ -864,6 +955,21 @@ export default function AdminRecetasPage() {
               <p className="font-black text-blue-800">
                 Editando: {recetaEditando.nombre}
               </p>
+            </div>
+          )}
+
+          {borradorRecuperado && !recetaEditando && (
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+              <p className="text-sm font-black text-amber-800">
+                Borrador recuperado automáticamente.
+              </p>
+              <button
+                type="button"
+                onClick={() => setBorradorRecuperado(false)}
+                className="text-xs font-black text-amber-800"
+              >
+                Ocultar
+              </button>
             </div>
           )}
 
