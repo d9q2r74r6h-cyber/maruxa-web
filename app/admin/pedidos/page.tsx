@@ -14,6 +14,7 @@ type Pedido = {
   hora_retiro: string;
   observaciones: string | null;
   estado: string;
+  origen?: string | null;
   productos: {
     nombre: string;
     cantidad: number;
@@ -246,7 +247,12 @@ export default function AdminPedidosPage() {
                             }`}
                         >
                             {pedido.estado}
-                        </span>
+                          </span>
+                          {pedido.origen === 'whatsapp_carrito' && (
+                            <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-black text-green-800">
+                              WhatsApp
+                            </span>
+                          )}
                         </div>
 
                   <h2 className="mt-2 text-3xl font-black text-maruxa-chocolate">
