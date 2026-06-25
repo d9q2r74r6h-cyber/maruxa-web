@@ -140,9 +140,16 @@ export default function AdminProductosPage() {
   }
 
   async function subirImagenProducto(file: File) {
+    const empresa = await obtenerEmpresaActual();
+
+    if (!empresa) {
+      alert('No se pudo identificar la empresa para subir la imagen.');
+      return;
+    }
+
     const extension = file.name.split('.').pop() ?? 'jpg';
     const nombreBase = crearSlug(file.name.replace(/\.[^/.]+$/, ''));
-    const nombreArchivo = `${Date.now()}-${nombreBase}.${extension}`;
+    const nombreArchivo = `${empresa.id}/${Date.now()}-${nombreBase}.${extension}`;
 
     const { error } = await supabase.storage
       .from('productos')
@@ -184,7 +191,10 @@ export default function AdminProductosPage() {
   }
 
   async function cargarImagenesStorage() {
-    const carpetas = ['', 'productos', 'imagenes', 'public'];
+    const empresa = await obtenerEmpresaActual();
+    if (!empresa) return;
+
+    const carpetas = [empresa.id, '', 'productos', 'imagenes', 'public'];
     const todasLasImagenes: { nombre: string; url: string }[] = [];
 
     for (const carpeta of carpetas) {
