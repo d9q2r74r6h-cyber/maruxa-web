@@ -241,7 +241,9 @@ export default function AdminRecetasPage() {
 
   useEffect(() => {
     setTipoMargenCalculo(tipoMargenAplicado);
-    setMargenCalculo(String(margenAplicado || 0));
+    setMargenCalculo(
+      String(Math.round((margenAplicado || 0) * 100) / 100)
+    );
     setPrecioVentaIngresado('');
     setModoPrecio('desde_margen');
   }, [productoId, tipoMargenAplicado, margenAplicado]);
@@ -313,7 +315,7 @@ export default function AdminRecetasPage() {
       .update({
         precio: Math.round(precioVentaAnalizado),
         usar_configuracion_familia: false,
-        margen_personalizado: Number(porcentajeCalculado.toFixed(4)),
+        margen_personalizado: Number(porcentajeCalculado.toFixed(2)),
         tipo_margen_personalizado: tipoMargenCalculo,
         redondeo_personalizado: redondeoAplicado,
       })
@@ -332,7 +334,7 @@ export default function AdminRecetasPage() {
           ? {
               ...producto,
               usar_configuracion_familia: false,
-              margen_personalizado: porcentajeCalculado,
+              margen_personalizado: Number(porcentajeCalculado.toFixed(2)),
               tipo_margen_personalizado: tipoMargenCalculo,
             }
           : producto
