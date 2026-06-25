@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { obtenerEmpresaActual } from '@/lib/empresa';
-import { AdminMenu } from '@/components/AdminMenu';
+
 
 type Receta = {
   id: string;
@@ -242,7 +242,7 @@ export default function AdminProduccionPage() {
                   type="button"
                   onClick={fabricar}
                   disabled={fabricando}
-                  className="rounded-full bg-maruxa-rojo px-8 py-4 font-black text-white shadow-lg"
+                  className="rounded-full bg-red-700 px-8 py-4 font-black text-white shadow-lg transition hover:bg-red-800 disabled:opacity-50"
                 >
                   {fabricando ? 'Fabricando...' : 'Fabricar'}
                 </button>

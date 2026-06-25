@@ -57,10 +57,18 @@ export default function ConfiguracionPage() {
       .from('empresas')
       .select('*')
       .eq('id', empresaActual.id)
-      .single();
+      .maybeSingle();
 
     if (empresaError) {
       alert(empresaError.message);
+      setLoading(false);
+      return;
+    }
+
+    if (!empresaData) {
+      alert(
+        'No tienes acceso a la configuración de esta empresa. Ejecuta la migración de corrección de acceso ERP.'
+      );
       setLoading(false);
       return;
     }

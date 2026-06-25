@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 import { useCart } from '@/lib/cart';
-import { supabase } from '@/lib/supabase';
+import { supabasePublic } from '@/lib/supabase-public';
 import { obtenerEmpresaActual } from '@/lib/empresa';
 import { CalendarioRetiro } from '@/components/CalendarioRetiro';
 
@@ -85,7 +85,7 @@ const pedido = {
   empresa_id: empresa.id,
 };
 
-const { data: pedidoCreado, error } = await supabase
+const { data: pedidoCreado, error } = await supabasePublic
   .from('pedidos')
   .insert([pedido])
   .select()

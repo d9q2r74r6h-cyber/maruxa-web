@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { obtenerEmpresaActual } from '@/lib/empresa';
-import { AdminMenu } from '@/components/AdminMenu';
-type TipoProducto = 'producto' | 'ingrediente' | 'envase';
+type TipoProducto = 'producto' | 'ingrediente' | 'envase' | 'mano_obra';
 
 type Producto = {
   id: number;
+  codigo: string | null;
   nombre: string;
   descripcion: string | null;
   precio: number;
@@ -28,6 +28,8 @@ type Producto = {
   stock_actual: number | null;
   stock_minimo: number | null;
   activo: boolean | null;
+  controla_stock: boolean | null;
+  contabiliza_como_saco: boolean | null;
   familias_productos?: {
     nombre: string;
   } | null;
@@ -37,9 +39,8 @@ type Producto = {
   redondeo_personalizado: number | null;
 };
 
-const CLAVE_ADMIN = 'maruxa1962';
-
 const formInicial = {
+  codigo: '',
   nombre: '',
   descripcion: '',
   precio: '',
@@ -66,6 +67,8 @@ const formInicial = {
   stock_actual: '0',
   stock_minimo: '0',
   activo: true,
+  controla_stock: true,
+  contabiliza_como_saco: false,
 };
 
 function crearSlug(texto: string) {
@@ -79,9 +82,6 @@ function crearSlug(texto: string) {
 }
 
 export default function AdminProductosPage() {
-  const [clave, setClave] = useState('');
-  const [autorizado, setAutorizado] = useState(false);
-
   const [productos, setProductos] = useState<Producto[]>([]);
   const [cargando, setCargando] = useState(false);
 
@@ -104,9 +104,8 @@ export default function AdminProductosPage() {
   const totalProductos = useMemo(() => productos.length, [productos]);
 
   const esProducto = form.tipo_producto === 'producto';
-  const esInsumo =
-    form.tipo_producto === 'ingrediente' ||
-    form.tipo_producto === 'envase';
+  const esInsumo = form.tipo_producto !== 'producto';
+  const esManoObra = form.tipo_producto === 'mano_obra';
 
   async function cargarProductos() {
     setCargando(true);
@@ -138,6 +137,35 @@ export default function AdminProductosPage() {
 
     setProductos((data as Producto[]) || []);
     setCargando(false);
+  }
+
+  async function subirImagenProducto(file: File) {
+    const extension = file.name.split('.').pop() ?? 'jpg';
+    const nombreBase = crearSlug(file.name.replace(/\.[^/.]+$/, ''));
+    const nombreArchivo = `${Date.now()}-${nombreBase}.${extension}`;
+
+    const { error } = await supabase.storage
+      .from('productos')
+      .upload(nombreArchivo, file, {
+        cacheControl: '3600',
+        upsert: false,
+      });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    const { data } = supabase.storage
+      .from('productos')
+      .getPublicUrl(nombreArchivo);
+
+    setForm({
+      ...form,
+      imagen: data.publicUrl,
+    });
+
+    await cargarImagenesStorage();
   }
 
   async function cargarFamilias() {
@@ -196,21 +224,10 @@ export default function AdminProductosPage() {
   }
 
   useEffect(() => {
-    if (autorizado) {
-      cargarProductos();
-      cargarFamilias();
-      cargarImagenesStorage();
-    }
-  }, [autorizado]);
-
-  function entrar() {
-    if (clave.trim() === CLAVE_ADMIN) {
-      setAutorizado(true);
-      return;
-    }
-
-    alert('Clave incorrecta');
-  }
+    cargarProductos();
+    cargarFamilias();
+    cargarImagenesStorage();
+  }, []);
 
   function limpiarFormulario() {
     setProductoEditando(null);
@@ -223,6 +240,7 @@ export default function AdminProductosPage() {
     const tipoProducto = producto.tipo_producto || 'producto';
 
     setForm({
+      codigo: producto.codigo || '',
       nombre: producto.nombre,
       descripcion: producto.descripcion || '',
       precio: String(producto.precio || ''),
@@ -255,6 +273,8 @@ export default function AdminProductosPage() {
       stock_actual: String(producto.stock_actual ?? 0),
       stock_minimo: String(producto.stock_minimo ?? 0),
       activo: producto.activo ?? true,
+      controla_stock: producto.controla_stock ?? tipoProducto !== 'mano_obra',
+      contabiliza_como_saco: producto.contabiliza_como_saco ?? false,
     });
 
     window.scrollTo({
@@ -310,6 +330,7 @@ export default function AdminProductosPage() {
 
   function construirDatosProducto(empresaId?: string | number) {
     return {
+      codigo: form.codigo.trim() || null,
       nombre: form.nombre,
       descripcion: form.descripcion,
       precio:
@@ -323,7 +344,9 @@ export default function AdminProductosPage() {
           ? form.categoria
           : form.tipo_producto === 'ingrediente'
             ? 'Ingredientes'
-            : 'Envases',
+            : form.tipo_producto === 'envase'
+              ? 'Envases'
+              : 'Mano de obra',
       empresa_id: empresaId,
       imagen: esProducto ? form.imagen || null : null,
       destacado: esProducto ? form.destacado : false,
@@ -356,16 +379,22 @@ export default function AdminProductosPage() {
           : null,
 
       tipo_producto: form.tipo_producto,
-      unidad_base: esInsumo ? form.unidad_base : null,
-      costo_unitario: esInsumo
-        ? Number(form.costo_unitario || 0)
-        : 0,
+      unidad_base: form.unidad_base,
+      costo_unitario: Number(form.costo_unitario || 0),
       iva_porcentaje: Number(form.iva_porcentaje || 19),
       impuesto_adicional_porcentaje: Number(
         form.impuesto_adicional_porcentaje || 0
       ),
       stock_actual: Number(form.stock_actual || 0),
       stock_minimo: Number(form.stock_minimo || 0),
+      controla_stock:
+        form.tipo_producto === 'mano_obra'
+          ? false
+          : form.controla_stock,
+      contabiliza_como_saco:
+        form.tipo_producto === 'ingrediente'
+          ? form.contabiliza_como_saco
+          : false,
       activo: form.activo,
     };
   }
@@ -448,41 +477,6 @@ export default function AdminProductosPage() {
     cargarProductos();
   }
 
-  if (!autorizado) {
-    return (
-     
-        <div className="mx-auto max-w-md rounded-[34px] bg-white p-8 shadow-premium">
-          <h1 className="text-4xl font-black text-maruxa-chocolate">
-            Admin Maruxa
-          </h1>
-
-          <p className="mt-3 text-maruxa-cafe/70">
-            Ingresa la clave para administrar productos.
-          </p>
-
-          <input
-            type="password"
-            value={clave}
-            onChange={(e) => setClave(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') entrar();
-            }}
-            placeholder="Clave admin"
-            className="mt-8 w-full rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
-          />
-
-          <button
-            type="button"
-            onClick={entrar}
-            className="mt-5 w-full rounded-full bg-maruxa-rojo px-5 py-4 font-black text-white"
-          >
-            Entrar
-          </button>
-        </div>
-      
-    );
-  }
-
   return (
     <main className="min-h-screen bg-maruxa-crema px-5 py-12">
       <div className="mx-auto max-w-6xl">
@@ -508,6 +502,18 @@ export default function AdminProductosPage() {
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <input
+              placeholder="Codigo de producto"
+              value={form.codigo}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  codigo: e.target.value,
+                })
+              }
+              className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold uppercase outline-none"
+            />
+
+            <input
               placeholder="Nombre"
               value={form.nombre}
               onChange={(e) =>
@@ -532,6 +538,7 @@ export default function AdminProductosPage() {
               <option value="producto">Producto terminado</option>
               <option value="ingrediente">Ingrediente</option>
               <option value="envase">Envase</option>
+              <option value="mano_obra">Mano de obra</option>
             </select>
 
             {esProducto && (
@@ -568,7 +575,17 @@ export default function AdminProductosPage() {
               />
             )}
 
-            {esInsumo && (
+            <div className="md:col-span-2 mt-2 rounded-[24px] border border-maruxa-rojo/10 bg-maruxa-crema/60 p-4">
+              <h3 className="text-lg font-black text-maruxa-chocolate">
+                Datos operacionales
+              </h3>
+
+              <p className="mt-1 text-sm font-bold text-maruxa-cafe/70">
+                Unidad, costo, impuestos e inventario usados en compras, recetas y produccion.
+              </p>
+            </div>
+
+            {true && (
               <>
                 <select
                   value={form.unidad_base}
@@ -586,10 +603,11 @@ export default function AdminProductosPage() {
                   <option value="GR">GR</option>
                   <option value="ML">ML</option>
                   <option value="CC">CC</option>
+                  <option value="MIN">MIN</option>
                 </select>
 
                 <input
-                  placeholder="Costo unitario"
+                  placeholder={esProducto ? 'Costo base / reposicion' : 'Costo unitario'}
                   type="number"
                   value={form.costo_unitario}
                   onChange={(e) =>
@@ -631,26 +649,28 @@ export default function AdminProductosPage() {
                   placeholder="Stock actual"
                   type="number"
                   value={form.stock_actual}
+                  disabled={esManoObra}
                   onChange={(e) =>
                     setForm({
                       ...form,
                       stock_actual: e.target.value,
                     })
                   }
-                  className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
+                  className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none disabled:bg-gray-100 disabled:text-gray-400"
                 />
 
                 <input
                   placeholder="Stock mínimo"
                   type="number"
                   value={form.stock_minimo}
+                  disabled={esManoObra}
                   onChange={(e) =>
                     setForm({
                       ...form,
                       stock_minimo: e.target.value,
                     })
                   }
-                  className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
+                  className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none disabled:bg-gray-100 disabled:text-gray-400"
                 />
               </>
             )}
@@ -748,19 +768,31 @@ export default function AdminProductosPage() {
               </>
             )}
 
-            {esProducto && (
-              <input
-                placeholder="URL imagen"
-                value={form.imagen}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    imagen: e.target.value,
-                  })
-                }
-                className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
-              />
-            )}
+              {form.tipo_producto === 'producto' && (
+                <div className="rounded-2xl border border-maruxa-rojo/10 p-4 md:col-span-2">
+                  <label className="mb-3 block text-xs font-black uppercase tracking-wide text-gray-500">
+                    Imagen del producto
+                  </label>
+
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) subirImagenProducto(file);
+                    }}
+                    className="w-full rounded-2xl border px-4 py-3 font-bold"
+                  />
+
+                  {form.imagen && (
+                    <img
+                      src={form.imagen}
+                      alt={form.nombre}
+                      className="mt-4 h-40 w-full rounded-2xl object-cover"
+                    />
+                  )}
+                </div>
+              )}
 
             <textarea
               placeholder="Descripción"
@@ -803,6 +835,37 @@ export default function AdminProductosPage() {
               />
               Activo
             </label>
+
+            <label className="flex items-center gap-3 font-black text-maruxa-chocolate">
+              <input
+                type="checkbox"
+                checked={form.tipo_producto === 'mano_obra' ? false : form.controla_stock}
+                disabled={form.tipo_producto === 'mano_obra'}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    controla_stock: e.target.checked,
+                  })
+                }
+              />
+              Controla stock
+            </label>
+
+            {form.tipo_producto === 'ingrediente' && (
+              <label className="flex items-center gap-3 font-black text-maruxa-chocolate">
+                <input
+                  type="checkbox"
+                  checked={form.contabiliza_como_saco}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      contabiliza_como_saco: e.target.checked,
+                    })
+                  }
+                />
+                Usar en planilla de rinde
+              </label>
+            )}
 
             {esProducto && !form.usar_configuracion_familia && (
               <>
@@ -923,57 +986,74 @@ export default function AdminProductosPage() {
           </section>
         )}
 
-        <section className="grid gap-4">
+        <section className="grid gap-2">
           {cargando && (
-            <div className="rounded-[28px] bg-white p-6 font-black shadow-premium">
+            <div className="rounded-2xl bg-white p-4 font-black shadow-premium">
               Cargando productos...
             </div>
           )}
 
           {productos.map((producto) => {
             const tipo = producto.tipo_producto || 'producto';
-            const esInsumoLista =
-              tipo === 'ingrediente' || tipo === 'envase';
+            const esInsumoLista = tipo !== 'producto';
 
             return (
               <article
                 key={producto.id}
                 onClick={() => editarProducto(producto)}
-                className="cursor-pointer rounded-[28px] bg-white p-5 shadow-premium transition hover:-translate-y-1 hover:ring-2 hover:ring-maruxa-rojo/20"
+                className="cursor-pointer rounded-2xl bg-white px-4 py-3 shadow-premium transition hover:-translate-y-0.5 hover:ring-2 hover:ring-maruxa-rojo/20"
               >
-                <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+                <div className="flex flex-col justify-between gap-2 md:flex-row md:items-center">
                   <div>
                     <p className="text-xs font-black uppercase tracking-widest text-maruxa-rojo">
                       {tipo === 'producto'
                         ? producto.categoria
                         : tipo === 'ingrediente'
                           ? 'Ingrediente'
-                          : 'Envase'}
+                          : tipo === 'envase'
+                            ? 'Envase'
+                            : 'Mano de obra'}
                     </p>
 
                     {tipo === 'producto' &&
                       producto.familias_productos?.nombre && (
-                        <span className="mt-2 inline-flex rounded-full bg-purple-100 px-3 py-1 text-xs font-black text-purple-700">
+                        <span className="mt-1 inline-flex rounded-full bg-purple-100 px-2 py-0.5 text-xs font-black text-purple-700">
                           📂 {producto.familias_productos?.nombre}
                         </span>
                       )}
 
                     {tipo === 'producto' &&
                       !producto.usar_configuracion_familia && (
-                        <span className="mt-2 ml-2 inline-flex rounded-full bg-orange-100 px-3 py-1 text-xs font-black text-orange-700">
+                        <span className="mt-1 ml-2 inline-flex rounded-full bg-orange-100 px-2 py-0.5 text-xs font-black text-orange-700">
                           Margen personalizado
                         </span>
                       )}
 
                     {!producto.activo && (
-                      <span className="mt-2 ml-2 inline-flex rounded-full bg-gray-200 px-3 py-1 text-xs font-black text-gray-700">
+                      <span className="mt-1 ml-2 inline-flex rounded-full bg-gray-200 px-2 py-0.5 text-xs font-black text-gray-700">
                         Inactivo
                       </span>
                     )}
 
-                    <h3 className="mt-2 text-2xl font-black text-maruxa-chocolate">
+                    <span
+                      className={`mt-1 ml-2 inline-flex rounded-full px-2 py-0.5 text-xs font-black ${
+                        producto.controla_stock
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-gray-200 text-gray-600'
+                      }`}
+                    >
+                      {producto.controla_stock ? 'Controla stock' : 'No controla stock'}
+                    </span>
+
+                    <h3 className="mt-1 text-xl font-black text-maruxa-chocolate">
                       {producto.nombre}
                     </h3>
+
+                    {producto.codigo && (
+                      <p className="mt-0.5 text-xs font-black uppercase tracking-wide text-maruxa-cafe/55">
+                        Codigo: {producto.codigo}
+                      </p>
+                    )}
 
                     {esInsumoLista ? (
                       <p className="mt-1 font-bold text-maruxa-cafe/70">

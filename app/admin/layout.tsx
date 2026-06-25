@@ -1,4 +1,5 @@
-import { AdminMenu } from '@/components/AdminMenu';
+import { AdminSessionProvider } from '@/components/AdminSession';
+import { AdminLayoutShell } from '@/components/AdminLayoutShell';
 
 export default function AdminLayout({
   children,
@@ -6,11 +7,8 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   return (
-    <main className="min-h-screen bg-maruxa-crema px-5 py-8">
-      <div className="mx-auto max-w-7xl">
-        <AdminMenu />
-        {children}
-      </div>
-    </main>
+    <AdminSessionProvider>
+      <AdminLayoutShell>{children}</AdminLayoutShell>
+    </AdminSessionProvider>
   );
 }

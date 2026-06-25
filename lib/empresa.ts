@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { supabasePublic } from '@/lib/supabase-public';
 
 export type Empresa = {
   id: string;
@@ -25,13 +26,22 @@ export async function obtenerEmpresaActual(): Promise<Empresa | null> {
       ? window.location.hostname.replace('www.', '')
       : 'panaderiamaruxa.cl';
 
-  const { data, error } = await supabase
-    .from('empresas')
-    .select('*')
-    .eq('slug', 'maruxa')
-    .eq('activo', true)
-    .limit(1)
-    .maybeSingle();
+  const consultar = (cliente: typeof supabase) =>
+    cliente
+      .from('empresas')
+      .select('*')
+      .eq('slug', 'maruxa')
+      .eq('activo', true)
+      .limit(1)
+      .maybeSingle();
+
+  const respuestaSesion = await consultar(supabase);
+
+  if (respuestaSesion.data) {
+    return respuestaSesion.data as Empresa;
+  }
+
+  const { data, error } = await consultar(supabasePublic);
 
   if (error) {
     console.error('Error obteniendo empresa:', error.message);

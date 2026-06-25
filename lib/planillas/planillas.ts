@@ -1,76 +1,129 @@
 export type DatosTurno = {
-    amasado: number;
-    masaOcupa: number;
-    masaQueda: number;
-    panRacion: number;
-    panMeson: number;
-    cacho?: number;
-    otroskg?: number;
-    repartos?: number[];
+  amasado: number;
+  masaOcupa: number;
+  masaQueda: number;
+  panRacion: number;
+  panMeson: number;
+  merma?: number;
+  otroskg?: number;
+  repartos?: number[];
+};
+
+export type DatosPlanillaRinde = {
+  primera: DatosTurno;
+  segunda: DatosTurno;
+  panSobrante: number;
+};
+
+function n(valor: number | undefined) {
+  const numero = Number(valor || 0);
+  return Number.isFinite(numero) ? numero : 0;
+}
+
+function ajusteDeMasa(masaOcupa: number, masaQueda: number) {
+  return Number(
+    ((((n(masaOcupa) - n(masaQueda)) / 100) / 3) * 2).toFixed(2)
+  );
+}
+
+// EasyPan registra medio saco como .5 y lo convierte a dos amasadas.
+function calcularFactorAmasado(
+  amasado: number,
+  masaOcupa: number,
+  masaQueda: number
+) {
+  const ajusteMasa = ajusteDeMasa(masaOcupa, masaQueda);
+  const texto = String(n(amasado));
+
+  if (texto.includes('.')) {
+    const [entero, decimal] = texto.split('.');
+    return (
+      Number(entero || 0) +
+      (Number(`0.${decimal || 0}`) + ajusteMasa) * 2
+    );
+  }
+
+  return n(amasado) + ajusteMasa * 2;
+}
+
+function resultado(kilos: number, factorAmasado: number) {
+  const rinde = factorAmasado > 0 ? kilos / factorAmasado : 0;
+
+  return {
+    kilos: Number(kilos.toFixed(2)),
+    factorAmasado: Number(factorAmasado.toFixed(2)),
+    rinde: Number(rinde.toFixed(2)),
+    estadoRinde: clasificarRinde(rinde),
   };
-  
-  function n(valor: number | undefined) {
-    return Number(valor || 0);
-  }
-  
-  function calcularFactorAmasado(
-    amasado: number,
-    masaOcupa: number,
-    masaQueda: number
-  ) {
-    const ajusteMasa = Number(
-      (((n(masaOcupa) - n(masaQueda)) / 100 / 3) * 2).toFixed(2)
-    );
-  
-    const texto = String(n(amasado));
-  
-    if (texto.includes('.')) {
-      const [entero, decimal] = texto.split('.');
-  
-      return (
-        Number(entero || 0) +
-        (Number(`0.${decimal || 0}`) + ajusteMasa) * 2
-      );
-    }
-  
-    return n(amasado) + ajusteMasa * 2;
-  }
-  
-  export function calcularTurno(turno: DatosTurno) {
-    const kilosRepartos =
-      turno.repartos?.reduce(
-        (acc, valor) => acc + n(valor),
-        0
-      ) || 0;
-  
-    const kilos =
-      n(turno.panMeson) +
-      n(turno.panRacion) +
-      n(turno.cacho) +
-      n(turno.otroskg) +
-      kilosRepartos;
-  
-    const factorAmasado = calcularFactorAmasado(
-      turno.amasado,
-      turno.masaOcupa,
-      turno.masaQueda
-    );
-  
-    const rinde =
-      factorAmasado > 0
-        ? kilos / factorAmasado
-        : 0;
-  
-    return {
-      kilos,
-      factorAmasado,
-      rinde: Number(rinde.toFixed(2)),
-      estadoRinde: clasificarRinde(rinde),
-    };
-  }
-  
-  export function clasificarRinde(rinde: number) {
-    if (rinde >= 64) return 'ideal';
-    if (rinde >= 63) return 'aceptable';
-    return 'bajo';
-  }
+}
+
+export function calcularTurno(turno: DatosTurno) {
+  const kilosRepartos =
+    turno.repartos?.reduce((total, valor) => total + n(valor), 0) || 0;
+  const kilos =
+    n(turno.panMeson) +
+    n(turno.panRacion) +
+    n(turno.otroskg) +
+    kilosRepartos +
+    n(turno.merma);
+
+  return resultado(
+    kilos,
+    calcularFactorAmasado(turno.amasado, turno.masaOcupa, turno.masaQueda)
+  );
+}
+
+export function calcularPlanillaRinde(datos: DatosPlanillaRinde) {
+  const repartosPrimera =
+    datos.primera.repartos?.reduce((total, valor) => total + n(valor), 0) || 0;
+  const repartosSegunda =
+    datos.segunda.repartos?.reduce((total, valor) => total + n(valor), 0) || 0;
+
+  const kilosPrimera =
+    n(datos.primera.panMeson) +
+    n(datos.panSobrante) +
+    n(datos.primera.panRacion) +
+    repartosPrimera +
+    n(datos.primera.merma);
+  const kilosSegunda =
+    n(datos.segunda.panMeson) +
+    n(datos.segunda.panRacion) -
+    n(datos.panSobrante) +
+    repartosSegunda +
+    n(datos.segunda.merma);
+
+  const primera = resultado(
+    kilosPrimera,
+    calcularFactorAmasado(
+      datos.primera.amasado,
+      datos.primera.masaOcupa,
+      datos.primera.masaQueda
+    )
+  );
+  const segunda = resultado(
+    kilosSegunda,
+    calcularFactorAmasado(
+      datos.segunda.amasado,
+      datos.segunda.masaOcupa,
+      datos.segunda.masaQueda
+    )
+  );
+
+  const amasadoTotal = n(datos.primera.amasado) + n(datos.segunda.amasado);
+  const masaOcupaTotal =
+    n(datos.primera.masaOcupa) + n(datos.segunda.masaOcupa);
+  const masaQuedaTotal =
+    n(datos.primera.masaQueda) + n(datos.segunda.masaQueda);
+  const total = resultado(
+    kilosPrimera + kilosSegunda,
+    calcularFactorAmasado(amasadoTotal, masaOcupaTotal, masaQuedaTotal)
+  );
+
+  return { primera, segunda, total };
+}
+
+export function clasificarRinde(rinde: number) {
+  if (rinde >= 64) return 'ideal';
+  if (rinde >= 63) return 'aceptable';
+  return 'bajo';
+}

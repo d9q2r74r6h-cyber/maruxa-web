@@ -9,7 +9,7 @@ import {
   Search,
 } from 'lucide-react';
 
-import { supabase } from '@/lib/supabase';
+import { supabasePublic } from '@/lib/supabase-public';
 import { obtenerEmpresaActual } from '@/lib/empresa';
 import { useSearchParams } from 'next/navigation';
 
@@ -85,9 +85,11 @@ export default function Catalogo() {
         return;
       }
     
-      const { data, error } = await supabase
+      const { data, error } = await supabasePublic
   .from('productos')
-  .select('*')
+  .select(
+    'id,nombre,descripcion,precio,categoria,imagen,destacado,slug,tipo_producto,precio_10,precio_15,precio_20,precio_25'
+  )
   .eq('empresa_id', empresa.id)
   .eq('activo', true)
   .eq('tipo_producto', 'producto')

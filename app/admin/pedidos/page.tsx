@@ -24,12 +24,7 @@ type Pedido = {
   created_at?: string;
 };
 
-const CLAVE_ADMIN = 'maruxa1962';
-
 export default function AdminPedidosPage() {
-  const [clave, setClave] = useState('');
-  const [autorizado, setAutorizado] = useState(false);
-
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -89,19 +84,8 @@ export default function AdminPedidosPage() {
   }
 
   useEffect(() => {
-    if (autorizado) {
-      cargarPedidos();
-    }
-  }, [autorizado]);
-
-  function entrar() {
-    if (clave === CLAVE_ADMIN) {
-      setAutorizado(true);
-      return;
-    }
-
-    alert('Clave incorrecta');
-  }
+    cargarPedidos();
+  }, []);
 
   
 
@@ -146,40 +130,6 @@ export default function AdminPedidosPage() {
             (pedido) =>
               pedido.estado === filtroEstado
           );   
-
-  if (!autorizado) {
-    return (
-      
-        <div className="mx-auto max-w-md rounded-[34px] bg-white p-8 shadow-premium">
-          <h1 className="text-4xl font-black text-maruxa-chocolate">
-            Admin Pedidos
-          </h1>
-
-          <input
-            type="password"
-            placeholder="Clave admin"
-            value={clave}
-            onChange={(e) =>
-              setClave(e.target.value)
-            }
-            onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  entrar();
-                }
-              }}
-            className="mt-8 w-full rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
-          />
-
-          <button
-            onClick={entrar}
-            className="mt-5 w-full rounded-full bg-maruxa-rojo px-5 py-4 font-black text-white"
-          >
-            Entrar
-          </button>
-        </div>
-      
-    );
-  }
 
   return (
     <main className="min-h-screen bg-maruxa-crema px-5 py-12">

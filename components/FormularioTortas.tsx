@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabasePublic } from '@/lib/supabase-public';
 import { whatsapp } from '@/lib/datos';
 
 export function FormularioTortas() {
@@ -25,7 +25,7 @@ export function FormularioTortas() {
       estado: 'pendiente',
     };
 
-    const { error } = await supabase.from('tortas').insert([pedido]);
+    const { error } = await supabasePublic.from('tortas').insert([pedido]);
 
     if (error) {
       alert('No se pudo guardar el pedido. Revisa Supabase.');

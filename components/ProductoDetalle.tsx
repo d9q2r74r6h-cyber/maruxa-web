@@ -6,7 +6,7 @@ import { useCart } from '@/lib/cart';
 import { ProductosRelacionados } from '@/components/ProductosRelacionados';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabasePublic } from '@/lib/supabase-public';
 import { useRouter } from 'next/navigation';
 import { obtenerEmpresaActual } from '@/lib/empresa';
 
@@ -52,9 +52,11 @@ const [tamano, setTamano] = useState<TamanoTorta>(tamanos[0]);
         return;
       }
   
-      const { data } = await supabase
+      const { data } = await supabasePublic
         .from('productos')
-        .select('*')
+        .select(
+          'id,nombre,descripcion,precio,categoria,imagen,slug,precio_10,precio_15,precio_20,precio_25'
+        )
         .eq('slug', slug)
         .eq('empresa_id', empresa.id)
         .maybeSingle();

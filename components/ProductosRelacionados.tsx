@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabasePublic } from '@/lib/supabase-public';
 
 type Producto = {
   id: number;
@@ -26,9 +26,11 @@ export function ProductosRelacionados({
 
   useEffect(() => {
     async function cargar() {
-      const { data } = await supabase
+      const { data } = await supabasePublic
         .from('productos')
-        .select('*')
+        .select('id,nombre,descripcion,precio,categoria,imagen,slug')
+        .eq('activo', true)
+        .eq('tipo_producto', 'producto')
         .eq('categoria', categoria)
         .neq('id', productoActualId)
         .limit(3);

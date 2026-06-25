@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Menu, ShoppingBag, X, ChevronRight } from 'lucide-react';
+import { Menu, ShoppingBag, X, ChevronRight, LogIn } from 'lucide-react';
 import { useCart } from '@/lib/cart';
 import { whatsapp } from '@/lib/datos';
 
@@ -54,7 +54,7 @@ export function Header() {
             ))}
           </nav>
 
-          <div className="hidden lg:flex">
+          <div className="hidden items-center gap-2 lg:flex">
             <a href="/#catalogo" className="btn-rojo relative flex items-center gap-2">
               <ShoppingBag size={18} />
               Comprar
@@ -64,6 +64,15 @@ export function Header() {
                 </span>
               )}
             </a>
+
+            <Link
+              href="/admin/login"
+              className="flex h-11 items-center gap-2 px-3 text-xs font-black uppercase text-maruxa-cafe/75 transition hover:text-maruxa-rojo"
+              title="Ingresar a Maruxa ERP"
+            >
+              <LogIn size={17} />
+              Acceso ERP
+            </Link>
           </div>
 
           <button
@@ -119,6 +128,18 @@ export function Header() {
                 <ChevronRight size={20} />
               </Link>
             ))}
+
+            <Link
+              href="/admin/login"
+              onClick={() => setOpen(false)}
+              className="flex items-center justify-between rounded-[24px] border border-maruxa-rojo/10 bg-white px-5 py-5 text-lg font-black text-maruxa-chocolate transition hover:border-maruxa-rojo/30"
+            >
+              <span className="flex items-center gap-3">
+                <LogIn size={20} />
+                Acceso ERP
+              </span>
+              <ChevronRight size={20} />
+            </Link>
 
             <a href={`https://wa.me/${whatsapp}?text=${mensaje}`} className="btn-rojo mt-5 text-center">
               WhatsApp Maruxa
