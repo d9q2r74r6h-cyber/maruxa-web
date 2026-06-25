@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { obtenerEmpresaActual } from '@/lib/empresa';
+import { Search, X } from 'lucide-react';
 type TipoProducto = 'producto' | 'ingrediente' | 'envase' | 'mano_obra';
 
 type Producto = {
@@ -81,16 +82,21 @@ function crearSlug(texto: string) {
     .replace(/(^-|-$)/g, '');
 }
 
+function normalizarTexto(texto: string | null | undefined) {
+  return String(texto || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
 export default function AdminProductosPage() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [cargando, setCargando] = useState(false);
+  const [busqueda, setBusqueda] = useState('');
+  const [filtroTipo, setFiltroTipo] = useState<'todos' | TipoProducto>('todos');
 
   const [productoEditando, setProductoEditando] =
     useState<Producto | null>(null);
-
-  const [imagenesStorage, setImagenesStorage] = useState<
-    { nombre: string; url: string }[]
-  >([]);
 
   const [familias, setFamilias] = useState<
     {
@@ -102,6 +108,29 @@ export default function AdminProductosPage() {
   const [form, setForm] = useState(formInicial);
 
   const totalProductos = useMemo(() => productos.length, [productos]);
+  const productosFiltrados = useMemo(() => {
+    const termino = normalizarTexto(busqueda.trim());
+
+    return productos.filter((producto) => {
+      const tipo = producto.tipo_producto || 'producto';
+      const coincideTipo = filtroTipo === 'todos' || tipo === filtroTipo;
+      if (!coincideTipo) return false;
+      if (!termino) return true;
+
+      const contenido = [
+        producto.codigo,
+        producto.nombre,
+        producto.descripcion,
+        producto.categoria,
+        producto.familias_productos?.nombre,
+        tipo,
+      ]
+        .map(normalizarTexto)
+        .join(' ');
+
+      return contenido.includes(termino);
+    });
+  }, [productos, busqueda, filtroTipo]);
 
   const esProducto = form.tipo_producto === 'producto';
   const esInsumo = form.tipo_producto !== 'producto';
@@ -171,8 +200,6 @@ export default function AdminProductosPage() {
       ...form,
       imagen: data.publicUrl,
     });
-
-    await cargarImagenesStorage();
   }
 
   async function cargarFamilias() {
@@ -190,53 +217,9 @@ export default function AdminProductosPage() {
     setFamilias(data || []);
   }
 
-  async function cargarImagenesStorage() {
-    const empresa = await obtenerEmpresaActual();
-    if (!empresa) return;
-
-    const carpetas = [empresa.id, '', 'productos', 'imagenes', 'public'];
-    const todasLasImagenes: { nombre: string; url: string }[] = [];
-
-    for (const carpeta of carpetas) {
-      const { data, error } = await supabase.storage
-        .from('productos')
-        .list(carpeta, {
-          limit: 100,
-          sortBy: {
-            column: 'name',
-            order: 'asc',
-          },
-        });
-
-      if (error) continue;
-
-      data
-        ?.filter((archivo) =>
-          archivo.name.match(/\.(jpg|jpeg|png|webp)$/i)
-        )
-        .forEach((archivo) => {
-          const ruta = carpeta
-            ? `${carpeta}/${archivo.name}`
-            : archivo.name;
-
-          const { data: publicUrl } = supabase.storage
-            .from('productos')
-            .getPublicUrl(ruta);
-
-          todasLasImagenes.push({
-            nombre: archivo.name,
-            url: publicUrl.publicUrl,
-          });
-        });
-    }
-
-    setImagenesStorage(todasLasImagenes);
-  }
-
   useEffect(() => {
     cargarProductos();
     cargarFamilias();
-    cargarImagenesStorage();
   }, []);
 
   function limpiarFormulario() {
@@ -949,61 +932,79 @@ export default function AdminProductosPage() {
           </div>
         </section>
 
-        {esProducto && (
-          <section className="mb-10 rounded-[34px] bg-white p-6 shadow-premium">
-            <h2 className="text-2xl font-black text-maruxa-chocolate">
-              Imágenes del Storage
-            </h2>
+        <section>
+          <div className="mb-4 border-y border-maruxa-cafe/10 bg-white px-4 py-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-wide text-maruxa-rojo">
+                  Catálogo interno
+                </p>
+                <h2 className="mt-1 text-2xl font-black text-maruxa-chocolate">
+                  Productos e insumos
+                </h2>
+                <p className="mt-1 text-sm font-bold text-maruxa-cafe/60">
+                  {productosFiltrados.length} de {totalProductos} registros
+                </p>
+              </div>
 
-            <p className="mt-2 text-sm font-bold text-maruxa-cafe/70">
-              Imágenes cargadas: {imagenesStorage.length}
-            </p>
+              <div className="grid gap-2 sm:grid-cols-[minmax(260px,420px)_180px]">
+                <label className="relative block">
+                  <Search className="absolute left-3 top-3 h-5 w-5 text-maruxa-cafe/45" />
+                  <input
+                    value={busqueda}
+                    onChange={(event) => setBusqueda(event.target.value)}
+                    placeholder="Buscar por nombre, código o categoría"
+                    className="h-11 w-full rounded-md border border-maruxa-cafe/20 bg-white pl-10 pr-10 text-sm font-bold outline-none transition focus:border-maruxa-rojo"
+                  />
+                  {busqueda && (
+                    <button
+                      type="button"
+                      onClick={() => setBusqueda('')}
+                      title="Limpiar búsqueda"
+                      className="absolute right-2 top-2 grid h-7 w-7 place-items-center text-maruxa-cafe/50 hover:text-maruxa-rojo"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </label>
 
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-              {imagenesStorage.map((imagen) => {
-                const nombreLimpio = imagen.nombre
-                  .replace(/\.[^/.]+$/, '')
-                  .replace(/[-_]/g, ' ');
-
-                return (
-                  <button
-                    key={imagen.url}
-                    type="button"
-                    onClick={() =>
-                      setForm({
-                        ...form,
-                        nombre: nombreLimpio,
-                        imagen: imagen.url,
-                      })
-                    }
-                    className="overflow-hidden rounded-[24px] bg-maruxa-crema text-left shadow-premium transition hover:-translate-y-1"
-                  >
-                    <img
-                      src={imagen.url}
-                      alt={imagen.nombre}
-                      className="h-40 w-full object-cover"
-                    />
-
-                    <div className="p-3">
-                      <p className="line-clamp-2 text-xs font-black text-maruxa-chocolate">
-                        {imagen.nombre}
-                      </p>
-                    </div>
-                  </button>
-                );
-              })}
+                <select
+                  value={filtroTipo}
+                  onChange={(event) =>
+                    setFiltroTipo(event.target.value as 'todos' | TipoProducto)
+                  }
+                  className="h-11 rounded-md border border-maruxa-cafe/20 bg-white px-3 text-sm font-black text-maruxa-chocolate outline-none focus:border-maruxa-rojo"
+                >
+                  <option value="todos">Todos los tipos</option>
+                  <option value="producto">Productos terminados</option>
+                  <option value="ingrediente">Ingredientes</option>
+                  <option value="envase">Envases</option>
+                  <option value="mano_obra">Mano de obra</option>
+                </select>
+              </div>
             </div>
-          </section>
-        )}
+          </div>
 
-        <section className="grid gap-2">
+          <div className="grid gap-2">
           {cargando && (
             <div className="rounded-2xl bg-white p-4 font-black shadow-premium">
               Cargando productos...
             </div>
           )}
 
-          {productos.map((producto) => {
+          {!cargando && productosFiltrados.length === 0 && (
+            <div className="border border-dashed border-maruxa-cafe/25 bg-white px-6 py-12 text-center">
+              <Search className="mx-auto h-8 w-8 text-maruxa-cafe/35" />
+              <p className="mt-3 font-black text-maruxa-chocolate">
+                No encontramos coincidencias
+              </p>
+              <p className="mt-1 text-sm font-bold text-maruxa-cafe/55">
+                Prueba otro nombre, código, categoría o tipo.
+              </p>
+            </div>
+          )}
+
+          {productosFiltrados.map((producto) => {
             const tipo = producto.tipo_producto || 'producto';
             const esInsumoLista = tipo !== 'producto';
 
@@ -1134,6 +1135,7 @@ export default function AdminProductosPage() {
               </article>
             );
           })}
+          </div>
         </section>
       </div>
     </main>
