@@ -64,6 +64,7 @@ export default function ProveedoresPage() {
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
+  const [errorCarga, setErrorCarga] = useState('');
 
   const proveedoresFiltrados = useMemo(() => {
     const texto = busqueda.trim().toLowerCase();
@@ -91,6 +92,7 @@ export default function ProveedoresPage() {
   async function cargar() {
     if (!perfil) return;
     setCargando(true);
+    setErrorCarga('');
 
     const { data, error } = await supabase
       .from('proveedores')
@@ -99,7 +101,8 @@ export default function ProveedoresPage() {
       .order('razon_social', { ascending: true });
 
     if (error) {
-      alert(error.message);
+      setErrorCarga(error.message);
+      setProveedores([]);
     } else {
       setProveedores((data || []) as Proveedor[]);
     }
@@ -182,8 +185,9 @@ export default function ProveedoresPage() {
         });
 
     if (respuesta.error) {
-      alert(respuesta.error.message);
+      setErrorCarga(respuesta.error.message);
     } else {
+      setErrorCarga('');
       limpiarFormulario();
       await cargar();
     }
@@ -198,7 +202,7 @@ export default function ProveedoresPage() {
       .eq('id', proveedor.id);
 
     if (error) {
-      alert(error.message);
+      setErrorCarga(error.message);
       return;
     }
 
@@ -334,10 +338,29 @@ export default function ProveedoresPage() {
             <div className="flex justify-center p-10">
               <Loader2 className="h-6 w-6 animate-spin text-[#A51F2B]" />
             </div>
+          ) : errorCarga ? (
+            <div className="m-5 rounded-lg border border-red-200 bg-red-50 p-5">
+              <p className="font-black text-red-800">
+                No se pudieron cargar los proveedores
+              </p>
+              <p className="mt-2 text-sm font-semibold text-red-700">
+                {errorCarga}
+              </p>
+              <p className="mt-3 text-xs font-bold text-red-700/80">
+                Revisa que exista la tabla proveedores y que se haya ejecutado
+                el SQL completo del modulo, incluyendo permisos RLS.
+              </p>
+            </div>
           ) : proveedoresFiltrados.length === 0 ? (
-            <p className="p-10 text-center font-semibold text-[#4B2818]/55">
-              No se encontraron proveedores.
-            </p>
+            <div className="p-10 text-center">
+              <p className="font-black text-[#2A1710]">
+                No se encontraron proveedores.
+              </p>
+              <p className="mt-2 text-sm font-semibold text-[#4B2818]/60">
+                Si ya creaste la tabla, falta ejecutar el importador del RCV o
+                crear el primer proveedor desde el formulario.
+              </p>
+            </div>
           ) : (
             <div className="divide-y divide-[#4B2818]/10">
               {proveedoresFiltrados.map((proveedor) => (
