@@ -63,13 +63,14 @@ export default function NuevoDocumentoPage() {
     codigo: '',
     razon: '',
   });
+  const [ivaEmpresa, setIvaEmpresa] = useState(19);
   const [lineas, setLineas] = useState<Linea[]>([nuevaLinea()]);
   const [guardando, setGuardando] = useState(false);
 
   useEffect(() => {
     async function cargar() {
       if (!perfil) return;
-      const [respuestaClientes, respuestaProductos] = await Promise.all([
+      const [respuestaClientes, respuestaProductos, respuestaEmpresa] = await Promise.all([
         supabase
           .from('clientes')
           .select('id, rut, razon_social, giro, direccion, comuna, ciudad')
@@ -83,10 +84,16 @@ export default function NuevoDocumentoPage() {
           .eq('activo', true)
           .eq('tipo_producto', 'producto')
           .order('nombre'),
+        supabase
+          .from('empresas')
+          .select('iva_porcentaje')
+          .eq('id', perfil.empresa_id)
+          .maybeSingle(),
       ]);
 
       setClientes((respuestaClientes.data || []) as Cliente[]);
       setProductos((respuestaProductos.data || []) as Producto[]);
+      setIvaEmpresa(Number(respuestaEmpresa.data?.iva_porcentaje ?? 19));
     }
 
     cargar();
@@ -105,20 +112,20 @@ export default function NuevoDocumentoPage() {
       else neto += totalLinea;
     }
 
-    const iva = Math.round(neto * 0.19);
+    const iva = Math.round(neto * (ivaEmpresa / 100));
     return {
       neto: Math.round(neto),
       exento: Math.round(exento),
       iva,
       total: Math.round(neto + exento + iva),
     };
-  }, [lineas, tipoDte]);
+  }, [lineas, tipoDte, ivaEmpresa]);
 
   function cambiarProducto(lineaId: number, productoId: string) {
     const producto = productos.find(
       (item) => item.id === Number(productoId)
     );
-    const tasaIva = Number(producto?.iva_porcentaje ?? 19);
+    const tasaIva = ivaEmpresa;
     const esExento = tasaIva === 0;
     const precioVenta = Number(producto?.precio || 0);
     const precioNeto =

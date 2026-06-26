@@ -11,6 +11,7 @@ type EmpresaConfig = {
   rut: string;
   telefono: string | null;
   email: string | null;
+  iva_porcentaje: number;
   direccion: string | null;
   comuna: string | null;
   ciudad: string | null;
@@ -106,6 +107,7 @@ export default function ConfiguracionPage() {
         rut: empresa.rut,
         telefono: empresa.telefono,
         email: empresa.email,
+        iva_porcentaje: Number(empresa.iva_porcentaje || 19),
         direccion: empresa.direccion,
         comuna: empresa.comuna,
         ciudad: empresa.ciudad,
@@ -251,6 +253,26 @@ export default function ConfiguracionPage() {
               placeholder="Email"
               className="rounded-2xl border px-5 py-4 font-bold"
             />
+
+            <label className="space-y-2">
+              <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
+                IVA general %
+              </span>
+              <input
+                type="number"
+                value={empresa.iva_porcentaje ?? 19}
+                onChange={(e) =>
+                  setEmpresa({
+                    ...empresa,
+                    iva_porcentaje: Number(e.target.value || 19),
+                  })
+                }
+                className="h-14 w-full rounded-2xl border px-5 font-bold"
+              />
+              <span className="block text-xs font-semibold text-maruxa-cafe/60">
+                Se aplica por defecto a precios, documentos y productos.
+              </span>
+            </label>
 
             <input
               value={empresa.direccion || ''}

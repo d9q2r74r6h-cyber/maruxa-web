@@ -126,6 +126,7 @@ export default function AdminRecetasPage() {
   const [guardandoPrecio, setGuardandoPrecio] = useState(false);
   const [borradorListo, setBorradorListo] = useState(false);
   const [borradorRecuperado, setBorradorRecuperado] = useState(false);
+  const [ivaEmpresa, setIvaEmpresa] = useState(19);
 
   const [recetas, setRecetas] = useState<RecetaGuardada[]>([]);
   const [recetaEditando, setRecetaEditando] =
@@ -240,7 +241,7 @@ export default function AdminRecetasPage() {
   const redondeoAplicado = usaConfiguracionFamilia
     ? numero(familiaSeleccionada?.redondeo_precio)
     : numero(productoSeleccionado?.redondeo_personalizado);
-  const ivaVenta = numero(productoSeleccionado?.iva_porcentaje ?? 19);
+  const ivaVenta = ivaEmpresa;
 
   useEffect(() => {
     setTipoMargenCalculo(tipoMargenAplicado);
@@ -387,6 +388,8 @@ export default function AdminRecetasPage() {
       setLoading(false);
       return;
     }
+
+    setIvaEmpresa(numero(empresa.iva_porcentaje ?? 19) || 19);
 
     const [
       { data: productosData, error: errorProductos },

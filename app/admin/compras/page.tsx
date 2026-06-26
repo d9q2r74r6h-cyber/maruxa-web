@@ -313,7 +313,7 @@ export default function AdminComprasPage() {
         tipo_producto: tipo,
         unidad_base: nuevoProducto.unidad_base,
         costo_unitario: costo,
-        iva_porcentaje: 19,
+        iva_porcentaje: Number(empresa.iva_porcentaje ?? 19),
         impuesto_adicional_porcentaje: 0,
         stock_actual: stockInicial,
         stock_minimo: 0,

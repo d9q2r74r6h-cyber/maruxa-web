@@ -12,6 +12,7 @@ export type Empresa = {
   logo_url: string | null;
   telefono: string | null;
   email: string | null;
+  iva_porcentaje?: number | null;
   direccion: string | null;
   comuna: string | null;
   ciudad: string | null;

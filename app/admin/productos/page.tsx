@@ -112,6 +112,7 @@ export default function AdminProductosPage() {
       nombre: string;
     }[]
   >([]);
+  const [ivaEmpresa, setIvaEmpresa] = useState(19);
 
   const [form, setForm] = useState(formInicial);
 
@@ -143,7 +144,7 @@ export default function AdminProductosPage() {
   const esProducto = form.tipo_producto === 'producto';
   const esInsumo = form.tipo_producto !== 'producto';
   const esManoObra = form.tipo_producto === 'mano_obra';
-  const ivaProducto = numero(form.iva_porcentaje || 19);
+  const ivaProducto = ivaEmpresa;
   const precioVentaFinal = numero(form.precio);
   const precioVentaNeto =
     precioVentaFinal > 0 ? precioVentaFinal / (1 + ivaProducto / 100) : 0;
@@ -160,6 +161,8 @@ export default function AdminProductosPage() {
       setCargando(false);
       return;
     }
+
+    setIvaEmpresa(numero(empresa.iva_porcentaje ?? 19) || 19);
 
     const { data, error } = await supabase
       .from('productos')
@@ -273,7 +276,7 @@ export default function AdminProductosPage() {
       tipo_producto: tipoProducto,
       unidad_base: producto.unidad_base || 'KG',
       costo_unitario: String(producto.costo_unitario || ''),
-      iva_porcentaje: String(producto.iva_porcentaje ?? 19),
+      iva_porcentaje: String(ivaEmpresa || producto.iva_porcentaje || 19),
       impuesto_adicional_porcentaje: String(
         producto.impuesto_adicional_porcentaje || ''
       ),
@@ -388,7 +391,7 @@ export default function AdminProductosPage() {
       tipo_producto: form.tipo_producto,
       unidad_base: form.unidad_base,
       costo_unitario: Number(form.costo_unitario || 0),
-      iva_porcentaje: Number(form.iva_porcentaje || 19),
+      iva_porcentaje: ivaEmpresa,
       impuesto_adicional_porcentaje: Number(
         form.impuesto_adicional_porcentaje || 0
       ),
@@ -651,26 +654,17 @@ export default function AdminProductosPage() {
                   </span>
                 </label>
 
-                <label className="space-y-2">
+                <div className="rounded-2xl border border-maruxa-rojo/10 bg-maruxa-crema/60 px-5 py-4">
                   <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
-                    IVA de venta o compra %
+                    IVA general empresa
                   </span>
-                  <input
-                    placeholder="Ej: 19"
-                    type="number"
-                    value={form.iva_porcentaje}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        iva_porcentaje: e.target.value,
-                      })
-                    }
-                    className="h-14 w-full rounded-2xl border border-maruxa-rojo/10 px-5 font-bold outline-none"
-                  />
-                  <span className="block text-xs font-semibold text-maruxa-cafe/60">
-                    Se usa para separar neto/IVA en precios, compras y documentos.
-                  </span>
-                </label>
+                  <p className="mt-2 text-2xl font-black text-maruxa-chocolate">
+                    {ivaEmpresa.toLocaleString('es-CL')}%
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-maruxa-cafe/60">
+                    Se configura una sola vez en Empresa y se aplica a este producto.
+                  </p>
+                </div>
 
                 <label className="space-y-2">
                   <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
