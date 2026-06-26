@@ -89,6 +89,14 @@ function normalizarTexto(texto: string | null | undefined) {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
+function numero(valor: string | number | null | undefined) {
+  return Number(String(valor ?? '').replace(',', '.')) || 0;
+}
+
+function dinero(valor: number) {
+  return `$${Math.round(valor || 0).toLocaleString('es-CL')}`;
+}
+
 export default function AdminProductosPage() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [cargando, setCargando] = useState(false);
@@ -135,6 +143,12 @@ export default function AdminProductosPage() {
   const esProducto = form.tipo_producto === 'producto';
   const esInsumo = form.tipo_producto !== 'producto';
   const esManoObra = form.tipo_producto === 'mano_obra';
+  const ivaProducto = numero(form.iva_porcentaje || 19);
+  const precioVentaFinal = numero(form.precio);
+  const precioVentaNeto =
+    precioVentaFinal > 0 ? precioVentaFinal / (1 + ivaProducto / 100) : 0;
+  const ivaVentaCalculado =
+    precioVentaFinal > 0 ? precioVentaFinal - precioVentaNeto : 0;
 
   async function cargarProductos() {
     setCargando(true);
@@ -554,18 +568,28 @@ export default function AdminProductosPage() {
             )}
 
             {esProducto && form.categoria !== 'Tortas' && (
-              <input
-                placeholder="Precio de venta"
-                type="number"
-                value={form.precio}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    precio: e.target.value,
-                  })
-                }
-                className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
-              />
+              <label className="space-y-2">
+                <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
+                  Precio de venta final
+                </span>
+                <input
+                  placeholder="Precio con IVA incluido"
+                  type="number"
+                  value={form.precio}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      precio: e.target.value,
+                    })
+                  }
+                  className="h-14 w-full rounded-2xl border border-maruxa-rojo/10 px-5 font-bold outline-none"
+                />
+                <span className="block text-xs font-semibold text-maruxa-cafe/60">
+                  Ingrese el precio que paga el cliente. Neto aprox:{' '}
+                  {dinero(precioVentaNeto)} | IVA:{' '}
+                  {dinero(ivaVentaCalculado)}
+                </span>
+              </label>
             )}
 
             <div className="md:col-span-2 mt-2 rounded-[24px] border border-maruxa-rojo/10 bg-maruxa-crema/60 p-4">
@@ -753,57 +777,80 @@ export default function AdminProductosPage() {
 
             {esProducto && form.categoria === 'Tortas' && (
               <>
-                <input
-                  placeholder="Precio 10 personas"
-                  type="number"
-                  value={form.precio_10}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      precio_10: e.target.value,
-                    })
-                  }
-                  className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
-                />
+                <label className="space-y-2">
+                  <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
+                    Precio final 10 personas
+                  </span>
+                  <input
+                    placeholder="Con IVA incluido"
+                    type="number"
+                    value={form.precio_10}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        precio_10: e.target.value,
+                      })
+                    }
+                    className="h-14 w-full rounded-2xl border border-maruxa-rojo/10 px-5 font-bold outline-none"
+                  />
+                </label>
 
-                <input
-                  placeholder="Precio 15 personas"
-                  type="number"
-                  value={form.precio_15}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      precio_15: e.target.value,
-                    })
-                  }
-                  className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
-                />
+                <label className="space-y-2">
+                  <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
+                    Precio final 15 personas
+                  </span>
+                  <input
+                    placeholder="Con IVA incluido"
+                    type="number"
+                    value={form.precio_15}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        precio_15: e.target.value,
+                      })
+                    }
+                    className="h-14 w-full rounded-2xl border border-maruxa-rojo/10 px-5 font-bold outline-none"
+                  />
+                </label>
 
-                <input
-                  placeholder="Precio 20 personas"
-                  type="number"
-                  value={form.precio_20}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      precio_20: e.target.value,
-                    })
-                  }
-                  className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
-                />
+                <label className="space-y-2">
+                  <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
+                    Precio final 20 personas
+                  </span>
+                  <input
+                    placeholder="Con IVA incluido"
+                    type="number"
+                    value={form.precio_20}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        precio_20: e.target.value,
+                      })
+                    }
+                    className="h-14 w-full rounded-2xl border border-maruxa-rojo/10 px-5 font-bold outline-none"
+                  />
+                </label>
 
-                <input
-                  placeholder="Precio 25 personas"
-                  type="number"
-                  value={form.precio_25}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      precio_25: e.target.value,
-                    })
-                  }
-                  className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
-                />
+                <label className="space-y-2">
+                  <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
+                    Precio final 25 personas
+                  </span>
+                  <input
+                    placeholder="Con IVA incluido"
+                    type="number"
+                    value={form.precio_25}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        precio_25: e.target.value,
+                      })
+                    }
+                    className="h-14 w-full rounded-2xl border border-maruxa-rojo/10 px-5 font-bold outline-none"
+                  />
+                </label>
+                <p className="md:col-span-2 text-xs font-semibold text-maruxa-cafe/60">
+                  Los precios de torta tambien son finales, con IVA incluido.
+                </p>
               </>
             )}
 
