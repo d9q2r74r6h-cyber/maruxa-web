@@ -32,15 +32,27 @@ type Turno = {
   activo: boolean;
 };
 
+type ImpuestoAdicional = {
+  id: string;
+  nombre: string;
+  porcentaje: number;
+  activo: boolean;
+};
+
 export default function ConfiguracionPage() {
   const [empresa, setEmpresa] = useState<EmpresaConfig | null>(null);
   const [turnos, setTurnos] = useState<Turno[]>([]);
+  const [impuestos, setImpuestos] = useState<ImpuestoAdicional[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [nuevoTurno, setNuevoTurno] = useState({
     nombre: '',
     hora_inicio: '',
     hora_fin: '',
+  });
+  const [nuevoImpuesto, setNuevoImpuesto] = useState({
+    nombre: '',
+    porcentaje: '',
   });
 
   async function cargarDatos() {
@@ -89,6 +101,17 @@ export default function ConfiguracionPage() {
     }
 
     setTurnos((turnosData as Turno[]) || []);
+
+    const { data: impuestosData, error: impuestosError } = await supabase
+      .from('impuestos_adicionales')
+      .select('id, nombre, porcentaje, activo')
+      .eq('empresa_id', empresaActual.id)
+      .order('nombre', { ascending: true });
+
+    if (!impuestosError) {
+      setImpuestos((impuestosData as ImpuestoAdicional[]) || []);
+    }
+
     setLoading(false);
   }
 
@@ -169,6 +192,49 @@ export default function ConfiguracionPage() {
         activo: !turno.activo,
       })
       .eq('id', turno.id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    cargarDatos();
+  }
+
+  async function agregarImpuesto() {
+    if (!empresa || !nuevoImpuesto.nombre.trim()) {
+      alert('Ingresa el nombre del impuesto.');
+      return;
+    }
+
+    const porcentaje = Number(String(nuevoImpuesto.porcentaje).replace(',', '.'));
+
+    if (porcentaje <= 0) {
+      alert('Ingresa un porcentaje mayor a cero.');
+      return;
+    }
+
+    const { error } = await supabase.from('impuestos_adicionales').insert({
+      empresa_id: empresa.id,
+      nombre: nuevoImpuesto.nombre.trim(),
+      porcentaje,
+      activo: true,
+    });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setNuevoImpuesto({ nombre: '', porcentaje: '' });
+    cargarDatos();
+  }
+
+  async function cambiarEstadoImpuesto(impuesto: ImpuestoAdicional) {
+    const { error } = await supabase
+      .from('impuestos_adicionales')
+      .update({ activo: !impuesto.activo })
+      .eq('id', impuesto.id);
 
     if (error) {
       alert(error.message);
@@ -348,6 +414,83 @@ export default function ConfiguracionPage() {
               placeholder="Rinde aceptable"
               className="rounded-2xl border px-5 py-4 font-bold"
             />
+          </div>
+        </section>
+
+        <section className="mt-8 rounded-[34px] bg-white p-6 shadow-premium">
+          <h2 className="text-2xl font-black text-maruxa-chocolate">
+            Impuestos adicionales
+          </h2>
+
+          <p className="mt-2 text-sm font-bold text-maruxa-cafe/70">
+            Crea aqui los impuestos especiales que luego podras seleccionar en productos.
+          </p>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-[1fr_180px_auto]">
+            <input
+              value={nuevoImpuesto.nombre}
+              onChange={(e) =>
+                setNuevoImpuesto({
+                  ...nuevoImpuesto,
+                  nombre: e.target.value,
+                })
+              }
+              placeholder="Nombre del impuesto"
+              className="rounded-2xl border px-5 py-4 font-bold"
+            />
+
+            <input
+              type="number"
+              value={nuevoImpuesto.porcentaje}
+              onChange={(e) =>
+                setNuevoImpuesto({
+                  ...nuevoImpuesto,
+                  porcentaje: e.target.value,
+                })
+              }
+              placeholder="%"
+              className="rounded-2xl border px-5 py-4 font-bold"
+            />
+
+            <button
+              type="button"
+              onClick={agregarImpuesto}
+              className="rounded-full bg-maruxa-rojo px-8 py-4 font-black text-white"
+            >
+              Agregar
+            </button>
+          </div>
+
+          <div className="mt-6 grid gap-3">
+            {impuestos.length === 0 ? (
+              <p className="rounded-2xl bg-maruxa-crema p-4 text-sm font-bold text-maruxa-cafe/70">
+                No hay impuestos adicionales configurados.
+              </p>
+            ) : (
+              impuestos.map((impuesto) => (
+                <div
+                  key={impuesto.id}
+                  className="flex items-center justify-between rounded-2xl bg-maruxa-crema p-4"
+                >
+                  <div>
+                    <p className="font-black text-maruxa-chocolate">
+                      {impuesto.nombre}
+                    </p>
+                    <p className="text-sm font-bold text-maruxa-cafe/70">
+                      {Number(impuesto.porcentaje).toLocaleString('es-CL')}%
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => cambiarEstadoImpuesto(impuesto)}
+                    className="rounded-full bg-white px-5 py-3 text-sm font-black"
+                  >
+                    {impuesto.activo ? 'Desactivar' : 'Activar'}
+                  </button>
+                </div>
+              ))
+            )}
           </div>
         </section>
 

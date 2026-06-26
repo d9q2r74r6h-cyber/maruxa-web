@@ -26,6 +26,7 @@ type Producto = {
   costo_unitario: number | null;
   iva_porcentaje: number | null;
   impuesto_adicional_porcentaje: number | null;
+  impuesto_adicional_id?: string | null;
   stock_actual: number | null;
   stock_minimo: number | null;
   activo: boolean | null;
@@ -65,6 +66,7 @@ const formInicial = {
   costo_unitario: '',
   iva_porcentaje: '19',
   impuesto_adicional_porcentaje: '',
+  impuesto_adicional_id: '',
   stock_actual: '',
   stock_minimo: '',
   activo: true,
@@ -97,6 +99,12 @@ function dinero(valor: number) {
   return `$${Math.round(valor || 0).toLocaleString('es-CL')}`;
 }
 
+type ImpuestoAdicional = {
+  id: string;
+  nombre: string;
+  porcentaje: number;
+};
+
 export default function AdminProductosPage() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [cargando, setCargando] = useState(false);
@@ -111,6 +119,9 @@ export default function AdminProductosPage() {
       id: string;
       nombre: string;
     }[]
+  >([]);
+  const [impuestosAdicionales, setImpuestosAdicionales] = useState<
+    ImpuestoAdicional[]
   >([]);
   const [ivaEmpresa, setIvaEmpresa] = useState(19);
 
@@ -150,6 +161,9 @@ export default function AdminProductosPage() {
     precioVentaFinal > 0 ? precioVentaFinal / (1 + ivaProducto / 100) : 0;
   const ivaVentaCalculado =
     precioVentaFinal > 0 ? precioVentaFinal - precioVentaNeto : 0;
+  const impuestoSeleccionado = impuestosAdicionales.find(
+    (impuesto) => impuesto.id === form.impuesto_adicional_id
+  );
 
   async function cargarProductos() {
     setCargando(true);
@@ -234,9 +248,25 @@ export default function AdminProductosPage() {
     setFamilias(data || []);
   }
 
+  async function cargarImpuestosAdicionales() {
+    const empresa = await obtenerEmpresaActual();
+
+    if (!empresa) return;
+
+    const { data } = await supabase
+      .from('impuestos_adicionales')
+      .select('id, nombre, porcentaje')
+      .eq('empresa_id', empresa.id)
+      .eq('activo', true)
+      .order('nombre', { ascending: true });
+
+    setImpuestosAdicionales((data as ImpuestoAdicional[]) || []);
+  }
+
   useEffect(() => {
     cargarProductos();
     cargarFamilias();
+    cargarImpuestosAdicionales();
   }, []);
 
   function limpiarFormulario() {
@@ -280,6 +310,7 @@ export default function AdminProductosPage() {
       impuesto_adicional_porcentaje: String(
         producto.impuesto_adicional_porcentaje || ''
       ),
+      impuesto_adicional_id: producto.impuesto_adicional_id || '',
       stock_actual: String(producto.stock_actual || ''),
       stock_minimo: String(producto.stock_minimo || ''),
       activo: producto.activo ?? true,
@@ -392,9 +423,10 @@ export default function AdminProductosPage() {
       unidad_base: form.unidad_base,
       costo_unitario: Number(form.costo_unitario || 0),
       iva_porcentaje: ivaEmpresa,
-      impuesto_adicional_porcentaje: Number(
-        form.impuesto_adicional_porcentaje || 0
-      ),
+      impuesto_adicional_id: impuestoSeleccionado?.id || null,
+      impuesto_adicional_porcentaje: impuestoSeleccionado
+        ? Number(impuestoSeleccionado.porcentaje || 0)
+        : 0,
       stock_actual: Number(form.stock_actual || 0),
       stock_minimo: Number(form.stock_minimo || 0),
       controla_stock:
@@ -668,22 +700,34 @@ export default function AdminProductosPage() {
 
                 <label className="space-y-2">
                   <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
-                    Impuesto adicional %
+                    Impuesto adicional
                   </span>
-                  <input
-                    placeholder="Solo si aplica"
-                    type="number"
-                    value={form.impuesto_adicional_porcentaje}
-                    onChange={(e) =>
+                  <select
+                    value={form.impuesto_adicional_id}
+                    onChange={(e) => {
+                      const impuesto = impuestosAdicionales.find(
+                        (item) => item.id === e.target.value
+                      );
+
                       setForm({
                         ...form,
-                        impuesto_adicional_porcentaje: e.target.value,
-                      })
-                    }
+                        impuesto_adicional_id: e.target.value,
+                        impuesto_adicional_porcentaje: impuesto
+                          ? String(impuesto.porcentaje)
+                          : '',
+                      });
+                    }}
                     className="h-14 w-full rounded-2xl border border-maruxa-rojo/10 px-5 font-bold outline-none"
-                  />
+                  >
+                    <option value="">Sin impuesto adicional</option>
+                    {impuestosAdicionales.map((impuesto) => (
+                      <option key={impuesto.id} value={impuesto.id}>
+                        {impuesto.nombre} ({Number(impuesto.porcentaje).toLocaleString('es-CL')}%)
+                      </option>
+                    ))}
+                  </select>
                   <span className="block text-xs font-semibold text-maruxa-cafe/60">
-                    Dejelo vacio si el producto no tiene impuesto especial.
+                    Se configura en Empresa y aqui solo se selecciona si aplica.
                   </span>
                 </label>
 
