@@ -15,6 +15,7 @@ type Producto = {
   id: number;
   nombre: string;
   categoria: string | null;
+  tipo_producto?: string | null;
   unidad_base?: string | null;
   costo_unitario?: number | null;
   familia_id: string | null;
@@ -260,6 +261,8 @@ export default function AdminRecetasPage() {
   const productoSeleccionado = productos.find(
     (producto) => String(producto.id) === productoId
   );
+  const recetaProduceIngrediente =
+    productoSeleccionado?.tipo_producto === 'ingrediente';
 
   const familiaRelacion = productoSeleccionado?.familias_productos;
   const familiaSeleccionada = Array.isArray(familiaRelacion)
@@ -440,6 +443,7 @@ export default function AdminRecetasPage() {
           id,
           nombre,
           categoria,
+          tipo_producto,
           unidad_base,
           costo_unitario,
           familia_id,
@@ -456,7 +460,7 @@ export default function AdminRecetasPage() {
           )
         `)
         .eq('empresa_id', empresa.id)
-        .eq('tipo_producto', 'producto')
+        .in('tipo_producto', ['producto', 'ingrediente'])
         .eq('activo', true)
         .order('nombre', { ascending: true }),
       supabase
@@ -1034,7 +1038,7 @@ export default function AdminRecetasPage() {
               <div className="mt-6 grid gap-5 md:grid-cols-3">
                 <div className="rounded-2xl border bg-white p-4">
                   <label className="mb-2 block text-xs font-black uppercase tracking-wide text-gray-500">
-                    Producto terminado
+                    Producto o ingrediente producido
                   </label>
 
                   <select
@@ -1042,10 +1046,13 @@ export default function AdminRecetasPage() {
                     onChange={(e) => setProductoId(e.target.value)}
                     className="w-full bg-transparent text-lg font-black outline-none"
                   >
-                    <option value="">Seleccionar producto</option>
+                    <option value="">Seleccionar producto o ingrediente</option>
                     {productos.map((producto) => (
                       <option key={producto.id} value={producto.id}>
                         {producto.nombre}
+                        {producto.tipo_producto === 'ingrediente'
+                          ? ' · ingrediente'
+                          : ' · producto'}
                       </option>
                     ))}
                   </select>
@@ -1530,6 +1537,7 @@ export default function AdminRecetasPage() {
                   Resumen final de costos
                 </h3>
 
+                {!recetaProduceIngrediente && (
                 <div className="mt-5 grid gap-4 rounded-2xl border border-[#4B2818]/15 bg-white p-4 lg:grid-cols-[auto_1fr_1fr]">
                   <div>
                     <p className="text-xs font-black uppercase text-[#4B2818]/60">
@@ -1604,8 +1612,9 @@ export default function AdminRecetasPage() {
                     </label>
                   )}
                 </div>
+                )}
 
-                {!margenSobreVentaValido && (
+                {!recetaProduceIngrediente && !margenSobreVentaValido && (
                   <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm font-black text-red-700">
                     El margen sobre venta debe ser menor a 100%.
                   </p>
@@ -1648,6 +1657,8 @@ export default function AdminRecetasPage() {
                     </p>
                   </div>
 
+                  {!recetaProduceIngrediente && (
+                    <>
                   <div className="rounded-2xl border border-green-200 bg-green-50 p-4">
                     <p className="text-sm font-black uppercase text-green-800">
                       Costo final por unidad
@@ -1673,8 +1684,20 @@ export default function AdminRecetasPage() {
                       </p>
                     )}
                   </div>
+                    </>
+                  )}
                 </div>
 
+                {recetaProduceIngrediente ? (
+                  <div className="mt-5 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                    <p className="font-black text-blue-900">
+                      Esta receta produce un ingrediente.
+                    </p>
+                    <p className="mt-1 text-sm font-bold text-blue-700">
+                      Al guardar, el sistema actualizará su costo unitario con el costo final por kg calculado.
+                    </p>
+                  </div>
+                ) : (
                 <div className="mt-5 rounded-2xl border border-purple-200 bg-purple-50 p-4">
                   {!productoId ? (
                     <p className="font-bold text-purple-700">
@@ -1725,6 +1748,7 @@ export default function AdminRecetasPage() {
                       : 'Guardar precio y margen en el producto'}
                   </button>
                 </div>
+                )}
               </section>
               )}
 
