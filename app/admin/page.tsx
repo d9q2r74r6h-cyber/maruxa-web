@@ -4,6 +4,7 @@ import {
   ClipboardList,
   BarChart3,
   Settings,
+  Building2,
 } from 'lucide-react';
 
 export default function AdminPage() {
@@ -22,7 +23,7 @@ export default function AdminPage() {
           Gestiona productos, pedidos y ventas de Panadería Maruxa.
         </p>
 
-        <div className="mt-10 grid gap-5 md:grid-cols-3">
+        <div className="mt-10 grid gap-5 md:grid-cols-4">
           <Link
             href="/admin/productos"
             className="rounded-[34px] bg-white p-7 shadow-premium transition hover:-translate-y-1 hover:shadow-xl"
@@ -65,6 +66,21 @@ export default function AdminPage() {
 
             <p className="mt-2 font-bold text-maruxa-cafe/70">
               Ver dashboard de ventas y resumen de pedidos.
+            </p>
+          </Link>
+
+          <Link
+            href="/admin/proveedores"
+            className="rounded-[34px] bg-white p-7 shadow-premium transition hover:-translate-y-1 hover:shadow-xl"
+          >
+            <Building2 className="h-10 w-10 text-maruxa-rojo" />
+
+            <h2 className="mt-6 text-2xl font-black text-maruxa-chocolate">
+              Proveedores
+            </h2>
+
+            <p className="mt-2 font-bold text-maruxa-cafe/70">
+              Mantener proveedores para compras, costos y pagos.
             </p>
           </Link>
         </div>

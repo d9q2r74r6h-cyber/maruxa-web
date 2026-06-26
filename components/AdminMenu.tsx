@@ -123,6 +123,17 @@ export function AdminMenu() {
           Inicio
         </Link>
 
+        <Link
+          href="/admin/proveedores"
+          className={`rounded-xl px-3.5 py-2 transition ${
+            esActivo('/admin/proveedores')
+              ? 'bg-[#2A1710] text-white shadow-sm'
+              : 'text-[#4B2818] hover:bg-[#FFF3DF] hover:text-[#A51F2B]'
+          }`}
+        >
+          Proveedores
+        </Link>
+
         {grupos.map((grupo) => {
           const itemsVisibles = grupo.items.filter(
             (item) => item.future || !item.modulo || puedeVer(item.modulo)
