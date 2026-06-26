@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -61,9 +62,14 @@ export function AdminSessionProvider({ children }: { children: ReactNode }) {
   const [permisos, setPermisos] = useState<PermisoModulo[]>([]);
   const [cargando, setCargando] = useState(true);
   const [errorSesion, setErrorSesion] = useState('');
+  const pathnameRef = useRef(pathname);
 
-  async function cargarSesion() {
-    setCargando(true);
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
+
+  async function cargarSesion({ mostrarCarga = false } = {}) {
+    if (mostrarCarga) setCargando(true);
     setErrorSesion('');
 
     const {
@@ -73,9 +79,8 @@ export function AdminSessionProvider({ children }: { children: ReactNode }) {
     if (!session) {
       setPerfil(null);
       setPermisos([]);
-      if (pathname !== '/admin/login') {
+      if (pathnameRef.current !== '/admin/login') {
         router.replace('/admin/login');
-        return;
       }
       setCargando(false);
       return;
@@ -150,15 +155,19 @@ export function AdminSessionProvider({ children }: { children: ReactNode }) {
         .eq('id', session.user.id);
     }
 
-    if (pathname === '/admin/login') router.replace('/admin');
+    if (pathnameRef.current === '/admin/login') router.replace('/admin');
   }
 
   useEffect(() => {
-    cargarSesion();
+    cargarSesion({ mostrarCarga: true });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
+    } = supabase.auth.onAuthStateChange((evento) => {
+      if (['INITIAL_SESSION', 'TOKEN_REFRESHED', 'USER_UPDATED'].includes(evento)) {
+        return;
+      }
+
       window.setTimeout(() => {
         cargarSesion();
       }, 0);
