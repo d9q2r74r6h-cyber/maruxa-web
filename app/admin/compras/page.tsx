@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { obtenerEmpresaActual } from '@/lib/empresa';
@@ -832,6 +833,12 @@ export default function AdminComprasPage() {
                     />
                   ))}
                 </datalist>
+                <Link
+                  href="/admin/proveedores"
+                  className="text-xs font-black text-maruxa-rojo hover:underline"
+                >
+                  Administrar proveedores
+                </Link>
               </label>
 
               <input
