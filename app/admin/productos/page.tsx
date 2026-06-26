@@ -64,9 +64,9 @@ const formInicial = {
   unidad_base: 'KG',
   costo_unitario: '',
   iva_porcentaje: '19',
-  impuesto_adicional_porcentaje: '0',
-  stock_actual: '0',
-  stock_minimo: '0',
+  impuesto_adicional_porcentaje: '',
+  stock_actual: '',
+  stock_minimo: '',
   activo: true,
   controla_stock: true,
   contabiliza_como_saco: false,
@@ -261,10 +261,10 @@ export default function AdminProductosPage() {
       costo_unitario: String(producto.costo_unitario || ''),
       iva_porcentaje: String(producto.iva_porcentaje ?? 19),
       impuesto_adicional_porcentaje: String(
-        producto.impuesto_adicional_porcentaje ?? 0
+        producto.impuesto_adicional_porcentaje || ''
       ),
-      stock_actual: String(producto.stock_actual ?? 0),
-      stock_minimo: String(producto.stock_minimo ?? 0),
+      stock_actual: String(producto.stock_actual || ''),
+      stock_minimo: String(producto.stock_minimo || ''),
       activo: producto.activo ?? true,
       controla_stock: producto.controla_stock ?? tipoProducto !== 'mano_obra',
       contabiliza_como_saco: producto.contabiliza_como_saco ?? false,
@@ -578,9 +578,12 @@ export default function AdminProductosPage() {
               </p>
             </div>
 
-            {true && (
-              <>
-                <select
+            <>
+                <label className="space-y-2">
+                  <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
+                    Unidad base
+                  </span>
+                  <select
                   value={form.unidad_base}
                   onChange={(e) =>
                     setForm({
@@ -588,7 +591,7 @@ export default function AdminProductosPage() {
                       unidad_base: e.target.value,
                     })
                   }
-                  className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
+                  className="h-14 w-full rounded-2xl border border-maruxa-rojo/10 px-5 font-bold outline-none"
                 >
                   <option value="KG">KG</option>
                   <option value="LT">LT</option>
@@ -598,75 +601,118 @@ export default function AdminProductosPage() {
                   <option value="CC">CC</option>
                   <option value="MIN">MIN</option>
                 </select>
+                  <span className="block text-xs font-semibold text-maruxa-cafe/60">
+                    Como se mide en compras, recetas e inventario.
+                  </span>
+                </label>
 
-                <input
-                  placeholder={esProducto ? 'Costo base / reposicion' : 'Costo unitario'}
-                  type="number"
-                  value={form.costo_unitario}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      costo_unitario: e.target.value,
-                    })
-                  }
-                  className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
-                />
+                <label className="space-y-2">
+                  <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
+                    {esProducto ? 'Costo base o reposicion' : 'Costo unitario neto'}
+                  </span>
+                  <input
+                    placeholder={esProducto ? 'Ej: 850' : 'Ej: 1250'}
+                    type="number"
+                    value={form.costo_unitario}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        costo_unitario: e.target.value,
+                      })
+                    }
+                    className="h-14 w-full rounded-2xl border border-maruxa-rojo/10 px-5 font-bold outline-none"
+                  />
+                  <span className="block text-xs font-semibold text-maruxa-cafe/60">
+                    Se guarda sin IVA y alimenta compras, recetas y costeo.
+                  </span>
+                </label>
 
-                <input
-                  placeholder="IVA %"
-                  type="number"
-                  value={form.iva_porcentaje}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      iva_porcentaje: e.target.value,
-                    })
-                  }
-                  className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
-                />
+                <label className="space-y-2">
+                  <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
+                    IVA de venta o compra %
+                  </span>
+                  <input
+                    placeholder="Ej: 19"
+                    type="number"
+                    value={form.iva_porcentaje}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        iva_porcentaje: e.target.value,
+                      })
+                    }
+                    className="h-14 w-full rounded-2xl border border-maruxa-rojo/10 px-5 font-bold outline-none"
+                  />
+                  <span className="block text-xs font-semibold text-maruxa-cafe/60">
+                    Se usa para separar neto/IVA en precios, compras y documentos.
+                  </span>
+                </label>
 
-                <input
-                  placeholder="Impuesto adicional %"
-                  type="number"
-                  value={form.impuesto_adicional_porcentaje}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      impuesto_adicional_porcentaje: e.target.value,
-                    })
-                  }
-                  className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
-                />
+                <label className="space-y-2">
+                  <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
+                    Impuesto adicional %
+                  </span>
+                  <input
+                    placeholder="Solo si aplica"
+                    type="number"
+                    value={form.impuesto_adicional_porcentaje}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        impuesto_adicional_porcentaje: e.target.value,
+                      })
+                    }
+                    className="h-14 w-full rounded-2xl border border-maruxa-rojo/10 px-5 font-bold outline-none"
+                  />
+                  <span className="block text-xs font-semibold text-maruxa-cafe/60">
+                    Dejelo vacio si el producto no tiene impuesto especial.
+                  </span>
+                </label>
 
-                <input
-                  placeholder="Stock actual"
-                  type="number"
-                  value={form.stock_actual}
-                  disabled={esManoObra}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      stock_actual: e.target.value,
-                    })
-                  }
-                  className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none disabled:bg-gray-100 disabled:text-gray-400"
-                />
+                <label className="space-y-2">
+                  <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
+                    Stock inicial
+                  </span>
+                  <input
+                    placeholder={esManoObra ? 'No aplica' : 'Ej: 25'}
+                    type="number"
+                    value={form.stock_actual}
+                    disabled={esManoObra}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        stock_actual: e.target.value,
+                      })
+                    }
+                    className="h-14 w-full rounded-2xl border border-maruxa-rojo/10 px-5 font-bold outline-none disabled:bg-gray-100 disabled:text-gray-400"
+                  />
+                  <span className="block text-xs font-semibold text-maruxa-cafe/60">
+                    Existencia actual expresada en la unidad base.
+                  </span>
+                </label>
 
-                <input
-                  placeholder="Stock mínimo"
-                  type="number"
-                  value={form.stock_minimo}
-                  disabled={esManoObra}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      stock_minimo: e.target.value,
-                    })
-                  }
-                  className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none disabled:bg-gray-100 disabled:text-gray-400"
-                />
+                <label className="space-y-2">
+                  <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
+                    Stock minimo
+                  </span>
+                  <input
+                    placeholder={esManoObra ? 'No aplica' : 'Ej: 5'}
+                    type="number"
+                    value={form.stock_minimo}
+                    disabled={esManoObra}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        stock_minimo: e.target.value,
+                      })
+                    }
+                    className="h-14 w-full rounded-2xl border border-maruxa-rojo/10 px-5 font-bold outline-none disabled:bg-gray-100 disabled:text-gray-400"
+                  />
+                  <span className="block text-xs font-semibold text-maruxa-cafe/60">
+                    Punto de alerta para reponer inventario.
+                  </span>
+                </label>
               </>
-            )}
 
             {esProducto && (
               <select
