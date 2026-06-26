@@ -6,7 +6,7 @@ import { obtenerEmpresaActual } from '@/lib/empresa';
 
 
 
-type TipoRecurso = 'ingrediente' | 'envase' | 'mano_obra';
+type TipoRecurso = 'ingrediente' | 'envase' | 'mano_obra' | 'receta';
 type TipoMargen = 'markup' | 'margen_comercial';
 type ModoPrecio = 'desde_margen' | 'desde_precio';
 const CLAVE_BORRADOR_RECETA = 'maruxa:receta:borrador:v1';
@@ -15,6 +15,8 @@ type Producto = {
   id: number;
   nombre: string;
   categoria: string | null;
+  unidad_base?: string | null;
+  costo_unitario?: number | null;
   familia_id: string | null;
   usar_configuracion_familia?: boolean | null;
   margen_personalizado?: number | null;
@@ -46,6 +48,7 @@ type Recurso = {
   impuesto_adicional_porcentaje: number | null;
   activo: boolean;
   tipo_producto: TipoRecurso | string;
+  receta_id?: string | null;
 };
 
 type RecetaItemForm = {
@@ -94,6 +97,7 @@ function dinero(valor: number) {
 }
 
 function nombreTipo(tipo?: string | null) {
+  if (tipo === 'receta') return 'Receta';
   if (tipo === 'envase') return 'Envase';
   if (tipo === 'mano_obra') return 'Mano de obra';
   return 'Ingrediente';
@@ -132,9 +136,44 @@ export default function AdminRecetasPage() {
   const [recetaEditando, setRecetaEditando] =
     useState<RecetaGuardada | null>(null);
 
+  const recetasComoIngredientes = useMemo(() => {
+    return productos
+      .filter((producto) =>
+        recetas.some(
+          (receta) =>
+            receta.producto_id === producto.id &&
+            receta.id !== recetaEditando?.id
+        )
+      )
+      .map(
+        (producto) =>
+          ({
+            id: producto.id,
+            nombre: `${producto.nombre} (receta)`,
+            unidad_base: producto.unidad_base || 'KG',
+            costo_unitario: producto.costo_unitario || 0,
+            iva_porcentaje: 0,
+            impuesto_adicional_porcentaje: 0,
+            activo: true,
+            tipo_producto: 'receta',
+            receta_id:
+              recetas.find((receta) => receta.producto_id === producto.id)
+                ?.id || null,
+          }) as Recurso
+      );
+  }, [productos, recetaEditando?.id, recetas]);
+
+  const recursosCalculables = useMemo(
+    () => [...recursos, ...recetasComoIngredientes],
+    [recetasComoIngredientes, recursos]
+  );
+
   const ingredientesBase = useMemo(() => {
-    return recursos.filter((recurso) => recurso.tipo_producto === 'ingrediente');
-  }, [recursos]);
+    return [
+      ...recursos.filter((recurso) => recurso.tipo_producto === 'ingrediente'),
+      ...recetasComoIngredientes,
+    ].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  }, [recetasComoIngredientes, recursos]);
 
   const insumosDisponibles = useMemo(() => {
     return recursos.filter((recurso) =>
@@ -146,7 +185,7 @@ export default function AdminRecetasPage() {
 
   function calcularDetalle(lista: RecetaItemForm[]) {
     return lista.map((item) => {
-      const recurso = recursos.find(
+      const recurso = recursosCalculables.find(
         (recursoItem) => String(recursoItem.id) === String(item.ingrediente_id)
       );
 
@@ -166,11 +205,11 @@ export default function AdminRecetasPage() {
 
   const detalleIngredientes = useMemo(() => {
     return calcularDetalle(items);
-  }, [items, recursos]);
+  }, [items, recursosCalculables]);
 
   const detalleInsumosDirectos = useMemo(() => {
     return calcularDetalle(insumos);
-  }, [insumos, recursos]);
+  }, [insumos, recursosCalculables]);
 
   const costoIngredientes = useMemo(() => {
     return detalleIngredientes.reduce(
@@ -401,6 +440,8 @@ export default function AdminRecetasPage() {
           id,
           nombre,
           categoria,
+          unidad_base,
+          costo_unitario,
           familia_id,
           usar_configuracion_familia,
           margen_personalizado,
@@ -662,16 +703,16 @@ export default function AdminRecetasPage() {
 
     setItems(
       detalle.filter((item) => {
-        const recurso = recursos.find(
+        const recurso = recursosCalculables.find(
           (recursoItem) => String(recursoItem.id) === item.ingrediente_id
         );
-        return recurso?.tipo_producto === 'ingrediente';
+        return recurso?.tipo_producto === 'ingrediente' || recurso?.tipo_producto === 'receta';
       })
     );
 
     setInsumos(
       detalle.filter((item) => {
-        const recurso = recursos.find(
+        const recurso = recursosCalculables.find(
           (recursoItem) => String(recursoItem.id) === item.ingrediente_id
         );
         return recurso?.tipo_producto === 'envase' || recurso?.tipo_producto === 'mano_obra';
@@ -837,6 +878,11 @@ export default function AdminRecetasPage() {
         }
       }
 
+      await supabase
+        .from('productos')
+        .update({ costo_unitario: costoFinalPorKg })
+        .eq('id', Number(productoId));
+
       await cargarRecetas();
       limpiarFormulario();
       setGuardando(false);
@@ -906,6 +952,11 @@ export default function AdminRecetasPage() {
         return;
       }
     }
+
+    await supabase
+      .from('productos')
+      .update({ costo_unitario: costoFinalPorKg })
+      .eq('id', Number(productoId));
 
     limpiarFormulario();
     await cargarRecetas();
