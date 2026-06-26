@@ -37,6 +37,7 @@ const grupos: {
     label: 'Inventario',
     items: [
       { label: 'Productos', href: '/admin/productos', modulo: 'productos' },
+      { label: 'Proveedores', href: '/admin/proveedores', modulo: 'proveedores' },
       { label: 'Compras', href: '/admin/compras', modulo: 'compras' },
       { label: 'Kardex / movimientos', future: true },
       { label: 'Historial de costos', future: true },

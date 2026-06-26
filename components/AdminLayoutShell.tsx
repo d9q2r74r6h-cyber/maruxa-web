@@ -16,6 +16,7 @@ const modulosPorRuta = [
   ['/admin/planillas', 'planillas'],
   ['/admin/produccion', 'produccion'],
   ['/admin/recetas', 'recetas'],
+  ['/admin/proveedores', 'proveedores'],
   ['/admin/compras', 'compras'],
   ['/admin/productos', 'productos'],
   ['/admin/pedidos', 'pedidos'],

@@ -14,6 +14,13 @@ type Producto = {
   controla_stock: boolean | null;
 };
 
+type ProveedorCompra = {
+  id: string;
+  razon_social: string;
+  nombre_fantasia: string | null;
+  rut: string | null;
+};
+
 type ItemCompra = {
   producto_id: string;
   busqueda_producto: string;
@@ -102,6 +109,7 @@ function calcularPrecioSugerido(costoUnidad: number, producto: any) {
 
 export default function AdminComprasPage() {
   const [productos, setProductos] = useState<Producto[]>([]);
+  const [proveedores, setProveedores] = useState<ProveedorCompra[]>([]);
   const [proveedor, setProveedor] = useState('');
   const [numeroDocumento, setNumeroDocumento] = useState('');
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
@@ -143,7 +151,8 @@ export default function AdminComprasPage() {
       return;
     }
 
-    const { data, error } = await supabase
+    const [{ data, error }, { data: proveedoresData }] = await Promise.all([
+      supabase
       .from('productos')
       .select(`
         id,
@@ -157,7 +166,14 @@ export default function AdminComprasPage() {
       .eq('empresa_id', empresa.id)
       .in('tipo_producto', ['producto', 'ingrediente', 'envase'])
       .eq('activo', true)
-      .order('nombre', { ascending: true });
+      .order('nombre', { ascending: true }),
+      supabase
+        .from('proveedores')
+        .select('id, razon_social, nombre_fantasia, rut')
+        .eq('empresa_id', empresa.id)
+        .eq('activo', true)
+        .order('razon_social', { ascending: true }),
+    ]);
 
     if (error) {
       alert(error.message);
@@ -166,6 +182,7 @@ export default function AdminComprasPage() {
     }
 
     setProductos((data as Producto[]) || []);
+    setProveedores((proveedoresData as ProveedorCompra[]) || []);
     setLoading(false);
   }
 
@@ -795,12 +812,27 @@ export default function AdminComprasPage() {
         ) : (
           <>
             <div className="mt-6 grid gap-4 md:grid-cols-4">
-              <input
-                value={proveedor}
-                onChange={(e) => setProveedor(e.target.value)}
-                placeholder="Proveedor"
-                className="rounded-2xl border px-5 py-4 font-bold"
-              />
+              <label className="grid gap-1">
+                <input
+                  value={proveedor}
+                  onChange={(e) => setProveedor(e.target.value)}
+                  placeholder="Proveedor"
+                  list="proveedores-compra"
+                  className="rounded-2xl border px-5 py-4 font-bold"
+                />
+                <datalist id="proveedores-compra">
+                  {proveedores.map((item) => (
+                    <option
+                      key={item.id}
+                      value={item.razon_social}
+                      label={[
+                        item.nombre_fantasia,
+                        item.rut,
+                      ].filter(Boolean).join(' | ')}
+                    />
+                  ))}
+                </datalist>
+              </label>
 
               <input
                 value={numeroDocumento}
