@@ -55,10 +55,25 @@ export async function GET(request: Request) {
   const tokenConfigurado = process.env.WHATSAPP_VERIFY_TOKEN?.trim();
 
   if (!modo && !token && !desafio) {
+    const admin = crearAdmin();
+    let baseDatosLista = false;
+
+    if (admin) {
+      const { error } = await admin
+        .from('whatsapp_eventos')
+        .select('id', { head: true, count: 'exact' });
+      baseDatosLista = !error;
+    }
+
     return NextResponse.json({
       webhook: 'whatsapp',
       disponible: true,
       tokenConfigurado: Boolean(tokenConfigurado),
+      appSecretConfigurado: Boolean(process.env.WHATSAPP_APP_SECRET),
+      supabaseServidorConfigurado: Boolean(
+        process.env.SUPABASE_SERVICE_ROLE_KEY
+      ),
+      baseDatosLista,
     });
   }
 
