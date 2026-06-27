@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+export const dynamic = 'force-dynamic';
+
 type ProductoFeed = {
   id: number;
   codigo: string | null;
@@ -211,7 +213,7 @@ export async function GET() {
   return new Response(contenido, {
     headers: {
       'content-type': 'text/csv; charset=utf-8',
-      'cache-control': 'public, max-age=900',
+      'cache-control': 'no-store, max-age=0',
     },
   });
 }
