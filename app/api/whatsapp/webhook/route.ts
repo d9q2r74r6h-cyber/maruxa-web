@@ -58,13 +58,18 @@ export async function GET(request: Request) {
     const admin = crearAdmin();
     let baseDatosLista = false;
     let baseDatosError: string | null = admin ? null : 'Cliente Supabase no configurado.';
+    let baseDatosEstado: number | null = null;
 
     if (admin) {
-      const { error } = await admin
+      const resultado = await admin
         .from('whatsapp_eventos')
-        .select('id', { head: true, count: 'exact' });
-      baseDatosLista = !error;
-      baseDatosError = error?.message || null;
+        .select('id')
+        .limit(1);
+      baseDatosLista = !resultado.error;
+      baseDatosEstado = resultado.status;
+      baseDatosError = resultado.error
+        ? JSON.stringify(resultado.error)
+        : null;
     }
 
     return NextResponse.json({
@@ -76,6 +81,7 @@ export async function GET(request: Request) {
         process.env.SUPABASE_SERVICE_ROLE_KEY
       ),
       baseDatosLista,
+      baseDatosEstado,
       baseDatosError,
     });
   }
