@@ -13,6 +13,7 @@ type FamiliaProducto = {
   margen_porcentaje: number;
   redondeo_precio: number;
   activo: boolean;
+  mostrar_catalogo: boolean;
 };
 
 const formInicial = {
@@ -21,6 +22,7 @@ const formInicial = {
   margen_porcentaje: '0',
   redondeo_precio: '10',
   activo: true,
+  mostrar_catalogo: true,
 };
 
 export default function AdminFamiliasProductosPage() {
@@ -63,7 +65,7 @@ export default function AdminFamiliasProductosPage() {
 
     const { data, error } = await supabase
       .from('familias_productos')
-      .select('id,nombre,tipo_margen,margen_porcentaje,redondeo_precio,activo')
+      .select('id,nombre,tipo_margen,margen_porcentaje,redondeo_precio,activo,mostrar_catalogo')
       .eq('empresa_id', empresa.id)
       .order('nombre', { ascending: true });
 
@@ -94,6 +96,7 @@ export default function AdminFamiliasProductosPage() {
       margen_porcentaje: String(familia.margen_porcentaje || 0),
       redondeo_precio: String(familia.redondeo_precio || 10),
       activo: familia.activo ?? true,
+      mostrar_catalogo: familia.mostrar_catalogo ?? true,
     });
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -121,6 +124,7 @@ export default function AdminFamiliasProductosPage() {
       margen_porcentaje: Number(form.margen_porcentaje || 0),
       redondeo_precio: Number(form.redondeo_precio || 10),
       activo: form.activo,
+      mostrar_catalogo: form.mostrar_catalogo,
     };
 
     const { error } = editando
@@ -251,6 +255,17 @@ export default function AdminFamiliasProductosPage() {
               />
               Familia activa
             </label>
+
+            <label className="flex items-center gap-3 rounded-2xl bg-maruxa-crema p-4 font-black">
+              <input
+                type="checkbox"
+                checked={form.mostrar_catalogo}
+                onChange={(e) =>
+                  setForm({ ...form, mostrar_catalogo: e.target.checked })
+                }
+              />
+              Mostrar en catalogo
+            </label>
           </div>
 
           <div className="mt-6 flex flex-wrap gap-3">
@@ -293,6 +308,7 @@ export default function AdminFamiliasProductosPage() {
                     <th className="px-4 py-3 text-left">Método</th>
                     <th className="px-4 py-3 text-right">Margen</th>
                     <th className="px-4 py-3 text-right">Redondeo</th>
+                    <th className="px-4 py-3 text-center">Catalogo</th>
                     <th className="px-4 py-3 text-center">Estado</th>
                     <th className="px-4 py-3 text-right">Acciones</th>
                   </tr>
@@ -323,6 +339,18 @@ export default function AdminFamiliasProductosPage() {
 
                       <td className="px-4 py-4 text-right font-black">
                         ${familia.redondeo_precio.toLocaleString('es-CL')}
+                      </td>
+
+                      <td className="px-4 py-4 text-center">
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-black ${
+                            familia.mostrar_catalogo
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'bg-gray-200 text-gray-600'
+                          }`}
+                        >
+                          {familia.mostrar_catalogo ? 'Visible' : 'Oculta'}
+                        </span>
                       </td>
 
                       <td className="px-4 py-4 text-center">
@@ -373,7 +401,7 @@ export default function AdminFamiliasProductosPage() {
                   {familias.length === 0 && (
                     <tr>
                       <td
-                        colSpan={6}
+                        colSpan={7}
                         className="px-4 py-8 text-center font-black text-gray-500"
                       >
                         Aún no hay familias registradas.

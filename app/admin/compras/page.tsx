@@ -15,6 +15,12 @@ type Producto = {
   controla_stock: boolean | null;
 };
 
+type UltimaCompraProducto = {
+  producto_id: number;
+  fecha: string;
+  precio: number;
+};
+
 type ProveedorCompra = {
   id: string;
   razon_social: string;
@@ -112,11 +118,13 @@ export default function AdminComprasPage() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [proveedores, setProveedores] = useState<ProveedorCompra[]>([]);
   const [proveedor, setProveedor] = useState('');
+  const [mostrarProveedores, setMostrarProveedores] = useState(false);
   const [numeroDocumento, setNumeroDocumento] = useState('');
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
   const [observacion, setObservacion] = useState('');
   const [items, setItems] = useState<ItemCompra[]>([]);
   const [resultadosBusqueda, setResultadosBusqueda] = useState<Record<number, Producto[]>>({});
+  const [ultimasCompras, setUltimasCompras] = useState<Record<number, UltimaCompraProducto[]>>({});
   const [mostrarCrearProducto, setMostrarCrearProducto] = useState(false);
   const [nuevoProducto, setNuevoProducto] = useState({
     nombre: '',
@@ -140,6 +148,30 @@ export default function AdminComprasPage() {
       return total + numero(item.cantidad) * numero(item.costo_unitario);
     }, 0);
   }, [items]);
+
+  const proveedoresFiltrados = useMemo(() => {
+    const termino = normalizarTexto(proveedor);
+
+    if (!termino) return proveedores.slice(0, 40);
+
+    return proveedores
+      .filter((item) =>
+        normalizarTexto(
+          `${item.razon_social} ${item.nombre_fantasia || ''} ${item.rut || ''}`
+        ).includes(termino)
+      )
+      .slice(0, 40);
+  }, [proveedor, proveedores]);
+
+  function formatearFecha(valor: string) {
+    if (!valor) return '-';
+
+    return new Date(valor).toLocaleDateString('es-CL', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  }
 
   async function cargarProductos() {
     setLoading(true);
@@ -190,6 +222,86 @@ export default function AdminComprasPage() {
   useEffect(() => {
     cargarProductos();
   }, []);
+
+  async function cargarUltimasCompras(productoIds: number[]) {
+    const idsPendientes = [...new Set(productoIds)].filter(
+      (id) => id && !ultimasCompras[id]
+    );
+
+    if (idsPendientes.length === 0) return;
+
+    const empresa = await obtenerEmpresaActual();
+
+    if (!empresa) return;
+
+    const { data, error } = await supabase
+      .from('producto_costos_historial')
+      .select('producto_id,created_at,costo_compra')
+      .eq('empresa_id', empresa.id)
+      .in('producto_id', idsPendientes)
+      .order('created_at', { ascending: false })
+      .limit(idsPendientes.length * 6);
+
+    if (error) return;
+
+    const agrupadas = new Map<number, UltimaCompraProducto[]>();
+
+    for (const item of data || []) {
+      const productoId = Number(item.producto_id);
+      const actuales = agrupadas.get(productoId) || [];
+
+      if (actuales.length >= 2) continue;
+
+      actuales.push({
+        producto_id: productoId,
+        fecha: item.created_at,
+        precio: numero(item.costo_compra),
+      });
+      agrupadas.set(productoId, actuales);
+    }
+
+    setUltimasCompras((actuales) => {
+      const siguiente = { ...actuales };
+
+      for (const id of idsPendientes) {
+        siguiente[id] = agrupadas.get(id) || [];
+      }
+
+      return siguiente;
+    });
+  }
+
+  useEffect(() => {
+    const ids = new Set<number>();
+
+    for (const item of items) {
+      if (item.producto_id) {
+        ids.add(Number(item.producto_id));
+        continue;
+      }
+
+      const termino = normalizarTexto(item.busqueda_producto);
+
+      if (termino.length < 2) continue;
+
+      productos
+        .filter((productoItem) =>
+          normalizarTexto(
+            `${productoItem.nombre} ${productoItem.tipo_producto}`
+          ).includes(termino)
+        )
+        .slice(0, 8)
+        .forEach((productoItem) => ids.add(productoItem.id));
+    }
+
+    if (ids.size === 0) return;
+
+    const timer = setTimeout(() => {
+      cargarUltimasCompras([...ids]);
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [items, productos, ultimasCompras]);
 
   useEffect(() => {
     const termino = nuevoProducto.nombre.trim();
@@ -813,26 +925,52 @@ export default function AdminComprasPage() {
         ) : (
           <>
             <div className="mt-6 grid gap-4 md:grid-cols-4">
-              <label className="grid gap-1">
+              <label className="relative grid gap-1">
                 <input
                   value={proveedor}
-                  onChange={(e) => setProveedor(e.target.value)}
+                  onFocus={() => setMostrarProveedores(true)}
+                  onBlur={() =>
+                    setTimeout(() => setMostrarProveedores(false), 150)
+                  }
+                  onChange={(e) => {
+                    setProveedor(e.target.value);
+                    setMostrarProveedores(true);
+                  }}
                   placeholder="Proveedor"
-                  list="proveedores-compra"
                   className="rounded-2xl border px-5 py-4 font-bold"
                 />
-                <datalist id="proveedores-compra">
-                  {proveedores.map((item) => (
-                    <option
-                      key={item.id}
-                      value={item.razon_social}
-                      label={[
-                        item.nombre_fantasia,
-                        item.rut,
-                      ].filter(Boolean).join(' | ')}
-                    />
-                  ))}
-                </datalist>
+
+                {mostrarProveedores && (
+                  <div className="absolute left-0 right-0 top-[58px] z-30 max-h-80 overflow-y-auto rounded-2xl border bg-white shadow-xl">
+                    {proveedoresFiltrados.length > 0 ? (
+                      proveedoresFiltrados.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setProveedor(item.razon_social);
+                            setMostrarProveedores(false);
+                          }}
+                          className="flex w-full flex-col px-4 py-3 text-left hover:bg-maruxa-crema"
+                        >
+                          <span className="text-sm font-black text-maruxa-chocolate">
+                            {item.razon_social}
+                          </span>
+                          <span className="text-xs font-bold text-gray-500">
+                            {[item.nombre_fantasia, item.rut]
+                              .filter(Boolean)
+                              .join(' | ') || 'Proveedor registrado'}
+                          </span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-4 py-3 text-sm font-black text-gray-500">
+                        No hay proveedores con ese texto.
+                      </div>
+                    )}
+                  </div>
+                )}
                 <Link
                   href="/admin/proveedores"
                   className="text-xs font-black text-maruxa-rojo hover:underline"
@@ -1099,11 +1237,24 @@ export default function AdminComprasPage() {
                                       String(productoItem.id)
                                     )
                                   }
-                                  className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs font-bold hover:bg-maruxa-crema"
+                                  className="flex w-full flex-col gap-1 px-3 py-2 text-left text-xs font-bold hover:bg-maruxa-crema"
                                 >
-                                  <span>{productoItem.nombre}</span>
-                                  <span className="text-gray-500">
-                                    {productoItem.tipo_producto}
+                                  <span className="flex w-full items-center justify-between gap-3">
+                                    <span>{productoItem.nombre}</span>
+                                    <span className="text-gray-500">
+                                      {productoItem.tipo_producto}
+                                    </span>
+                                  </span>
+                                  <span className="text-[11px] font-bold text-gray-500">
+                                    Ultimas compras:{' '}
+                                    {ultimasCompras[productoItem.id]?.length
+                                      ? ultimasCompras[productoItem.id]
+                                          .map(
+                                            (compra) =>
+                                              `${formatearFecha(compra.fecha)} ${dinero(compra.precio)}`
+                                          )
+                                          .join(' | ')
+                                      : 'sin historial'}
                                   </span>
                                 </button>
                               ))
@@ -1141,13 +1292,26 @@ export default function AdminComprasPage() {
                       </button>
 
                       {producto && (
-                        <p className="md:col-span-5 text-[11px] font-bold leading-tight text-gray-500">
+                        <div className="md:col-span-5 text-[11px] font-bold leading-tight text-gray-500">
+                          <p>
                           Stock actual:{' '}
                           {numero(producto.stock_actual).toLocaleString('es-CL')}{' '}
                           {producto.unidad_base || ''}
                           {' · '}
-                          Costo actual: {dinero(numero(producto.costo_unitario))}
-                        </p>
+                            Costo actual: {dinero(numero(producto.costo_unitario))}
+                          </p>
+                          <p className="mt-1">
+                            Ultimas compras:{' '}
+                            {ultimasCompras[producto.id]?.length
+                              ? ultimasCompras[producto.id]
+                                  .map(
+                                    (compra) =>
+                                      `${formatearFecha(compra.fecha)} ${dinero(compra.precio)}`
+                                  )
+                                  .join(' | ')
+                              : 'sin historial'}
+                          </p>
+                        </div>
                       )}
                     </div>
                   );

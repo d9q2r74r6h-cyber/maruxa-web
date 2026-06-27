@@ -57,9 +57,24 @@ export async function GET() {
 
   const { data, error } = await admin
     .from('productos')
-    .select('id,codigo,nombre,descripcion,precio,categoria,imagen,slug')
+    .select(`
+      id,
+      codigo,
+      nombre,
+      descripcion,
+      precio,
+      categoria,
+      imagen,
+      slug,
+      familias_productos!inner (
+        mostrar_catalogo,
+        activo
+      )
+    `)
     .eq('tipo_producto', 'producto')
     .eq('activo', true)
+    .eq('familias_productos.activo', true)
+    .eq('familias_productos.mostrar_catalogo', true)
     .gt('precio', 0)
     .order('nombre', { ascending: true });
 

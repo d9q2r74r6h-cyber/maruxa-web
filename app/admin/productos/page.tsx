@@ -34,6 +34,7 @@ type Producto = {
   contabiliza_como_saco: boolean | null;
   familias_productos?: {
     nombre: string;
+    mostrar_catalogo: boolean | null;
   } | null;
   usar_configuracion_familia: boolean | null;
   margen_personalizado: number | null;
@@ -118,6 +119,7 @@ export default function AdminProductosPage() {
     {
       id: string;
       nombre: string;
+      mostrar_catalogo: boolean | null;
     }[]
   >([]);
   const [impuestosAdicionales, setImpuestosAdicionales] = useState<
@@ -164,6 +166,9 @@ export default function AdminProductosPage() {
   const impuestoSeleccionado = impuestosAdicionales.find(
     (impuesto) => impuesto.id === form.impuesto_adicional_id
   );
+  const familiaFormSeleccionada = familias.find(
+    (familia) => familia.id === form.familia_id
+  );
 
   async function cargarProductos() {
     setCargando(true);
@@ -183,7 +188,8 @@ export default function AdminProductosPage() {
       .select(`
         *,
         familias_productos (
-          nombre
+          nombre,
+          mostrar_catalogo
         )
       `)
       .eq('empresa_id', empresa.id)
@@ -240,7 +246,7 @@ export default function AdminProductosPage() {
 
     const { data } = await supabase
       .from('familias_productos')
-      .select('id,nombre')
+      .select('id,nombre,mostrar_catalogo')
       .eq('empresa_id', empresa.id)
       .eq('activo', true)
       .order('nombre');
@@ -777,24 +783,38 @@ export default function AdminProductosPage() {
               </>
 
             {esProducto && (
-              <select
-                value={form.familia_id ?? ''}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    familia_id: e.target.value,
-                  })
-                }
-                className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
-              >
-                <option value="">Seleccionar familia</option>
+              <label className="space-y-2">
+                <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
+                  Familia de costeo / margen
+                </span>
+                <select
+                  value={form.familia_id ?? ''}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      familia_id: e.target.value,
+                    })
+                  }
+                  className="h-14 w-full rounded-2xl border border-maruxa-rojo/10 px-5 font-bold outline-none"
+                >
+                  <option value="">Seleccionar familia</option>
 
-                {familias.map((familia) => (
-                  <option key={familia.id} value={familia.id}>
-                    {familia.nombre}
-                  </option>
-                ))}
-              </select>
+                  {familias.map((familia) => (
+                    <option key={familia.id} value={familia.id}>
+                      {familia.nombre}
+                      {familia.mostrar_catalogo ? ' - Catalogo' : ' - Interna'}
+                    </option>
+                  ))}
+                </select>
+                {familiaFormSeleccionada && (
+                  <span className="block text-xs font-semibold text-maruxa-cafe/60">
+                    Esta familia{' '}
+                    {familiaFormSeleccionada.mostrar_catalogo
+                      ? 'se muestra en el catalogo publico.'
+                      : 'queda solo para uso interno.'}
+                  </span>
+                )}
+              </label>
             )}
 
             {esProducto && (
@@ -1145,8 +1165,23 @@ export default function AdminProductosPage() {
                 onClick={() => editarProducto(producto)}
                 className="cursor-pointer rounded-2xl bg-white px-4 py-3 shadow-premium transition hover:-translate-y-0.5 hover:ring-2 hover:ring-maruxa-rojo/20"
               >
-                <div className="flex flex-col justify-between gap-2 md:flex-row md:items-center">
-                  <div>
+                <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-maruxa-rojo/10 bg-maruxa-crema">
+                      {producto.imagen ? (
+                        <img
+                          src={producto.imagen}
+                          alt={producto.nombre}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="grid h-full w-full place-items-center text-lg font-black uppercase text-maruxa-cafe/45">
+                          {producto.nombre?.charAt(0) || 'P'}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="min-w-0">
                     <p className="text-xs font-black uppercase tracking-widest text-maruxa-rojo">
                       {tipo === 'producto'
                         ? producto.categoria
@@ -1161,6 +1196,21 @@ export default function AdminProductosPage() {
                       producto.familias_productos?.nombre && (
                         <span className="mt-1 inline-flex rounded-full bg-purple-100 px-2 py-0.5 text-xs font-black text-purple-700">
                           📂 {producto.familias_productos?.nombre}
+                        </span>
+                      )}
+
+                    {tipo === 'producto' &&
+                      producto.familias_productos?.nombre && (
+                        <span
+                          className={`mt-1 ml-2 inline-flex rounded-full px-2 py-0.5 text-xs font-black ${
+                            producto.familias_productos?.mostrar_catalogo
+                              ? 'bg-blue-100 text-blue-700'
+                              : 'bg-gray-200 text-gray-600'
+                          }`}
+                        >
+                          {producto.familias_productos?.mostrar_catalogo
+                            ? 'Catalogo'
+                            : 'Interno'}
                         </span>
                       )}
 
@@ -1233,6 +1283,7 @@ export default function AdminProductosPage() {
                         ${producto.precio.toLocaleString('es-CL')}
                       </p>
                     )}
+                    </div>
                   </div>
 
                   <div className="flex flex-wrap gap-3">
