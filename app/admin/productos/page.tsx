@@ -185,6 +185,31 @@ export default function AdminProductosPage() {
     envase: 'ENV',
     mano_obra: 'MO',
   };
+  const baseFamiliaCodigo =
+    form.tipo_producto === 'producto'
+      ? familiaFormSeleccionada?.nombre || form.categoria
+      : form.nombre;
+  const prefijoCodigoSugerido = `${prefijoTipoProducto[form.tipo_producto]}-${
+    normalizarCodigo(baseFamiliaCodigo) || 'GEN'
+  }`;
+  const codigoSugerido = useMemo(() => {
+    if (form.codigo.trim()) return form.codigo.trim().toUpperCase();
+
+    const usados = new Set(
+      productos
+        .map((producto) => String(producto.codigo || '').toUpperCase())
+        .filter((codigo) => codigo.startsWith(`${prefijoCodigoSugerido}-`))
+    );
+    let correlativo = usados.size + 1;
+    let codigo = `${prefijoCodigoSugerido}-${String(correlativo).padStart(3, '0')}`;
+
+    while (usados.has(codigo)) {
+      correlativo += 1;
+      codigo = `${prefijoCodigoSugerido}-${String(correlativo).padStart(3, '0')}`;
+    }
+
+    return codigo;
+  }, [form.codigo, prefijoCodigoSugerido, productos]);
 
   async function cargarProductos() {
     setCargando(true);
@@ -392,13 +417,7 @@ export default function AdminProductosPage() {
   }
 
   async function generarCodigoProducto(empresaId: string | number) {
-    const tipo = prefijoTipoProducto[form.tipo_producto];
-    const baseFamilia =
-      form.tipo_producto === 'producto'
-        ? familiaFormSeleccionada?.nombre || form.categoria
-        : form.nombre;
-    const familia = normalizarCodigo(baseFamilia) || 'GEN';
-    const prefijo = `${tipo}-${familia}`;
+    const prefijo = prefijoCodigoSugerido;
 
     const { data, error } = await supabase
       .from('productos')
@@ -646,7 +665,10 @@ export default function AdminProductosPage() {
                 className="w-full rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold uppercase outline-none"
               />
               <span className="block text-xs font-semibold text-maruxa-cafe/60">
-                Dejalo vacio para generar uno automatico.
+                Dejalo vacio para usar el sugerido.
+              </span>
+              <span className="inline-flex rounded-full bg-maruxa-crema px-3 py-1 text-xs font-black text-maruxa-chocolate">
+                Sugerido: {codigoSugerido}
               </span>
             </label>
 
