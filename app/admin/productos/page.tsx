@@ -92,6 +92,16 @@ function normalizarTexto(texto: string | null | undefined) {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
+function normalizarCodigo(texto: string | null | undefined) {
+  return String(texto || '')
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/Ñ/g, 'N')
+    .replace(/[^A-Z0-9]+/g, '')
+    .slice(0, 3);
+}
+
 function numero(valor: string | number | null | undefined) {
   return Number(String(valor ?? '').replace(',', '.')) || 0;
 }
@@ -169,6 +179,12 @@ export default function AdminProductosPage() {
   const familiaFormSeleccionada = familias.find(
     (familia) => familia.id === form.familia_id
   );
+  const prefijoTipoProducto: Record<TipoProducto, string> = {
+    producto: 'PRO',
+    ingrediente: 'ING',
+    envase: 'ENV',
+    mano_obra: 'MO',
+  };
 
   async function cargarProductos() {
     setCargando(true);
@@ -375,9 +391,48 @@ export default function AdminProductosPage() {
     return true;
   }
 
-  function construirDatosProducto(empresaId?: string | number) {
+  async function generarCodigoProducto(empresaId: string | number) {
+    const tipo = prefijoTipoProducto[form.tipo_producto];
+    const baseFamilia =
+      form.tipo_producto === 'producto'
+        ? familiaFormSeleccionada?.nombre || form.categoria
+        : form.nombre;
+    const familia = normalizarCodigo(baseFamilia) || 'GEN';
+    const prefijo = `${tipo}-${familia}`;
+
+    const { data, error } = await supabase
+      .from('productos')
+      .select('codigo')
+      .eq('empresa_id', empresaId)
+      .ilike('codigo', `${prefijo}-%`);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const usados = new Set(
+      (data || [])
+        .map((item) => String(item.codigo || '').toUpperCase())
+        .filter(Boolean)
+    );
+
+    let correlativo = usados.size + 1;
+    let codigo = `${prefijo}-${String(correlativo).padStart(3, '0')}`;
+
+    while (usados.has(codigo)) {
+      correlativo += 1;
+      codigo = `${prefijo}-${String(correlativo).padStart(3, '0')}`;
+    }
+
+    return codigo;
+  }
+
+  function construirDatosProducto(
+    empresaId?: string | number,
+    codigoFinal?: string
+  ) {
     return {
-      codigo: form.codigo.trim() || null,
+      codigo: (codigoFinal || form.codigo).trim().toUpperCase() || null,
       nombre: form.nombre,
       descripcion: form.descripcion,
       precio:
@@ -457,9 +512,20 @@ export default function AdminProductosPage() {
       return;
     }
 
+    let codigoFinal = form.codigo.trim();
+
+    if (!codigoFinal) {
+      try {
+        codigoFinal = await generarCodigoProducto(empresa.id);
+      } catch (error) {
+        alert(error instanceof Error ? error.message : 'No se pudo generar el codigo.');
+        return;
+      }
+    }
+
     const { error } = await supabase
       .from('productos')
-      .insert(construirDatosProducto(empresa.id));
+      .insert(construirDatosProducto(empresa.id, codigoFinal));
 
     if (error) {
       alert(error.message);
@@ -474,7 +540,25 @@ export default function AdminProductosPage() {
     if (!productoEditando) return;
     if (!validarFormulario()) return;
 
-    const datos = construirDatosProducto();
+    const empresa = await obtenerEmpresaActual();
+
+    if (!empresa) {
+      alert('No se pudo identificar la empresa.');
+      return;
+    }
+
+    let codigoFinal = form.codigo.trim();
+
+    if (!codigoFinal) {
+      try {
+        codigoFinal = await generarCodigoProducto(empresa.id);
+      } catch (error) {
+        alert(error instanceof Error ? error.message : 'No se pudo generar el codigo.');
+        return;
+      }
+    }
+
+    const datos = construirDatosProducto(undefined, codigoFinal);
     delete datos.empresa_id;
 
     const { error } = await supabase
@@ -549,17 +633,22 @@ export default function AdminProductosPage() {
           </h2>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <input
-              placeholder="Codigo de producto"
-              value={form.codigo}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  codigo: e.target.value,
-                })
-              }
-              className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold uppercase outline-none"
-            />
+            <label className="space-y-2">
+              <input
+                placeholder="Codigo de producto"
+                value={form.codigo}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    codigo: e.target.value,
+                  })
+                }
+                className="w-full rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold uppercase outline-none"
+              />
+              <span className="block text-xs font-semibold text-maruxa-cafe/60">
+                Dejalo vacio para generar uno automatico.
+              </span>
+            </label>
 
             <input
               placeholder="Nombre"
