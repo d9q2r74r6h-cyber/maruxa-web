@@ -185,17 +185,38 @@ export async function POST(request: Request) {
       const codigos = productosOrden
         .map((item) => item.product_retailer_id?.trim())
         .filter(Boolean) as string[];
+      const idsFallback = codigos
+        .map((codigo) => codigo.match(/^producto-(\d+)$/)?.[1])
+        .filter(Boolean) as string[];
 
-      const { data: productosDb } = await admin
-        .from('productos')
-        .select('id,codigo,nombre,imagen,precio')
-        .eq('empresa_id', empresaId)
-        .in('codigo', codigos);
+      const productosPorCodigoQuery = codigos.length
+        ? admin
+            .from('productos')
+            .select('id,codigo,nombre,imagen,precio')
+            .eq('empresa_id', empresaId)
+            .in('codigo', codigos)
+        : Promise.resolve({ data: [] });
+
+      const productosPorIdQuery = idsFallback.length
+        ? admin
+            .from('productos')
+            .select('id,codigo,nombre,imagen,precio')
+            .eq('empresa_id', empresaId)
+            .in('id', idsFallback.map(Number))
+        : Promise.resolve({ data: [] });
+
+      const [{ data: productosPorCodigoDb }, { data: productosPorIdDb }] =
+        await Promise.all([productosPorCodigoQuery, productosPorIdQuery]);
+
+      const productosDb = [
+        ...(productosPorCodigoDb || []),
+        ...(productosPorIdDb || []),
+      ];
 
       const productosPorCodigo = new Map(
-        (productosDb || []).map((producto) => [
-          String(producto.codigo),
-          producto,
+        productosDb.flatMap((producto) => [
+          [String(producto.codigo), producto],
+          [`producto-${producto.id}`, producto],
         ])
       );
 
