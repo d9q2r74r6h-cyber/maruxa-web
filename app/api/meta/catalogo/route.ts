@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabasePublic } from '@/lib/supabase-public';
+import { createClient } from '@supabase/supabase-js';
 
 type ProductoFeed = {
   id: number;
@@ -13,6 +13,16 @@ type ProductoFeed = {
 };
 
 const baseUrl = 'https://panaderiamaruxa.cl';
+
+function crearAdmin() {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!serviceRoleKey || !url) return null;
+
+  return createClient(url, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
 
 function limpiar(valor: string | number | null | undefined) {
   return String(valor ?? '')
@@ -36,7 +46,16 @@ function enlaceProducto(producto: ProductoFeed) {
 }
 
 export async function GET() {
-  const { data, error } = await supabasePublic
+  const admin = crearAdmin();
+
+  if (!admin) {
+    return NextResponse.json(
+      { error: 'Cliente Supabase no configurado.' },
+      { status: 500 }
+    );
+  }
+
+  const { data, error } = await admin
     .from('productos')
     .select('id,codigo,nombre,descripcion,precio,categoria,imagen,slug')
     .eq('tipo_producto', 'producto')
