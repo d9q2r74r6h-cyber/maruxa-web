@@ -54,6 +54,17 @@ function precio(valor: number | null | undefined) {
   return `${Math.round(Number(valor || 0))} CLP`;
 }
 
+function textoCatalogo(valor: string | null | undefined) {
+  const texto = limpiar(valor);
+  if (!texto) return '';
+
+  return texto
+    .toLocaleLowerCase('es-CL')
+    .replace(/(^|[.!?]\s+)([a-záéíóúüñ])/g, (match) =>
+      match.toLocaleUpperCase('es-CL')
+    );
+}
+
 function enlaceProducto(producto: ProductoFeed) {
   if (producto.slug) return `${baseUrl}/producto/${producto.slug}`;
   return `${baseUrl}/catalogo`;
@@ -75,7 +86,8 @@ const tamanosTorta = [
 ] as const;
 
 function crearItemsFeed(producto: ProductoFeed): ItemFeed[] {
-  const descripcion = limpiar(producto.descripcion || producto.nombre);
+  const nombre = textoCatalogo(producto.nombre);
+  const descripcion = textoCatalogo(producto.descripcion || producto.nombre);
   const imagen = producto.imagen || `${baseUrl}/logo-maruxa.png`;
   const categoria = producto.categoria || 'Bakery';
   const enlace = enlaceProducto(producto);
@@ -84,7 +96,7 @@ function crearItemsFeed(producto: ProductoFeed): ItemFeed[] {
     return [
       {
         id: idBase(producto),
-        titulo: producto.nombre,
+        titulo: nombre,
         descripcion,
         precio: Number(producto.precio || 0),
         enlace,
@@ -110,7 +122,7 @@ function crearItemsFeed(producto: ProductoFeed): ItemFeed[] {
 
   return variantes.map((tamano) => ({
     id: `${idBase(producto)}-${tamano.personas}p`,
-    titulo: `${producto.nombre} ${tamano.personas} personas`,
+    titulo: `${nombre} ${tamano.personas} personas`,
     descripcion: `${descripcion} - ${tamano.personas} personas`,
     precio: tamano.precio,
     enlace,
