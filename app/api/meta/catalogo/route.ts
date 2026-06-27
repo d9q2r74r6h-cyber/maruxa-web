@@ -7,9 +7,23 @@ type ProductoFeed = {
   nombre: string;
   descripcion: string | null;
   precio: number | null;
+  precio_10: number | null;
+  precio_15: number | null;
+  precio_20: number | null;
+  precio_25: number | null;
   categoria: string | null;
   imagen: string | null;
   slug: string | null;
+};
+
+type ItemFeed = {
+  id: string;
+  titulo: string;
+  descripcion: string;
+  precio: number;
+  enlace: string;
+  imagen: string;
+  categoria: string;
 };
 
 const baseUrl = 'https://panaderiamaruxa.cl';
@@ -45,6 +59,66 @@ function enlaceProducto(producto: ProductoFeed) {
   return `${baseUrl}/catalogo`;
 }
 
+function esTorta(producto: ProductoFeed) {
+  return limpiar(producto.categoria).toLowerCase().includes('torta');
+}
+
+function idBase(producto: ProductoFeed) {
+  return producto.codigo || `producto-${producto.id}`;
+}
+
+const tamanosTorta = [
+  { personas: 10, campo: 'precio_10' },
+  { personas: 15, campo: 'precio_15' },
+  { personas: 20, campo: 'precio_20' },
+  { personas: 25, campo: 'precio_25' },
+] as const;
+
+function crearItemsFeed(producto: ProductoFeed): ItemFeed[] {
+  const descripcion = limpiar(producto.descripcion || producto.nombre);
+  const imagen = producto.imagen || `${baseUrl}/logo-maruxa.png`;
+  const categoria = producto.categoria || 'Bakery';
+  const enlace = enlaceProducto(producto);
+
+  if (!esTorta(producto)) {
+    return [
+      {
+        id: idBase(producto),
+        titulo: producto.nombre,
+        descripcion,
+        precio: Number(producto.precio || 0),
+        enlace,
+        imagen,
+        categoria,
+      },
+    ];
+  }
+
+  const variantes = tamanosTorta
+    .map((tamano) => ({
+      personas: tamano.personas,
+      precio: Number(producto[tamano.campo] || 0),
+    }))
+    .filter((tamano) => tamano.precio > 0);
+
+  if (variantes.length === 0 && Number(producto.precio || 0) > 0) {
+    variantes.push({
+      personas: 10,
+      precio: Number(producto.precio || 0),
+    });
+  }
+
+  return variantes.map((tamano) => ({
+    id: `${idBase(producto)}-${tamano.personas}p`,
+    titulo: `${producto.nombre} ${tamano.personas} personas`,
+    descripcion: `${descripcion} - ${tamano.personas} personas`,
+    precio: tamano.precio,
+    enlace,
+    imagen,
+    categoria,
+  }));
+}
+
 export async function GET() {
   const admin = crearAdmin();
 
@@ -63,6 +137,10 @@ export async function GET() {
       nombre,
       descripcion,
       precio,
+      precio_10,
+      precio_15,
+      precio_20,
+      precio_25,
       categoria,
       imagen,
       slug,
@@ -98,17 +176,19 @@ export async function GET() {
     'google_product_category',
   ];
 
-  const filas = ((data || []) as ProductoFeed[]).map((producto) => [
-    csv(producto.codigo || `producto-${producto.id}`),
-    csv(producto.nombre),
-    csv(producto.descripcion || producto.nombre),
+  const items = ((data || []) as ProductoFeed[]).flatMap(crearItemsFeed);
+
+  const filas = items.map((item) => [
+    csv(item.id),
+    csv(item.titulo),
+    csv(item.descripcion),
     csv('in stock'),
     csv('new'),
-    csv(precio(producto.precio)),
-    csv(enlaceProducto(producto)),
-    csv(producto.imagen || `${baseUrl}/logo-maruxa.png`),
+    csv(precio(item.precio)),
+    csv(item.enlace),
+    csv(item.imagen),
     csv('Panaderia Maruxa'),
-    csv(producto.categoria || 'Bakery'),
+    csv(item.categoria),
   ]);
 
   const contenido = [

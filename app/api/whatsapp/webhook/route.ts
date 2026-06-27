@@ -47,6 +47,15 @@ function crearAdmin() {
   });
 }
 
+function codigoProductoBase(codigo: string) {
+  return codigo.replace(/-(10|15|20|25)p$/i, '');
+}
+
+function etiquetaTamano(codigo: string) {
+  const match = codigo.match(/-(10|15|20|25)p$/i);
+  return match ? `${match[1]} personas` : null;
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const modo = url.searchParams.get('hub.mode');
@@ -185,16 +194,17 @@ export async function POST(request: Request) {
       const codigos = productosOrden
         .map((item) => item.product_retailer_id?.trim())
         .filter(Boolean) as string[];
+      const codigosBase = codigos.map(codigoProductoBase);
       const idsFallback = codigos
-        .map((codigo) => codigo.match(/^producto-(\d+)$/)?.[1])
+        .map((codigo) => codigo.match(/^producto-(\d+)(?:-(?:10|15|20|25)p)?$/i)?.[1])
         .filter(Boolean) as string[];
 
-      const productosPorCodigoQuery = codigos.length
+      const productosPorCodigoQuery = codigosBase.length
         ? admin
             .from('productos')
             .select('id,codigo,nombre,imagen,precio')
             .eq('empresa_id', empresaId)
-            .in('codigo', codigos)
+            .in('codigo', codigosBase)
         : Promise.resolve({ data: [] });
 
       const productosPorIdQuery = idsFallback.length
@@ -217,6 +227,14 @@ export async function POST(request: Request) {
         productosDb.flatMap((producto) => [
           [String(producto.codigo), producto],
           [`producto-${producto.id}`, producto],
+          [`${producto.codigo}-10p`, producto],
+          [`${producto.codigo}-15p`, producto],
+          [`${producto.codigo}-20p`, producto],
+          [`${producto.codigo}-25p`, producto],
+          [`producto-${producto.id}-10p`, producto],
+          [`producto-${producto.id}-15p`, producto],
+          [`producto-${producto.id}-20p`, producto],
+          [`producto-${producto.id}-25p`, producto],
         ])
       );
 
@@ -224,6 +242,7 @@ export async function POST(request: Request) {
       const productosPedido = productosOrden.map((item) => {
         const codigo = item.product_retailer_id?.trim() || 'SIN-CODIGO';
         const producto = productosPorCodigo.get(codigo);
+        const tamano = etiquetaTamano(codigo);
         const cantidad = Number(item.quantity || 0);
         const precioWhatsApp = Number(item.item_price || 0);
 
@@ -232,7 +251,9 @@ export async function POST(request: Request) {
         return {
           producto_id: producto?.id || null,
           codigo,
-          nombre: producto?.nombre || `Producto WhatsApp ${codigo}`,
+          nombre: producto
+            ? `${producto.nombre}${tamano ? ` ${tamano}` : ''}`
+            : `Producto WhatsApp ${codigo}`,
           cantidad,
           precio: precioWhatsApp || Number(producto?.precio || 0),
           imagen: producto?.imagen || null,
