@@ -1,6 +1,11 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { Resend } from 'resend';
+
+const resend = process.env.RESEND_API_KEY
+  ? new Resend(process.env.RESEND_API_KEY)
+  : null;
 
 type ProductoWhatsApp = {
   product_retailer_id?: string;
@@ -54,6 +59,86 @@ function codigoProductoBase(codigo: string) {
 function etiquetaTamano(codigo: string) {
   const match = codigo.match(/-(10|15|20|25)p$/i);
   return match ? `${match[1]} personas` : null;
+}
+
+function fechaHoraChile(fecha: Date) {
+  const partes = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Santiago',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(fecha);
+
+  const valor = (tipo: Intl.DateTimeFormatPartTypes) =>
+    partes.find((parte) => parte.type === tipo)?.value || '';
+
+  return {
+    fecha: `${valor('year')}-${valor('month')}-${valor('day')}`,
+    hora: `${valor('hour')}:${valor('minute')}`,
+  };
+}
+
+function formatearTelefonoWhatsApp(valor: string | null | undefined) {
+  const digitos = String(valor || '').replace(/\D/g, '');
+
+  if (digitos.startsWith('56') && digitos.length === 11) {
+    return `+56 ${digitos.slice(2, 3)} ${digitos.slice(3, 7)} ${digitos.slice(7)}`;
+  }
+
+  if (digitos.startsWith('56')) return `+${digitos}`;
+  return digitos ? `+${digitos}` : '';
+}
+
+function escaparHtml(valor: string | number | null | undefined) {
+  return String(valor ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+async function enviarCorreoPedidoWhatsApp(pedido: any) {
+  if (!resend) return null;
+
+  const productosHtml = pedido.productos
+    ?.map(
+      (producto: any) => `
+        <li>
+          <strong>${escaparHtml(producto.nombre)}</strong><br/>
+          Cantidad: ${escaparHtml(producto.cantidad)}<br/>
+          Precio: $${Number(producto.precio || 0).toLocaleString('es-CL')}
+        </li>
+      `
+    )
+    .join('');
+
+  const { error } = await resend.emails.send({
+    from: 'Panadería Maruxa <pedidos@panaderiamaruxa.cl>',
+    to: ['panaderiamaruxa@hotmail.com'],
+    subject: `Nuevo pedido WhatsApp Maruxa #${pedido.id}`,
+    html: `
+      <h1>Nuevo pedido desde WhatsApp</h1>
+      <p><strong>Pedido:</strong> #${escaparHtml(pedido.id)}</p>
+      <p><strong>Cliente:</strong> ${escaparHtml(pedido.cliente)}</p>
+      <p><strong>Teléfono:</strong> ${escaparHtml(pedido.telefono)}</p>
+      <p><strong>Fecha recepción:</strong> ${escaparHtml(pedido.fecha_retiro)}</p>
+      <p><strong>Hora recepción:</strong> ${escaparHtml(pedido.hora_retiro)}</p>
+      <h2>Productos</h2>
+      <ul>${productosHtml}</ul>
+      <p><strong>Total:</strong> $${Number(pedido.total || 0).toLocaleString('es-CL')}</p>
+      ${
+        pedido.observaciones
+          ? `<p><strong>Observaciones:</strong> ${escaparHtml(pedido.observaciones)}</p>`
+          : ''
+      }
+    `,
+  });
+
+  return error?.message || null;
 }
 
 export async function GET(request: Request) {
@@ -176,7 +261,7 @@ export async function POST(request: Request) {
       const eventoBase = {
         empresa_id: empresaId,
         message_id: mensaje.id,
-        telefono: mensaje.from || contacto?.wa_id || null,
+        telefono: formatearTelefonoWhatsApp(mensaje.from || contacto?.wa_id) || null,
         tipo: mensaje.type || 'desconocido',
         payload,
       };
@@ -268,21 +353,26 @@ export async function POST(request: Request) {
       const fechaRecepcion = mensaje.timestamp
         ? new Date(Number(mensaje.timestamp) * 1000)
         : new Date();
+      const fechaHoraRecepcion = fechaHoraChile(fechaRecepcion);
+      const telefonoCliente = formatearTelefonoWhatsApp(
+        mensaje.from || contacto?.wa_id
+      );
+      const observacionesPedido = faltantes.length
+        ? `Revisar codigos sin coincidencia: ${faltantes.join(', ')}`
+        : 'Pedido recibido desde el carro de WhatsApp. Confirmar fecha y hora de retiro con el cliente.';
 
       const { data: pedido, error: errorPedido } = await admin
         .from('pedidos')
         .insert({
           empresa_id: empresaId,
           cliente: contacto?.profile?.name || `WhatsApp ${mensaje.from || ''}`,
-          telefono: mensaje.from || contacto?.wa_id || '',
-          email: null,
+          telefono: telefonoCliente,
+          email: '',
           productos: productosPedido,
           total,
-          fecha_retiro: fechaRecepcion.toISOString().slice(0, 10),
-          hora_retiro: '00:00',
-          observaciones: faltantes.length
-            ? `Revisar códigos sin coincidencia: ${faltantes.join(', ')}`
-            : 'Pedido recibido desde el carro de WhatsApp.',
+          fecha_retiro: fechaHoraRecepcion.fecha,
+          hora_retiro: fechaHoraRecepcion.hora,
+          observaciones: observacionesPedido,
           estado: 'pendiente',
           origen: 'whatsapp_carrito',
           whatsapp_message_id: mensaje.id,
@@ -291,6 +381,20 @@ export async function POST(request: Request) {
         })
         .select('id')
         .single();
+
+      const errorCorreo =
+        pedido && !errorPedido
+          ? await enviarCorreoPedidoWhatsApp({
+              ...pedido,
+              cliente: contacto?.profile?.name || `WhatsApp ${mensaje.from || ''}`,
+              telefono: telefonoCliente,
+              productos: productosPedido,
+              total,
+              fecha_retiro: fechaHoraRecepcion.fecha,
+              hora_retiro: fechaHoraRecepcion.hora,
+              observaciones: observacionesPedido,
+            })
+          : null;
 
       await admin.from('whatsapp_eventos').insert({
         ...eventoBase,
@@ -302,6 +406,9 @@ export async function POST(request: Request) {
             : 'procesado',
         observacion:
           errorPedido?.message ||
+          (errorCorreo
+            ? `Pedido guardado, pero no se pudo enviar correo: ${errorCorreo}`
+            : null) ||
           (faltantes.length
             ? `Códigos no encontrados: ${faltantes.join(', ')}`
             : null),

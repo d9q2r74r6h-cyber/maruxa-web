@@ -265,7 +265,9 @@ export default function AdminPedidosPage() {
                     </p>
 
                     <p>
-                      Retiro:{' '}
+                      {pedido.origen === 'whatsapp_carrito'
+                        ? 'Recepción: '
+                        : 'Retiro: '}
                       {pedido.fecha_retiro}
                     </p>
 
