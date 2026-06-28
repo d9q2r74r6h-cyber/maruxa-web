@@ -141,6 +141,39 @@ async function enviarCorreoPedidoWhatsApp(pedido: any) {
   return error?.message || null;
 }
 
+async function responderPedidoWhatsApp(telefono: string, pedidoId: string | number) {
+  const token = process.env.WHATSAPP_ACCESS_TOKEN;
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const destino = telefono.replace(/\D/g, '');
+
+  if (!token || !phoneNumberId || !destino) return null;
+
+  const respuesta = await fetch(
+    `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to: destino,
+        type: 'text',
+        text: {
+          preview_url: false,
+          body: `Hola, recibimos tu pedido #${pedidoId} en Panadería Maruxa. Lo revisaremos y te confirmaremos disponibilidad, total y horario de retiro. Gracias por preferirnos.`,
+        },
+      }),
+    }
+  );
+
+  if (respuesta.ok) return null;
+
+  const detalle = await respuesta.text();
+  return detalle || `Meta respondio ${respuesta.status}`;
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const modo = url.searchParams.get('hub.mode');
@@ -395,6 +428,10 @@ export async function POST(request: Request) {
               observaciones: observacionesPedido,
             })
           : null;
+      const errorRespuesta =
+        pedido && !errorPedido
+          ? await responderPedidoWhatsApp(telefonoCliente, pedido.id)
+          : null;
 
       await admin.from('whatsapp_eventos').insert({
         ...eventoBase,
@@ -408,6 +445,9 @@ export async function POST(request: Request) {
           errorPedido?.message ||
           (errorCorreo
             ? `Pedido guardado, pero no se pudo enviar correo: ${errorCorreo}`
+            : null) ||
+          (errorRespuesta
+            ? `Pedido guardado, pero no se pudo responder por WhatsApp: ${errorRespuesta}`
             : null) ||
           (faltantes.length
             ? `Códigos no encontrados: ${faltantes.join(', ')}`
