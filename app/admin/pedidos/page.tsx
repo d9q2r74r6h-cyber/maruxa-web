@@ -30,6 +30,8 @@ export default function AdminPedidosPage() {
   const [loading, setLoading] = useState(true);
 
   const [filtroEstado, setFiltroEstado] = useState('todos');
+  const [guardandoRetiro, setGuardandoRetiro] = useState<number | null>(null);
+  const [enviandoMensaje, setEnviandoMensaje] = useState<string | null>(null);
 
 
 
@@ -53,6 +55,96 @@ export default function AdminPedidosPage() {
     }
   
     cargarPedidos();
+  }
+
+  async function actualizarRetiro(pedido: Pedido) {
+    const empresa = await obtenerEmpresaActual();
+
+    if (!empresa) {
+      alert('No se pudo identificar la empresa.');
+      return;
+    }
+
+    setGuardandoRetiro(pedido.id);
+
+    const { error } = await supabase
+      .from('pedidos')
+      .update({
+        fecha_retiro: pedido.fecha_retiro,
+        hora_retiro: pedido.hora_retiro,
+      })
+      .eq('id', pedido.id)
+      .eq('empresa_id', empresa.id);
+
+    setGuardandoRetiro(null);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    cargarPedidos();
+  }
+
+  function actualizarPedidoLocal(
+    id: number,
+    campo: 'fecha_retiro' | 'hora_retiro',
+    valor: string
+  ) {
+    setPedidos((actuales) =>
+      actuales.map((pedido) =>
+        pedido.id === id ? { ...pedido, [campo]: valor } : pedido
+      )
+    );
+  }
+
+  async function enviarMensajePedido(
+    pedido: Pedido,
+    tipo: 'confirmacion' | 'listo'
+  ) {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      alert('Tu sesión expiró. Vuelve a iniciar sesión.');
+      return;
+    }
+
+    const mensaje =
+      tipo === 'confirmacion'
+        ? `Hola ${pedido.cliente}, confirmamos tu pedido #${pedido.id} en Panadería Maruxa. Retiro: ${pedido.fecha_retiro} a las ${pedido.hora_retiro}. Total: $${pedido.total.toLocaleString('es-CL')}. Gracias por preferirnos.`
+        : `Hola ${pedido.cliente}, tu pedido #${pedido.id} de Panadería Maruxa ya está listo para retiro. Te esperamos.`;
+
+    setEnviandoMensaje(`${pedido.id}-${tipo}`);
+
+    const respuesta = await fetch('/api/whatsapp/enviar-mensaje', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        telefono: pedido.telefono,
+        mensaje,
+      }),
+    });
+
+    setEnviandoMensaje(null);
+
+    if (!respuesta.ok) {
+      const data = await respuesta.json().catch(() => ({}));
+      alert(data.error || 'No se pudo enviar el mensaje.');
+      return;
+    }
+
+    if (tipo === 'confirmacion') {
+      await cambiarEstado(pedido.id, 'confirmado');
+    }
+
+    if (tipo === 'listo') {
+      await cambiarEstado(pedido.id, 'listo');
+    }
   }
 
   async function cargarPedidos() {
@@ -148,22 +240,6 @@ export default function AdminPedidosPage() {
             {pedidos.length} pedidos registrados
           </p>
 
-                        <p className="mt-3 font-bold text-maruxa-cafe/70">
-                {pedidos.length} pedidos registrados
-                </p>
-
-                {/* DASHBOARD */}
-
-                <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                ...
-                </div>
-
-                <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                ...
-                </div>
-
-                
-
           <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-[28px] bg-white p-6 shadow-premium">
                 <p className="text-xs font-black uppercase tracking-widest text-maruxa-cafe/60">
@@ -213,6 +289,7 @@ export default function AdminPedidosPage() {
             >
             <option value="todos">Todos los pedidos</option>
             <option value="pendiente">Pendientes</option>
+            <option value="confirmado">Confirmados</option>
             <option value="listo">Listos para retiro</option>
             <option value="entregado">Entregados</option>
             </select>
@@ -241,6 +318,8 @@ export default function AdminPedidosPage() {
                             className={`rounded-full px-3 py-1 text-xs font-black ${
                                 pedido.estado === 'pendiente'
                                 ? 'bg-yellow-100 text-yellow-800'
+                                : pedido.estado === 'confirmado'
+                                ? 'bg-blue-100 text-blue-800'
                                 : pedido.estado === 'listo'
                                 ? 'bg-green-100 text-green-800'
                                 : 'bg-gray-100 text-gray-800'
@@ -264,17 +343,52 @@ export default function AdminPedidosPage() {
                       Teléfono: {pedido.telefono}
                     </p>
 
-                    <p>
-                      {pedido.origen === 'whatsapp_carrito'
-                        ? 'Recepción: '
-                        : 'Retiro: '}
-                      {pedido.fecha_retiro}
-                    </p>
+                    <div className="grid gap-3 rounded-2xl bg-maruxa-crema/70 p-3 sm:grid-cols-[1fr_1fr_auto]">
+                      <label className="grid gap-1">
+                        <span className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
+                          Fecha retiro
+                        </span>
+                        <input
+                          type="date"
+                          value={pedido.fecha_retiro || ''}
+                          onChange={(e) =>
+                            actualizarPedidoLocal(
+                              pedido.id,
+                              'fecha_retiro',
+                              e.target.value
+                            )
+                          }
+                          className="rounded-xl border border-maruxa-rojo/10 bg-white px-3 py-2 font-black"
+                        />
+                      </label>
 
-                    <p>
-                      Hora:{' '}
-                      {pedido.hora_retiro}
-                    </p>
+                      <label className="grid gap-1">
+                        <span className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
+                          Hora retiro
+                        </span>
+                        <input
+                          type="time"
+                          value={pedido.hora_retiro || ''}
+                          onChange={(e) =>
+                            actualizarPedidoLocal(
+                              pedido.id,
+                              'hora_retiro',
+                              e.target.value
+                            )
+                          }
+                          className="rounded-xl border border-maruxa-rojo/10 bg-white px-3 py-2 font-black"
+                        />
+                      </label>
+
+                      <button
+                        type="button"
+                        onClick={() => actualizarRetiro(pedido)}
+                        disabled={guardandoRetiro === pedido.id}
+                        className="self-end rounded-xl bg-maruxa-chocolate px-4 py-2 text-sm font-black text-white disabled:opacity-50"
+                      >
+                        {guardandoRetiro === pedido.id ? 'Guardando...' : 'Guardar'}
+                      </button>
+                    </div>
 
                     {pedido.observaciones && (
                       <p>
@@ -309,6 +423,10 @@ export default function AdminPedidosPage() {
     Pendiente
   </option>
 
+  <option value="confirmado">
+    Confirmado
+  </option>
+
   <option value="listo">
     Listo para retiro
   </option>
@@ -331,6 +449,28 @@ export default function AdminPedidosPage() {
   >
     WhatsApp Cliente
   </a>
+
+  <button
+    type="button"
+    onClick={() => enviarMensajePedido(pedido, 'confirmacion')}
+    disabled={enviandoMensaje === `${pedido.id}-confirmacion`}
+    className="mt-3 w-full rounded-2xl bg-blue-600 px-4 py-3 text-center font-black text-white transition hover:opacity-90 disabled:opacity-50"
+  >
+    {enviandoMensaje === `${pedido.id}-confirmacion`
+      ? 'Enviando...'
+      : 'Confirmar retiro'}
+  </button>
+
+  <button
+    type="button"
+    onClick={() => enviarMensajePedido(pedido, 'listo')}
+    disabled={enviandoMensaje === `${pedido.id}-listo`}
+    className="mt-3 w-full rounded-2xl bg-emerald-700 px-4 py-3 text-center font-black text-white transition hover:opacity-90 disabled:opacity-50"
+  >
+    {enviandoMensaje === `${pedido.id}-listo`
+      ? 'Enviando...'
+      : 'Avisar listo'}
+  </button>
 </div>
               </div>
 
