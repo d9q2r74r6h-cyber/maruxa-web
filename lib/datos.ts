@@ -1,5 +1,7 @@
 export const telefonoVisible = '+56 2 3366 3241';
-export const whatsapp = '56966785041';
+export const whatsapp = '56986232447';
+export const instagram = 'https://www.instagram.com/panaderiamaruxa/';
+export const facebook = 'https://www.facebook.com/panaderiamaruxa';
 
 export const productos = [
   { id:1, nombre:'Pan amasado', categoria:'Panadería', precio:2490, etiqueta:'Tradicional', imagen:'🥖' },

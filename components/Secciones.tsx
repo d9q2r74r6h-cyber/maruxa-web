@@ -1,4 +1,4 @@
-import { Camera, MapPin, Phone, ShieldCheck } from 'lucide-react';
+import { Camera, Facebook, Instagram, MapPin, MessageCircle, Phone, ShieldCheck } from 'lucide-react';
 import { MARUXA } from '@/lib/marca';
 
 export function Nosotros(){
@@ -10,5 +10,5 @@ export function Ubicacion(){
 }
 
 export function Footer(){
-  return <footer className="border-t border-[#8f2028]/10 py-10"><div className="contenedor flex flex-col justify-between gap-5 md:flex-row md:items-center"><div><img src={MARUXA.logo} alt="Logo Panadería Maruxa" className="w-44"/><p className="mt-2 text-sm font-bold text-[#7a4a2b]">Panadería artesanal · San Miguel</p></div><div className="flex gap-3"><a className="boton-secundario !py-3" href={`tel:${MARUXA.telefonoLink}`}>Llamar</a><a className="boton-principal !py-3" href={`https://wa.me/${MARUXA.whatsapp}`} target="_blank">WhatsApp</a></div></div></footer>
+  return <footer className="border-t border-[#8f2028]/10 py-10"><div className="contenedor flex flex-col justify-between gap-5 md:flex-row md:items-center"><div><img src={MARUXA.logo} alt="Logo Panadería Maruxa" className="w-44"/><p className="mt-2 text-sm font-bold text-[#7a4a2b]">Panadería artesanal · San Miguel</p></div><div className="flex flex-wrap gap-3"><a className="boton-secundario !py-3" href={`tel:${MARUXA.telefonoLink}`}>Llamar</a><a className="boton-principal !py-3 inline-flex items-center gap-2" href={`https://wa.me/${MARUXA.whatsapp}`} target="_blank" rel="noreferrer"><MessageCircle size={18}/>WhatsApp</a><a className="boton-secundario !py-3 inline-flex items-center gap-2" href={MARUXA.instagram} target="_blank" rel="noreferrer"><Instagram size={18}/>Instagram</a><a className="boton-secundario !py-3 inline-flex items-center gap-2" href={MARUXA.facebook} target="_blank" rel="noreferrer"><Facebook size={18}/>Facebook</a></div></div></footer>
 }

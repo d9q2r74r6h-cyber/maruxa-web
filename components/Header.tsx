@@ -3,9 +3,18 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Menu, ShoppingBag, X, ChevronRight, LogIn } from 'lucide-react';
+import {
+  ChevronRight,
+  Facebook,
+  Instagram,
+  LogIn,
+  Menu,
+  MessageCircle,
+  ShoppingBag,
+  X,
+} from 'lucide-react';
 import { useCart } from '@/lib/cart';
-import { whatsapp } from '@/lib/datos';
+import { facebook, instagram, whatsapp } from '@/lib/datos';
 
 const mensaje = encodeURIComponent(
   'Hola Maruxa, quiero hacer un pedido para retiro en local.'
@@ -55,6 +64,36 @@ export function Header() {
           </nav>
 
           <div className="hidden items-center gap-2 lg:flex">
+            <a
+              href={`https://wa.me/${whatsapp}?text=${mensaje}`}
+              target="_blank"
+              rel="noreferrer"
+              className="grid h-11 w-11 place-items-center rounded-full bg-white text-green-700 shadow-sm transition hover:bg-green-50"
+              title="WhatsApp"
+            >
+              <MessageCircle size={18} />
+            </a>
+
+            <a
+              href={instagram}
+              target="_blank"
+              rel="noreferrer"
+              className="grid h-11 w-11 place-items-center rounded-full bg-white text-maruxa-vino shadow-sm transition hover:bg-red-50"
+              title="Instagram"
+            >
+              <Instagram size={18} />
+            </a>
+
+            <a
+              href={facebook}
+              target="_blank"
+              rel="noreferrer"
+              className="grid h-11 w-11 place-items-center rounded-full bg-white text-blue-700 shadow-sm transition hover:bg-blue-50"
+              title="Facebook"
+            >
+              <Facebook size={18} />
+            </a>
+
             <a href="/#catalogo" className="btn-rojo relative flex items-center gap-2">
               <ShoppingBag size={18} />
               Comprar
@@ -144,6 +183,28 @@ export function Header() {
             <a href={`https://wa.me/${whatsapp}?text=${mensaje}`} className="btn-rojo mt-5 text-center">
               WhatsApp Maruxa
             </a>
+
+            <div className="grid grid-cols-2 gap-3">
+              <a
+                href={instagram}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center justify-center gap-2 rounded-[20px] bg-white px-4 py-4 font-black text-maruxa-vino"
+              >
+                <Instagram size={19} />
+                Instagram
+              </a>
+
+              <a
+                href={facebook}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center justify-center gap-2 rounded-[20px] bg-white px-4 py-4 font-black text-blue-700"
+              >
+                <Facebook size={19} />
+                Facebook
+              </a>
+            </div>
 
             <div className="mt-6 rounded-[30px] bg-white p-6">
               <p className="text-xs font-black uppercase tracking-widest text-maruxa-rojo">

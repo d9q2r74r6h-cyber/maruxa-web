@@ -91,7 +91,7 @@ export async function POST(request: Request) {
         </p>
 
         <p>
-          WhatsApp: +56 9 6678 5041
+          WhatsApp: +56 9 8623 2447
         </p>
 
         <p>

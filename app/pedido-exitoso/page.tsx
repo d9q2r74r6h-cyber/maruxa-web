@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { whatsapp } from '@/lib/datos';
 
 function PedidoExitosoContent() {
   const params = useSearchParams();
@@ -117,7 +118,7 @@ function PedidoExitosoContent() {
                 </Link>
 
                 <a
-                  href="https://wa.me/56966785041"
+                  href={`https://wa.me/${whatsapp}`}
                   target="_blank"
                   rel="noreferrer"
                   className="btn-rojo block rounded-full bg-maruxa-crema px-8 py-5 text-center text-lg font-black text-maruxa-rojo shadow-premium transition hover:bg-white"
@@ -134,7 +135,7 @@ function PedidoExitosoContent() {
               <br />
               📧 Recibirás una confirmación por correo electrónico.
               <br />
-              📞 Si tienes alguna duda sobre tu pedido, puedes contactarnos al WhatsApp +56 9 6678 5041.
+              📞 Si tienes alguna duda sobre tu pedido, puedes contactarnos al WhatsApp +56 9 8623 2447.
             </p>
           </div>
         </div>

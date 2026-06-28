@@ -1,12 +1,13 @@
 'use client';
 import { useMemo, useState } from 'react';
 import { CalendarClock, MessageCircle, ShieldCheck } from 'lucide-react';
+import { whatsapp as whatsappMaruxa } from '@/lib/datos';
 
 export default function PedidoTortas() {
   const [form, setForm] = useState({ nombre:'', torta:'Milhojas manjar', personas:'15', fecha:'', hora:'12:00', dedicatoria:'' });
   const whatsapp = useMemo(() => {
     const texto = `Hola Maruxa, quiero encargar una torta.%0A%0ANombre: ${form.nombre}%0ATorta: ${form.torta}%0APersonas: ${form.personas}%0AFecha retiro: ${form.fecha}%0AHora retiro: ${form.hora}%0ADedicatoria: ${form.dedicatoria}%0A%0AEntiendo que el retiro es en local y requiere mínimo 24 horas.`;
-    return `https://wa.me/56233663241?text=${texto}`;
+    return `https://wa.me/${whatsappMaruxa}?text=${texto}`;
   }, [form]);
   const cambia = (e:any) => setForm({...form, [e.target.name]: e.target.value});
 

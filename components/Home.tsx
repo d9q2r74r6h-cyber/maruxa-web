@@ -6,12 +6,15 @@ import Catalogo from '@/components/Catalogo';
 import { motion } from 'framer-motion';
 import {
   Clock,
+  Facebook,
+  Instagram,
   MapPin,
+  MessageCircle,
   Phone,
   ShieldCheck,
 } from 'lucide-react';
 
-import { telefonoVisible, whatsapp } from '@/lib/datos';
+import { facebook, instagram, telefonoVisible, whatsapp } from '@/lib/datos';
 import { Suspense } from 'react';
 
 
@@ -56,6 +59,36 @@ export function Home() {
                 href={`https://wa.me/${whatsapp}?text=${mensaje}`}
               >
                 Pedir por WhatsApp
+              </a>
+            </div>
+
+            <div className="mt-5 flex flex-wrap gap-3">
+              <a
+                href={`https://wa.me/${whatsapp}?text=${mensaje}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-full bg-white/75 px-4 py-3 text-sm font-black text-green-700 shadow-sm transition hover:bg-white"
+              >
+                <MessageCircle size={18} />
+                WhatsApp
+              </a>
+              <a
+                href={instagram}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-full bg-white/75 px-4 py-3 text-sm font-black text-maruxa-vino shadow-sm transition hover:bg-white"
+              >
+                <Instagram size={18} />
+                Instagram
+              </a>
+              <a
+                href={facebook}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-full bg-white/75 px-4 py-3 text-sm font-black text-blue-700 shadow-sm transition hover:bg-white"
+              >
+                <Facebook size={18} />
+                Facebook
               </a>
             </div>
           </motion.div>
@@ -153,12 +186,38 @@ export function Home() {
       <footer className="border-t border-maruxa-cafe/10 py-8">
         <div className="contenedor flex flex-col gap-3 text-sm font-bold text-maruxa-cafe/70 sm:flex-row sm:items-center sm:justify-between">
           <p>Panadería Maruxa · San Miguel</p>
-          <a
-            href="/politica-de-privacidad"
-            className="transition hover:text-maruxa-rojo"
-          >
-            Política de privacidad
-          </a>
+          <div className="flex flex-wrap items-center gap-4">
+            <a
+              href={`https://wa.me/${whatsapp}`}
+              target="_blank"
+              rel="noreferrer"
+              className="transition hover:text-green-700"
+            >
+              WhatsApp
+            </a>
+            <a
+              href={instagram}
+              target="_blank"
+              rel="noreferrer"
+              className="transition hover:text-maruxa-rojo"
+            >
+              Instagram
+            </a>
+            <a
+              href={facebook}
+              target="_blank"
+              rel="noreferrer"
+              className="transition hover:text-blue-700"
+            >
+              Facebook
+            </a>
+            <a
+              href="/politica-de-privacidad"
+              className="transition hover:text-maruxa-rojo"
+            >
+              Política de privacidad
+            </a>
+          </div>
         </div>
       </footer>
 

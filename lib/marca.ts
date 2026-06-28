@@ -4,6 +4,8 @@ export const MARUXA = {
   fotoHero: 'https://tofuu.getjusto.com/orioneat-local/resized2/NYn75vQK9ut9RcZT8-2400-x.webp',
   telefono: '+56 2 3366 3241',
   telefonoLink: '+56233663241',
-  whatsapp: '56233663241',
+  whatsapp: '56986232447',
+  instagram: 'https://www.instagram.com/panaderiamaruxa/',
+  facebook: 'https://www.facebook.com/panaderiamaruxa',
   direccion: 'Avenida Santa Rosa 6019, San Miguel',
 };
