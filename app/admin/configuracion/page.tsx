@@ -11,6 +11,9 @@ type EmpresaConfig = {
   rut: string;
   telefono: string | null;
   email: string | null;
+  whatsapp: string | null;
+  instagram_url: string | null;
+  facebook_url: string | null;
   iva_porcentaje: number;
   direccion: string | null;
   comuna: string | null;
@@ -130,6 +133,9 @@ export default function ConfiguracionPage() {
         rut: empresa.rut,
         telefono: empresa.telefono,
         email: empresa.email,
+        whatsapp: empresa.whatsapp,
+        instagram_url: empresa.instagram_url,
+        facebook_url: empresa.facebook_url,
         iva_porcentaje: Number(empresa.iva_porcentaje || 19),
         direccion: empresa.direccion,
         comuna: empresa.comuna,
@@ -317,6 +323,33 @@ export default function ConfiguracionPage() {
                 setEmpresa({ ...empresa, email: e.target.value })
               }
               placeholder="Email"
+              className="rounded-2xl border px-5 py-4 font-bold"
+            />
+
+            <input
+              value={empresa.whatsapp || ''}
+              onChange={(e) =>
+                setEmpresa({ ...empresa, whatsapp: e.target.value })
+              }
+              placeholder="WhatsApp ej: 56986232447"
+              className="rounded-2xl border px-5 py-4 font-bold"
+            />
+
+            <input
+              value={empresa.instagram_url || ''}
+              onChange={(e) =>
+                setEmpresa({ ...empresa, instagram_url: e.target.value })
+              }
+              placeholder="URL Instagram"
+              className="rounded-2xl border px-5 py-4 font-bold"
+            />
+
+            <input
+              value={empresa.facebook_url || ''}
+              onChange={(e) =>
+                setEmpresa({ ...empresa, facebook_url: e.target.value })
+              }
+              placeholder="URL Facebook"
               className="rounded-2xl border px-5 py-4 font-bold"
             />
 
