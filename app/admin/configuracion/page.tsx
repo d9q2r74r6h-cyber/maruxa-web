@@ -42,10 +42,24 @@ type ImpuestoAdicional = {
   activo: boolean;
 };
 
+type CuentaBancaria = {
+  id: string;
+  banco: string;
+  tipo_cuenta: string;
+  numero_cuenta: string;
+  titular: string;
+  rut_titular: string | null;
+  email_notificacion: string | null;
+  alias: string | null;
+  es_principal: boolean;
+  activo: boolean;
+};
+
 export default function ConfiguracionPage() {
   const [empresa, setEmpresa] = useState<EmpresaConfig | null>(null);
   const [turnos, setTurnos] = useState<Turno[]>([]);
   const [impuestos, setImpuestos] = useState<ImpuestoAdicional[]>([]);
+  const [cuentasBancarias, setCuentasBancarias] = useState<CuentaBancaria[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [nuevoTurno, setNuevoTurno] = useState({
@@ -56,6 +70,16 @@ export default function ConfiguracionPage() {
   const [nuevoImpuesto, setNuevoImpuesto] = useState({
     nombre: '',
     porcentaje: '',
+  });
+  const [nuevaCuenta, setNuevaCuenta] = useState({
+    banco: '',
+    tipo_cuenta: 'Cuenta corriente',
+    numero_cuenta: '',
+    titular: '',
+    rut_titular: '',
+    email_notificacion: '',
+    alias: '',
+    es_principal: false,
   });
 
   async function cargarDatos() {
@@ -113,6 +137,19 @@ export default function ConfiguracionPage() {
 
     if (!impuestosError) {
       setImpuestos((impuestosData as ImpuestoAdicional[]) || []);
+    }
+
+    const { data: cuentasData, error: cuentasError } = await supabase
+      .from('cuentas_bancarias')
+      .select(
+        'id,banco,tipo_cuenta,numero_cuenta,titular,rut_titular,email_notificacion,alias,es_principal,activo'
+      )
+      .eq('empresa_id', empresaActual.id)
+      .order('es_principal', { ascending: false })
+      .order('banco', { ascending: true });
+
+    if (!cuentasError) {
+      setCuentasBancarias((cuentasData as CuentaBancaria[]) || []);
     }
 
     setLoading(false);
@@ -241,6 +278,93 @@ export default function ConfiguracionPage() {
       .from('impuestos_adicionales')
       .update({ activo: !impuesto.activo })
       .eq('id', impuesto.id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    cargarDatos();
+  }
+
+  async function agregarCuentaBancaria() {
+    if (!empresa || !nuevaCuenta.banco.trim()) {
+      alert('Ingresa el banco.');
+      return;
+    }
+
+    if (!nuevaCuenta.numero_cuenta.trim()) {
+      alert('Ingresa el número de cuenta.');
+      return;
+    }
+
+    if (!nuevaCuenta.titular.trim()) {
+      alert('Ingresa el titular de la cuenta.');
+      return;
+    }
+
+    const { error } = await supabase.from('cuentas_bancarias').insert({
+      empresa_id: empresa.id,
+      banco: nuevaCuenta.banco.trim(),
+      tipo_cuenta: nuevaCuenta.tipo_cuenta,
+      numero_cuenta: nuevaCuenta.numero_cuenta.trim(),
+      titular: nuevaCuenta.titular.trim(),
+      rut_titular: nuevaCuenta.rut_titular.trim() || null,
+      email_notificacion: nuevaCuenta.email_notificacion.trim() || null,
+      alias: nuevaCuenta.alias.trim() || null,
+      es_principal: nuevaCuenta.es_principal,
+      activo: true,
+    });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setNuevaCuenta({
+      banco: '',
+      tipo_cuenta: 'Cuenta corriente',
+      numero_cuenta: '',
+      titular: '',
+      rut_titular: '',
+      email_notificacion: '',
+      alias: '',
+      es_principal: false,
+    });
+    cargarDatos();
+  }
+
+  async function cambiarEstadoCuenta(cuenta: CuentaBancaria) {
+    const { error } = await supabase
+      .from('cuentas_bancarias')
+      .update({ activo: !cuenta.activo })
+      .eq('id', cuenta.id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    cargarDatos();
+  }
+
+  async function marcarCuentaPrincipal(cuenta: CuentaBancaria) {
+    if (!empresa) return;
+
+    const { error: errorReset } = await supabase
+      .from('cuentas_bancarias')
+      .update({ es_principal: false })
+      .eq('empresa_id', empresa.id);
+
+    if (errorReset) {
+      alert(errorReset.message);
+      return;
+    }
+
+    const { error } = await supabase
+      .from('cuentas_bancarias')
+      .update({ es_principal: true, activo: true })
+      .eq('id', cuenta.id);
 
     if (error) {
       alert(error.message);
@@ -521,6 +645,195 @@ export default function ConfiguracionPage() {
                   >
                     {impuesto.activo ? 'Desactivar' : 'Activar'}
                   </button>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+
+        <section className="mt-8 rounded-[34px] bg-white p-6 shadow-premium">
+          <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h2 className="text-2xl font-black text-maruxa-chocolate">
+                Cuentas bancarias
+              </h2>
+              <p className="mt-2 text-sm font-bold text-maruxa-cafe/70">
+                Registra una o varias cuentas para pagos, documentos y datos comerciales.
+              </p>
+            </div>
+
+            {cuentasBancarias.some((cuenta) => cuenta.es_principal) && (
+              <span className="w-fit rounded-full bg-emerald-100 px-4 py-2 text-xs font-black uppercase tracking-wide text-emerald-700">
+                Principal configurada
+              </span>
+            )}
+          </div>
+
+          <div className="mt-6 grid gap-4 lg:grid-cols-4">
+            <input
+              value={nuevaCuenta.banco}
+              onChange={(e) =>
+                setNuevaCuenta({ ...nuevaCuenta, banco: e.target.value })
+              }
+              placeholder="Banco"
+              className="rounded-2xl border px-5 py-4 font-bold"
+            />
+
+            <select
+              value={nuevaCuenta.tipo_cuenta}
+              onChange={(e) =>
+                setNuevaCuenta({
+                  ...nuevaCuenta,
+                  tipo_cuenta: e.target.value,
+                })
+              }
+              className="rounded-2xl border px-5 py-4 font-bold"
+            >
+              <option>Cuenta corriente</option>
+              <option>Cuenta vista</option>
+              <option>Cuenta de ahorro</option>
+              <option>Cuenta RUT</option>
+            </select>
+
+            <input
+              value={nuevaCuenta.numero_cuenta}
+              onChange={(e) =>
+                setNuevaCuenta({
+                  ...nuevaCuenta,
+                  numero_cuenta: e.target.value,
+                })
+              }
+              placeholder="Numero de cuenta"
+              className="rounded-2xl border px-5 py-4 font-bold"
+            />
+
+            <input
+              value={nuevaCuenta.titular}
+              onChange={(e) =>
+                setNuevaCuenta({ ...nuevaCuenta, titular: e.target.value })
+              }
+              placeholder="Titular"
+              className="rounded-2xl border px-5 py-4 font-bold"
+            />
+
+            <input
+              value={nuevaCuenta.rut_titular}
+              onChange={(e) =>
+                setNuevaCuenta({
+                  ...nuevaCuenta,
+                  rut_titular: e.target.value,
+                })
+              }
+              placeholder="RUT titular"
+              className="rounded-2xl border px-5 py-4 font-bold"
+            />
+
+            <input
+              value={nuevaCuenta.email_notificacion}
+              onChange={(e) =>
+                setNuevaCuenta({
+                  ...nuevaCuenta,
+                  email_notificacion: e.target.value,
+                })
+              }
+              placeholder="Email notificacion"
+              className="rounded-2xl border px-5 py-4 font-bold"
+            />
+
+            <input
+              value={nuevaCuenta.alias}
+              onChange={(e) =>
+                setNuevaCuenta({ ...nuevaCuenta, alias: e.target.value })
+              }
+              placeholder="Alias visible"
+              className="rounded-2xl border px-5 py-4 font-bold"
+            />
+
+            <label className="flex items-center gap-3 rounded-2xl bg-maruxa-crema px-5 py-4 font-black text-maruxa-chocolate">
+              <input
+                type="checkbox"
+                checked={nuevaCuenta.es_principal}
+                onChange={(e) =>
+                  setNuevaCuenta({
+                    ...nuevaCuenta,
+                    es_principal: e.target.checked,
+                  })
+                }
+              />
+              Cuenta principal
+            </label>
+          </div>
+
+          <button
+            type="button"
+            onClick={agregarCuentaBancaria}
+            className="mt-5 rounded-full bg-maruxa-rojo px-8 py-4 font-black text-white"
+          >
+            Agregar cuenta
+          </button>
+
+          <div className="mt-6 grid gap-3">
+            {cuentasBancarias.length === 0 ? (
+              <p className="rounded-2xl bg-maruxa-crema p-4 text-sm font-bold text-maruxa-cafe/70">
+                No hay cuentas bancarias configuradas.
+              </p>
+            ) : (
+              cuentasBancarias.map((cuenta) => (
+                <div
+                  key={cuenta.id}
+                  className={`rounded-2xl p-4 ${
+                    cuenta.activo ? 'bg-maruxa-crema' : 'bg-zinc-100 opacity-70'
+                  }`}
+                >
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-black text-maruxa-chocolate">
+                          {cuenta.alias || cuenta.banco}
+                        </p>
+                        {cuenta.es_principal && (
+                          <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-700">
+                            Principal
+                          </span>
+                        )}
+                        {!cuenta.activo && (
+                          <span className="rounded-full bg-zinc-200 px-3 py-1 text-xs font-black text-zinc-600">
+                            Inactiva
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-sm font-bold text-maruxa-cafe/70">
+                        {cuenta.banco} - {cuenta.tipo_cuenta} - {cuenta.numero_cuenta}
+                      </p>
+                      <p className="mt-1 text-sm font-bold text-maruxa-cafe/70">
+                        {cuenta.titular}
+                        {cuenta.rut_titular ? ` - ${cuenta.rut_titular}` : ''}
+                        {cuenta.email_notificacion
+                          ? ` - ${cuenta.email_notificacion}`
+                          : ''}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {!cuenta.es_principal && (
+                        <button
+                          type="button"
+                          onClick={() => marcarCuentaPrincipal(cuenta)}
+                          className="rounded-full bg-white px-5 py-3 text-sm font-black"
+                        >
+                          Marcar principal
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => cambiarEstadoCuenta(cuenta)}
+                        className="rounded-full bg-white px-5 py-3 text-sm font-black"
+                      >
+                        {cuenta.activo ? 'Desactivar' : 'Activar'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               ))
             )}
