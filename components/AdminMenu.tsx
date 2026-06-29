@@ -28,6 +28,7 @@ const grupos: {
     label: 'Comercial',
     items: [
       { label: 'Pedidos', href: '/admin/pedidos', modulo: 'pedidos' },
+      { label: 'Mensajes WhatsApp', href: '/admin/whatsapp', modulo: 'pedidos' },
       { label: 'Documentos tributarios', href: '/admin/documentos', modulo: 'documentos' },
       { label: 'Clientes', href: '/admin/clientes', modulo: 'clientes' },
     ],
