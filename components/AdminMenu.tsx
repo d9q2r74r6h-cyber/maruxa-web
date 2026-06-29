@@ -4,12 +4,15 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import {
+  Bell,
   ChevronDown,
   LogOut,
+  MessageCircle,
   ShieldCheck,
   UserCircle,
 } from 'lucide-react';
 import { useAdminSession } from '@/components/AdminSession';
+import { supabase } from '@/lib/supabase';
 
 type MenuItem = {
   label: string;
@@ -82,6 +85,7 @@ export function AdminMenu() {
   const pathname = usePathname();
   const { perfil, puedeVer, cerrarSesion } = useAdminSession();
   const [open, setOpen] = useState<string | null>(null);
+  const [pendientes, setPendientes] = useState(0);
   const menuRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -100,6 +104,31 @@ export function AdminMenu() {
       document.removeEventListener('mousedown', cerrarSiClickAfuera);
     };
   }, []);
+
+  useEffect(() => {
+    async function cargarPendientes() {
+      if (!perfil?.empresa_id || !puedeVer('whatsapp')) {
+        setPendientes(0);
+        return;
+      }
+
+      const { data } = await supabase
+        .from('whatsapp_eventos')
+        .select('id,tipo,estado')
+        .eq('empresa_id', perfil.empresa_id)
+        .neq('tipo', 'order')
+        .limit(100);
+
+      setPendientes(
+        (data || []).filter((evento) => evento.estado !== 'respondido').length
+      );
+    }
+
+    cargarPendientes();
+    const intervalo = window.setInterval(cargarPendientes, 60000);
+
+    return () => window.clearInterval(intervalo);
+  }, [perfil?.empresa_id, puedeVer]);
 
   function esActivo(href?: string) {
     if (!href) return false;
@@ -196,6 +225,33 @@ export function AdminMenu() {
         })}
 
         <div className="ml-auto flex items-center gap-1 border-l border-[#4B2818]/10 pl-2">
+          {puedeVer('whatsapp') && (
+            <Link
+              href="/admin/whatsapp"
+              title={
+                pendientes > 0
+                  ? `${pendientes} pendiente${pendientes === 1 ? '' : 's'} en WhatsApp`
+                  : 'Sin pendientes en WhatsApp'
+              }
+              className={`relative grid h-9 w-9 place-items-center rounded-lg transition ${
+                pendientes > 0
+                  ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+                  : 'text-[#4B2818]/60 hover:bg-[#FFF3DF] hover:text-[#A51F2B]'
+              }`}
+            >
+              {pendientes > 0 ? (
+                <Bell className="h-4 w-4" />
+              ) : (
+                <MessageCircle className="h-4 w-4" />
+              )}
+              {pendientes > 0 && (
+                <span className="absolute -right-1.5 -top-1.5 grid min-h-5 min-w-5 place-items-center rounded-full bg-[#A51F2B] px-1 text-[10px] font-black text-white ring-2 ring-white">
+                  {pendientes > 99 ? '99+' : pendientes}
+                </span>
+              )}
+            </Link>
+          )}
+
           <Link
             href="/admin/perfil"
             title="Mi perfil"

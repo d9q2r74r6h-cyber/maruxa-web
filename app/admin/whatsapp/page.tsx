@@ -25,6 +25,14 @@ type WhatsappEvento = {
   payload: any;
 };
 
+type Conversacion = {
+  telefono: string;
+  nombre: string;
+  eventos: WhatsappEvento[];
+  pendientes: number;
+  ultimoEvento: WhatsappEvento;
+};
+
 function valoresPayload(evento: WhatsappEvento) {
   const cambios =
     evento.payload?.entry?.flatMap((entrada: any) =>
@@ -59,7 +67,6 @@ function textoMensaje(evento: WhatsappEvento) {
   const { mensaje } = valoresPayload(evento);
 
   if (!mensaje) return evento.observacion || 'Mensaje recibido.';
-
   if (mensaje.type === 'text') return mensaje.text?.body || 'Mensaje de texto.';
   if (mensaje.type === 'order') {
     const cantidad = mensaje.order?.product_items?.length || 0;
@@ -92,6 +99,14 @@ function fechaChile(valor: string) {
   }).format(new Date(valor));
 }
 
+function horaChile(valor: string) {
+  return new Intl.DateTimeFormat('es-CL', {
+    timeZone: 'America/Santiago',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(valor));
+}
+
 function etiquetaTipo(tipo: string | null) {
   if (tipo === 'text') return 'Texto';
   if (tipo === 'order') return 'Pedido';
@@ -103,11 +118,15 @@ function etiquetaTipo(tipo: string | null) {
   return tipo || 'Desconocido';
 }
 
+function estaPendiente(evento: WhatsappEvento) {
+  return evento.tipo !== 'order' && evento.estado !== 'respondido';
+}
+
 export default function AdminWhatsappPage() {
   const [eventos, setEventos] = useState<WhatsappEvento[]>([]);
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState('');
-  const [filtroTipo, setFiltroTipo] = useState('todos');
+  const [telefonoActivo, setTelefonoActivo] = useState<string | null>(null);
   const [respuestas, setRespuestas] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState<string | null>(null);
 
@@ -127,7 +146,7 @@ export default function AdminWhatsappPage() {
       .select('id,created_at,telefono,tipo,estado,observacion,pedido_id,message_id,payload')
       .eq('empresa_id', empresa.id)
       .order('created_at', { ascending: false })
-      .limit(150);
+      .limit(250);
 
     if (error) {
       alert(error.message);
@@ -139,16 +158,77 @@ export default function AdminWhatsappPage() {
     setLoading(false);
   }
 
-  async function enviarRespuesta(evento: WhatsappEvento) {
-    const mensaje = respuestas[evento.id]?.trim();
+  const conversaciones = useMemo(() => {
+    const grupos = new Map<string, WhatsappEvento[]>();
+
+    eventos.forEach((evento) => {
+      const telefono = evento.telefono || 'Sin telefono';
+      grupos.set(telefono, [...(grupos.get(telefono) || []), evento]);
+    });
+
+    return Array.from(grupos.entries())
+      .map(([telefono, lista]) => {
+        const ordenados = [...lista].sort(
+          (a, b) =>
+            new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        );
+        const ultimoEvento = ordenados[ordenados.length - 1];
+
+        return {
+          telefono,
+          nombre: nombreContacto(ultimoEvento),
+          eventos: ordenados,
+          pendientes: ordenados.filter(estaPendiente).length,
+          ultimoEvento,
+        };
+      })
+      .sort(
+        (a, b) =>
+          new Date(b.ultimoEvento.created_at).getTime() -
+          new Date(a.ultimoEvento.created_at).getTime()
+      );
+  }, [eventos]);
+
+  useEffect(() => {
+    cargarMensajes();
+  }, []);
+
+  useEffect(() => {
+    if (!telefonoActivo && conversaciones.length > 0) {
+      setTelefonoActivo(conversaciones[0].telefono);
+    }
+  }, [conversaciones, telefonoActivo]);
+
+  const conversacionesFiltradas = conversaciones.filter((conversacion) => {
+    const texto = `${conversacion.nombre} ${conversacion.telefono} ${textoMensaje(
+      conversacion.ultimoEvento
+    )}`.toLowerCase();
+
+    return texto.includes(busqueda.toLowerCase().trim());
+  });
+
+  const conversacionActiva =
+    conversaciones.find((conversacion) => conversacion.telefono === telefonoActivo) ||
+    conversacionesFiltradas[0] ||
+    null;
+
+  const resumen = {
+    conversaciones: conversaciones.length,
+    mensajes: eventos.filter((evento) => evento.tipo !== 'order').length,
+    pedidos: eventos.filter((evento) => evento.tipo === 'order').length,
+    pendientes: eventos.filter(estaPendiente).length,
+  };
+
+  async function enviarRespuesta(conversacion: Conversacion) {
+    const mensaje = respuestas[conversacion.telefono]?.trim();
 
     if (!mensaje) {
       alert('Escribe una respuesta.');
       return;
     }
 
-    if (!evento.telefono) {
-      alert('Este mensaje no tiene telefono asociado.');
+    if (conversacion.telefono === 'Sin telefono') {
+      alert('Esta conversacion no tiene telefono asociado.');
       return;
     }
 
@@ -161,7 +241,7 @@ export default function AdminWhatsappPage() {
       return;
     }
 
-    setEnviando(evento.id);
+    setEnviando(conversacion.telefono);
 
     const respuesta = await fetch('/api/whatsapp/enviar-mensaje', {
       method: 'POST',
@@ -170,7 +250,7 @@ export default function AdminWhatsappPage() {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        telefono: evento.telefono,
+        telefono: conversacion.telefono,
         mensaje,
       }),
     });
@@ -182,58 +262,40 @@ export default function AdminWhatsappPage() {
       return;
     }
 
-    await supabase
-      .from('whatsapp_eventos')
-      .update({
-        estado: 'respondido',
-        observacion: 'Respuesta enviada desde la bandeja WhatsApp.',
-      })
-      .eq('id', evento.id);
+    const idsPendientes = conversacion.eventos
+      .filter(estaPendiente)
+      .map((evento) => evento.id);
 
-    setRespuestas((actual) => ({ ...actual, [evento.id]: '' }));
+    if (idsPendientes.length > 0) {
+      await supabase
+        .from('whatsapp_eventos')
+        .update({
+          estado: 'respondido',
+          observacion: 'Respuesta enviada desde la bandeja WhatsApp.',
+        })
+        .in('id', idsPendientes);
+    }
+
+    setRespuestas((actual) => ({ ...actual, [conversacion.telefono]: '' }));
     setEnviando(null);
     cargarMensajes();
   }
 
-  useEffect(() => {
-    cargarMensajes();
-  }, []);
-
-  const resumen = useMemo(
-    () => ({
-      total: eventos.length,
-      mensajes: eventos.filter((evento) => evento.tipo !== 'order').length,
-      pedidos: eventos.filter((evento) => evento.tipo === 'order').length,
-      respondidos: eventos.filter((evento) => evento.estado === 'respondido').length,
-    }),
-    [eventos]
-  );
-
-  const eventosFiltrados = eventos.filter((evento) => {
-    const texto = `${nombreContacto(evento)} ${evento.telefono || ''} ${textoMensaje(
-      evento
-    )} ${evento.estado || ''}`.toLowerCase();
-    const coincideBusqueda = texto.includes(busqueda.toLowerCase().trim());
-    const coincideTipo = filtroTipo === 'todos' || evento.tipo === filtroTipo;
-
-    return coincideBusqueda && coincideTipo;
-  });
-
   return (
-    <main className="min-h-screen bg-maruxa-crema px-5 py-12">
-      <div className="mx-auto max-w-6xl">
+    <main className="min-h-screen bg-maruxa-crema px-3 py-6 md:px-5 md:py-10">
+      <div className="mx-auto max-w-7xl">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="font-black uppercase tracking-[.24em] text-maruxa-rojo">
               WhatsApp Business
             </p>
 
-            <h1 className="mt-3 text-5xl font-black text-maruxa-chocolate">
-              Mensajes WhatsApp
+            <h1 className="mt-3 text-4xl font-black text-maruxa-chocolate md:text-5xl">
+              Chat WhatsApp
             </h1>
 
             <p className="mt-3 max-w-2xl font-bold text-maruxa-cafe/70">
-              Bandeja de mensajes y pedidos recibidos desde el webhook de Meta.
+              Conversaciones agrupadas por cliente para atender mensajes y pedidos.
             </p>
           </div>
 
@@ -247,196 +309,250 @@ export default function AdminWhatsappPage() {
           </button>
         </div>
 
-        <div className="mt-8 grid gap-4 md:grid-cols-4">
-          <div className="rounded-[24px] bg-white p-5 shadow-premium">
-            <p className="text-xs font-black uppercase tracking-widest text-maruxa-cafe/60">
-              Eventos
-            </p>
-            <p className="mt-2 text-3xl font-black text-maruxa-chocolate">
-              {resumen.total}
-            </p>
-          </div>
-
-          <div className="rounded-[24px] bg-white p-5 shadow-premium">
-            <p className="text-xs font-black uppercase tracking-widest text-maruxa-cafe/60">
-              Mensajes
-            </p>
-            <p className="mt-2 text-3xl font-black text-maruxa-vino">
-              {resumen.mensajes}
-            </p>
-          </div>
-
-          <div className="rounded-[24px] bg-white p-5 shadow-premium">
-            <p className="text-xs font-black uppercase tracking-widest text-maruxa-cafe/60">
-              Pedidos
-            </p>
-            <p className="mt-2 text-3xl font-black text-maruxa-rojo">
-              {resumen.pedidos}
-            </p>
-          </div>
-
-          <div className="rounded-[24px] bg-white p-5 shadow-premium">
-            <p className="text-xs font-black uppercase tracking-widest text-maruxa-cafe/60">
-              Respondidos
-            </p>
-            <p className="mt-2 text-3xl font-black text-emerald-700">
-              {resumen.respondidos}
-            </p>
-          </div>
+        <div className="mt-6 grid gap-3 md:grid-cols-4">
+          {[
+            ['Conversaciones', resumen.conversaciones, 'text-maruxa-chocolate'],
+            ['Mensajes', resumen.mensajes, 'text-maruxa-vino'],
+            ['Pedidos', resumen.pedidos, 'text-maruxa-rojo'],
+            ['Pendientes', resumen.pendientes, 'text-amber-700'],
+          ].map(([label, valor, color]) => (
+            <div key={label} className="rounded-[20px] bg-white p-4 shadow-premium">
+              <p className="text-xs font-black uppercase tracking-widest text-maruxa-cafe/60">
+                {label}
+              </p>
+              <p className={`mt-2 text-3xl font-black ${color}`}>{valor}</p>
+            </div>
+          ))}
         </div>
 
-        <section className="mt-8 rounded-[28px] bg-white p-5 shadow-premium">
-          <div className="grid gap-4 lg:grid-cols-[1fr_220px]">
-            <label className="relative block">
-              <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-maruxa-cafe/40" />
-              <input
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-                placeholder="Buscar por nombre, telefono, texto o estado"
-                className="h-12 w-full rounded-2xl border border-maruxa-rojo/10 bg-maruxa-crema pl-12 pr-4 font-bold text-maruxa-chocolate outline-none"
-              />
-            </label>
+        <section className="mt-6 overflow-hidden rounded-[28px] bg-white shadow-premium">
+          <div className="grid min-h-[680px] lg:grid-cols-[360px_minmax(0,1fr)]">
+            <aside className="border-b border-maruxa-rojo/10 bg-white lg:border-b-0 lg:border-r">
+              <div className="border-b border-maruxa-rojo/10 p-4">
+                <label className="relative block">
+                  <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-maruxa-cafe/40" />
+                  <input
+                    value={busqueda}
+                    onChange={(e) => setBusqueda(e.target.value)}
+                    placeholder="Buscar chat"
+                    className="h-12 w-full rounded-2xl border border-maruxa-rojo/10 bg-maruxa-crema pl-12 pr-4 font-bold text-maruxa-chocolate outline-none"
+                  />
+                </label>
+              </div>
 
-            <select
-              value={filtroTipo}
-              onChange={(e) => setFiltroTipo(e.target.value)}
-              className="h-12 rounded-2xl border border-maruxa-rojo/10 bg-maruxa-crema px-4 font-bold text-maruxa-chocolate outline-none"
-            >
-              <option value="todos">Todos los tipos</option>
-              <option value="text">Texto</option>
-              <option value="order">Pedidos</option>
-              <option value="image">Imagenes</option>
-              <option value="audio">Audios</option>
-              <option value="document">Documentos</option>
-              <option value="interactive">Interactivos</option>
-            </select>
-          </div>
-        </section>
+              <div className="max-h-[620px] overflow-y-auto p-2">
+                {loading ? (
+                  <p className="p-5 font-black text-maruxa-chocolate">
+                    Cargando mensajes...
+                  </p>
+                ) : conversacionesFiltradas.length === 0 ? (
+                  <p className="p-5 text-sm font-bold text-maruxa-cafe/70">
+                    No hay conversaciones para mostrar.
+                  </p>
+                ) : (
+                  conversacionesFiltradas.map((conversacion) => {
+                    const activo = conversacion.telefono === conversacionActiva?.telefono;
+                    const esPedido = conversacion.ultimoEvento.tipo === 'order';
 
-        <section className="mt-6 grid gap-4">
-          {loading ? (
-            <div className="rounded-[28px] bg-white p-8 font-black text-maruxa-chocolate shadow-premium">
-              Cargando mensajes...
-            </div>
-          ) : eventosFiltrados.length === 0 ? (
-            <div className="rounded-[28px] bg-white p-8 text-center shadow-premium">
-              <MessageCircle className="mx-auto h-10 w-10 text-maruxa-rojo" />
-              <p className="mt-4 text-xl font-black text-maruxa-chocolate">
-                No hay mensajes para mostrar.
-              </p>
-              <p className="mt-2 font-bold text-maruxa-cafe/70">
-                Cuando un cliente escriba al WhatsApp conectado, aparecera aqui.
-              </p>
-            </div>
-          ) : (
-            eventosFiltrados.map((evento) => {
-              const esPedido = evento.tipo === 'order';
-
-              return (
-                <article
-                  key={evento.id}
-                  className="overflow-hidden rounded-[28px] bg-white shadow-premium"
-                >
-                  <div className="flex flex-col gap-4 border-b border-maruxa-rojo/10 bg-white p-5 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="flex gap-4">
-                      <div
-                        className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl ${
-                          esPedido
-                            ? 'bg-maruxa-rojo text-white'
-                            : 'bg-emerald-50 text-emerald-700'
+                    return (
+                      <button
+                        key={conversacion.telefono}
+                        type="button"
+                        onClick={() => setTelefonoActivo(conversacion.telefono)}
+                        className={`mb-1 grid w-full grid-cols-[44px_minmax(0,1fr)_auto] gap-3 rounded-2xl p-3 text-left transition ${
+                          activo
+                            ? 'bg-[#A51F2B] text-white'
+                            : 'bg-white text-maruxa-chocolate hover:bg-maruxa-crema'
                         }`}
                       >
-                        {esPedido ? (
-                          <ShoppingBag className="h-6 w-6" />
-                        ) : (
-                          <MessageCircle className="h-6 w-6" />
-                        )}
-                      </div>
-
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h2 className="text-xl font-black text-maruxa-chocolate">
-                            {nombreContacto(evento)}
-                          </h2>
-                          <span className="rounded-full bg-maruxa-crema px-3 py-1 text-xs font-black uppercase text-maruxa-cafe">
-                            {etiquetaTipo(evento.tipo)}
-                          </span>
-                          {evento.estado === 'respondido' && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1 text-xs font-black uppercase text-emerald-700">
-                              <CheckCircle2 className="h-3.5 w-3.5" />
-                              Respondido
-                            </span>
+                        <div
+                          className={`grid h-11 w-11 place-items-center rounded-full ${
+                            activo
+                              ? 'bg-white/15'
+                              : esPedido
+                                ? 'bg-maruxa-rojo text-white'
+                                : 'bg-emerald-50 text-emerald-700'
+                          }`}
+                        >
+                          {esPedido ? (
+                            <ShoppingBag className="h-5 w-5" />
+                          ) : (
+                            <MessageCircle className="h-5 w-5" />
                           )}
                         </div>
 
-                        <p className="mt-1 font-bold text-maruxa-cafe/70">
-                          {evento.telefono || 'Sin telefono'}
-                        </p>
-                      </div>
-                    </div>
+                        <div className="min-w-0">
+                          <p className="truncate font-black">{conversacion.nombre}</p>
+                          <p
+                            className={`truncate text-xs font-bold ${
+                              activo ? 'text-white/75' : 'text-maruxa-cafe/60'
+                            }`}
+                          >
+                            {textoMensaje(conversacion.ultimoEvento)}
+                          </p>
+                        </div>
 
-                    <div className="flex items-center gap-2 text-sm font-black text-maruxa-cafe/60">
-                      <Clock className="h-4 w-4" />
-                      {fechaChile(evento.created_at)}
-                    </div>
-                  </div>
+                        <div className="text-right">
+                          <p
+                            className={`text-[10px] font-black ${
+                              activo ? 'text-white/70' : 'text-maruxa-cafe/50'
+                            }`}
+                          >
+                            {horaChile(conversacion.ultimoEvento.created_at)}
+                          </p>
+                          {conversacion.pendientes > 0 && (
+                            <span className="mt-1 inline-grid min-h-5 min-w-5 place-items-center rounded-full bg-amber-400 px-1.5 text-xs font-black text-[#2A1710]">
+                              {conversacion.pendientes}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </aside>
 
-                  <div className="grid min-w-0 gap-5 p-5">
+            <section className="flex min-w-0 flex-col bg-[#F6EADC]">
+              {conversacionActiva ? (
+                <>
+                  <header className="flex items-center justify-between gap-4 border-b border-maruxa-rojo/10 bg-white px-5 py-4">
                     <div className="min-w-0">
-                      <p className="overflow-hidden break-words rounded-2xl bg-maruxa-crema p-5 text-lg font-bold leading-8 text-maruxa-chocolate">
-                        {textoMensaje(evento)}
+                      <h2 className="truncate text-2xl font-black text-maruxa-chocolate">
+                        {conversacionActiva.nombre}
+                      </h2>
+                      <p className="font-bold text-maruxa-cafe/65">
+                        {conversacionActiva.telefono}
                       </p>
-
-                      {evento.observacion && (
-                        <p className="mt-3 overflow-hidden break-words rounded-2xl bg-amber-50 p-4 text-sm font-bold text-amber-800">
-                          {evento.observacion}
-                        </p>
-                      )}
-
-                      {evento.pedido_id && (
-                        <a
-                          href="/admin/pedidos"
-                          className="mt-3 inline-flex rounded-full bg-maruxa-rojo px-5 py-3 text-sm font-black text-white"
-                        >
-                          Ver pedido #{evento.pedido_id}
-                        </a>
-                      )}
                     </div>
 
-                    <div className="min-w-0 rounded-2xl border border-maruxa-rojo/10 bg-maruxa-crema p-4">
-                      <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-end">
-                        <label className="min-w-0 text-xs font-black uppercase tracking-wide text-maruxa-cafe/60 lg:col-span-2">
-                          Responder por WhatsApp
-                        </label>
+                    {conversacionActiva.pendientes > 0 ? (
+                      <span className="shrink-0 rounded-full bg-amber-100 px-4 py-2 text-xs font-black uppercase text-amber-800">
+                        {conversacionActiva.pendientes} pendiente
+                      </span>
+                    ) : (
+                      <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-emerald-100 px-4 py-2 text-xs font-black uppercase text-emerald-700">
+                        <CheckCircle2 className="h-4 w-4" />
+                        Al dia
+                      </span>
+                    )}
+                  </header>
 
-                        <textarea
-                          value={respuestas[evento.id] || ''}
-                          onChange={(e) =>
-                            setRespuestas((actual) => ({
-                              ...actual,
-                              [evento.id]: e.target.value,
-                            }))
-                          }
-                          placeholder="Escribe la respuesta al cliente"
-                          className="min-h-24 w-full min-w-0 resize-y rounded-2xl border border-maruxa-rojo/10 bg-white p-4 font-bold leading-6 text-maruxa-chocolate outline-none"
-                        />
+                  <div className="flex-1 space-y-4 overflow-y-auto p-4 md:p-6">
+                    {conversacionActiva.eventos.map((evento) => {
+                      const esPedido = evento.tipo === 'order';
+                      const pendiente = estaPendiente(evento);
 
-                        <button
-                          type="button"
-                          onClick={() => enviarRespuesta(evento)}
-                          disabled={enviando === evento.id}
-                          className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border-2 border-[#7A111B] bg-[#A51F2B] px-5 py-3 text-center font-black leading-5 text-white shadow-[0_10px_24px_rgba(165,31,43,0.28)] transition hover:bg-[#7A111B] disabled:border-zinc-300 disabled:bg-zinc-300 disabled:text-zinc-600 disabled:shadow-none"
-                        >
-                          <Send className="h-4 w-4 shrink-0" />
-                          {enviando === evento.id ? 'Enviando...' : 'Enviar'}
-                        </button>
-                      </div>
-                    </div>
+                      return (
+                        <div key={evento.id} className="flex justify-start">
+                          <div
+                            className={`max-w-[min(760px,92%)] rounded-[22px] px-5 py-4 shadow-sm ${
+                              esPedido
+                                ? 'bg-[#A51F2B] text-white'
+                                : pendiente
+                                  ? 'bg-white text-maruxa-chocolate'
+                                  : 'bg-emerald-50 text-maruxa-chocolate'
+                            }`}
+                          >
+                            <div className="mb-2 flex flex-wrap items-center gap-2">
+                              <span
+                                className={`rounded-full px-3 py-1 text-[10px] font-black uppercase ${
+                                  esPedido
+                                    ? 'bg-white/15 text-white'
+                                    : 'bg-maruxa-crema text-maruxa-cafe'
+                                }`}
+                              >
+                                {etiquetaTipo(evento.tipo)}
+                              </span>
+                              {evento.estado === 'respondido' && (
+                                <span className="rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-black uppercase text-emerald-700">
+                                  Respondido
+                                </span>
+                              )}
+                            </div>
+
+                            <p className="break-words text-base font-bold leading-7">
+                              {textoMensaje(evento)}
+                            </p>
+
+                            {evento.observacion && (
+                              <p
+                                className={`mt-3 break-words rounded-2xl p-3 text-sm font-bold ${
+                                  esPedido
+                                    ? 'bg-white/10 text-white/85'
+                                    : 'bg-amber-50 text-amber-800'
+                                }`}
+                              >
+                                {evento.observacion}
+                              </p>
+                            )}
+
+                            {evento.pedido_id && (
+                              <a
+                                href="/admin/pedidos"
+                                className="mt-3 inline-flex rounded-full bg-white px-4 py-2 text-sm font-black text-[#A51F2B]"
+                              >
+                                Ver pedido #{evento.pedido_id}
+                              </a>
+                            )}
+
+                            <p
+                              className={`mt-2 flex items-center gap-1 text-[11px] font-black ${
+                                esPedido ? 'text-white/70' : 'text-maruxa-cafe/50'
+                              }`}
+                            >
+                              <Clock className="h-3.5 w-3.5" />
+                              {fechaChile(evento.created_at)}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                </article>
-              );
-            })
-          )}
+
+                  <footer className="border-t border-maruxa-rojo/10 bg-white p-4">
+                    <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_180px] lg:items-end">
+                      <textarea
+                        value={respuestas[conversacionActiva.telefono] || ''}
+                        onChange={(e) =>
+                          setRespuestas((actual) => ({
+                            ...actual,
+                            [conversacionActiva.telefono]: e.target.value,
+                          }))
+                        }
+                        placeholder="Escribe un mensaje"
+                        className="min-h-16 w-full min-w-0 resize-y rounded-2xl border border-maruxa-rojo/10 bg-maruxa-crema p-4 font-bold leading-6 text-maruxa-chocolate outline-none"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => enviarRespuesta(conversacionActiva)}
+                        disabled={enviando === conversacionActiva.telefono}
+                        className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border-2 border-[#7A111B] bg-[#A51F2B] px-5 py-3 text-center font-black leading-5 text-white shadow-[0_10px_24px_rgba(165,31,43,0.28)] transition hover:bg-[#7A111B] disabled:border-zinc-300 disabled:bg-zinc-300 disabled:text-zinc-600 disabled:shadow-none"
+                      >
+                        <Send className="h-4 w-4 shrink-0" />
+                        {enviando === conversacionActiva.telefono
+                          ? 'Enviando...'
+                          : 'Enviar'}
+                      </button>
+                    </div>
+                  </footer>
+                </>
+              ) : (
+                <div className="grid flex-1 place-items-center p-8 text-center">
+                  <div>
+                    <MessageCircle className="mx-auto h-12 w-12 text-maruxa-rojo" />
+                    <p className="mt-4 text-2xl font-black text-maruxa-chocolate">
+                      No hay conversaciones.
+                    </p>
+                    <p className="mt-2 font-bold text-maruxa-cafe/70">
+                      Cuando llegue un mensaje al WhatsApp conectado aparecera aqui.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </section>
+          </div>
         </section>
       </div>
     </main>
