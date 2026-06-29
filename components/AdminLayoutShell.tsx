@@ -9,6 +9,7 @@ const modulosPorRuta = [
   ['/admin/informes/rinde', 'informe_rinde'],
   ['/admin/documentos', 'documentos'],
   ['/admin/clientes', 'clientes'],
+  ['/admin/whatsapp', 'whatsapp'],
   ['/admin/usuarios', 'usuarios'],
   ['/admin/auditoria', 'auditoria'],
   ['/admin/familias-productos', 'familias'],
