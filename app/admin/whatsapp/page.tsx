@@ -381,14 +381,14 @@ export default function AdminWhatsappPage() {
                     </div>
                   </div>
 
-                  <div className="grid gap-5 p-5 lg:grid-cols-[1fr_360px]">
-                    <div>
-                      <p className="rounded-2xl bg-maruxa-crema p-5 text-lg font-bold leading-8 text-maruxa-chocolate">
+                  <div className="grid min-w-0 gap-5 p-5 xl:grid-cols-[minmax(0,1fr)_minmax(420px,0.45fr)]">
+                    <div className="min-w-0">
+                      <p className="overflow-hidden break-words rounded-2xl bg-maruxa-crema p-5 text-lg font-bold leading-8 text-maruxa-chocolate">
                         {textoMensaje(evento)}
                       </p>
 
                       {evento.observacion && (
-                        <p className="mt-3 rounded-2xl bg-amber-50 p-4 text-sm font-bold text-amber-800">
+                        <p className="mt-3 overflow-hidden break-words rounded-2xl bg-amber-50 p-4 text-sm font-bold text-amber-800">
                           {evento.observacion}
                         </p>
                       )}
@@ -403,7 +403,7 @@ export default function AdminWhatsappPage() {
                       )}
                     </div>
 
-                    <div className="rounded-2xl border border-maruxa-rojo/10 bg-maruxa-crema p-4">
+                    <div className="min-w-0 rounded-2xl border border-maruxa-rojo/10 bg-maruxa-crema p-4">
                       <label className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
                         Responder por WhatsApp
                       </label>
@@ -416,16 +416,16 @@ export default function AdminWhatsappPage() {
                           }))
                         }
                         placeholder="Escribe la respuesta al cliente"
-                        className="mt-3 min-h-28 w-full rounded-2xl border border-maruxa-rojo/10 bg-white p-4 font-bold text-maruxa-chocolate outline-none"
+                        className="mt-3 min-h-32 w-full resize-y rounded-2xl border border-maruxa-rojo/10 bg-white p-4 font-bold leading-6 text-maruxa-chocolate outline-none"
                       />
 
                       <button
                         type="button"
                         onClick={() => enviarRespuesta(evento)}
                         disabled={enviando === evento.id}
-                        className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-maruxa-rojo px-5 font-black text-white disabled:opacity-60"
+                        className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-maruxa-rojo px-5 py-3 text-center font-black leading-5 text-white disabled:opacity-60"
                       >
-                        <Send className="h-4 w-4" />
+                        <Send className="h-4 w-4 shrink-0" />
                         {enviando === evento.id ? 'Enviando...' : 'Enviar respuesta'}
                       </button>
                     </div>
