@@ -146,7 +146,7 @@ export default function AdminWhatsappPage() {
       .select('id,created_at,telefono,tipo,estado,observacion,pedido_id,message_id,payload')
       .eq('empresa_id', empresa.id)
       .order('created_at', { ascending: false })
-      .limit(250);
+      .limit(1000);
 
     if (error) {
       alert(error.message);
@@ -218,6 +218,14 @@ export default function AdminWhatsappPage() {
     pedidos: eventos.filter((evento) => evento.tipo === 'order').length,
     pendientes: eventos.filter(estaPendiente).length,
   };
+
+  const eventosRecientes = [...eventos]
+    .filter((evento) => evento.tipo !== 'order')
+    .sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    )
+    .slice(0, 8);
 
   async function enviarRespuesta(conversacion: Conversacion) {
     const mensaje = respuestas[conversacion.telefono]?.trim();
@@ -324,6 +332,42 @@ export default function AdminWhatsappPage() {
             </div>
           ))}
         </div>
+
+        <section className="mt-3 rounded-xl bg-white p-2 shadow-premium">
+          <div className="flex items-center justify-between gap-3 px-1">
+            <p className="text-[10px] font-black uppercase tracking-widest text-maruxa-cafe/60">
+              Ultimos mensajes recibidos
+            </p>
+            <p className="text-[10px] font-bold text-maruxa-cafe/50">
+              WhatsApp Cloud API
+            </p>
+          </div>
+
+          <div className="mt-2 max-h-24 overflow-y-auto">
+            {eventosRecientes.length === 0 ? (
+              <p className="rounded-lg bg-maruxa-crema px-3 py-2 text-xs font-bold text-maruxa-cafe/70">
+                No hay mensajes recientes distintos de pedidos.
+              </p>
+            ) : (
+              eventosRecientes.map((evento) => (
+                <button
+                  key={evento.id}
+                  type="button"
+                  onClick={() => setTelefonoActivo(evento.telefono || 'Sin telefono')}
+                  className="mb-1 grid w-full grid-cols-[82px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs font-bold text-maruxa-chocolate hover:bg-maruxa-crema"
+                >
+                  <span className="text-[10px] font-black text-maruxa-cafe/55">
+                    {horaChile(evento.created_at)}
+                  </span>
+                  <span className="truncate">{textoMensaje(evento)}</span>
+                  <span className="truncate text-[10px] font-black text-maruxa-rojo">
+                    {evento.telefono || 'Sin telefono'}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        </section>
 
         <section className="mt-4 overflow-hidden rounded-xl bg-white shadow-premium">
           <div className="grid h-[460px] min-h-0 lg:grid-cols-[280px_minmax(0,1fr)]">
