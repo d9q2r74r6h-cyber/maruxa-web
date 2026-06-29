@@ -282,19 +282,19 @@ export default function AdminWhatsappPage() {
   }
 
   return (
-    <main className="min-h-screen bg-maruxa-crema px-3 py-6 md:px-5 md:py-10">
-      <div className="mx-auto max-w-7xl">
+    <main className="min-h-screen bg-maruxa-crema px-3 py-5 md:px-5 md:py-8">
+      <div className="mx-auto max-w-6xl">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="font-black uppercase tracking-[.24em] text-maruxa-rojo">
+            <p className="text-xs font-black uppercase tracking-[.22em] text-maruxa-rojo">
               WhatsApp Business
             </p>
 
-            <h1 className="mt-3 text-4xl font-black text-maruxa-chocolate md:text-5xl">
+            <h1 className="mt-2 text-3xl font-black text-maruxa-chocolate md:text-4xl">
               Chat WhatsApp
             </h1>
 
-            <p className="mt-3 max-w-2xl font-bold text-maruxa-cafe/70">
+            <p className="mt-2 max-w-2xl text-sm font-bold text-maruxa-cafe/70">
               Conversaciones agrupadas por cliente para atender mensajes y pedidos.
             </p>
           </div>
@@ -302,45 +302,45 @@ export default function AdminWhatsappPage() {
           <button
             type="button"
             onClick={cargarMensajes}
-            className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-white px-5 font-black text-maruxa-chocolate shadow-premium"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-white px-4 text-sm font-black text-maruxa-chocolate shadow-premium"
           >
             <RefreshCw className="h-4 w-4" />
             Actualizar
           </button>
         </div>
 
-        <div className="mt-6 grid gap-3 md:grid-cols-4">
+        <div className="mt-5 grid gap-3 md:grid-cols-4">
           {[
             ['Conversaciones', resumen.conversaciones, 'text-maruxa-chocolate'],
             ['Mensajes', resumen.mensajes, 'text-maruxa-vino'],
             ['Pedidos', resumen.pedidos, 'text-maruxa-rojo'],
             ['Pendientes', resumen.pendientes, 'text-amber-700'],
           ].map(([label, valor, color]) => (
-            <div key={label} className="rounded-[20px] bg-white p-4 shadow-premium">
-              <p className="text-xs font-black uppercase tracking-widest text-maruxa-cafe/60">
+            <div key={label} className="rounded-2xl bg-white p-3 shadow-premium">
+              <p className="text-[10px] font-black uppercase tracking-widest text-maruxa-cafe/60">
                 {label}
               </p>
-              <p className={`mt-2 text-3xl font-black ${color}`}>{valor}</p>
+              <p className={`mt-1 text-2xl font-black ${color}`}>{valor}</p>
             </div>
           ))}
         </div>
 
-        <section className="mt-6 overflow-hidden rounded-[28px] bg-white shadow-premium">
-          <div className="grid min-h-[680px] lg:grid-cols-[360px_minmax(0,1fr)]">
+        <section className="mt-5 overflow-hidden rounded-2xl bg-white shadow-premium">
+          <div className="grid min-h-[560px] lg:grid-cols-[320px_minmax(0,1fr)]">
             <aside className="border-b border-maruxa-rojo/10 bg-white lg:border-b-0 lg:border-r">
-              <div className="border-b border-maruxa-rojo/10 p-4">
+              <div className="border-b border-maruxa-rojo/10 p-3">
                 <label className="relative block">
                   <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-maruxa-cafe/40" />
                   <input
                     value={busqueda}
                     onChange={(e) => setBusqueda(e.target.value)}
                     placeholder="Buscar chat"
-                    className="h-12 w-full rounded-2xl border border-maruxa-rojo/10 bg-maruxa-crema pl-12 pr-4 font-bold text-maruxa-chocolate outline-none"
+                    className="h-10 w-full rounded-xl border border-maruxa-rojo/10 bg-maruxa-crema pl-11 pr-4 text-sm font-bold text-maruxa-chocolate outline-none"
                   />
                 </label>
               </div>
 
-              <div className="max-h-[620px] overflow-y-auto p-2">
+              <div className="max-h-[500px] overflow-y-auto p-2">
                 {loading ? (
                   <p className="p-5 font-black text-maruxa-chocolate">
                     Cargando mensajes...
@@ -359,14 +359,14 @@ export default function AdminWhatsappPage() {
                         key={conversacion.telefono}
                         type="button"
                         onClick={() => setTelefonoActivo(conversacion.telefono)}
-                        className={`mb-1 grid w-full grid-cols-[44px_minmax(0,1fr)_auto] gap-3 rounded-2xl p-3 text-left transition ${
+                        className={`mb-1 grid w-full grid-cols-[38px_minmax(0,1fr)_auto] gap-2 rounded-xl p-2.5 text-left transition ${
                           activo
                             ? 'bg-[#A51F2B] text-white'
                             : 'bg-white text-maruxa-chocolate hover:bg-maruxa-crema'
                         }`}
                       >
                         <div
-                          className={`grid h-11 w-11 place-items-center rounded-full ${
+                          className={`grid h-9 w-9 place-items-center rounded-full ${
                             activo
                               ? 'bg-white/15'
                               : esPedido
@@ -375,14 +375,14 @@ export default function AdminWhatsappPage() {
                           }`}
                         >
                           {esPedido ? (
-                            <ShoppingBag className="h-5 w-5" />
+                            <ShoppingBag className="h-4 w-4" />
                           ) : (
-                            <MessageCircle className="h-5 w-5" />
+                            <MessageCircle className="h-4 w-4" />
                           )}
                         </div>
 
                         <div className="min-w-0">
-                          <p className="truncate font-black">{conversacion.nombre}</p>
+                          <p className="truncate text-sm font-black">{conversacion.nombre}</p>
                           <p
                             className={`truncate text-xs font-bold ${
                               activo ? 'text-white/75' : 'text-maruxa-cafe/60'
@@ -401,7 +401,7 @@ export default function AdminWhatsappPage() {
                             {horaChile(conversacion.ultimoEvento.created_at)}
                           </p>
                           {conversacion.pendientes > 0 && (
-                            <span className="mt-1 inline-grid min-h-5 min-w-5 place-items-center rounded-full bg-amber-400 px-1.5 text-xs font-black text-[#2A1710]">
+                            <span className="mt-1 inline-grid min-h-4 min-w-4 place-items-center rounded-full bg-amber-400 px-1 text-[10px] font-black text-[#2A1710]">
                               {conversacion.pendientes}
                             </span>
                           )}
@@ -418,27 +418,27 @@ export default function AdminWhatsappPage() {
                 <>
                   <header className="flex items-center justify-between gap-4 border-b border-maruxa-rojo/10 bg-white px-5 py-4">
                     <div className="min-w-0">
-                      <h2 className="truncate text-2xl font-black text-maruxa-chocolate">
+                      <h2 className="truncate text-xl font-black text-maruxa-chocolate">
                         {conversacionActiva.nombre}
                       </h2>
-                      <p className="font-bold text-maruxa-cafe/65">
+                      <p className="text-sm font-bold text-maruxa-cafe/65">
                         {conversacionActiva.telefono}
                       </p>
                     </div>
 
                     {conversacionActiva.pendientes > 0 ? (
-                      <span className="shrink-0 rounded-full bg-amber-100 px-4 py-2 text-xs font-black uppercase text-amber-800">
+                      <span className="shrink-0 rounded-full bg-amber-100 px-3 py-1.5 text-[10px] font-black uppercase text-amber-800">
                         {conversacionActiva.pendientes} pendiente
                       </span>
                     ) : (
-                      <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-emerald-100 px-4 py-2 text-xs font-black uppercase text-emerald-700">
-                        <CheckCircle2 className="h-4 w-4" />
+                      <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-emerald-100 px-3 py-1.5 text-[10px] font-black uppercase text-emerald-700">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
                         Al dia
                       </span>
                     )}
                   </header>
 
-                  <div className="flex-1 space-y-4 overflow-y-auto p-4 md:p-6">
+                  <div className="flex-1 space-y-3 overflow-y-auto p-4">
                     {conversacionActiva.eventos.map((evento) => {
                       const esPedido = evento.tipo === 'order';
                       const pendiente = estaPendiente(evento);
@@ -446,7 +446,7 @@ export default function AdminWhatsappPage() {
                       return (
                         <div key={evento.id} className="flex justify-start">
                           <div
-                            className={`max-w-[min(760px,92%)] rounded-[22px] px-5 py-4 shadow-sm ${
+                            className={`max-w-[min(680px,92%)] rounded-2xl px-4 py-3 shadow-sm ${
                               esPedido
                                 ? 'bg-[#A51F2B] text-white'
                                 : pendiente
@@ -454,7 +454,7 @@ export default function AdminWhatsappPage() {
                                   : 'bg-emerald-50 text-maruxa-chocolate'
                             }`}
                           >
-                            <div className="mb-2 flex flex-wrap items-center gap-2">
+                            <div className="mb-1.5 flex flex-wrap items-center gap-2">
                               <span
                                 className={`rounded-full px-3 py-1 text-[10px] font-black uppercase ${
                                   esPedido
@@ -471,13 +471,13 @@ export default function AdminWhatsappPage() {
                               )}
                             </div>
 
-                            <p className="break-words text-base font-bold leading-7">
+                            <p className="break-words text-sm font-bold leading-6">
                               {textoMensaje(evento)}
                             </p>
 
                             {evento.observacion && (
                               <p
-                                className={`mt-3 break-words rounded-2xl p-3 text-sm font-bold ${
+                                className={`mt-2 break-words rounded-xl p-3 text-xs font-bold ${
                                   esPedido
                                     ? 'bg-white/10 text-white/85'
                                     : 'bg-amber-50 text-amber-800'
@@ -490,7 +490,7 @@ export default function AdminWhatsappPage() {
                             {evento.pedido_id && (
                               <a
                                 href="/admin/pedidos"
-                                className="mt-3 inline-flex rounded-full bg-white px-4 py-2 text-sm font-black text-[#A51F2B]"
+                                className="mt-2 inline-flex rounded-full bg-white px-4 py-2 text-xs font-black text-[#A51F2B]"
                               >
                                 Ver pedido #{evento.pedido_id}
                               </a>
@@ -521,14 +521,14 @@ export default function AdminWhatsappPage() {
                           }))
                         }
                         placeholder="Escribe un mensaje"
-                        className="min-h-16 w-full min-w-0 resize-y rounded-2xl border border-maruxa-rojo/10 bg-maruxa-crema p-4 font-bold leading-6 text-maruxa-chocolate outline-none"
+                        className="min-h-12 w-full min-w-0 resize-y rounded-xl border border-maruxa-rojo/10 bg-maruxa-crema p-3 text-sm font-bold leading-5 text-maruxa-chocolate outline-none"
                       />
 
                       <button
                         type="button"
                         onClick={() => enviarRespuesta(conversacionActiva)}
                         disabled={enviando === conversacionActiva.telefono}
-                        className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border-2 border-[#7A111B] bg-[#A51F2B] px-5 py-3 text-center font-black leading-5 text-white shadow-[0_10px_24px_rgba(165,31,43,0.28)] transition hover:bg-[#7A111B] disabled:border-zinc-300 disabled:bg-zinc-300 disabled:text-zinc-600 disabled:shadow-none"
+                        className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border-2 border-[#7A111B] bg-[#A51F2B] px-4 py-2.5 text-center text-sm font-black leading-5 text-white shadow-[0_10px_24px_rgba(165,31,43,0.28)] transition hover:bg-[#7A111B] disabled:border-zinc-300 disabled:bg-zinc-300 disabled:text-zinc-600 disabled:shadow-none"
                       >
                         <Send className="h-4 w-4 shrink-0" />
                         {enviando === conversacionActiva.telefono
