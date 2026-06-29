@@ -425,7 +425,7 @@ export default function AdminWhatsappPage() {
                           type="button"
                           onClick={() => enviarRespuesta(evento)}
                           disabled={enviando === evento.id}
-                          className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-maruxa-rojo px-5 py-3 text-center font-black leading-5 text-white disabled:opacity-60"
+                          className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border-2 border-[#7A111B] bg-[#A51F2B] px-5 py-3 text-center font-black leading-5 text-white shadow-[0_10px_24px_rgba(165,31,43,0.28)] transition hover:bg-[#7A111B] disabled:border-zinc-300 disabled:bg-zinc-300 disabled:text-zinc-600 disabled:shadow-none"
                         >
                           <Send className="h-4 w-4 shrink-0" />
                           {enviando === evento.id ? 'Enviando...' : 'Enviar'}
