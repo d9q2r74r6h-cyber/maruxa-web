@@ -119,8 +119,18 @@ export function AdminMenu() {
         .neq('tipo', 'order')
         .limit(100);
 
+      const { data: instagramData } = await supabase
+        .from('instagram_eventos')
+        .select('id,estado')
+        .eq('empresa_id', perfil.empresa_id)
+        .limit(100);
+
       setPendientes(
-        (data || []).filter((evento) => evento.estado !== 'respondido').length
+        (data || []).filter((evento) => evento.estado !== 'respondido').length +
+          (instagramData || []).filter(
+            (evento) =>
+              evento.estado !== 'respondido' && evento.estado !== 'informativo'
+          ).length
       );
     }
 

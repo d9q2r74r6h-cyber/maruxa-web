@@ -15,13 +15,16 @@ import { obtenerEmpresaActual } from '@/lib/empresa';
 
 type WhatsappEvento = {
   id: string;
+  origen?: 'whatsapp' | 'instagram';
   created_at: string;
   telefono: string | null;
+  sender_id?: string | null;
   tipo: string | null;
   estado: string | null;
   observacion: string | null;
   pedido_id: number | null;
   message_id: string | null;
+  texto?: string | null;
   payload: any;
 };
 
@@ -34,6 +37,13 @@ type Conversacion = {
 };
 
 function valoresPayload(evento: WhatsappEvento) {
+  if (evento.origen === 'instagram') {
+    return {
+      mensaje: null,
+      contacto: null,
+    };
+  }
+
   const cambios =
     evento.payload?.entry?.flatMap((entrada: any) =>
       (entrada.changes || []).map((cambio: any) => cambio.value)
@@ -59,11 +69,19 @@ function valoresPayload(evento: WhatsappEvento) {
 }
 
 function nombreContacto(evento: WhatsappEvento) {
+  if (evento.origen === 'instagram') {
+    return evento.sender_id ? `Instagram ${evento.sender_id}` : 'Instagram';
+  }
+
   const { contacto } = valoresPayload(evento);
   return contacto?.profile?.name || 'Cliente WhatsApp';
 }
 
 function textoMensaje(evento: WhatsappEvento) {
+  if (evento.origen === 'instagram') {
+    return evento.texto || evento.observacion || 'Mensaje recibido desde Instagram.';
+  }
+
   const { mensaje } = valoresPayload(evento);
 
   if (!mensaje) return evento.observacion || 'Mensaje recibido.';
@@ -119,7 +137,11 @@ function etiquetaTipo(tipo: string | null) {
 }
 
 function estaPendiente(evento: WhatsappEvento) {
-  return evento.tipo !== 'order' && evento.estado !== 'respondido';
+  return (
+    evento.tipo !== 'order' &&
+    evento.estado !== 'respondido' &&
+    evento.estado !== 'informativo'
+  );
 }
 
 export default function AdminWhatsappPage() {
@@ -154,7 +176,32 @@ export default function AdminWhatsappPage() {
       return;
     }
 
-    setEventos((data as WhatsappEvento[]) || []);
+    const { data: instagramData, error: instagramError } = await supabase
+      .from('instagram_eventos')
+      .select('id,created_at,sender_id,tipo,estado,observacion,message_id,texto,payload')
+      .eq('empresa_id', empresa.id)
+      .order('created_at', { ascending: false })
+      .limit(1000);
+
+    const eventosWhatsapp = ((data as WhatsappEvento[]) || []).map((evento) => ({
+      ...evento,
+      origen: 'whatsapp' as const,
+    }));
+    const eventosInstagram = instagramError
+      ? []
+      : ((instagramData as WhatsappEvento[]) || []).map((evento) => ({
+          ...evento,
+          origen: 'instagram' as const,
+          telefono: evento.sender_id || 'Instagram',
+          pedido_id: null,
+        }));
+
+    setEventos(
+      [...eventosWhatsapp, ...eventosInstagram].sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      )
+    );
     setLoading(false);
   }
 
@@ -162,7 +209,10 @@ export default function AdminWhatsappPage() {
     const grupos = new Map<string, WhatsappEvento[]>();
 
     eventos.forEach((evento) => {
-      const telefono = evento.telefono || 'Sin telefono';
+      const telefono =
+        evento.origen === 'instagram'
+          ? `instagram:${evento.sender_id || evento.telefono || evento.id}`
+          : evento.telefono || 'Sin telefono';
       grupos.set(telefono, [...(grupos.get(telefono) || []), evento]);
     });
 
@@ -235,6 +285,11 @@ export default function AdminWhatsappPage() {
       return;
     }
 
+    if (conversacion.telefono.startsWith('instagram:')) {
+      alert('La respuesta a Instagram requiere configurar el envio por Instagram Messaging. Por ahora este chat recibe y muestra mensajes.');
+      return;
+    }
+
     if (conversacion.telefono === 'Sin telefono') {
       alert('Esta conversacion no tiene telefono asociado.');
       return;
@@ -295,15 +350,15 @@ export default function AdminWhatsappPage() {
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[.22em] text-maruxa-rojo">
-              WhatsApp Business
+              Meta Business
             </p>
 
             <h1 className="mt-1 text-2xl font-black text-maruxa-chocolate md:text-3xl">
-              Chat WhatsApp
+              Chat Meta
             </h1>
 
             <p className="mt-1 max-w-2xl text-xs font-bold text-maruxa-cafe/70">
-              Conversaciones agrupadas por cliente para atender mensajes y pedidos.
+              Conversaciones agrupadas por cliente desde WhatsApp e Instagram.
             </p>
           </div>
 
@@ -339,7 +394,7 @@ export default function AdminWhatsappPage() {
               Ultimos mensajes recibidos
             </p>
             <p className="text-[10px] font-bold text-maruxa-cafe/50">
-              WhatsApp Cloud API
+              WhatsApp e Instagram
             </p>
           </div>
 
@@ -353,7 +408,13 @@ export default function AdminWhatsappPage() {
                 <button
                   key={evento.id}
                   type="button"
-                  onClick={() => setTelefonoActivo(evento.telefono || 'Sin telefono')}
+                  onClick={() =>
+                    setTelefonoActivo(
+                      evento.origen === 'instagram'
+                        ? `instagram:${evento.sender_id || evento.telefono || evento.id}`
+                        : evento.telefono || 'Sin telefono'
+                    )
+                  }
                   className="mb-1 grid w-full grid-cols-[82px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs font-bold text-maruxa-chocolate hover:bg-maruxa-crema"
                 >
                   <span className="text-[10px] font-black text-maruxa-cafe/55">
@@ -361,7 +422,7 @@ export default function AdminWhatsappPage() {
                   </span>
                   <span className="truncate">{textoMensaje(evento)}</span>
                   <span className="truncate text-[10px] font-black text-maruxa-rojo">
-                    {evento.telefono || 'Sin telefono'}
+                    {evento.origen === 'instagram' ? 'Instagram' : evento.telefono || 'Sin telefono'}
                   </span>
                 </button>
               ))
@@ -397,6 +458,7 @@ export default function AdminWhatsappPage() {
                   conversacionesFiltradas.map((conversacion) => {
                     const activo = conversacion.telefono === conversacionActiva?.telefono;
                     const esPedido = conversacion.ultimoEvento.tipo === 'order';
+                    const esInstagram = conversacion.ultimoEvento.origen === 'instagram';
 
                     return (
                       <button
@@ -413,7 +475,9 @@ export default function AdminWhatsappPage() {
                           className={`grid h-8 w-8 place-items-center rounded-full ${
                             activo
                               ? 'bg-white/15'
-                              : esPedido
+                              : esInstagram
+                                ? 'bg-pink-50 text-pink-700'
+                                : esPedido
                                 ? 'bg-maruxa-rojo text-white'
                                 : 'bg-emerald-50 text-emerald-700'
                           }`}
@@ -466,7 +530,9 @@ export default function AdminWhatsappPage() {
                         {conversacionActiva.nombre}
                       </h2>
                       <p className="text-xs font-bold text-maruxa-cafe/65">
-                        {conversacionActiva.telefono}
+                        {conversacionActiva.telefono.startsWith('instagram:')
+                          ? 'Instagram'
+                          : conversacionActiva.telefono}
                       </p>
                     </div>
 
@@ -485,13 +551,16 @@ export default function AdminWhatsappPage() {
                   <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
                     {conversacionActiva.eventos.map((evento) => {
                       const esPedido = evento.tipo === 'order';
+                      const esInstagram = evento.origen === 'instagram';
                       const pendiente = estaPendiente(evento);
 
                       return (
                         <div key={evento.id} className="flex justify-start">
                           <div
                             className={`max-w-[min(620px,92%)] rounded-xl px-3 py-2 shadow-sm ${
-                              esPedido
+                              esInstagram
+                                ? 'bg-pink-50 text-maruxa-chocolate'
+                                : esPedido
                                 ? 'bg-[#A51F2B] text-white'
                                 : pendiente
                                   ? 'bg-white text-maruxa-chocolate'
@@ -503,10 +572,14 @@ export default function AdminWhatsappPage() {
                                 className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase ${
                                   esPedido
                                     ? 'bg-white/15 text-white'
+                                    : esInstagram
+                                      ? 'bg-pink-100 text-pink-700'
                                     : 'bg-maruxa-crema text-maruxa-cafe'
                                 }`}
                               >
-                                {etiquetaTipo(evento.tipo)}
+                                {evento.origen === 'instagram'
+                                  ? `Instagram · ${etiquetaTipo(evento.tipo)}`
+                                  : etiquetaTipo(evento.tipo)}
                               </span>
                               {evento.estado === 'respondido' && (
                                 <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-700">
@@ -565,17 +638,23 @@ export default function AdminWhatsappPage() {
                           }))
                         }
                         placeholder="Escribe un mensaje"
+                        disabled={conversacionActiva.telefono.startsWith('instagram:')}
                         className="min-h-10 w-full min-w-0 resize-y rounded-lg border border-maruxa-rojo/10 bg-maruxa-crema p-2.5 text-xs font-bold leading-5 text-maruxa-chocolate outline-none"
                       />
 
                       <button
                         type="button"
                         onClick={() => enviarRespuesta(conversacionActiva)}
-                        disabled={enviando === conversacionActiva.telefono}
+                        disabled={
+                          enviando === conversacionActiva.telefono ||
+                          conversacionActiva.telefono.startsWith('instagram:')
+                        }
                         className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-full border-2 border-[#7A111B] bg-[#A51F2B] px-4 py-2 text-center text-xs font-black leading-5 text-white shadow-[0_10px_24px_rgba(165,31,43,0.28)] transition hover:bg-[#7A111B] disabled:border-zinc-300 disabled:bg-zinc-300 disabled:text-zinc-600 disabled:shadow-none"
                       >
                         <Send className="h-4 w-4 shrink-0" />
-                        {enviando === conversacionActiva.telefono
+                        {conversacionActiva.telefono.startsWith('instagram:')
+                          ? 'Solo lectura'
+                          : enviando === conversacionActiva.telefono
                           ? 'Enviando...'
                           : 'Enviar'}
                       </button>
