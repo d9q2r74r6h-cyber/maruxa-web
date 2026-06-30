@@ -36,6 +36,7 @@ function firmaValida(cuerpo: string, firma: string | null) {
 }
 
 function tipoEvento(evento: any) {
+  if (evento.field) return evento.field;
   if (evento.message?.text) return 'text';
   if (evento.message?.attachments?.[0]?.type) {
     return evento.message.attachments[0].type;
@@ -47,6 +48,12 @@ function tipoEvento(evento: any) {
 }
 
 function textoEvento(evento: any) {
+  if (evento.value?.text) return evento.value.text;
+  if (evento.value?.message) return evento.value.message;
+  if (evento.value?.comment?.text) return evento.value.comment.text;
+  if (evento.value?.comment?.message) return evento.value.comment.message;
+  if (evento.value?.media?.caption) return evento.value.media.caption;
+  if (evento.value?.item) return `Evento de Instagram: ${evento.value.item}`;
   if (evento.message?.text) return evento.message.text;
   if (evento.message?.attachments?.[0]?.type) {
     return `Adjunto recibido: ${evento.message.attachments[0].type}`;
@@ -59,10 +66,29 @@ function textoEvento(evento: any) {
 
 function messageId(evento: any) {
   return (
+    evento.value?.message_id ||
+    evento.value?.id ||
+    evento.value?.comment_id ||
+    evento.value?.media_id ||
     evento.message?.mid ||
     evento.postback?.mid ||
-    `${evento.sender?.id || 'sin-remitente'}-${evento.timestamp || Date.now()}`
+    `${evento.sender?.id || evento.value?.from?.id || evento.entry_id || 'sin-remitente'}-${evento.timestamp || evento.value?.timestamp || Date.now()}-${evento.field || 'evento'}`
   );
+}
+
+function senderId(evento: any) {
+  return (
+    evento.sender?.id ||
+    evento.value?.sender?.id ||
+    evento.value?.from?.id ||
+    evento.value?.user_id ||
+    evento.value?.ig_user_id ||
+    null
+  );
+}
+
+function recipientId(evento: any) {
+  return evento.recipient?.id || evento.entry_id || null;
 }
 
 export async function GET(request: Request) {
@@ -158,12 +184,23 @@ export async function POST(request: Request) {
     );
   }
 
-  const eventos = (payload.entry || []).flatMap((entrada: any) =>
-    (entrada.messaging || []).map((evento: any) => ({
+  const eventos = (payload.entry || []).flatMap((entrada: any) => {
+    const mensajes = (entrada.messaging || []).map((evento: any) => ({
       ...evento,
+      entry_id: entrada.id,
       recipient: evento.recipient || { id: entrada.id },
-    }))
-  );
+      formato: 'messaging',
+    }));
+
+    const cambios = (entrada.changes || []).map((cambio: any) => ({
+      ...cambio,
+      entry_id: entrada.id,
+      timestamp: entrada.time,
+      formato: 'changes',
+    }));
+
+    return [...mensajes, ...cambios];
+  });
 
   for (const evento of eventos) {
     const id = messageId(evento);
@@ -179,13 +216,15 @@ export async function POST(request: Request) {
 
     await admin.from('instagram_eventos').insert({
       empresa_id: empresaId,
-      sender_id: evento.sender?.id || null,
-      recipient_id: evento.recipient?.id || null,
+      sender_id: senderId(evento),
+      recipient_id: recipientId(evento),
       message_id: id,
       tipo: tipoEvento(evento),
       texto: textoEvento(evento),
       estado: ['read', 'delivery'].includes(tipoEvento(evento)) ? 'informativo' : 'recibido',
-      observacion: payload.object ? `Origen Meta: ${payload.object}` : 'Mensaje recibido desde Instagram.',
+      observacion: payload.object
+        ? `Origen Meta: ${payload.object} (${evento.formato || 'evento'})`
+        : 'Mensaje recibido desde Instagram.',
       payload,
     });
   }
