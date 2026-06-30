@@ -18,6 +18,7 @@ type Producto = {
   tipo_producto?: string | null;
   unidad_base?: string | null;
   costo_unitario?: number | null;
+  impuesto_adicional_porcentaje?: number | null;
   familia_id: string | null;
   usar_configuracion_familia?: boolean | null;
   margen_personalizado?: number | null;
@@ -104,6 +105,16 @@ function nombreTipo(tipo?: string | null) {
   return 'Ingrediente';
 }
 
+function recursosUnicosPorId(lista: Recurso[]) {
+  const mapa = new Map<string, Recurso>();
+
+  lista.forEach((recurso) => {
+    mapa.set(String(recurso.id), recurso);
+  });
+
+  return Array.from(mapa.values());
+}
+
 export default function AdminRecetasPage() {
   const [tabActiva, setTabActiva] = useState<
     'ingredientes' | 'insumos' | 'resumen' | 'subproductos'
@@ -137,6 +148,25 @@ export default function AdminRecetasPage() {
   const [recetaEditando, setRecetaEditando] =
     useState<RecetaGuardada | null>(null);
 
+  const ingredientesDesdeProductos = useMemo(() => {
+    return productos
+      .filter((producto) => producto.tipo_producto === 'ingrediente')
+      .map(
+        (producto) =>
+          ({
+            id: producto.id,
+            nombre: producto.nombre,
+            unidad_base: producto.unidad_base || 'KG',
+            costo_unitario: producto.costo_unitario || 0,
+            iva_porcentaje: producto.iva_porcentaje || ivaEmpresa,
+            impuesto_adicional_porcentaje:
+              producto.impuesto_adicional_porcentaje || 0,
+            activo: true,
+            tipo_producto: 'ingrediente',
+          }) as Recurso
+      );
+  }, [ivaEmpresa, productos]);
+
   const recetasComoIngredientes = useMemo(() => {
     return productos
       .filter((producto) =>
@@ -165,16 +195,22 @@ export default function AdminRecetasPage() {
   }, [productos, recetaEditando?.id, recetas]);
 
   const recursosCalculables = useMemo(
-    () => [...recursos, ...recetasComoIngredientes],
-    [recetasComoIngredientes, recursos]
+    () =>
+      recursosUnicosPorId([
+        ...recursos,
+        ...ingredientesDesdeProductos,
+        ...recetasComoIngredientes,
+      ]),
+    [ingredientesDesdeProductos, recetasComoIngredientes, recursos]
   );
 
   const ingredientesBase = useMemo(() => {
-    return [
+    return recursosUnicosPorId([
       ...recursos.filter((recurso) => recurso.tipo_producto === 'ingrediente'),
+      ...ingredientesDesdeProductos,
       ...recetasComoIngredientes,
-    ].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
-  }, [recetasComoIngredientes, recursos]);
+    ]).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  }, [ingredientesDesdeProductos, recetasComoIngredientes, recursos]);
 
   const insumosDisponibles = useMemo(() => {
     return recursos.filter((recurso) =>
@@ -452,6 +488,7 @@ export default function AdminRecetasPage() {
           tipo_margen_personalizado,
           redondeo_personalizado,
           iva_porcentaje,
+          impuesto_adicional_porcentaje,
           familias_productos (
             nombre,
             margen_porcentaje,
@@ -1148,6 +1185,13 @@ export default function AdminRecetasPage() {
                 </div>
 
                 <div className="mt-3 grid gap-1">
+                  {ingredientesBase.length === 0 && (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">
+                      No hay ingredientes disponibles para seleccionar. Revisa
+                      que existan productos activos con tipo "ingrediente".
+                    </div>
+                  )}
+
                   {items.map((item, index) => {
                     const ingredienteSeleccionado = ingredientesBase.find(
                       (ingrediente) =>
