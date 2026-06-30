@@ -107,11 +107,24 @@ export async function GET(request: Request) {
     if (admin) {
       const resultado = await admin
         .from('instagram_eventos')
-        .select('id')
-        .limit(1);
+        .select('id,created_at,tipo,estado,sender_id,texto,observacion')
+        .order('created_at', { ascending: false })
+        .limit(5);
       baseDatosLista = !resultado.error;
       baseDatosEstado = resultado.status;
       baseDatosError = resultado.error ? JSON.stringify(resultado.error) : null;
+
+      return NextResponse.json({
+        webhook: 'instagram',
+        disponible: true,
+        tokenConfigurado: Boolean(tokenConfigurado),
+        appSecretConfigurado: Boolean(secretoMeta()),
+        supabaseServidorConfigurado: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
+        baseDatosLista,
+        baseDatosEstado,
+        baseDatosError,
+        ultimosEventos: resultado.data || [],
+      });
     }
 
     return NextResponse.json({
