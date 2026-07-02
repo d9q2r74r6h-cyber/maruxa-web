@@ -1222,11 +1222,8 @@ export default function AdminComprasPage() {
                     Crear producto para esta compra
                   </h4>
 
-                  <div className="mt-3 grid gap-3 md:grid-cols-[180px_1fr]">
+                  <div className="mt-4 grid gap-3 md:grid-cols-[150px_1.4fr_150px_190px_100px_130px_120px_auto]">
                     <label className="grid gap-1">
-                      <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
-                        Codigo
-                      </span>
                       <input
                         value={nuevoProducto.codigo}
                         onChange={(e) =>
@@ -1235,20 +1232,14 @@ export default function AdminComprasPage() {
                             codigo: e.target.value,
                           })
                         }
-                        placeholder={codigoSugeridoNuevoProducto}
-                        className="rounded-2xl border px-4 py-3 font-bold uppercase"
+                        placeholder="Codigo"
+                        className="w-full rounded-2xl border px-4 py-3 font-bold uppercase"
                       />
+                      <span className="text-[11px] font-bold text-maruxa-cafe/60">
+                        Sugerido: {codigoSugeridoNuevoProducto}
+                      </span>
                     </label>
 
-                    <div className="rounded-2xl bg-maruxa-crema px-4 py-3 text-sm font-bold text-maruxa-chocolate">
-                      <span className="block text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
-                        Codigo sugerido
-                      </span>
-                      {codigoSugeridoNuevoProducto}
-                    </div>
-                  </div>
-
-                  <div className="mt-4 grid gap-3 md:grid-cols-[1.4fr_150px_190px_100px_130px_120px_auto]">
                     <div className="relative">
                       <input
                         value={nuevoProducto.nombre}
