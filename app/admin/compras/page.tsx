@@ -43,6 +43,9 @@ type ItemCompra = {
   cantidad: string;
   costo_unitario: string;
   costo_total: string;
+  valor_despacho: string;
+  impuesto_adicional: string;
+  descuento: string;
 };
 
 type TipoProductoCompra = 'producto' | 'ingrediente' | 'envase';
@@ -86,6 +89,31 @@ function numero(valor: string | number | null | undefined) {
 
 function dinero(valor: number) {
   return `$${Math.round(Number(valor || 0)).toLocaleString('es-CL')}`;
+}
+
+function totalBaseItem(item: ItemCompra) {
+  const totalManual = numero(item.costo_total);
+
+  if (totalManual > 0) return totalManual;
+
+  return numero(item.cantidad) * numero(item.costo_unitario);
+}
+
+function totalFinalItem(item: ItemCompra) {
+  return (
+    totalBaseItem(item) +
+    numero(item.valor_despacho) +
+    numero(item.impuesto_adicional) -
+    numero(item.descuento)
+  );
+}
+
+function costoUnitarioEfectivo(item: ItemCompra) {
+  const cantidad = numero(item.cantidad);
+
+  if (cantidad <= 0) return 0;
+
+  return totalFinalItem(item) / cantidad;
 }
 
 function normalizarTexto(texto: string) {
@@ -152,6 +180,9 @@ export default function AdminComprasPage() {
   const [numeroDocumento, setNumeroDocumento] = useState('');
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
   const [totalDocumento, setTotalDocumento] = useState('');
+  const [valorDespacho, setValorDespacho] = useState('');
+  const [impuestoAdicionalCompra, setImpuestoAdicionalCompra] = useState('');
+  const [descuentoCompra, setDescuentoCompra] = useState('');
   const [observacion, setObservacion] = useState('');
   const [items, setItems] = useState<ItemCompra[]>([]);
   const [resultadosBusqueda, setResultadosBusqueda] = useState<Record<number, Producto[]>>({});
@@ -176,11 +207,16 @@ export default function AdminComprasPage() {
   const [recetasAfectadas, setRecetasAfectadas] = useState<RecetaAfectada[]>([]);
   const [cargandoRecetasAfectadas, setCargandoRecetasAfectadas] = useState(false);
 
-  const totalCompra = useMemo(() => {
+  const subtotalProductos = useMemo(() => {
     return items.reduce((total, item) => {
-      return total + numero(item.cantidad) * numero(item.costo_unitario);
+      return total + totalFinalItem(item);
     }, 0);
   }, [items]);
+  const totalCompra =
+    subtotalProductos +
+    numero(valorDespacho) +
+    numero(impuestoAdicionalCompra) -
+    numero(descuentoCompra);
   const diferenciaDocumento = numero(totalDocumento) - totalCompra;
 
   const familiaNuevoProducto = familias.find(
@@ -442,6 +478,9 @@ export default function AdminComprasPage() {
         cantidad: '',
         costo_unitario: '',
         costo_total: '',
+        valor_despacho: '',
+        impuesto_adicional: '',
+        descuento: '',
       },
     ]);
   }
@@ -651,6 +690,9 @@ export default function AdminComprasPage() {
         cantidad: '',
         costo_unitario: String(costo || productoCreado.costo_unitario || ''),
         costo_total: '',
+        valor_despacho: '',
+        impuesto_adicional: '',
+        descuento: '',
       },
     ]);
     setNuevoProducto({
@@ -679,7 +721,7 @@ export default function AdminComprasPage() {
       }
 
       const cantidad = numero(item.cantidad);
-      const costoUnitario = numero(item.costo_unitario);
+      const costoUnitario = costoUnitarioEfectivo(item);
       const actual = agrupados.get(item.producto_id);
 
       if (!actual) {
@@ -963,6 +1005,10 @@ export default function AdminComprasPage() {
         numero_documento: numeroDocumento,
         fecha,
         observacion,
+        subtotal_productos: subtotalProductos,
+        valor_despacho: numero(valorDespacho),
+        impuesto_adicional: numero(impuestoAdicionalCompra),
+        descuento: numero(descuentoCompra),
         total: totalCompra,
       })
       .select('id')
@@ -977,13 +1023,17 @@ export default function AdminComprasPage() {
     const detalle = itemsValidos.map((item) => {
       const cantidad = numero(item.cantidad);
       const costoUnitario = numero(item.costo_unitario);
+      const costoUnitarioFinal = costoUnitarioEfectivo(item);
 
       return {
         compra_id: compra.id,
         producto_id: Number(item.producto_id),
         cantidad,
-        costo_unitario: costoUnitario,
-        costo_total: cantidad * costoUnitario,
+        costo_unitario: costoUnitarioFinal || costoUnitario,
+        costo_total: totalFinalItem(item),
+        valor_despacho: numero(item.valor_despacho),
+        impuesto_adicional: numero(item.impuesto_adicional),
+        descuento: numero(item.descuento),
       };
     });
 
@@ -1075,6 +1125,9 @@ export default function AdminComprasPage() {
     setProveedor('');
     setNumeroDocumento('');
     setTotalDocumento('');
+    setValorDespacho('');
+    setImpuestoAdicionalCompra('');
+    setDescuentoCompra('');
     setObservacion('');
     setItems([]);
     setVariacionesCompra(variacionesRegistradas);
@@ -1184,6 +1237,30 @@ export default function AdminComprasPage() {
               />
 
               <input
+                type="number"
+                value={valorDespacho}
+                onChange={(e) => setValorDespacho(e.target.value)}
+                placeholder="Despacho"
+                className="rounded-2xl border px-5 py-4 text-right font-bold"
+              />
+
+              <input
+                type="number"
+                value={impuestoAdicionalCompra}
+                onChange={(e) => setImpuestoAdicionalCompra(e.target.value)}
+                placeholder="Imp. adicional"
+                className="rounded-2xl border px-5 py-4 text-right font-bold"
+              />
+
+              <input
+                type="number"
+                value={descuentoCompra}
+                onChange={(e) => setDescuentoCompra(e.target.value)}
+                placeholder="Descuento"
+                className="rounded-2xl border px-5 py-4 text-right font-bold"
+              />
+
+              <input
                 value={observacion}
                 onChange={(e) => setObservacion(e.target.value)}
                 placeholder="Observación"
@@ -1279,6 +1356,9 @@ export default function AdminComprasPage() {
                                       cantidad: '',
                                       costo_unitario: String(producto.costo_unitario || ''),
                                       costo_total: '',
+                                      valor_despacho: '',
+                                      impuesto_adicional: '',
+                                      descuento: '',
                                     },
                                   ]);
                                   setMostrarCrearProducto(false);
@@ -1485,7 +1565,7 @@ export default function AdminComprasPage() {
                         />
 
                         {!item.producto_id && item.busqueda_producto && (
-                          <div className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-xl border bg-white shadow-xl">
+                          <div className="mt-1 overflow-hidden rounded-xl border bg-white shadow-sm">
                             {productosFiltrados.length === 0 ? (
                               <button
                                 type="button"
@@ -1575,6 +1655,42 @@ export default function AdminComprasPage() {
                         Eliminar
                       </button>
 
+                      <div className="grid gap-1.5 md:col-span-5 md:grid-cols-[1fr_1fr_1fr_auto]">
+                        <input
+                          type="number"
+                          value={item.valor_despacho}
+                          onChange={(e) =>
+                            actualizarItem(index, 'valor_despacho', e.target.value)
+                          }
+                          placeholder="Despacho producto"
+                          className="rounded-xl border px-3 py-2 text-right text-xs font-bold"
+                        />
+
+                        <input
+                          type="number"
+                          value={item.impuesto_adicional}
+                          onChange={(e) =>
+                            actualizarItem(index, 'impuesto_adicional', e.target.value)
+                          }
+                          placeholder="Imp. adicional producto"
+                          className="rounded-xl border px-3 py-2 text-right text-xs font-bold"
+                        />
+
+                        <input
+                          type="number"
+                          value={item.descuento}
+                          onChange={(e) =>
+                            actualizarItem(index, 'descuento', e.target.value)
+                          }
+                          placeholder="Descuento producto"
+                          className="rounded-xl border px-3 py-2 text-right text-xs font-bold"
+                        />
+
+                        <div className="rounded-xl bg-maruxa-crema px-3 py-2 text-right text-xs font-black text-maruxa-chocolate">
+                          Final: {dinero(totalFinalItem(item))}
+                        </div>
+                      </div>
+
                       {producto && (
                         <div className="md:col-span-5 text-[11px] font-bold leading-tight text-gray-500">
                           <p>
@@ -1613,6 +1729,12 @@ export default function AdminComprasPage() {
               <div>
                 <p className="text-3xl font-black text-maruxa-chocolate">
                   Total compra: {dinero(totalCompra)}
+                </p>
+                <p className="mt-1 text-xs font-bold text-maruxa-cafe/70">
+                  Productos: {dinero(subtotalProductos)} | Despacho:{' '}
+                  {dinero(numero(valorDespacho))} | Imp. adicional:{' '}
+                  {dinero(numero(impuestoAdicionalCompra))} | Descuento:{' '}
+                  {dinero(numero(descuentoCompra))}
                 </p>
                 {numero(totalDocumento) > 0 && (
                   <p
