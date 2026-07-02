@@ -1639,12 +1639,12 @@ export default function AdminComprasPage() {
                 </div>
               )}
 
-              <div className="mt-3 hidden grid-cols-[1fr_96px_125px_125px_auto] gap-1.5 px-3 text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60 md:grid">
-                <span>Producto</span>
-                <span className="text-right">Cantidad</span>
-                <span className="text-right">Precio factura</span>
-                <span className="text-right">Total linea</span>
-                <span></span>
+              <div className="mt-3 hidden grid-cols-12 gap-1.5 px-3 text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60 md:grid">
+                <span className="col-span-5">Producto</span>
+                <span className="col-span-1 text-right">Cant.</span>
+                <span className="col-span-2 text-right">Precio</span>
+                <span className="col-span-2 text-right">Total linea</span>
+                <span className="col-span-2 text-right">Acciones</span>
               </div>
 
               <div className="mt-1 grid gap-1.5">
@@ -1668,9 +1668,9 @@ export default function AdminComprasPage() {
                   return (
                     <div
                       key={index}
-                      className="grid gap-1.5 rounded-xl bg-white px-3 py-2 md:grid-cols-[1fr_96px_125px_125px_auto]"
+                      className="grid gap-1.5 rounded-xl bg-white px-3 py-2 md:grid-cols-12"
                     >
-                      <div className="relative">
+                      <div className="relative md:col-span-5">
                         <input
                           value={item.busqueda_producto}
                           onChange={(e) =>
@@ -1743,35 +1743,47 @@ export default function AdminComprasPage() {
                         type="number"
                         value={item.cantidad}
                         onChange={(e) => actualizarItem(index, 'cantidad', e.target.value)}
-                        placeholder="Cantidad"
-                        className="rounded-xl border px-3 py-2 text-right text-sm font-bold"
+                        placeholder="Cant."
+                        className="rounded-xl border px-3 py-2 text-right text-sm font-bold md:col-span-1"
                       />
 
                       <input
                         type="number"
                         value={item.costo_unitario}
                         onChange={(e) => actualizarItem(index, 'costo_unitario', e.target.value)}
-                        placeholder="Precio factura"
-                        className="rounded-xl border px-3 py-2 text-right text-sm font-bold"
+                        placeholder="Precio"
+                        className="rounded-xl border px-3 py-2 text-right text-sm font-bold md:col-span-2"
                       />
 
                       <input
                         type="number"
                         value={totalLineaTexto}
                         onChange={(e) => actualizarItem(index, 'costo_total', e.target.value)}
-                        placeholder="Total linea"
-                        className="rounded-xl border px-3 py-2 text-right text-sm font-bold"
+                        placeholder="Total"
+                        className="rounded-xl border px-3 py-2 text-right text-sm font-bold md:col-span-2"
                       />
 
-                      <button
-                        type="button"
-                        onClick={() => eliminarItem(index)}
-                        className="rounded-full border border-red-300 bg-red-50 px-4 py-2 text-sm font-black text-red-700"
-                      >
-                        Eliminar
-                      </button>
+                      <div className="flex gap-1 md:col-span-2">
+                        {producto && (
+                          <button
+                            type="button"
+                            onClick={() => abrirEdicionProducto(producto)}
+                            className="flex-1 rounded-full border border-red-200 bg-white px-3 py-2 text-xs font-black text-red-700 hover:bg-red-50"
+                          >
+                            Editar
+                          </button>
+                        )}
 
-                      <div className="grid gap-1.5 md:col-span-5 md:grid-cols-[1fr_1fr_1fr_auto]">
+                        <button
+                          type="button"
+                          onClick={() => eliminarItem(index)}
+                          className="flex-1 rounded-full border border-red-300 bg-red-50 px-3 py-2 text-xs font-black text-red-700"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+
+                      <div className="grid gap-1.5 md:col-span-12 md:grid-cols-[1fr_1fr_1fr_auto]">
                         <input
                           type="number"
                           value={item.valor_despacho}
@@ -1808,205 +1820,191 @@ export default function AdminComprasPage() {
                       </div>
 
                       {producto && (
-                        <div className="md:col-span-5 text-[11px] font-bold leading-tight text-gray-500">
-                          <p>
-                          {producto.codigo && (
-                            <>
-                              Codigo: {producto.codigo}
-                              {' | '}
-                            </>
-                          )}
+                        <div className="md:col-span-12 text-[11px] font-bold leading-tight text-gray-500">
+                          {producto.codigo && <>Codigo: {producto.codigo} | </>}
                           Stock actual:{' '}
                           {numero(producto.stock_actual).toLocaleString('es-CL')}{' '}
-                          {producto.unidad_base || ''}
-                          {' · '}
-                            Costo actual: {dinero(numero(producto.costo_unitario))}
-                          </p>
-                          <p className="mt-1">
-                            Ultimas compras:{' '}
-                            {ultimasCompras[producto.id]?.length
-                              ? ultimasCompras[producto.id]
-                                  .map(
-                                    (compra) =>
-                                      `${formatearFecha(compra.fecha)} ${dinero(compra.precio)}`
-                                  )
-                                  .join(' | ')
-                              : 'sin historial'}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => abrirEdicionProducto(producto)}
-                            className="mt-2 rounded-full border border-red-200 bg-white px-3 py-1 text-[11px] font-black text-red-700 hover:bg-red-50"
-                          >
-                            Editar producto
-                          </button>
+                          {producto.unidad_base || ''} | Costo actual:{' '}
+                          {dinero(numero(producto.costo_unitario))} | Ultimas compras:{' '}
+                          {ultimasCompras[producto.id]?.length
+                            ? ultimasCompras[producto.id]
+                                .map(
+                                  (compra) =>
+                                    `${formatearFecha(compra.fecha)} ${dinero(compra.precio)}`
+                                )
+                                .join(' | ')
+                            : 'sin historial'}
                         </div>
                       )}
 
                       {producto && productoEditandoId === producto.id && (
-                        <div className="grid gap-3 rounded-2xl border border-red-100 bg-red-50/60 p-3 md:col-span-5 md:grid-cols-12">
-                          <label className="grid gap-1 md:col-span-2">
-                            <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
-                              Codigo
-                            </span>
-                            <input
-                              value={productoEditando.codigo}
-                              onChange={(e) =>
-                                setProductoEditando({
-                                  ...productoEditando,
-                                  codigo: e.target.value,
-                                })
-                              }
-                              className="rounded-xl border px-3 py-2 text-sm font-bold uppercase"
-                            />
-                          </label>
+                        <div className="grid gap-4 rounded-2xl border border-red-100 bg-red-50/60 p-4 md:col-span-12">
+                          <div className="grid gap-3 md:grid-cols-12">
+                            <label className="grid gap-1 md:col-span-2">
+                              <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
+                                Codigo
+                              </span>
+                              <input
+                                value={productoEditando.codigo}
+                                onChange={(e) =>
+                                  setProductoEditando({
+                                    ...productoEditando,
+                                    codigo: e.target.value,
+                                  })
+                                }
+                                className="rounded-xl border px-3 py-2 text-sm font-bold uppercase"
+                              />
+                            </label>
 
-                          <label className="grid gap-1 md:col-span-4">
-                            <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
-                              Nombre
-                            </span>
-                            <input
-                              value={productoEditando.nombre}
-                              onChange={(e) =>
-                                setProductoEditando({
-                                  ...productoEditando,
-                                  nombre: e.target.value,
-                                })
-                              }
-                              className="rounded-xl border px-3 py-2 text-sm font-bold"
-                            />
-                          </label>
+                            <label className="grid gap-1 md:col-span-5">
+                              <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
+                                Nombre
+                              </span>
+                              <input
+                                value={productoEditando.nombre}
+                                onChange={(e) =>
+                                  setProductoEditando({
+                                    ...productoEditando,
+                                    nombre: e.target.value,
+                                  })
+                                }
+                                className="rounded-xl border px-3 py-2 text-sm font-bold"
+                              />
+                            </label>
 
-                          <label className="grid gap-1 md:col-span-2">
-                            <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
-                              Tipo
-                            </span>
-                            <select
-                              value={productoEditando.tipo_producto}
-                              onChange={(e) =>
-                                setProductoEditando({
-                                  ...productoEditando,
-                                  tipo_producto: e.target.value as TipoProductoCompra,
-                                })
-                              }
-                              className="rounded-xl border px-3 py-2 text-sm font-bold"
-                            >
-                              <option value="producto">Producto</option>
-                              <option value="ingrediente">Ingrediente</option>
-                              <option value="envase">Envase</option>
-                            </select>
-                          </label>
+                            <label className="grid gap-1 md:col-span-2">
+                              <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
+                                Tipo
+                              </span>
+                              <select
+                                value={productoEditando.tipo_producto}
+                                onChange={(e) =>
+                                  setProductoEditando({
+                                    ...productoEditando,
+                                    tipo_producto: e.target.value as TipoProductoCompra,
+                                  })
+                                }
+                                className="rounded-xl border px-3 py-2 text-sm font-bold"
+                              >
+                                <option value="producto">Producto</option>
+                                <option value="ingrediente">Ingrediente</option>
+                                <option value="envase">Envase</option>
+                              </select>
+                            </label>
 
-                          <label className="grid gap-1 md:col-span-4">
-                            <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
-                              Familia
-                            </span>
-                            <select
-                              value={productoEditando.familia_id}
-                              onChange={(e) =>
-                                setProductoEditando({
-                                  ...productoEditando,
-                                  familia_id: e.target.value,
-                                })
-                              }
-                              className="rounded-xl border px-3 py-2 text-sm font-bold"
-                            >
-                              <option value="">Sin familia</option>
-                              {familias.map((familia) => (
-                                <option key={familia.id} value={familia.id}>
-                                  {familia.nombre}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
+                            <label className="grid gap-1 md:col-span-3">
+                              <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
+                                Familia
+                              </span>
+                              <select
+                                value={productoEditando.familia_id}
+                                onChange={(e) =>
+                                  setProductoEditando({
+                                    ...productoEditando,
+                                    familia_id: e.target.value,
+                                  })
+                                }
+                                className="rounded-xl border px-3 py-2 text-sm font-bold"
+                              >
+                                <option value="">Sin familia</option>
+                                {familias.map((familia) => (
+                                  <option key={familia.id} value={familia.id}>
+                                    {familia.nombre}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          </div>
 
-                          <label className="grid gap-1 md:col-span-2">
-                            <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
-                              Unidad
-                            </span>
-                            <select
-                              value={productoEditando.unidad_base}
-                              onChange={(e) =>
-                                setProductoEditando({
-                                  ...productoEditando,
-                                  unidad_base: e.target.value,
-                                })
-                              }
-                              className="rounded-xl border px-3 py-2 text-sm font-bold"
-                            >
-                              <option value="KG">KG</option>
-                              <option value="GR">GR</option>
-                              <option value="LT">LT</option>
-                              <option value="ML">ML</option>
-                              <option value="UN">UN</option>
-                            </select>
-                          </label>
+                          <div className="grid gap-3 md:grid-cols-12">
+                            <label className="grid gap-1 md:col-span-2">
+                              <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
+                                Unidad
+                              </span>
+                              <select
+                                value={productoEditando.unidad_base}
+                                onChange={(e) =>
+                                  setProductoEditando({
+                                    ...productoEditando,
+                                    unidad_base: e.target.value,
+                                  })
+                                }
+                                className="rounded-xl border px-3 py-2 text-sm font-bold"
+                              >
+                                <option value="KG">KG</option>
+                                <option value="GR">GR</option>
+                                <option value="LT">LT</option>
+                                <option value="ML">ML</option>
+                                <option value="UN">UN</option>
+                              </select>
+                            </label>
 
-                          <label className="grid gap-1 md:col-span-2">
-                            <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
-                              Costo
-                            </span>
-                            <input
-                              type="number"
-                              value={productoEditando.costo_unitario}
-                              onChange={(e) =>
-                                setProductoEditando({
-                                  ...productoEditando,
-                                  costo_unitario: e.target.value,
-                                })
-                              }
-                              className="rounded-xl border px-3 py-2 text-right text-sm font-bold"
-                            />
-                          </label>
+                            <label className="grid gap-1 md:col-span-2">
+                              <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
+                                Costo
+                              </span>
+                              <input
+                                type="number"
+                                value={productoEditando.costo_unitario}
+                                onChange={(e) =>
+                                  setProductoEditando({
+                                    ...productoEditando,
+                                    costo_unitario: e.target.value,
+                                  })
+                                }
+                                className="rounded-xl border px-3 py-2 text-right text-sm font-bold"
+                              />
+                            </label>
 
-                          <label className="grid gap-1 md:col-span-2">
-                            <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
-                              Stock
-                            </span>
-                            <input
-                              type="number"
-                              value={productoEditando.stock_actual}
-                              onChange={(e) =>
-                                setProductoEditando({
-                                  ...productoEditando,
-                                  stock_actual: e.target.value,
-                                })
-                              }
-                              className="rounded-xl border px-3 py-2 text-right text-sm font-bold"
-                            />
-                          </label>
+                            <label className="grid gap-1 md:col-span-2">
+                              <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
+                                Stock
+                              </span>
+                              <input
+                                type="number"
+                                value={productoEditando.stock_actual}
+                                onChange={(e) =>
+                                  setProductoEditando({
+                                    ...productoEditando,
+                                    stock_actual: e.target.value,
+                                  })
+                                }
+                                className="rounded-xl border px-3 py-2 text-right text-sm font-bold"
+                              />
+                            </label>
 
-                          <label className="flex items-center gap-2 self-end text-xs font-black text-maruxa-chocolate md:col-span-2">
-                            <input
-                              type="checkbox"
-                              checked={productoEditando.controla_stock}
-                              onChange={(e) =>
-                                setProductoEditando({
-                                  ...productoEditando,
-                                  controla_stock: e.target.checked,
-                                })
-                              }
-                            />
-                            Controla stock
-                          </label>
+                            <label className="flex items-center gap-2 self-end text-xs font-black text-maruxa-chocolate md:col-span-2">
+                              <input
+                                type="checkbox"
+                                checked={productoEditando.controla_stock}
+                                onChange={(e) =>
+                                  setProductoEditando({
+                                    ...productoEditando,
+                                    controla_stock: e.target.checked,
+                                  })
+                                }
+                              />
+                              Controla stock
+                            </label>
 
-                          <div className="flex flex-wrap justify-end gap-2 self-end md:col-span-4">
-                            <button
-                              type="button"
-                              onClick={cerrarEdicionProducto}
-                              className="rounded-full border border-gray-300 bg-white px-4 py-2 text-xs font-black"
-                            >
-                              Cancelar
-                            </button>
+                            <div className="flex flex-wrap justify-end gap-2 self-end md:col-span-4">
+                              <button
+                                type="button"
+                                onClick={cerrarEdicionProducto}
+                                className="rounded-full border border-gray-300 bg-white px-4 py-2 text-xs font-black"
+                              >
+                                Cancelar
+                              </button>
 
-                            <button
-                              type="button"
-                              onClick={guardarProductoEditado}
-                              disabled={guardandoProductoEditado}
-                              className="rounded-full bg-red-700 px-5 py-2 text-xs font-black text-white disabled:opacity-50"
-                            >
-                              {guardandoProductoEditado ? 'Guardando...' : 'Guardar producto'}
-                            </button>
+                              <button
+                                type="button"
+                                onClick={guardarProductoEditado}
+                                disabled={guardandoProductoEditado}
+                                className="rounded-full bg-red-700 px-5 py-2 text-xs font-black text-white disabled:opacity-50"
+                              >
+                                {guardandoProductoEditado ? 'Guardando...' : 'Guardar producto'}
+                              </button>
+                            </div>
                           </div>
                         </div>
                       )}
