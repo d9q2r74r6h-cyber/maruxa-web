@@ -50,6 +50,17 @@ type ItemCompra = {
 
 type TipoProductoCompra = 'producto' | 'ingrediente' | 'envase';
 
+type ProductoEdicion = {
+  codigo: string;
+  nombre: string;
+  tipo_producto: TipoProductoCompra;
+  familia_id: string;
+  unidad_base: string;
+  costo_unitario: string;
+  stock_actual: string;
+  controla_stock: boolean;
+};
+
 type ItemCompraConsolidado = {
   producto_id: string;
   cantidad: number;
@@ -204,6 +215,18 @@ export default function AdminComprasPage() {
   });
   const [coincidenciasNuevoProducto, setCoincidenciasNuevoProducto] = useState<Producto[]>([]);
   const [buscandoNuevoProducto, setBuscandoNuevoProducto] = useState(false);
+  const [productoEditandoId, setProductoEditandoId] = useState<number | null>(null);
+  const [productoEditando, setProductoEditando] = useState<ProductoEdicion>({
+    codigo: '',
+    nombre: '',
+    tipo_producto: 'ingrediente',
+    familia_id: '',
+    unidad_base: 'KG',
+    costo_unitario: '',
+    stock_actual: '',
+    controla_stock: true,
+  });
+  const [guardandoProductoEditado, setGuardandoProductoEditado] = useState(false);
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [variacionesCompra, setVariacionesCompra] = useState<VariacionCosto[]>([]);
@@ -573,6 +596,95 @@ export default function AdminComprasPage() {
         };
       })
     );
+  }
+
+  function abrirEdicionProducto(producto: Producto) {
+    setProductoEditandoId(producto.id);
+    setProductoEditando({
+      codigo: producto.codigo || '',
+      nombre: producto.nombre || '',
+      tipo_producto: (producto.tipo_producto || 'ingrediente') as TipoProductoCompra,
+      familia_id: producto.familia_id || '',
+      unidad_base: producto.unidad_base || 'KG',
+      costo_unitario: String(producto.costo_unitario || ''),
+      stock_actual: String(producto.stock_actual || ''),
+      controla_stock: producto.controla_stock ?? true,
+    });
+  }
+
+  function cerrarEdicionProducto() {
+    setProductoEditandoId(null);
+    setProductoEditando({
+      codigo: '',
+      nombre: '',
+      tipo_producto: 'ingrediente',
+      familia_id: '',
+      unidad_base: 'KG',
+      costo_unitario: '',
+      stock_actual: '',
+      controla_stock: true,
+    });
+  }
+
+  async function guardarProductoEditado() {
+    if (!productoEditandoId) return;
+
+    if (!productoEditando.nombre.trim()) {
+      alert('Ingresa el nombre del producto.');
+      return;
+    }
+
+    setGuardandoProductoEditado(true);
+
+    const datos = {
+      codigo: productoEditando.codigo.trim().toUpperCase() || null,
+      nombre: productoEditando.nombre.trim(),
+      tipo_producto: productoEditando.tipo_producto,
+      familia_id: productoEditando.familia_id || null,
+      unidad_base: productoEditando.unidad_base,
+      costo_unitario: numero(productoEditando.costo_unitario),
+      stock_actual: numero(productoEditando.stock_actual),
+      controla_stock: productoEditando.controla_stock,
+    };
+
+    const { error } = await supabase
+      .from('productos')
+      .update(datos)
+      .eq('id', productoEditandoId);
+
+    setGuardandoProductoEditado(false);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setProductos((actuales) =>
+      actuales
+        .map((producto) =>
+          producto.id === productoEditandoId
+            ? {
+                ...producto,
+                ...datos,
+              }
+            : producto
+        )
+        .sort((a, b) => a.nombre.localeCompare(b.nombre))
+    );
+
+    setItems((actuales) =>
+      actuales.map((item) =>
+        String(item.producto_id) === String(productoEditandoId)
+          ? {
+              ...item,
+              busqueda_producto: `${datos.nombre} - ${datos.tipo_producto}`,
+              costo_unitario: item.costo_unitario || String(datos.costo_unitario || ''),
+            }
+          : item
+      )
+    );
+
+    cerrarEdicionProducto();
   }
 
   async function generarCodigoProductoCompra(empresaId: string | number) {
@@ -1721,6 +1833,181 @@ export default function AdminComprasPage() {
                                   .join(' | ')
                               : 'sin historial'}
                           </p>
+                          <button
+                            type="button"
+                            onClick={() => abrirEdicionProducto(producto)}
+                            className="mt-2 rounded-full border border-red-200 bg-white px-3 py-1 text-[11px] font-black text-red-700 hover:bg-red-50"
+                          >
+                            Editar producto
+                          </button>
+                        </div>
+                      )}
+
+                      {producto && productoEditandoId === producto.id && (
+                        <div className="grid gap-3 rounded-2xl border border-red-100 bg-red-50/60 p-3 md:col-span-5 md:grid-cols-12">
+                          <label className="grid gap-1 md:col-span-2">
+                            <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
+                              Codigo
+                            </span>
+                            <input
+                              value={productoEditando.codigo}
+                              onChange={(e) =>
+                                setProductoEditando({
+                                  ...productoEditando,
+                                  codigo: e.target.value,
+                                })
+                              }
+                              className="rounded-xl border px-3 py-2 text-sm font-bold uppercase"
+                            />
+                          </label>
+
+                          <label className="grid gap-1 md:col-span-4">
+                            <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
+                              Nombre
+                            </span>
+                            <input
+                              value={productoEditando.nombre}
+                              onChange={(e) =>
+                                setProductoEditando({
+                                  ...productoEditando,
+                                  nombre: e.target.value,
+                                })
+                              }
+                              className="rounded-xl border px-3 py-2 text-sm font-bold"
+                            />
+                          </label>
+
+                          <label className="grid gap-1 md:col-span-2">
+                            <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
+                              Tipo
+                            </span>
+                            <select
+                              value={productoEditando.tipo_producto}
+                              onChange={(e) =>
+                                setProductoEditando({
+                                  ...productoEditando,
+                                  tipo_producto: e.target.value as TipoProductoCompra,
+                                })
+                              }
+                              className="rounded-xl border px-3 py-2 text-sm font-bold"
+                            >
+                              <option value="producto">Producto</option>
+                              <option value="ingrediente">Ingrediente</option>
+                              <option value="envase">Envase</option>
+                            </select>
+                          </label>
+
+                          <label className="grid gap-1 md:col-span-4">
+                            <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
+                              Familia
+                            </span>
+                            <select
+                              value={productoEditando.familia_id}
+                              onChange={(e) =>
+                                setProductoEditando({
+                                  ...productoEditando,
+                                  familia_id: e.target.value,
+                                })
+                              }
+                              className="rounded-xl border px-3 py-2 text-sm font-bold"
+                            >
+                              <option value="">Sin familia</option>
+                              {familias.map((familia) => (
+                                <option key={familia.id} value={familia.id}>
+                                  {familia.nombre}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+
+                          <label className="grid gap-1 md:col-span-2">
+                            <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
+                              Unidad
+                            </span>
+                            <select
+                              value={productoEditando.unidad_base}
+                              onChange={(e) =>
+                                setProductoEditando({
+                                  ...productoEditando,
+                                  unidad_base: e.target.value,
+                                })
+                              }
+                              className="rounded-xl border px-3 py-2 text-sm font-bold"
+                            >
+                              <option value="KG">KG</option>
+                              <option value="GR">GR</option>
+                              <option value="LT">LT</option>
+                              <option value="ML">ML</option>
+                              <option value="UN">UN</option>
+                            </select>
+                          </label>
+
+                          <label className="grid gap-1 md:col-span-2">
+                            <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
+                              Costo
+                            </span>
+                            <input
+                              type="number"
+                              value={productoEditando.costo_unitario}
+                              onChange={(e) =>
+                                setProductoEditando({
+                                  ...productoEditando,
+                                  costo_unitario: e.target.value,
+                                })
+                              }
+                              className="rounded-xl border px-3 py-2 text-right text-sm font-bold"
+                            />
+                          </label>
+
+                          <label className="grid gap-1 md:col-span-2">
+                            <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
+                              Stock
+                            </span>
+                            <input
+                              type="number"
+                              value={productoEditando.stock_actual}
+                              onChange={(e) =>
+                                setProductoEditando({
+                                  ...productoEditando,
+                                  stock_actual: e.target.value,
+                                })
+                              }
+                              className="rounded-xl border px-3 py-2 text-right text-sm font-bold"
+                            />
+                          </label>
+
+                          <label className="flex items-center gap-2 self-end text-xs font-black text-maruxa-chocolate md:col-span-2">
+                            <input
+                              type="checkbox"
+                              checked={productoEditando.controla_stock}
+                              onChange={(e) =>
+                                setProductoEditando({
+                                  ...productoEditando,
+                                  controla_stock: e.target.checked,
+                                })
+                              }
+                            />
+                            Controla stock
+                          </label>
+
+                          <div className="flex flex-wrap justify-end gap-2 self-end md:col-span-4">
+                            <button
+                              type="button"
+                              onClick={cerrarEdicionProducto}
+                              className="rounded-full border border-gray-300 bg-white px-4 py-2 text-xs font-black"
+                            >
+                              Cancelar
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={guardarProductoEditado}
+                              disabled={guardandoProductoEditado}
+                              className="rounded-full bg-red-700 px-5 py-2 text-xs font-black text-white disabled:opacity-50"
+                            >
+                              {guardandoProductoEditado ? 'Guardando...' : 'Guardar producto'}
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
