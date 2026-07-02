@@ -7,8 +7,10 @@ import { obtenerEmpresaActual } from '@/lib/empresa';
 
 type Producto = {
   id: number;
+  codigo: string | null;
   nombre: string;
   tipo_producto: string;
+  familia_id: string | null;
   unidad_base: string | null;
   stock_actual: number | null;
   costo_unitario: number | null;
@@ -28,11 +30,19 @@ type ProveedorCompra = {
   rut: string | null;
 };
 
+type FamiliaProducto = {
+  id: string;
+  nombre: string;
+  activo: boolean;
+  mostrar_catalogo: boolean | null;
+};
+
 type ItemCompra = {
   producto_id: string;
   busqueda_producto: string;
   cantidad: string;
   costo_unitario: string;
+  costo_total: string;
 };
 
 type TipoProductoCompra = 'producto' | 'ingrediente' | 'envase';
@@ -86,6 +96,25 @@ function normalizarTexto(texto: string) {
     .trim();
 }
 
+function crearSlug(texto: string) {
+  return texto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
+function normalizarCodigo(texto: string | null | undefined) {
+  return String(texto || '')
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/Ñ/g, 'N')
+    .replace(/[^A-Z0-9]+/g, '')
+    .slice(0, 3);
+}
+
 function calcularPrecioSugerido(costoUnidad: number, producto: any) {
   const familiaRelacion = producto?.familias_productos;
   const familia = Array.isArray(familiaRelacion)
@@ -117,18 +146,22 @@ function calcularPrecioSugerido(costoUnidad: number, producto: any) {
 export default function AdminComprasPage() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [proveedores, setProveedores] = useState<ProveedorCompra[]>([]);
+  const [familias, setFamilias] = useState<FamiliaProducto[]>([]);
   const [proveedor, setProveedor] = useState('');
   const [mostrarProveedores, setMostrarProveedores] = useState(false);
   const [numeroDocumento, setNumeroDocumento] = useState('');
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
+  const [totalDocumento, setTotalDocumento] = useState('');
   const [observacion, setObservacion] = useState('');
   const [items, setItems] = useState<ItemCompra[]>([]);
   const [resultadosBusqueda, setResultadosBusqueda] = useState<Record<number, Producto[]>>({});
   const [ultimasCompras, setUltimasCompras] = useState<Record<number, UltimaCompraProducto[]>>({});
   const [mostrarCrearProducto, setMostrarCrearProducto] = useState(false);
   const [nuevoProducto, setNuevoProducto] = useState({
+    codigo: '',
     nombre: '',
     tipo_producto: 'ingrediente' as TipoProductoCompra,
+    familia_id: '',
     unidad_base: 'KG',
     costo_unitario: '',
     stock_actual: '',
@@ -148,6 +181,41 @@ export default function AdminComprasPage() {
       return total + numero(item.cantidad) * numero(item.costo_unitario);
     }, 0);
   }, [items]);
+  const diferenciaDocumento = numero(totalDocumento) - totalCompra;
+
+  const familiaNuevoProducto = familias.find(
+    (familia) => familia.id === nuevoProducto.familia_id
+  );
+  const prefijoTipoProducto: Record<TipoProductoCompra, string> = {
+    producto: 'PRO',
+    ingrediente: 'ING',
+    envase: 'ENV',
+  };
+  const baseCodigoNuevoProducto =
+    familiaNuevoProducto?.nombre || nuevoProducto.nombre || 'GEN';
+  const prefijoCodigoNuevoProducto = `${
+    prefijoTipoProducto[nuevoProducto.tipo_producto]
+  }-${normalizarCodigo(baseCodigoNuevoProducto) || 'GEN'}`;
+  const codigoSugeridoNuevoProducto = useMemo(() => {
+    if (nuevoProducto.codigo.trim()) {
+      return nuevoProducto.codigo.trim().toUpperCase();
+    }
+
+    const usados = new Set(
+      productos
+        .map((producto) => String(producto.codigo || '').toUpperCase())
+        .filter((codigo) => codigo.startsWith(`${prefijoCodigoNuevoProducto}-`))
+    );
+    let correlativo = usados.size + 1;
+    let codigo = `${prefijoCodigoNuevoProducto}-${String(correlativo).padStart(3, '0')}`;
+
+    while (usados.has(codigo)) {
+      correlativo += 1;
+      codigo = `${prefijoCodigoNuevoProducto}-${String(correlativo).padStart(3, '0')}`;
+    }
+
+    return codigo;
+  }, [nuevoProducto.codigo, prefijoCodigoNuevoProducto, productos]);
 
   const proveedoresFiltrados = useMemo(() => {
     const termino = normalizarTexto(proveedor);
@@ -184,13 +252,19 @@ export default function AdminComprasPage() {
       return;
     }
 
-    const [{ data, error }, { data: proveedoresData }] = await Promise.all([
+    const [
+      { data, error },
+      { data: proveedoresData },
+      { data: familiasData },
+    ] = await Promise.all([
       supabase
       .from('productos')
       .select(`
         id,
+        codigo,
         nombre,
         tipo_producto,
+        familia_id,
         unidad_base,
         stock_actual,
         costo_unitario,
@@ -206,6 +280,12 @@ export default function AdminComprasPage() {
         .eq('empresa_id', empresa.id)
         .eq('activo', true)
         .order('razon_social', { ascending: true }),
+      supabase
+        .from('familias_productos')
+        .select('id,nombre,activo,mostrar_catalogo')
+        .eq('empresa_id', empresa.id)
+        .eq('activo', true)
+        .order('nombre', { ascending: true }),
     ]);
 
     if (error) {
@@ -216,6 +296,7 @@ export default function AdminComprasPage() {
 
     setProductos((data as Producto[]) || []);
     setProveedores((proveedoresData as ProveedorCompra[]) || []);
+    setFamilias((familiasData as FamiliaProducto[]) || []);
     setLoading(false);
   }
 
@@ -287,7 +368,7 @@ export default function AdminComprasPage() {
       productos
         .filter((productoItem) =>
           normalizarTexto(
-            `${productoItem.nombre} ${productoItem.tipo_producto}`
+            `${productoItem.codigo || ''} ${productoItem.nombre} ${productoItem.tipo_producto}`
           ).includes(termino)
         )
         .slice(0, 8)
@@ -326,8 +407,10 @@ export default function AdminComprasPage() {
         .from('productos')
         .select(`
           id,
+          codigo,
           nombre,
           tipo_producto,
+          familia_id,
           unidad_base,
           stock_actual,
           costo_unitario,
@@ -336,7 +419,7 @@ export default function AdminComprasPage() {
         .eq('empresa_id', empresa.id)
         .in('tipo_producto', ['producto', 'ingrediente', 'envase'])
         .eq('activo', true)
-        .ilike('nombre', `%${termino}%`)
+        .or(`nombre.ilike.%${termino}%,codigo.ilike.%${termino}%`)
         .order('nombre', { ascending: true })
         .limit(8);
 
@@ -358,6 +441,7 @@ export default function AdminComprasPage() {
         busqueda_producto: '',
         cantidad: '',
         costo_unitario: '',
+        costo_total: '',
       },
     ]);
   }
@@ -373,6 +457,11 @@ export default function AdminComprasPage() {
 
         if (campo === 'producto_id') {
           const producto = productos.find((p) => String(p.id) === String(valor));
+          const costoUnitario = item.costo_unitario || String(producto?.costo_unitario || '');
+          const totalLinea =
+            numero(item.cantidad) > 0 && numero(costoUnitario) > 0
+              ? String(numero(item.cantidad) * numero(costoUnitario))
+              : item.costo_total;
 
           return {
             ...item,
@@ -380,7 +469,8 @@ export default function AdminComprasPage() {
             busqueda_producto: producto
               ? `${producto.nombre} - ${producto.tipo_producto}`
               : item.busqueda_producto,
-            costo_unitario: item.costo_unitario || String(producto?.costo_unitario || ''),
+            costo_unitario: costoUnitario,
+            costo_total: totalLinea,
           };
         }
 
@@ -392,12 +482,84 @@ export default function AdminComprasPage() {
           };
         }
 
+        if (campo === 'cantidad') {
+          const cantidad = numero(valor);
+          const totalLinea = numero(item.costo_total);
+
+          return {
+            ...item,
+            cantidad: valor,
+            costo_unitario:
+              cantidad > 0 && totalLinea > 0
+                ? String(totalLinea / cantidad)
+                : item.costo_unitario,
+          };
+        }
+
+        if (campo === 'costo_unitario') {
+          const cantidad = numero(item.cantidad);
+          const costoUnitario = numero(valor);
+
+          return {
+            ...item,
+            costo_unitario: valor,
+            costo_total:
+              cantidad > 0 && costoUnitario > 0
+                ? String(cantidad * costoUnitario)
+                : item.costo_total,
+          };
+        }
+
+        if (campo === 'costo_total') {
+          const cantidad = numero(item.cantidad);
+          const totalLinea = numero(valor);
+
+          return {
+            ...item,
+            costo_total: valor,
+            costo_unitario:
+              cantidad > 0 && totalLinea > 0
+                ? String(totalLinea / cantidad)
+                : item.costo_unitario,
+          };
+        }
+
         return {
           ...item,
           [campo]: valor,
         };
       })
     );
+  }
+
+  async function generarCodigoProductoCompra(empresaId: string | number) {
+    const prefijo = prefijoCodigoNuevoProducto;
+
+    const { data, error } = await supabase
+      .from('productos')
+      .select('codigo')
+      .eq('empresa_id', empresaId)
+      .ilike('codigo', `${prefijo}-%`);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const usados = new Set(
+      (data || [])
+        .map((item) => String(item.codigo || '').toUpperCase())
+        .filter(Boolean)
+    );
+
+    let correlativo = usados.size + 1;
+    let codigo = `${prefijo}-${String(correlativo).padStart(3, '0')}`;
+
+    while (usados.has(codigo)) {
+      correlativo += 1;
+      codigo = `${prefijo}-${String(correlativo).padStart(3, '0')}`;
+    }
+
+    return codigo;
   }
 
   async function crearProductoRapido() {
@@ -422,25 +584,31 @@ export default function AdminComprasPage() {
           : 'Envases';
     const costo = numero(nuevoProducto.costo_unitario);
     const stockInicial = numero(nuevoProducto.stock_actual);
+    let codigoFinal = nuevoProducto.codigo.trim().toUpperCase();
+
+    if (!codigoFinal) {
+      try {
+        codigoFinal = await generarCodigoProductoCompra(empresa.id);
+      } catch (error) {
+        alert(error instanceof Error ? error.message : 'No se pudo generar el codigo.');
+        return;
+      }
+    }
 
     const { data, error } = await supabase
       .from('productos')
       .insert({
         empresa_id: empresa.id,
+        codigo: codigoFinal,
         nombre: nuevoProducto.nombre.trim(),
         descripcion: '',
         precio: 0,
         categoria,
         imagen: null,
         destacado: false,
-        slug: nuevoProducto.nombre
-          .trim()
-          .toLowerCase()
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '')
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/(^-|-$)/g, ''),
+        slug: crearSlug(nuevoProducto.nombre.trim()),
         tipo_producto: tipo,
+        familia_id: nuevoProducto.familia_id || null,
         unidad_base: nuevoProducto.unidad_base,
         costo_unitario: costo,
         iva_porcentaje: Number(empresa.iva_porcentaje ?? 19),
@@ -452,8 +620,10 @@ export default function AdminComprasPage() {
       })
       .select(`
         id,
+        codigo,
         nombre,
         tipo_producto,
+        familia_id,
         unidad_base,
         stock_actual,
         costo_unitario,
@@ -480,11 +650,14 @@ export default function AdminComprasPage() {
         busqueda_producto: `${productoCreado.nombre} - ${productoCreado.tipo_producto}`,
         cantidad: '',
         costo_unitario: String(costo || productoCreado.costo_unitario || ''),
+        costo_total: '',
       },
     ]);
     setNuevoProducto({
+      codigo: '',
       nombre: '',
       tipo_producto: 'ingrediente',
+      familia_id: '',
       unidad_base: 'KG',
       costo_unitario: '',
       stock_actual: '',
@@ -772,6 +945,14 @@ export default function AdminComprasPage() {
       return;
     }
 
+    if (numero(totalDocumento) > 0 && Math.abs(diferenciaDocumento) >= 1) {
+      const confirmar = window.confirm(
+        `El total de la factura no cuadra. Diferencia: ${dinero(diferenciaDocumento)}. ¿Guardar de todas formas?`
+      );
+
+      if (!confirmar) return;
+    }
+
     setGuardando(true);
 
     const { data: compra, error: errorCompra } = await supabase
@@ -893,6 +1074,7 @@ export default function AdminComprasPage() {
 
     setProveedor('');
     setNumeroDocumento('');
+    setTotalDocumento('');
     setObservacion('');
     setItems([]);
     setVariacionesCompra(variacionesRegistradas);
@@ -924,7 +1106,7 @@ export default function AdminComprasPage() {
           <p className="mt-6 font-black">Cargando productos...</p>
         ) : (
           <>
-            <div className="mt-6 grid gap-4 md:grid-cols-4">
+            <div className="mt-6 grid gap-4 md:grid-cols-5">
               <label className="relative grid gap-1">
                 <input
                   value={proveedor}
@@ -994,6 +1176,14 @@ export default function AdminComprasPage() {
               />
 
               <input
+                type="number"
+                value={totalDocumento}
+                onChange={(e) => setTotalDocumento(e.target.value)}
+                placeholder="Total factura"
+                className="rounded-2xl border px-5 py-4 text-right font-bold"
+              />
+
+              <input
                 value={observacion}
                 onChange={(e) => setObservacion(e.target.value)}
                 placeholder="Observación"
@@ -1032,7 +1222,33 @@ export default function AdminComprasPage() {
                     Crear producto para esta compra
                   </h4>
 
-                  <div className="mt-4 grid gap-3 md:grid-cols-[1.4fr_160px_110px_130px_120px_auto]">
+                  <div className="mt-3 grid gap-3 md:grid-cols-[180px_1fr]">
+                    <label className="grid gap-1">
+                      <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
+                        Codigo
+                      </span>
+                      <input
+                        value={nuevoProducto.codigo}
+                        onChange={(e) =>
+                          setNuevoProducto({
+                            ...nuevoProducto,
+                            codigo: e.target.value,
+                          })
+                        }
+                        placeholder={codigoSugeridoNuevoProducto}
+                        className="rounded-2xl border px-4 py-3 font-bold uppercase"
+                      />
+                    </label>
+
+                    <div className="rounded-2xl bg-maruxa-crema px-4 py-3 text-sm font-bold text-maruxa-chocolate">
+                      <span className="block text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
+                        Codigo sugerido
+                      </span>
+                      {codigoSugeridoNuevoProducto}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 md:grid-cols-[1.4fr_150px_190px_100px_130px_120px_auto]">
                     <div className="relative">
                       <input
                         value={nuevoProducto.nombre}
@@ -1065,12 +1281,15 @@ export default function AdminComprasPage() {
                                       busqueda_producto: `${producto.nombre} - ${producto.tipo_producto}`,
                                       cantidad: '',
                                       costo_unitario: String(producto.costo_unitario || ''),
+                                      costo_total: '',
                                     },
                                   ]);
                                   setMostrarCrearProducto(false);
                                   setNuevoProducto({
+                                    codigo: '',
                                     nombre: '',
                                     tipo_producto: 'ingrediente',
+                                    familia_id: '',
                                     unidad_base: 'KG',
                                     costo_unitario: '',
                                     stock_actual: '',
@@ -1079,7 +1298,10 @@ export default function AdminComprasPage() {
                                 }}
                                 className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-bold hover:bg-maruxa-crema"
                               >
-                                <span>{producto.nombre}</span>
+                                <span>
+                                  {producto.codigo ? `${producto.codigo} | ` : ''}
+                                  {producto.nombre}
+                                </span>
                                 <span className="text-xs text-gray-500">
                                   {producto.tipo_producto} - stock{' '}
                                   {numero(producto.stock_actual).toLocaleString('es-CL')}
@@ -1108,6 +1330,24 @@ export default function AdminComprasPage() {
                       <option value="producto">Producto</option>
                       <option value="ingrediente">Ingrediente</option>
                       <option value="envase">Envase</option>
+                    </select>
+
+                    <select
+                      value={nuevoProducto.familia_id}
+                      onChange={(e) =>
+                        setNuevoProducto({
+                          ...nuevoProducto,
+                          familia_id: e.target.value,
+                        })
+                      }
+                      className="rounded-2xl border px-4 py-3 font-bold"
+                    >
+                      <option value="">Familia</option>
+                      {familias.map((familia) => (
+                        <option key={familia.id} value={familia.id}>
+                          {familia.nombre}
+                        </option>
+                      ))}
                     </select>
 
                     <select
@@ -1182,6 +1422,8 @@ export default function AdminComprasPage() {
                 {items.map((item, index) => {
                   const producto = productos.find((p) => String(p.id) === String(item.producto_id));
                   const totalLinea = numero(item.cantidad) * numero(item.costo_unitario);
+                  const totalLineaTexto =
+                    item.costo_total || (totalLinea > 0 ? String(totalLinea) : '');
                   const busquedaNormalizada = normalizarTexto(item.busqueda_producto);
                   const productosFiltrados =
                     busquedaNormalizada.length < 2
@@ -1189,7 +1431,7 @@ export default function AdminComprasPage() {
                       : productos
                           .filter((productoItem) =>
                             normalizarTexto(
-                              `${productoItem.nombre} ${productoItem.tipo_producto}`
+                              `${productoItem.codigo || ''} ${productoItem.nombre} ${productoItem.tipo_producto}`
                             ).includes(busquedaNormalizada)
                           )
                           .slice(0, 8);
@@ -1197,7 +1439,7 @@ export default function AdminComprasPage() {
                   return (
                     <div
                       key={index}
-                      className="grid gap-1.5 rounded-xl bg-white px-3 py-2 md:grid-cols-[1fr_96px_130px_130px_auto]"
+                      className="grid gap-1.5 rounded-xl bg-white px-3 py-2 md:grid-cols-[1fr_96px_125px_125px_125px_auto]"
                     >
                       <div className="relative">
                         <input
@@ -1240,7 +1482,12 @@ export default function AdminComprasPage() {
                                   className="flex w-full flex-col gap-1 px-3 py-2 text-left text-xs font-bold hover:bg-maruxa-crema"
                                 >
                                   <span className="flex w-full items-center justify-between gap-3">
-                                    <span>{productoItem.nombre}</span>
+                                    <span>
+                                      {productoItem.codigo
+                                        ? `${productoItem.codigo} | `
+                                        : ''}
+                                      {productoItem.nombre}
+                                    </span>
                                     <span className="text-gray-500">
                                       {productoItem.tipo_producto}
                                     </span>
@@ -1279,6 +1526,14 @@ export default function AdminComprasPage() {
                         className="rounded-xl border px-3 py-2 text-right text-sm font-bold"
                       />
 
+                      <input
+                        type="number"
+                        value={totalLineaTexto}
+                        onChange={(e) => actualizarItem(index, 'costo_total', e.target.value)}
+                        placeholder="Total linea"
+                        className="rounded-xl border px-3 py-2 text-right text-sm font-bold"
+                      />
+
                       <div className="rounded-xl bg-maruxa-crema px-3 py-2 text-right text-sm font-black">
                         {dinero(totalLinea)}
                       </div>
@@ -1292,8 +1547,14 @@ export default function AdminComprasPage() {
                       </button>
 
                       {producto && (
-                        <div className="md:col-span-5 text-[11px] font-bold leading-tight text-gray-500">
+                        <div className="md:col-span-6 text-[11px] font-bold leading-tight text-gray-500">
                           <p>
+                          {producto.codigo && (
+                            <>
+                              Codigo: {producto.codigo}
+                              {' | '}
+                            </>
+                          )}
                           Stock actual:{' '}
                           {numero(producto.stock_actual).toLocaleString('es-CL')}{' '}
                           {producto.unidad_base || ''}
@@ -1320,9 +1581,23 @@ export default function AdminComprasPage() {
             </div>
 
             <div className="mt-6 flex flex-col gap-4 rounded-[28px] bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between">
-              <p className="text-3xl font-black text-maruxa-chocolate">
-                Total compra: {dinero(totalCompra)}
-              </p>
+              <div>
+                <p className="text-3xl font-black text-maruxa-chocolate">
+                  Total compra: {dinero(totalCompra)}
+                </p>
+                {numero(totalDocumento) > 0 && (
+                  <p
+                    className={`mt-1 text-sm font-black ${
+                      Math.abs(diferenciaDocumento) < 1
+                        ? 'text-green-700'
+                        : 'text-red-700'
+                    }`}
+                  >
+                    Factura: {dinero(numero(totalDocumento))} | Diferencia:{' '}
+                    {dinero(diferenciaDocumento)}
+                  </p>
+                )}
+              </div>
 
               <div className="flex flex-wrap gap-3">
                 <button
