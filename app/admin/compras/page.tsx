@@ -1418,7 +1418,15 @@ export default function AdminComprasPage() {
                 </div>
               )}
 
-              <div className="mt-3 grid gap-1.5">
+              <div className="mt-3 hidden grid-cols-[1fr_96px_125px_125px_auto] gap-1.5 px-3 text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60 md:grid">
+                <span>Producto</span>
+                <span className="text-right">Cantidad</span>
+                <span className="text-right">Precio factura</span>
+                <span className="text-right">Total linea</span>
+                <span></span>
+              </div>
+
+              <div className="mt-1 grid gap-1.5">
                 {items.map((item, index) => {
                   const producto = productos.find((p) => String(p.id) === String(item.producto_id));
                   const totalLinea = numero(item.cantidad) * numero(item.costo_unitario);
@@ -1439,7 +1447,7 @@ export default function AdminComprasPage() {
                   return (
                     <div
                       key={index}
-                      className="grid gap-1.5 rounded-xl bg-white px-3 py-2 md:grid-cols-[1fr_96px_125px_125px_125px_auto]"
+                      className="grid gap-1.5 rounded-xl bg-white px-3 py-2 md:grid-cols-[1fr_96px_125px_125px_auto]"
                     >
                       <div className="relative">
                         <input
@@ -1522,7 +1530,7 @@ export default function AdminComprasPage() {
                         type="number"
                         value={item.costo_unitario}
                         onChange={(e) => actualizarItem(index, 'costo_unitario', e.target.value)}
-                        placeholder="Costo unit."
+                        placeholder="Precio factura"
                         className="rounded-xl border px-3 py-2 text-right text-sm font-bold"
                       />
 
@@ -1534,10 +1542,6 @@ export default function AdminComprasPage() {
                         className="rounded-xl border px-3 py-2 text-right text-sm font-bold"
                       />
 
-                      <div className="rounded-xl bg-maruxa-crema px-3 py-2 text-right text-sm font-black">
-                        {dinero(totalLinea)}
-                      </div>
-
                       <button
                         type="button"
                         onClick={() => eliminarItem(index)}
@@ -1547,7 +1551,7 @@ export default function AdminComprasPage() {
                       </button>
 
                       {producto && (
-                        <div className="md:col-span-6 text-[11px] font-bold leading-tight text-gray-500">
+                        <div className="md:col-span-5 text-[11px] font-bold leading-tight text-gray-500">
                           <p>
                           {producto.codigo && (
                             <>
