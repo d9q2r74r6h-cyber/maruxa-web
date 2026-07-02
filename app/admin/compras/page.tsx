@@ -1222,8 +1222,8 @@ export default function AdminComprasPage() {
                     Crear producto para esta compra
                   </h4>
 
-                  <div className="mt-4 grid gap-4 md:grid-cols-6">
-                    <label className="grid gap-1">
+                  <div className="mt-4 grid gap-4 md:grid-cols-12">
+                    <label className="grid gap-1 md:col-span-2">
                       <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                         Codigo
                       </span>
@@ -1243,7 +1243,7 @@ export default function AdminComprasPage() {
                       </span>
                     </label>
 
-                    <label className="relative grid gap-1 md:col-span-3">
+                    <label className="relative grid gap-1 md:col-span-5">
                       <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                         Nombre
                       </span>
@@ -1314,7 +1314,7 @@ export default function AdminComprasPage() {
                       )}
                     </label>
 
-                    <label className="grid gap-1">
+                    <label className="grid gap-1 md:col-span-2">
                       <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                         Tipo
                       </span>
@@ -1334,7 +1334,7 @@ export default function AdminComprasPage() {
                       </select>
                     </label>
 
-                    <label className="grid gap-1">
+                    <label className="grid gap-1 md:col-span-3">
                       <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                         Familia
                       </span>
@@ -1357,7 +1357,7 @@ export default function AdminComprasPage() {
                       </select>
                     </label>
 
-                    <label className="grid gap-1">
+                    <label className="grid gap-1 md:col-span-2">
                       <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                         Unidad
                       </span>
@@ -1379,7 +1379,7 @@ export default function AdminComprasPage() {
                       </select>
                     </label>
 
-                    <label className="grid gap-1">
+                    <label className="grid gap-1 md:col-span-3">
                       <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                         Precio factura
                       </span>
@@ -1397,7 +1397,7 @@ export default function AdminComprasPage() {
                       />
                     </label>
 
-                    <label className="grid gap-1">
+                    <label className="grid gap-1 md:col-span-3">
                       <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                         Stock
                       </span>
@@ -1415,28 +1415,31 @@ export default function AdminComprasPage() {
                       />
                     </label>
 
+                  </div>
+
+                  <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <label className="flex items-center gap-3 text-sm font-black text-maruxa-chocolate">
+                      <input
+                        type="checkbox"
+                        checked={nuevoProducto.controla_stock}
+                        onChange={(e) =>
+                          setNuevoProducto({
+                            ...nuevoProducto,
+                            controla_stock: e.target.checked,
+                          })
+                        }
+                      />
+                      Controla stock
+                    </label>
+
                     <button
                       type="button"
                       onClick={crearProductoRapido}
-                      className="self-end rounded-full bg-red-700 px-6 py-3 text-sm font-black text-white shadow-lg"
+                      className="rounded-full bg-red-700 px-8 py-3 text-sm font-black text-white shadow-lg"
                     >
-                      Crear
+                      Crear producto
                     </button>
                   </div>
-
-                  <label className="mt-4 flex items-center gap-3 text-sm font-black text-maruxa-chocolate">
-                    <input
-                      type="checkbox"
-                      checked={nuevoProducto.controla_stock}
-                      onChange={(e) =>
-                        setNuevoProducto({
-                          ...nuevoProducto,
-                          controla_stock: e.target.checked,
-                        })
-                      }
-                    />
-                    Controla stock
-                  </label>
                 </div>
               )}
 
