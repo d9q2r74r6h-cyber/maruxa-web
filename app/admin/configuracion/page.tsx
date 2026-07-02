@@ -38,6 +38,7 @@ type Turno = {
 type ImpuestoAdicional = {
   id: string;
   nombre: string;
+  descripcion: string | null;
   porcentaje: number;
   activo: boolean;
 };
@@ -69,6 +70,7 @@ export default function ConfiguracionPage() {
   });
   const [nuevoImpuesto, setNuevoImpuesto] = useState({
     nombre: '',
+    descripcion: '',
     porcentaje: '',
   });
   const [nuevaCuenta, setNuevaCuenta] = useState({
@@ -131,7 +133,7 @@ export default function ConfiguracionPage() {
 
     const { data: impuestosData, error: impuestosError } = await supabase
       .from('impuestos_adicionales')
-      .select('id, nombre, porcentaje, activo')
+      .select('id, nombre, descripcion, porcentaje, activo')
       .eq('empresa_id', empresaActual.id)
       .order('nombre', { ascending: true });
 
@@ -260,6 +262,7 @@ export default function ConfiguracionPage() {
     const { error } = await supabase.from('impuestos_adicionales').insert({
       empresa_id: empresa.id,
       nombre: nuevoImpuesto.nombre.trim(),
+      descripcion: nuevoImpuesto.descripcion.trim() || null,
       porcentaje,
       activo: true,
     });
@@ -269,7 +272,7 @@ export default function ConfiguracionPage() {
       return;
     }
 
-    setNuevoImpuesto({ nombre: '', porcentaje: '' });
+    setNuevoImpuesto({ nombre: '', descripcion: '', porcentaje: '' });
     cargarDatos();
   }
 
@@ -583,7 +586,7 @@ export default function ConfiguracionPage() {
             Crea aqui los impuestos especiales que luego podras seleccionar en productos.
           </p>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-[1fr_180px_auto]">
+          <div className="mt-6 grid gap-4 md:grid-cols-[1fr_1.4fr_180px_auto]">
             <input
               value={nuevoImpuesto.nombre}
               onChange={(e) =>
@@ -593,6 +596,18 @@ export default function ConfiguracionPage() {
                 })
               }
               placeholder="Nombre del impuesto"
+              className="rounded-2xl border px-5 py-4 font-bold"
+            />
+
+            <input
+              value={nuevoImpuesto.descripcion}
+              onChange={(e) =>
+                setNuevoImpuesto({
+                  ...nuevoImpuesto,
+                  descripcion: e.target.value,
+                })
+              }
+              placeholder="Descripcion"
               className="rounded-2xl border px-5 py-4 font-bold"
             />
 
@@ -636,6 +651,11 @@ export default function ConfiguracionPage() {
                     <p className="text-sm font-bold text-maruxa-cafe/70">
                       {Number(impuesto.porcentaje).toLocaleString('es-CL')}%
                     </p>
+                    {impuesto.descripcion && (
+                      <p className="mt-1 text-sm font-bold text-maruxa-cafe/60">
+                        {impuesto.descripcion}
+                      </p>
+                    )}
                   </div>
 
                   <button
