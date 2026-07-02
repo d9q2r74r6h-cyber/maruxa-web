@@ -91,6 +91,10 @@ function dinero(valor: number) {
   return `$${Math.round(Number(valor || 0)).toLocaleString('es-CL')}`;
 }
 
+function entero(valor: number) {
+  return Math.round(Number(valor || 0));
+}
+
 function totalBaseItem(item: ItemCompra) {
   const totalManual = numero(item.costo_total);
 
@@ -113,7 +117,7 @@ function costoUnitarioEfectivo(item: ItemCompra) {
 
   if (cantidad <= 0) return 0;
 
-  return totalFinalItem(item) / cantidad;
+  return entero(totalFinalItem(item) / cantidad);
 }
 
 function normalizarTexto(texto: string) {
@@ -530,7 +534,7 @@ export default function AdminComprasPage() {
             cantidad: valor,
             costo_unitario:
               cantidad > 0 && totalLinea > 0
-                ? String(totalLinea / cantidad)
+                ? String(entero(totalLinea / cantidad))
                 : item.costo_unitario,
           };
         }
@@ -558,7 +562,7 @@ export default function AdminComprasPage() {
             costo_total: valor,
             costo_unitario:
               cantidad > 0 && totalLinea > 0
-                ? String(totalLinea / cantidad)
+                ? String(entero(totalLinea / cantidad))
                 : item.costo_unitario,
           };
         }
@@ -740,7 +744,7 @@ export default function AdminComprasPage() {
       agrupados.set(item.producto_id, {
         producto_id: item.producto_id,
         cantidad: cantidadTotal,
-        costo_unitario: cantidadTotal > 0 ? costoTotal / cantidadTotal : 0,
+        costo_unitario: cantidadTotal > 0 ? entero(costoTotal / cantidadTotal) : 0,
       });
     }
 
