@@ -1222,8 +1222,11 @@ export default function AdminComprasPage() {
                     Crear producto para esta compra
                   </h4>
 
-                  <div className="mt-4 grid gap-3 md:grid-cols-[150px_1.4fr_150px_190px_100px_130px_120px_auto]">
+                  <div className="mt-4 grid gap-4 md:grid-cols-6">
                     <label className="grid gap-1">
+                      <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
+                        Codigo
+                      </span>
                       <input
                         value={nuevoProducto.codigo}
                         onChange={(e) =>
@@ -1240,7 +1243,10 @@ export default function AdminComprasPage() {
                       </span>
                     </label>
 
-                    <div className="relative">
+                    <label className="relative grid gap-1 md:col-span-3">
+                      <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
+                        Nombre
+                      </span>
                       <input
                         value={nuevoProducto.nombre}
                         onChange={(e) =>
@@ -1306,88 +1312,113 @@ export default function AdminComprasPage() {
                           )}
                         </div>
                       )}
-                    </div>
+                    </label>
 
-                    <select
-                      value={nuevoProducto.tipo_producto}
-                      onChange={(e) =>
-                        setNuevoProducto({
-                          ...nuevoProducto,
-                          tipo_producto: e.target.value as TipoProductoCompra,
-                        })
-                      }
-                      className="rounded-2xl border px-4 py-3 font-bold"
-                    >
-                      <option value="producto">Producto</option>
-                      <option value="ingrediente">Ingrediente</option>
-                      <option value="envase">Envase</option>
-                    </select>
+                    <label className="grid gap-1">
+                      <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
+                        Tipo
+                      </span>
+                      <select
+                        value={nuevoProducto.tipo_producto}
+                        onChange={(e) =>
+                          setNuevoProducto({
+                            ...nuevoProducto,
+                            tipo_producto: e.target.value as TipoProductoCompra,
+                          })
+                        }
+                        className="rounded-2xl border px-4 py-3 font-bold"
+                      >
+                        <option value="producto">Producto</option>
+                        <option value="ingrediente">Ingrediente</option>
+                        <option value="envase">Envase</option>
+                      </select>
+                    </label>
 
-                    <select
-                      value={nuevoProducto.familia_id}
-                      onChange={(e) =>
-                        setNuevoProducto({
-                          ...nuevoProducto,
-                          familia_id: e.target.value,
-                        })
-                      }
-                      className="rounded-2xl border px-4 py-3 font-bold"
-                    >
-                      <option value="">Familia</option>
-                      {familias.map((familia) => (
-                        <option key={familia.id} value={familia.id}>
-                          {familia.nombre}
-                        </option>
-                      ))}
-                    </select>
+                    <label className="grid gap-1">
+                      <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
+                        Familia
+                      </span>
+                      <select
+                        value={nuevoProducto.familia_id}
+                        onChange={(e) =>
+                          setNuevoProducto({
+                            ...nuevoProducto,
+                            familia_id: e.target.value,
+                          })
+                        }
+                        className="rounded-2xl border px-4 py-3 font-bold"
+                      >
+                        <option value="">Familia</option>
+                        {familias.map((familia) => (
+                          <option key={familia.id} value={familia.id}>
+                            {familia.nombre}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
 
-                    <select
-                      value={nuevoProducto.unidad_base}
-                      onChange={(e) =>
-                        setNuevoProducto({
-                          ...nuevoProducto,
-                          unidad_base: e.target.value,
-                        })
-                      }
-                      className="rounded-2xl border px-4 py-3 font-bold"
-                    >
-                      <option value="KG">KG</option>
-                      <option value="GR">GR</option>
-                      <option value="LT">LT</option>
-                      <option value="ML">ML</option>
-                      <option value="UN">UN</option>
-                    </select>
+                    <label className="grid gap-1">
+                      <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
+                        Unidad
+                      </span>
+                      <select
+                        value={nuevoProducto.unidad_base}
+                        onChange={(e) =>
+                          setNuevoProducto({
+                            ...nuevoProducto,
+                            unidad_base: e.target.value,
+                          })
+                        }
+                        className="rounded-2xl border px-4 py-3 font-bold"
+                      >
+                        <option value="KG">KG</option>
+                        <option value="GR">GR</option>
+                        <option value="LT">LT</option>
+                        <option value="ML">ML</option>
+                        <option value="UN">UN</option>
+                      </select>
+                    </label>
 
-                    <input
-                      type="number"
-                      value={nuevoProducto.costo_unitario}
-                      onChange={(e) =>
-                        setNuevoProducto({
-                          ...nuevoProducto,
-                          costo_unitario: e.target.value,
-                        })
-                      }
-                      placeholder="Costo unit."
-                      className="rounded-2xl border px-4 py-3 text-right font-bold"
-                    />
+                    <label className="grid gap-1">
+                      <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
+                        Precio factura
+                      </span>
+                      <input
+                        type="number"
+                        value={nuevoProducto.costo_unitario}
+                        onChange={(e) =>
+                          setNuevoProducto({
+                            ...nuevoProducto,
+                            costo_unitario: e.target.value,
+                          })
+                        }
+                        placeholder="0"
+                        className="rounded-2xl border px-4 py-3 text-right font-bold"
+                      />
+                    </label>
 
-                    <input
-                      type="number"
-                      value={nuevoProducto.stock_actual}
-                      onChange={(e) =>
-                        setNuevoProducto({
-                          ...nuevoProducto,
-                          stock_actual: e.target.value,
-                        })
-                      }
-                      placeholder="Stock"
-                      className="rounded-2xl border px-4 py-3 text-right font-bold"
-                    />
+                    <label className="grid gap-1">
+                      <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
+                        Stock
+                      </span>
+                      <input
+                        type="number"
+                        value={nuevoProducto.stock_actual}
+                        onChange={(e) =>
+                          setNuevoProducto({
+                            ...nuevoProducto,
+                            stock_actual: e.target.value,
+                          })
+                        }
+                        placeholder="0"
+                        className="rounded-2xl border px-4 py-3 text-right font-bold"
+                      />
+                    </label>
 
                     <button
                       type="button"
                       onClick={crearProductoRapido}
-                      className="rounded-full bg-red-700 px-6 py-3 text-sm font-black text-white shadow-lg"
+                      className="self-end rounded-full bg-red-700 px-6 py-3 text-sm font-black text-white shadow-lg"
                     >
                       Crear
                     </button>
