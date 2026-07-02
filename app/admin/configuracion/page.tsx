@@ -627,7 +627,7 @@ export default function ConfiguracionPage() {
             <button
               type="button"
               onClick={agregarImpuesto}
-              className="rounded-full bg-maruxa-rojo px-8 py-4 font-black text-white"
+              className="rounded-full border-2 border-red-700 bg-red-700 px-8 py-4 font-black text-white shadow-lg transition hover:bg-red-800"
             >
               Agregar
             </button>
