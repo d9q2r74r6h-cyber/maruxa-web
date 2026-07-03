@@ -236,6 +236,7 @@ export default function AdminPlanillasPage() {
   const [quintal, setQuintal] = useState(0);
   const [observaciones, setObservaciones] = useState('');
   const [turno, setTurno] = useState<DatosTurno>({ ...turnoInicial });
+  const [panSobranteAnterior, setPanSobranteAnterior] = useState(0);
   const [repartos, setRepartos] = useState<Reparto[]>([
     { id: 'temporal-1', nombre: 'Reparto 1', kilos: 0 },
   ]);
@@ -459,9 +460,10 @@ export default function AdminPlanillasPage() {
     () => ({
       ...turno,
       otroskg: 0,
+      panSobranteAnterior,
       repartos: repartos.map((reparto) => reparto.kilos),
     }),
-    [repartos, turno]
+    [panSobranteAnterior, repartos, turno]
   );
 
   const calculo = useMemo(() => calcularTurno(datosTurno), [datosTurno]);
@@ -501,6 +503,7 @@ export default function AdminPlanillasPage() {
     setQuintal(0);
     setObservaciones('');
     setTurno({ ...turnoInicial });
+    setPanSobranteAnterior(0);
     setRepartos(repartosBase());
     setInsumos(insumosBase());
     setMensaje('');
@@ -542,6 +545,16 @@ export default function AdminPlanillasPage() {
       limpiarTurno();
       return;
     }
+
+    const { data: turnoAnterior } =
+      turnoConfig.orden > 1
+        ? await supabase
+            .from('planilla_turnos')
+            .select('pan_sobra')
+            .eq('planilla_id', planilla.id)
+            .eq('turno', turnoConfig.orden - 1)
+            .maybeSingle()
+        : { data: null };
 
     const [{ data: detallesData }, { data: insumosData }] = await Promise.all([
       supabase
@@ -661,6 +674,7 @@ export default function AdminPlanillasPage() {
     setResponsable(turnoDb?.responsable || planilla.responsable || '');
     setQuintal(Number(turnoDb?.quintal ?? quintalResumen ?? 0));
     setObservaciones('');
+    setPanSobranteAnterior(Number(turnoAnterior?.pan_sobra || 0));
     setTurno({
       amasado: Number(turnoDb?.amasado ?? amasadoResumen ?? 0),
       masaOcupa: Number(
@@ -1183,9 +1197,9 @@ export default function AdminPlanillasPage() {
         <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
           {[
             ['Total vaciado', resumenDia ? `${numeroDia(resumenDia.quintal_total)} qq` : '--'],
-            ['Amasado bruto', resumenDia ? `${numeroDia(resumenDia.amasado_total)} sacos` : '--'],
+            ['Amasado registrado', resumenDia ? `${numeroDia(resumenDia.amasado_total)} sacos` : '--'],
             ['Ajuste masa', resumenDia ? `${resumenDia.ajuste_masa >= 0 ? '+' : ''}${numeroDia(resumenDia.ajuste_masa)} sacos` : '--'],
-            ['Sacos ajustados', resumenDia ? `${numeroDia(resumenDia.sacos_ajustados)} sacos` : '--'],
+            ['Amasado para rinde', resumenDia ? `${numeroDia(resumenDia.sacos_ajustados)} sacos` : '--'],
             ['Masa ocupada', resumenDia ? numeroDia(resumenDia.masa_ocupada) : '--'],
             ['Masa queda', resumenDia ? numeroDia(resumenDia.masa_sobrante) : '--'],
             ['Kilos totales', resumenDia ? `${numeroDia(resumenDia.kilos_producidos)} kg` : '--'],
@@ -1253,6 +1267,11 @@ export default function AdminPlanillasPage() {
         <p className="mt-4 text-sm font-bold opacity-75">
           {calculo.kilos.toFixed(2)} kg / {calculo.factorAmasado.toFixed(2)} sacos ajustados
         </p>
+        {panSobranteAnterior > 0 && (
+          <p className="mt-1 text-xs font-black opacity-75">
+            Descuenta {panSobranteAnterior.toFixed(2)} kg de pan sobrante del turno anterior.
+          </p>
+        )}
       </section>
 
       <section className="overflow-hidden rounded-lg border border-[#4B2818]/15 bg-white">
@@ -1316,7 +1335,7 @@ export default function AdminPlanillasPage() {
             onChange={(valor) => cambiarCampo('panRacion', valor)}
           />
           <CampoNumero
-            label="Pan sobrante (kg)"
+            label="Pan sobrante para turno siguiente (kg)"
             value={turno.panSobrante || 0}
             onChange={(valor) => cambiarCampo('panSobrante', valor)}
           />
