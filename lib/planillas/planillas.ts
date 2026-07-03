@@ -4,6 +4,7 @@ export type DatosTurno = {
   masaQueda: number;
   panRacion: number;
   panMeson: number;
+  panSobrante?: number;
   merma?: number;
   otroskg?: number;
   repartos?: number[];
@@ -63,6 +64,7 @@ export function calcularTurno(turno: DatosTurno) {
   const kilos =
     n(turno.panMeson) +
     n(turno.panRacion) +
+    n(turno.panSobrante) +
     n(turno.otroskg) +
     kilosRepartos +
     n(turno.merma);

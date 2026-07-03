@@ -66,6 +66,7 @@ type TurnoGuardado = {
   masa_queda: number;
   pan_racion: number;
   pan_meson: number;
+  pan_sobra: number;
   cacho: number;
   otroskg: number;
   centeno: number;
@@ -74,12 +75,20 @@ type TurnoGuardado = {
   rinde: number;
 };
 
+type ResumenDia = {
+  turno: string | null;
+  kilos_producidos: number;
+  rinde_por_saco: number;
+  pan_sobra: number;
+};
+
 const turnoInicial: DatosTurno = {
   amasado: 0,
   masaOcupa: 0,
   masaQueda: 0,
   panRacion: 0,
   panMeson: 0,
+  panSobrante: 0,
   merma: 0,
   otroskg: 0,
 };
@@ -190,8 +199,28 @@ export default function AdminPlanillasPage() {
   const [insumos, setInsumos] = useState<InsumoPlanilla[]>([]);
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState('');
+  const [resumenDia, setResumenDia] = useState<ResumenDia | null>(null);
   const turnoSeleccionado =
     turnosConfigurados.find((item) => item.id === turnoSeleccionadoId) || null;
+
+  async function cargarResumenDia(fechaSeleccionada = fecha) {
+    const empresa = await obtenerEmpresaActual();
+    if (!empresa) return;
+
+    const { data, error } = await supabase
+      .from('planillas')
+      .select('turno,kilos_producidos,rinde_por_saco,pan_sobra')
+      .eq('empresa_id', empresa.id)
+      .eq('fecha', fechaSeleccionada)
+      .maybeSingle();
+
+    if (error) {
+      setResumenDia(null);
+      return;
+    }
+
+    setResumenDia((data as ResumenDia | null) || null);
+  }
 
   useEffect(() => {
     async function cargarConfiguracion() {
@@ -281,10 +310,15 @@ export default function AdminPlanillasPage() {
       }
 
       setCargandoTurnos(false);
+      await cargarResumenDia();
     }
 
     cargarConfiguracion();
   }, []);
+
+  useEffect(() => {
+    cargarResumenDia(fecha);
+  }, [fecha]);
 
   const kilosRepartos = useMemo(
     () => repartos.reduce((total, reparto) => total + reparto.kilos, 0),
@@ -373,6 +407,7 @@ export default function AdminPlanillasPage() {
         masa_queda,
         pan_racion,
         pan_meson,
+        pan_sobra,
         cacho,
         otroskg,
         centeno,
@@ -452,7 +487,10 @@ export default function AdminPlanillasPage() {
           (total, item) => total + Number(item.pan_meson || 0),
           0
         ),
-        pan_sobra: 0,
+        pan_sobra: turnos.reduce(
+          (total, item) => total + Number(item.pan_sobra || 0),
+          0
+        ),
         cacho: turnos.reduce(
           (total, item) => total + Number(item.cacho || 0),
           0
@@ -576,6 +614,7 @@ export default function AdminPlanillasPage() {
           masa_queda: turno.masaQueda,
           pan_racion: turno.panRacion,
           pan_meson: turno.panMeson,
+          pan_sobra: turno.panSobrante || 0,
           cacho: 0,
           otroskg: 0,
           centeno: 0,
@@ -667,6 +706,7 @@ export default function AdminPlanillasPage() {
       setMensaje(
         `${turnoSeleccionado.nombre} guardado correctamente.`
       );
+      await cargarResumenDia(fecha);
     } catch (error) {
       alert(error instanceof Error ? error.message : 'No se pudo guardar el turno.');
     } finally {
@@ -779,6 +819,40 @@ export default function AdminPlanillasPage() {
         </div>
       )}
 
+      <section className="grid gap-3 rounded-lg border border-[#4B2818]/15 bg-white p-4 sm:grid-cols-3">
+        <div>
+          <p className="text-xs font-black uppercase text-[#A51F2B]">
+            Rinde general del dia
+          </p>
+          <p className="mt-1 text-3xl font-black text-[#2A1710]">
+            {resumenDia ? Number(resumenDia.rinde_por_saco || 0).toFixed(2) : '--'}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs font-black uppercase text-[#4B2818]/55">
+            Kilos producidos
+          </p>
+          <p className="mt-1 text-xl font-black text-[#2A1710]">
+            {resumenDia
+              ? `${Number(resumenDia.kilos_producidos || 0).toFixed(2)} kg`
+              : '--'}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs font-black uppercase text-[#4B2818]/55">
+            Pan sobrante
+          </p>
+          <p className="mt-1 text-xl font-black text-[#2A1710]">
+            {resumenDia ? `${Number(resumenDia.pan_sobra || 0).toFixed(2)} kg` : '--'}
+          </p>
+          {resumenDia?.turno && (
+            <p className="mt-1 text-xs font-semibold text-[#4B2818]/55">
+              Turnos: {resumenDia.turno}
+            </p>
+          )}
+        </div>
+      </section>
+
       <section className={`rounded-lg border p-5 ${colorEstado}`}>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -855,6 +929,11 @@ export default function AdminPlanillasPage() {
             label="Pan ración (kg)"
             value={turno.panRacion}
             onChange={(valor) => cambiarCampo('panRacion', valor)}
+          />
+          <CampoNumero
+            label="Pan sobrante (kg)"
+            value={turno.panSobrante || 0}
+            onChange={(valor) => cambiarCampo('panSobrante', valor)}
           />
           <CampoNumero
             label="Merma (kg)"
