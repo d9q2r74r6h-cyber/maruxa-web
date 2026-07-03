@@ -93,7 +93,11 @@ const turnoInicial: DatosTurno = {
   otroskg: 0,
 };
 
-const repartidoresPorDefecto = ['Luis Albornoz', 'Juan', 'Panaderia'];
+const repartidoresPorDefecto = [
+  'JUAN ALFREDO TAPIA NAVARRETE',
+  'LUIS ALBORNOZ',
+  'PANADERIA',
+];
 
 function hoy() {
   const fecha = new Date();

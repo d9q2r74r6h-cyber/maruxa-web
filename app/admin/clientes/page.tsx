@@ -48,7 +48,11 @@ const inicial = {
   precio_base: '',
 };
 
-const repartidoresBase = ['Luis Albornoz', 'Juan', 'Panaderia'];
+const repartidoresBase = [
+  'JUAN ALFREDO TAPIA NAVARRETE',
+  'LUIS ALBORNOZ',
+  'PANADERIA',
+];
 
 function normalizar(texto: string | null | undefined) {
   return String(texto || '')
