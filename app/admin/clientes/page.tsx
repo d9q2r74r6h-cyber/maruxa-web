@@ -6,8 +6,6 @@ import {
   Loader2,
   Save,
   Search,
-  ToggleLeft,
-  ToggleRight,
   UsersRound,
   X,
 } from 'lucide-react';
@@ -75,6 +73,9 @@ export default function ClientesPage() {
   const [filtroEstado, setFiltroEstado] = useState('activos');
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
+  const [clienteCambiandoEstado, setClienteCambiandoEstado] = useState<string | null>(
+    null
+  );
 
   async function cargar() {
     if (!perfil) return;
@@ -198,14 +199,31 @@ export default function ClientesPage() {
 
   async function cambiarEstado(cliente: Cliente) {
     if (!perfil) return;
+    const nuevoEstado = !cliente.activo;
+    setClienteCambiandoEstado(cliente.id);
+    setClientes((actuales) =>
+      actuales.map((item) =>
+        item.id === cliente.id ? { ...item, activo: nuevoEstado } : item
+      )
+    );
+
     const { error } = await supabase
       .from('clientes')
-      .update({ activo: !cliente.activo })
+      .update({ activo: nuevoEstado })
       .eq('id', cliente.id)
       .eq('empresa_id', perfil.empresa_id);
 
-    if (error) alert(error.message);
-    else await cargar();
+    setClienteCambiandoEstado(null);
+
+    if (error) {
+      setClientes((actuales) =>
+        actuales.map((item) =>
+          item.id === cliente.id ? { ...item, activo: cliente.activo } : item
+        )
+      );
+      alert(error.message);
+      return;
+    }
   }
 
   return (
@@ -448,18 +466,27 @@ export default function ClientesPage() {
                     <button
                       type="button"
                       onClick={() => cambiarEstado(cliente)}
-                      className={`grid h-9 w-9 place-items-center rounded-md ${
+                      disabled={clienteCambiandoEstado === cliente.id}
+                      className={`relative h-7 w-14 rounded-full transition disabled:cursor-wait disabled:opacity-70 ${
                         cliente.activo
-                          ? 'bg-emerald-50 text-emerald-700'
-                          : 'bg-zinc-200 text-zinc-600'
+                          ? 'bg-emerald-500'
+                          : 'bg-zinc-300'
                       }`}
                       title={cliente.activo ? 'Desactivar' : 'Activar'}
+                      aria-label={cliente.activo ? 'Desactivar cliente' : 'Activar cliente'}
                     >
-                      {cliente.activo ? (
-                        <ToggleRight className="h-5 w-5" />
-                      ) : (
-                        <ToggleLeft className="h-5 w-5" />
-                      )}
+                      <span
+                        className={`absolute top-1 grid h-5 w-5 place-items-center rounded-full bg-white shadow-sm transition-transform ${
+                          cliente.activo ? 'translate-x-8' : 'translate-x-1'
+                        }`}
+                      >
+                        {clienteCambiandoEstado === cliente.id && (
+                          <Loader2 className="h-3 w-3 animate-spin text-[#A51F2B]" />
+                        )}
+                      </span>
+                      <span className="sr-only">
+                        {cliente.activo ? 'Cliente activo' : 'Cliente inactivo'}
+                      </span>
                     </button>
                   </div>
                 </article>
