@@ -93,6 +93,8 @@ const turnoInicial: DatosTurno = {
   otroskg: 0,
 };
 
+const repartidoresPorDefecto = ['Luis Albornoz', 'Juan', 'Panaderia'];
+
 function hoy() {
   const fecha = new Date();
   const anio = fecha.getFullYear();
@@ -277,11 +279,17 @@ export default function AdminPlanillasPage() {
         setMayordomos(mayordomosActivos);
         setRepartidoresConfigurados(repartidoresActivos);
         setRepartos(
-          repartidoresActivos.map((item) => ({
-            id: item.id,
-            nombre: item.nombre_completo,
-            kilos: 0,
-          }))
+          repartidoresActivos.length > 0
+            ? repartidoresActivos.map((item) => ({
+                id: item.id,
+                nombre: item.nombre_completo,
+                kilos: 0,
+              }))
+            : repartidoresPorDefecto.map((nombre) => ({
+                id: `base-${normalizar(nombre)}`,
+                nombre,
+                kilos: 0,
+              }))
         );
         setTablaFuncionariosDisponible(true);
       } else {
@@ -361,13 +369,19 @@ export default function AdminPlanillasPage() {
   }
 
   function repartosBase() {
-    return tablaFuncionariosDisponible
-      ? repartidoresConfigurados.map((item) => ({
-          id: item.id,
-          nombre: item.nombre_completo,
-          kilos: 0,
-        }))
-      : [{ id: 'temporal-1', nombre: 'Reparto 1', kilos: 0 }];
+    if (tablaFuncionariosDisponible && repartidoresConfigurados.length > 0) {
+      return repartidoresConfigurados.map((item) => ({
+        id: item.id,
+        nombre: item.nombre_completo,
+        kilos: 0,
+      }));
+    }
+
+    return repartidoresPorDefecto.map((nombre) => ({
+      id: `base-${normalizar(nombre)}`,
+      nombre,
+      kilos: 0,
+    }));
   }
 
   function insumosBase() {
