@@ -1,10 +1,62 @@
 'use client';
 
 import { BadgeCheck, Clock3, Mail, UserRound } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useAdminSession } from '@/components/AdminSession';
+import { supabase } from '@/lib/supabase';
 
 export default function PerfilPage() {
-  const { perfil, permisos } = useAdminSession();
+  const { perfil, permisos, recargar } = useAdminSession();
+  const [notificarWhatsapp, setNotificarWhatsapp] = useState(false);
+  const [notificarEmail, setNotificarEmail] = useState(false);
+  const [whatsappDestino, setWhatsappDestino] = useState('');
+  const [emailDestino, setEmailDestino] = useState('');
+  const [guardando, setGuardando] = useState(false);
+
+  useEffect(() => {
+    if (!perfil) return;
+
+    setNotificarWhatsapp(Boolean(perfil.notificar_whatsapp));
+    setNotificarEmail(Boolean(perfil.notificar_email));
+    setWhatsappDestino(perfil.notificacion_whatsapp || '');
+    setEmailDestino(perfil.notificacion_email || '');
+  }, [perfil]);
+
+  async function guardarNotificaciones() {
+    if (!perfil) return;
+
+    if (notificarWhatsapp && !whatsappDestino.trim()) {
+      alert('Ingresa el WhatsApp donde quieres recibir avisos.');
+      return;
+    }
+
+    if (notificarEmail && !emailDestino.trim()) {
+      alert('Ingresa el email donde quieres recibir avisos.');
+      return;
+    }
+
+    setGuardando(true);
+
+    const { error } = await supabase
+      .from('perfiles_usuario')
+      .update({
+        notificar_whatsapp: notificarWhatsapp,
+        notificar_email: notificarEmail,
+        notificacion_whatsapp: whatsappDestino.trim() || null,
+        notificacion_email: emailDestino.trim() || null,
+      })
+      .eq('id', perfil.id);
+
+    setGuardando(false);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    await recargar();
+    alert('Preferencias de notificacion guardadas.');
+  }
 
   return (
     <div className="space-y-6 pb-12">
@@ -38,6 +90,63 @@ export default function PerfilPage() {
             <p className="flex items-center gap-2">
               <Clock3 className="h-4 w-4" />
               Sesión auditada
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-[#4B2818]/15 bg-white">
+          <div className="border-b border-[#4B2818]/10 bg-[#FFF3DF] px-5 py-4">
+            <h2 className="font-black text-[#2A1710]">Avisos de mensajes</h2>
+          </div>
+
+          <div className="grid gap-4 p-5">
+            <label className="flex items-center gap-3 rounded-md border border-[#4B2818]/10 p-4 font-black text-[#2A1710]">
+              <input
+                type="checkbox"
+                checked={notificarWhatsapp}
+                onChange={(event) => setNotificarWhatsapp(event.target.checked)}
+              />
+              Recibir aviso por WhatsApp
+            </label>
+
+            {notificarWhatsapp && (
+              <input
+                value={whatsappDestino}
+                onChange={(event) => setWhatsappDestino(event.target.value)}
+                placeholder="569XXXXXXXX"
+                className="h-11 rounded-md border border-[#4B2818]/15 px-4 font-bold"
+              />
+            )}
+
+            <label className="flex items-center gap-3 rounded-md border border-[#4B2818]/10 p-4 font-black text-[#2A1710]">
+              <input
+                type="checkbox"
+                checked={notificarEmail}
+                onChange={(event) => setNotificarEmail(event.target.checked)}
+              />
+              Recibir aviso por email
+            </label>
+
+            {notificarEmail && (
+              <input
+                value={emailDestino}
+                onChange={(event) => setEmailDestino(event.target.value)}
+                placeholder="correo@empresa.cl"
+                className="h-11 rounded-md border border-[#4B2818]/15 px-4 font-bold"
+              />
+            )}
+
+            <button
+              type="button"
+              onClick={guardarNotificaciones}
+              disabled={guardando}
+              className="h-11 w-fit rounded-md bg-[#A51F2B] px-5 font-black text-white disabled:opacity-50"
+            >
+              {guardando ? 'Guardando...' : 'Guardar avisos'}
+            </button>
+
+            <p className="text-xs font-semibold text-[#4B2818]/60">
+              Estos avisos se envian cuando entra un mensaje o pedido desde WhatsApp.
             </p>
           </div>
         </div>
@@ -83,4 +192,3 @@ export default function PerfilPage() {
     </div>
   );
 }
-

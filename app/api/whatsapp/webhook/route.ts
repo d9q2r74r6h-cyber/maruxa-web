@@ -174,6 +174,112 @@ async function responderPedidoWhatsApp(telefono: string, pedidoId: string | numb
   return detalle || `Meta respondio ${respuesta.status}`;
 }
 
+async function enviarMensajeWhatsApp(telefono: string, mensaje: string) {
+  const token = process.env.WHATSAPP_ACCESS_TOKEN;
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const destino = telefono.replace(/\D/g, '');
+
+  if (!token || !phoneNumberId || !destino) return null;
+
+  const respuesta = await fetch(
+    `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to: destino,
+        type: 'text',
+        text: {
+          preview_url: false,
+          body: mensaje,
+        },
+      }),
+    }
+  );
+
+  if (respuesta.ok) return null;
+
+  const detalle = await respuesta.text();
+  return detalle || `Meta respondio ${respuesta.status}`;
+}
+
+function resumenMensajeEntrante(mensaje: MensajeWhatsApp) {
+  if (mensaje.type === 'order') {
+    const cantidad = mensaje.order?.product_items?.length || 0;
+    return `Carro recibido con ${cantidad} producto${cantidad === 1 ? '' : 's'}.`;
+  }
+
+  return `Mensaje tipo ${mensaje.type || 'desconocido'} recibido.`;
+}
+
+async function avisarAdministradores(
+  admin: NonNullable<ReturnType<typeof crearAdmin>>,
+  empresaId: string,
+  datos: {
+    telefono: string;
+    nombre: string;
+    resumen: string;
+    pedidoId?: string | number | null;
+  }
+) {
+  const { data: perfiles } = await admin
+    .from('perfiles_usuario')
+    .select(
+      'id,nombre_visible,notificar_whatsapp,notificar_email,notificacion_whatsapp,notificacion_email'
+    )
+    .eq('empresa_id', empresaId)
+    .eq('activo', true)
+    .or('notificar_whatsapp.eq.true,notificar_email.eq.true');
+
+  if (!perfiles?.length) return;
+
+  const asunto = datos.pedidoId
+    ? `Nuevo pedido WhatsApp Maruxa #${datos.pedidoId}`
+    : 'Nuevo mensaje WhatsApp Maruxa';
+  const texto = [
+    datos.pedidoId
+      ? `Nuevo pedido WhatsApp #${datos.pedidoId}`
+      : 'Nuevo mensaje WhatsApp',
+    `Cliente: ${datos.nombre}`,
+    `Telefono: ${datos.telefono}`,
+    `Detalle: ${datos.resumen}`,
+    'Revisar en https://panaderiamaruxa.cl/admin/whatsapp',
+  ].join('\n');
+
+  await Promise.all(
+    perfiles.flatMap((perfil: any) => {
+      const tareas: Promise<unknown>[] = [];
+
+      if (perfil.notificar_whatsapp && perfil.notificacion_whatsapp) {
+        tareas.push(enviarMensajeWhatsApp(perfil.notificacion_whatsapp, texto));
+      }
+
+      if (perfil.notificar_email && perfil.notificacion_email && resend) {
+        tareas.push(
+          resend.emails.send({
+            from: 'Panaderia Maruxa <pedidos@panaderiamaruxa.cl>',
+            to: [perfil.notificacion_email],
+            subject: asunto,
+            html: `
+              <h1>${escaparHtml(asunto)}</h1>
+              <p><strong>Cliente:</strong> ${escaparHtml(datos.nombre)}</p>
+              <p><strong>Telefono:</strong> ${escaparHtml(datos.telefono)}</p>
+              <p><strong>Detalle:</strong> ${escaparHtml(datos.resumen)}</p>
+              <p><a href="https://panaderiamaruxa.cl/admin/whatsapp">Abrir Chat Meta</a></p>
+            `,
+          })
+        );
+      }
+
+      return tareas;
+    })
+  );
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const modo = url.searchParams.get('hub.mode');
@@ -305,6 +411,14 @@ export async function POST(request: Request) {
           estado: 'ignorado',
           observacion: 'El mensaje no corresponde a un carro de compra.',
         });
+
+        await avisarAdministradores(admin, empresaId, {
+          telefono: eventoBase.telefono || '',
+          nombre: contacto?.profile?.name || `WhatsApp ${mensaje.from || ''}`,
+          resumen: resumenMensajeEntrante(mensaje),
+          pedidoId: null,
+        });
+
         continue;
       }
 
@@ -453,6 +567,15 @@ export async function POST(request: Request) {
             ? `Códigos no encontrados: ${faltantes.join(', ')}`
             : null),
       });
+
+      if (pedido && !errorPedido) {
+        await avisarAdministradores(admin, empresaId, {
+          telefono: telefonoCliente,
+          nombre: contacto?.profile?.name || `WhatsApp ${mensaje.from || ''}`,
+          resumen: `Pedido recibido por $${Number(total || 0).toLocaleString('es-CL')}.`,
+          pedidoId: pedido.id,
+        });
+      }
     }
   }
 

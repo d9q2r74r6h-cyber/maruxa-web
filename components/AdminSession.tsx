@@ -29,6 +29,10 @@ export type PerfilUsuario = {
   rol: string;
   activo: boolean;
   ultimo_acceso?: string | null;
+  notificar_whatsapp?: boolean | null;
+  notificar_email?: boolean | null;
+  notificacion_whatsapp?: string | null;
+  notificacion_email?: string | null;
   funcionarios?: {
     nombre_completo: string;
     cargo: string;
@@ -89,7 +93,7 @@ export function AdminSessionProvider({ children }: { children: ReactNode }) {
     const { data: perfilData, error } = await supabase
       .from('perfiles_usuario')
       .select(
-        'id, empresa_id, funcionario_id, nombre_visible, rol, activo, ultimo_acceso'
+        'id, empresa_id, funcionario_id, nombre_visible, rol, activo, ultimo_acceso, notificar_whatsapp, notificar_email, notificacion_whatsapp, notificacion_email'
       )
       .eq('id', session.user.id)
       .maybeSingle();
