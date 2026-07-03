@@ -87,7 +87,10 @@ export function AdminMenu() {
   const { perfil, puedeVer, cerrarSesion } = useAdminSession();
   const [open, setOpen] = useState<string | null>(null);
   const [pendientes, setPendientes] = useState(0);
+  const [permisoNotificaciones, setPermisoNotificaciones] =
+    useState<NotificationPermission | 'no-soportado'>('default');
   const menuRef = useRef<HTMLElement | null>(null);
+  const pendientesPreviosRef = useRef<number | null>(null);
 
   useEffect(() => {
     function cerrarSiClickAfuera(event: MouseEvent) {
@@ -107,6 +110,14 @@ export function AdminMenu() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    setPermisoNotificaciones(
+      'Notification' in window ? Notification.permission : 'no-soportado'
+    );
+  }, []);
+
+  useEffect(() => {
     async function cargarPendientes() {
       if (!perfil?.empresa_id || !puedeVer('whatsapp')) {
         setPendientes(0);
@@ -115,31 +126,83 @@ export function AdminMenu() {
 
       const { data } = await supabase
         .from('whatsapp_eventos')
-        .select('id,tipo,estado')
+        .select('id,tipo,estado,created_at,telefono')
         .eq('empresa_id', perfil.empresa_id)
         .neq('tipo', 'order')
+        .order('created_at', { ascending: false })
         .limit(100);
 
       const { data: instagramData } = await supabase
         .from('instagram_eventos')
-        .select('id,estado')
+        .select('id,estado,created_at,sender_id')
         .eq('empresa_id', perfil.empresa_id)
+        .order('created_at', { ascending: false })
         .limit(100);
 
-      setPendientes(
-        (data || []).filter((evento) => evento.estado !== 'respondido').length +
-          (instagramData || []).filter(
-            (evento) =>
-              evento.estado !== 'respondido' && evento.estado !== 'informativo'
-          ).length
+      const pendientesWhatsapp = (data || []).filter(
+        (evento) => evento.estado !== 'respondido'
       );
+      const pendientesInstagram = (instagramData || []).filter(
+        (evento) =>
+          evento.estado !== 'respondido' && evento.estado !== 'informativo'
+      );
+      const totalPendientes =
+        pendientesWhatsapp.length + pendientesInstagram.length;
+
+      if (
+        pendientesPreviosRef.current !== null &&
+        totalPendientes > pendientesPreviosRef.current &&
+        typeof window !== 'undefined' &&
+        'Notification' in window &&
+        Notification.permission === 'granted'
+      ) {
+        const ultimoWhatsapp = pendientesWhatsapp[0];
+        const ultimoInstagram = pendientesInstagram[0];
+        const ultimoEsInstagram =
+          ultimoInstagram &&
+          (!ultimoWhatsapp ||
+            new Date(ultimoInstagram.created_at).getTime() >
+              new Date(ultimoWhatsapp.created_at).getTime());
+        const origen = ultimoEsInstagram ? 'Instagram' : 'WhatsApp';
+        const remitente = ultimoEsInstagram
+          ? ultimoInstagram?.sender_id || 'Instagram'
+          : ultimoWhatsapp?.telefono || 'WhatsApp';
+
+        new Notification('Nuevo mensaje pendiente', {
+          body: `${origen}: ${remitente}`,
+          icon: '/apple-touch-icon.png',
+          tag: 'maruxa-mensajes-pendientes',
+        });
+      }
+
+      pendientesPreviosRef.current = totalPendientes;
+      setPendientes(totalPendientes);
     }
 
     cargarPendientes();
-    const intervalo = window.setInterval(cargarPendientes, 60000);
+    const intervalo = window.setInterval(cargarPendientes, 15000);
 
     return () => window.clearInterval(intervalo);
   }, [perfil?.empresa_id, puedeVer]);
+
+  async function activarNotificaciones() {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      setPermisoNotificaciones('no-soportado');
+      alert('Este navegador no soporta notificaciones.');
+      return;
+    }
+
+    const permiso = await Notification.requestPermission();
+    setPermisoNotificaciones(permiso);
+
+    if (permiso === 'granted') {
+      new Notification('Notificaciones activadas', {
+        body: 'Te avisaremos cuando lleguen mensajes pendientes.',
+        icon: '/apple-touch-icon.png',
+        tag: 'maruxa-notificaciones-activadas',
+      });
+    }
+  }
 
   function esActivo(href?: string) {
     if (!href) return false;
@@ -236,6 +299,17 @@ export function AdminMenu() {
         })}
 
         <div className="ml-auto flex items-center gap-1 border-l border-[#4B2818]/10 pl-2">
+          {puedeVer('whatsapp') && permisoNotificaciones === 'default' && (
+            <button
+              type="button"
+              onClick={activarNotificaciones}
+              title="Activar notificaciones"
+              className="hidden rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] font-black text-amber-800 transition hover:bg-amber-100 md:inline-flex"
+            >
+              Activar avisos
+            </button>
+          )}
+
           {puedeVer('whatsapp') && (
             <Link
               href="/admin/whatsapp"
