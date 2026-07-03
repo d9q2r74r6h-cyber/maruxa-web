@@ -401,7 +401,9 @@ export default function AdminPlanillasPage() {
 
     const { data: planilla, error: errorPlanilla } = await supabase
       .from('planillas')
-      .select('id, observaciones')
+      .select(
+        'id,turno,responsable,observaciones,quintal1,quintal2,amasado1,amasado2,masa_ocupada,masa_sobrante,pan_racion,pan_meson,pan_sobra'
+      )
       .eq('empresa_id', empresa.id)
       .eq('fecha', fechaSeleccionada)
       .maybeSingle();
@@ -420,7 +422,7 @@ export default function AdminPlanillasPage() {
       .eq('turno', turnoConfig.orden)
       .maybeSingle();
 
-    if (errorTurno || !turnoDb) {
+    if (errorTurno) {
       limpiarTurno();
       return;
     }
@@ -431,10 +433,12 @@ export default function AdminPlanillasPage() {
         .select('nombre_producto,kilos_total,merma')
         .eq('planilla_id', planilla.id)
         .like('nombre_producto', `% [turno:${turnoConfig.orden}]`),
-      supabase
-        .from('planilla_insumos')
-        .select('id,nombre,cantidad,unidad')
-        .eq('planilla_turno_id', turnoDb.id),
+      turnoDb
+        ? supabase
+            .from('planilla_insumos')
+            .select('id,nombre,cantidad,unidad')
+            .eq('planilla_turno_id', turnoDb.id)
+        : Promise.resolve({ data: [] }),
     ]);
 
     const detalles = (detallesData || []) as {
@@ -453,6 +457,21 @@ export default function AdminPlanillasPage() {
     const detalleRepartos = detalles.filter(
       (item) => !normalizar(item.nombre_producto).startsWith('merma')
     );
+    const turnosResumen = String(planilla.turno || '')
+      .split(',')
+      .map((item) => normalizar(item));
+    const turnoEnResumen = turnosResumen.some(
+      (item) =>
+        item === normalizar(turnoConfig.nombre) ||
+        item === normalizar(`Turno ${turnoConfig.orden}`)
+    );
+    const resumenUnSoloTurno = turnosResumen.length <= 1 && turnoEnResumen;
+
+    if (!turnoDb && !turnoEnResumen && detalleRepartos.length === 0) {
+      limpiarTurno();
+      return;
+    }
+
     const mermaGuardada = detalles.reduce(
       (total, item) => total + Number(item.merma || 0),
       0
@@ -518,22 +537,41 @@ export default function AdminPlanillasPage() {
         cantidad: Number(item.cantidad || 0),
       }));
 
-    setResponsable(turnoDb.responsable || '');
-    setQuintal(Number(turnoDb.quintal || 0));
+    const quintalResumen =
+      turnoConfig.orden === 1 ? planilla.quintal1 : planilla.quintal2;
+    const amasadoResumen =
+      turnoConfig.orden === 1 ? planilla.amasado1 : planilla.amasado2;
+
+    setResponsable(turnoDb?.responsable || planilla.responsable || '');
+    setQuintal(Number(turnoDb?.quintal ?? quintalResumen ?? 0));
     setObservaciones('');
     setTurno({
-      amasado: Number(turnoDb.amasado || 0),
-      masaOcupa: Number(turnoDb.masa_ocupa || 0),
-      masaQueda: Number(turnoDb.masa_queda || 0),
-      panRacion: Number(turnoDb.pan_racion || 0),
-      panMeson: Number(turnoDb.pan_meson || 0),
-      panSobrante: Number(turnoDb.pan_sobra || 0),
+      amasado: Number(turnoDb?.amasado ?? amasadoResumen ?? 0),
+      masaOcupa: Number(
+        turnoDb?.masa_ocupa ?? (resumenUnSoloTurno ? planilla.masa_ocupada : 0) ?? 0
+      ),
+      masaQueda: Number(
+        turnoDb?.masa_queda ?? (resumenUnSoloTurno ? planilla.masa_sobrante : 0) ?? 0
+      ),
+      panRacion: Number(
+        turnoDb?.pan_racion ?? (resumenUnSoloTurno ? planilla.pan_racion : 0) ?? 0
+      ),
+      panMeson: Number(
+        turnoDb?.pan_meson ?? (resumenUnSoloTurno ? planilla.pan_meson : 0) ?? 0
+      ),
+      panSobrante: Number(
+        turnoDb?.pan_sobra ?? (resumenUnSoloTurno ? planilla.pan_sobra : 0) ?? 0
+      ),
       merma: mermaGuardada,
       otroskg: 0,
     });
     setRepartos([...baseRepartos, ...repartosExtras]);
     setInsumos([...baseInsumos, ...insumosExtras]);
-    setMensaje(`${turnoConfig.nombre} cargado desde la planilla del dia.`);
+    setMensaje(
+      turnoDb
+        ? `${turnoConfig.nombre} cargado desde la planilla del dia.`
+        : `${turnoConfig.nombre} cargado desde resumen historico del dia.`
+    );
   }
 
   function cambiarTurnoSeleccionado(turnoId: string) {
