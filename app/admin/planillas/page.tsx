@@ -118,6 +118,14 @@ function fechaEnPalabras(fecha: string) {
   }).format(new Date(anio, mes - 1, dia));
 }
 
+function normalizar(texto: string | null | undefined) {
+  return String(texto || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
 function CampoNumero({
   label,
   value,
@@ -320,6 +328,18 @@ export default function AdminPlanillasPage() {
     cargarResumenDia(fecha);
   }, [fecha]);
 
+  useEffect(() => {
+    if (cargandoTurnos || !turnoSeleccionado) return;
+    cargarTurnoGuardado(fecha, turnoSeleccionado);
+  }, [
+    cargandoTurnos,
+    fecha,
+    turnoSeleccionadoId,
+    productosRinde,
+    repartidoresConfigurados,
+    tablaFuncionariosDisponible,
+  ]);
+
   const kilosRepartos = useMemo(
     () => repartos.reduce((total, reparto) => total + reparto.kilos, 0),
     [repartos]
@@ -340,30 +360,180 @@ export default function AdminPlanillasPage() {
     setTurno((actual) => ({ ...actual, [campo]: valor }));
   }
 
+  function repartosBase() {
+    return tablaFuncionariosDisponible
+      ? repartidoresConfigurados.map((item) => ({
+          id: item.id,
+          nombre: item.nombre_completo,
+          kilos: 0,
+        }))
+      : [{ id: 'temporal-1', nombre: 'Reparto 1', kilos: 0 }];
+  }
+
+  function insumosBase() {
+    return productosRinde.map((producto) => ({
+      id: String(producto.id),
+      producto_id: producto.id,
+      nombre: producto.nombre,
+      unidad: producto.unidad_base || 'kg',
+      cantidad: 0,
+    }));
+  }
+
   function limpiarTurno() {
     setResponsable('');
     setQuintal(0);
     setObservaciones('');
     setTurno({ ...turnoInicial });
-    setRepartos(
-      tablaFuncionariosDisponible
-        ? repartidoresConfigurados.map((item) => ({
-            id: item.id,
-            nombre: item.nombre_completo,
-            kilos: 0,
-          }))
-        : [{ id: 'temporal-1', nombre: 'Reparto 1', kilos: 0 }]
-    );
-    setInsumos(
-      productosRinde.map((producto) => ({
-        id: String(producto.id),
-        producto_id: producto.id,
-        nombre: producto.nombre,
-        unidad: producto.unidad_base || 'kg',
-        cantidad: 0,
-      }))
-    );
+    setRepartos(repartosBase());
+    setInsumos(insumosBase());
     setMensaje('');
+  }
+
+  async function cargarTurnoGuardado(
+    fechaSeleccionada = fecha,
+    turnoConfig = turnoSeleccionado
+  ) {
+    if (!turnoConfig) return;
+
+    const empresa = await obtenerEmpresaActual();
+    if (!empresa) return;
+
+    const { data: planilla, error: errorPlanilla } = await supabase
+      .from('planillas')
+      .select('id, observaciones')
+      .eq('empresa_id', empresa.id)
+      .eq('fecha', fechaSeleccionada)
+      .maybeSingle();
+
+    if (errorPlanilla || !planilla) {
+      limpiarTurno();
+      return;
+    }
+
+    const { data: turnoDb, error: errorTurno } = await supabase
+      .from('planilla_turnos')
+      .select(
+        'id,responsable,quintal,amasado,masa_ocupa,masa_queda,pan_racion,pan_meson,pan_sobra,kilos,rinde'
+      )
+      .eq('planilla_id', planilla.id)
+      .eq('turno', turnoConfig.orden)
+      .maybeSingle();
+
+    if (errorTurno || !turnoDb) {
+      limpiarTurno();
+      return;
+    }
+
+    const [{ data: detallesData }, { data: insumosData }] = await Promise.all([
+      supabase
+        .from('planilla_detalles')
+        .select('nombre_producto,kilos_total,merma')
+        .eq('planilla_id', planilla.id)
+        .like('nombre_producto', `% [turno:${turnoConfig.orden}]`),
+      supabase
+        .from('planilla_insumos')
+        .select('id,nombre,cantidad,unidad')
+        .eq('planilla_turno_id', turnoDb.id),
+    ]);
+
+    const detalles = (detallesData || []) as {
+      nombre_producto: string;
+      kilos_total: number;
+      merma: number;
+    }[];
+    const insumosGuardados = (insumosData || []) as {
+      id: string;
+      nombre: string;
+      cantidad: number;
+      unidad: string;
+    }[];
+    const marcadorTurno = ` [turno:${turnoConfig.orden}]`;
+    const sufijoTurno = ` - ${turnoConfig.nombre}`;
+    const detalleRepartos = detalles.filter(
+      (item) => !normalizar(item.nombre_producto).startsWith('merma')
+    );
+    const mermaGuardada = detalles.reduce(
+      (total, item) => total + Number(item.merma || 0),
+      0
+    );
+    const repartosPorNombre = new Map(
+      detalleRepartos.map((item) => {
+        let nombre = item.nombre_producto.replace(marcadorTurno, '').trim();
+        if (nombre.endsWith(sufijoTurno)) {
+          nombre = nombre.slice(0, -sufijoTurno.length).trim();
+        }
+        return [normalizar(nombre), Number(item.kilos_total || 0)];
+      })
+    );
+    const baseRepartos = repartosBase().map((item) => ({
+      ...item,
+      kilos: repartosPorNombre.get(normalizar(item.nombre)) || 0,
+    }));
+    const repartosExtras = detalleRepartos
+      .map((item) => {
+        let nombre = item.nombre_producto.replace(marcadorTurno, '').trim();
+        if (nombre.endsWith(sufijoTurno)) {
+          nombre = nombre.slice(0, -sufijoTurno.length).trim();
+        }
+        return {
+          id: `guardado-${nombre}`,
+          nombre,
+          kilos: Number(item.kilos_total || 0),
+        };
+      })
+      .filter(
+        (item) =>
+          item.kilos > 0 &&
+          !baseRepartos.some(
+            (base) => normalizar(base.nombre) === normalizar(item.nombre)
+          )
+      );
+
+    const insumosPorNombre = new Map(
+      insumosGuardados.map((item) => [normalizar(item.nombre), item])
+    );
+    const baseInsumos = insumosBase().map((item) => {
+      const guardado = insumosPorNombre.get(normalizar(item.nombre));
+      return guardado
+        ? {
+            ...item,
+            cantidad: Number(guardado.cantidad || 0),
+            unidad: guardado.unidad || item.unidad,
+          }
+        : item;
+    });
+    const insumosExtras = insumosGuardados
+      .filter(
+        (item) =>
+          !baseInsumos.some(
+            (base) => normalizar(base.nombre) === normalizar(item.nombre)
+          )
+      )
+      .map((item) => ({
+        id: item.id,
+        producto_id: 0,
+        nombre: item.nombre,
+        unidad: item.unidad || 'kg',
+        cantidad: Number(item.cantidad || 0),
+      }));
+
+    setResponsable(turnoDb.responsable || '');
+    setQuintal(Number(turnoDb.quintal || 0));
+    setObservaciones('');
+    setTurno({
+      amasado: Number(turnoDb.amasado || 0),
+      masaOcupa: Number(turnoDb.masa_ocupa || 0),
+      masaQueda: Number(turnoDb.masa_queda || 0),
+      panRacion: Number(turnoDb.pan_racion || 0),
+      panMeson: Number(turnoDb.pan_meson || 0),
+      panSobrante: Number(turnoDb.pan_sobra || 0),
+      merma: mermaGuardada,
+      otroskg: 0,
+    });
+    setRepartos([...baseRepartos, ...repartosExtras]);
+    setInsumos([...baseInsumos, ...insumosExtras]);
+    setMensaje(`${turnoConfig.nombre} cargado desde la planilla del dia.`);
   }
 
   function cambiarTurnoSeleccionado(turnoId: string) {
