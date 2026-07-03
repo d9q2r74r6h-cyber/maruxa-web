@@ -815,41 +815,44 @@ export default function AdminPlanillasPage() {
         .maybeSingle();
 
       if (errorTurnoExistente) throw errorTurnoExistente;
-      if (turnoExistente) {
-        throw new Error(
-          `${turnoSeleccionado.nombre} ya fue registrado para esta fecha.`
-        );
-      }
 
-      const turnoId = crypto.randomUUID();
+      const turnoId = turnoExistente?.id || crypto.randomUUID();
       const totalInsumos = insumos.reduce(
         (total, item) => total + item.cantidad,
         0
       );
+      const payloadTurno = {
+        planilla_id: planillaId,
+        turno: turnoSeleccionado.orden,
+        responsable: responsable.trim(),
+        quintal,
+        amasado: turno.amasado,
+        masa_ocupa: turno.masaOcupa,
+        masa_queda: turno.masaQueda,
+        pan_racion: turno.panRacion,
+        pan_meson: turno.panMeson,
+        pan_sobra: turno.panSobrante || 0,
+        cacho: 0,
+        otroskg: 0,
+        centeno: 0,
+        meson: 0,
+        reparto: kilosRepartos,
+        insumos: totalInsumos,
+        kilos: calculo.kilos,
+        rinde: calculo.rinde,
+      };
 
-      const { error: errorTurno } = await supabase
-        .from('planilla_turnos')
-        .insert({
-          id: turnoId,
-          planilla_id: planillaId,
-          turno: turnoSeleccionado.orden,
-          responsable: responsable.trim(),
-          quintal,
-          amasado: turno.amasado,
-          masa_ocupa: turno.masaOcupa,
-          masa_queda: turno.masaQueda,
-          pan_racion: turno.panRacion,
-          pan_meson: turno.panMeson,
-          pan_sobra: turno.panSobrante || 0,
-          cacho: 0,
-          otroskg: 0,
-          centeno: 0,
-          meson: 0,
-          reparto: kilosRepartos,
-          insumos: totalInsumos,
-          kilos: calculo.kilos,
-          rinde: calculo.rinde,
-        });
+      const { error: errorTurno } = turnoExistente
+        ? await supabase
+            .from('planilla_turnos')
+            .update(payloadTurno)
+            .eq('id', turnoId)
+        : await supabase
+            .from('planilla_turnos')
+            .insert({
+              id: turnoId,
+              ...payloadTurno,
+            });
 
       if (errorTurno) {
         if (planillaNueva) {
@@ -857,6 +860,19 @@ export default function AdminPlanillasPage() {
         }
         throw errorTurno;
       }
+
+      const { error: errorBorrarInsumos } = await supabase
+        .from('planilla_insumos')
+        .delete()
+        .eq('planilla_turno_id', turnoId);
+      if (errorBorrarInsumos) throw errorBorrarInsumos;
+
+      const { error: errorBorrarRepartos } = await supabase
+        .from('planilla_detalles')
+        .delete()
+        .eq('planilla_id', planillaId)
+        .like('nombre_producto', `% [turno:${turnoSeleccionado.orden}]`);
+      if (errorBorrarRepartos) throw errorBorrarRepartos;
 
       const filasInsumos = insumos
         .filter((item) => item.cantidad > 0)
@@ -873,7 +889,9 @@ export default function AdminPlanillasPage() {
           .insert(filasInsumos);
 
         if (errorInsumos) {
-          await eliminarTurnoIncompleto(turnoId, planillaId, planillaNueva);
+          if (planillaNueva) {
+            await eliminarTurnoIncompleto(turnoId, planillaId, planillaNueva);
+          }
           throw errorInsumos;
         }
       }
@@ -908,7 +926,9 @@ export default function AdminPlanillasPage() {
           .insert(filasRepartos);
 
         if (errorRepartos) {
-          await eliminarTurnoIncompleto(turnoId, planillaId, planillaNueva);
+          if (planillaNueva) {
+            await eliminarTurnoIncompleto(turnoId, planillaId, planillaNueva);
+          }
           throw errorRepartos;
         }
       }
@@ -925,7 +945,9 @@ export default function AdminPlanillasPage() {
       try {
         await actualizarResumenPlanilla(planillaId, observacionConsolidada);
       } catch (error) {
-        await eliminarTurnoIncompleto(turnoId, planillaId, planillaNueva);
+        if (planillaNueva) {
+          await eliminarTurnoIncompleto(turnoId, planillaId, planillaNueva);
+        }
         throw error;
       }
 
