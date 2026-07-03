@@ -21,14 +21,14 @@ function n(valor: number | undefined) {
   return Number.isFinite(numero) ? numero : 0;
 }
 
-function ajusteDeMasa(masaOcupa: number, masaQueda: number) {
+export function ajusteDeMasa(masaOcupa: number, masaQueda: number) {
   return Number(
     ((((n(masaOcupa) - n(masaQueda)) / 100) / 3) * 2).toFixed(2)
   );
 }
 
 // EasyPan registra medio saco como .5 y lo convierte a dos amasadas.
-function calcularFactorAmasado(
+export function calcularFactorAmasado(
   amasado: number,
   masaOcupa: number,
   masaQueda: number

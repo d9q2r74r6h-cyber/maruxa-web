@@ -18,6 +18,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { obtenerEmpresaActual } from '@/lib/empresa';
 import {
+  calcularFactorAmasado,
   calcularTurno,
   type DatosTurno,
 } from '@/lib/planillas/planillas';
@@ -79,6 +80,8 @@ type ResumenDia = {
   turno: string | null;
   quintal_total: number;
   amasado_total: number;
+  ajuste_masa: number;
+  sacos_ajustados: number;
   masa_ocupada: number;
   masa_sobrante: number;
   kilos_producidos: number;
@@ -289,15 +292,36 @@ export default function AdminPlanillasPage() {
       rinde: Number(item.rinde || 0),
       reparto: Number(item.reparto || 0),
     }));
+    const sacosAjustadosTurnos = turnosResumen.reduce(
+      (total, item) =>
+        total + calcularFactorAmasado(item.amasado, item.masa_ocupa, item.masa_queda),
+      0
+    );
+    const sacosAjustadosDia =
+      sacosAjustadosTurnos > 0
+        ? sacosAjustadosTurnos
+        : calcularFactorAmasado(
+            Number(data.amasado_total || 0),
+            Number(data.masa_ocupada || 0),
+            Number(data.masa_sobrante || 0)
+          );
+    const kilosDia = Number(data.kilos_producidos || 0);
 
     setResumenDia({
       turno: data.turno,
       quintal_total: Number(data.quintal_total || 0),
       amasado_total: Number(data.amasado_total || 0),
+      ajuste_masa:
+        sacosAjustadosDia -
+        Number(data.amasado_total || 0),
+      sacos_ajustados: sacosAjustadosDia,
       masa_ocupada: Number(data.masa_ocupada || 0),
       masa_sobrante: Number(data.masa_sobrante || 0),
-      kilos_producidos: Number(data.kilos_producidos || 0),
-      rinde_por_saco: Number(data.rinde_por_saco || 0),
+      kilos_producidos: kilosDia,
+      rinde_por_saco:
+        sacosAjustadosDia > 0
+          ? Number((kilosDia / sacosAjustadosDia).toFixed(2))
+          : Number(data.rinde_por_saco || 0),
       pan_racion: Number(data.pan_racion || 0),
       pan_meson: Number(data.pan_meson || 0),
       pan_sobra: Number(data.pan_sobra || 0),
@@ -1156,10 +1180,12 @@ export default function AdminPlanillasPage() {
           </span>
         </div>
 
-        <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-6">
+        <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
           {[
             ['Total vaciado', resumenDia ? `${numeroDia(resumenDia.quintal_total)} qq` : '--'],
-            ['Total amasado', resumenDia ? `${numeroDia(resumenDia.amasado_total)} sacos` : '--'],
+            ['Amasado bruto', resumenDia ? `${numeroDia(resumenDia.amasado_total)} sacos` : '--'],
+            ['Ajuste masa', resumenDia ? `${resumenDia.ajuste_masa >= 0 ? '+' : ''}${numeroDia(resumenDia.ajuste_masa)} sacos` : '--'],
+            ['Sacos ajustados', resumenDia ? `${numeroDia(resumenDia.sacos_ajustados)} sacos` : '--'],
             ['Masa ocupada', resumenDia ? numeroDia(resumenDia.masa_ocupada) : '--'],
             ['Masa queda', resumenDia ? numeroDia(resumenDia.masa_sobrante) : '--'],
             ['Kilos totales', resumenDia ? `${numeroDia(resumenDia.kilos_producidos)} kg` : '--'],
