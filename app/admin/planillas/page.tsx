@@ -77,9 +77,28 @@ type TurnoGuardado = {
 
 type ResumenDia = {
   turno: string | null;
+  quintal_total: number;
+  amasado_total: number;
+  masa_ocupada: number;
+  masa_sobrante: number;
   kilos_producidos: number;
   rinde_por_saco: number;
+  pan_racion: number;
+  pan_meson: number;
   pan_sobra: number;
+  cacho: number;
+  merma: number;
+  turnos: {
+    turno: number;
+    nombre: string;
+    quintal: number;
+    amasado: number;
+    masa_ocupa: number;
+    masa_queda: number;
+    kilos: number;
+    rinde: number;
+    reparto: number;
+  }[];
 };
 
 const turnoInicial: DatosTurno = {
@@ -130,6 +149,13 @@ function normalizar(texto: string | null | undefined) {
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .trim();
+}
+
+function numeroDia(valor: number | null | undefined, decimales = 2) {
+  return Number(valor || 0).toLocaleString('es-CL', {
+    minimumFractionDigits: decimales,
+    maximumFractionDigits: decimales,
+  });
 }
 
 function CampoNumero({
@@ -223,7 +249,9 @@ export default function AdminPlanillasPage() {
 
     const { data, error } = await supabase
       .from('planillas')
-      .select('turno,kilos_producidos,rinde_por_saco,pan_sobra')
+      .select(
+        'id,turno,quintal_total,amasado_total,masa_ocupada,masa_sobrante,kilos_producidos,rinde_por_saco,pan_racion,pan_meson,pan_sobra,cacho'
+      )
       .eq('empresa_id', empresa.id)
       .eq('fecha', fechaSeleccionada)
       .maybeSingle();
@@ -233,7 +261,53 @@ export default function AdminPlanillasPage() {
       return;
     }
 
-    setResumenDia((data as ResumenDia | null) || null);
+    if (!data) {
+      setResumenDia(null);
+      return;
+    }
+
+    const { data: turnosData } = await supabase
+      .from('planilla_turnos')
+      .select('turno,quintal,amasado,masa_ocupa,masa_queda,kilos,rinde,reparto')
+      .eq('planilla_id', data.id)
+      .order('turno', { ascending: true });
+    const { data: detallesData } = await supabase
+      .from('planilla_detalles')
+      .select('merma')
+      .eq('planilla_id', data.id);
+
+    const turnosResumen = (turnosData || []).map((item) => ({
+      turno: Number(item.turno || 0),
+      nombre:
+        turnosConfigurados.find((config) => config.orden === Number(item.turno))
+          ?.nombre || `Turno ${item.turno}`,
+      quintal: Number(item.quintal || 0),
+      amasado: Number(item.amasado || 0),
+      masa_ocupa: Number(item.masa_ocupa || 0),
+      masa_queda: Number(item.masa_queda || 0),
+      kilos: Number(item.kilos || 0),
+      rinde: Number(item.rinde || 0),
+      reparto: Number(item.reparto || 0),
+    }));
+
+    setResumenDia({
+      turno: data.turno,
+      quintal_total: Number(data.quintal_total || 0),
+      amasado_total: Number(data.amasado_total || 0),
+      masa_ocupada: Number(data.masa_ocupada || 0),
+      masa_sobrante: Number(data.masa_sobrante || 0),
+      kilos_producidos: Number(data.kilos_producidos || 0),
+      rinde_por_saco: Number(data.rinde_por_saco || 0),
+      pan_racion: Number(data.pan_racion || 0),
+      pan_meson: Number(data.pan_meson || 0),
+      pan_sobra: Number(data.pan_sobra || 0),
+      cacho: Number(data.cacho || 0),
+      merma: (detallesData || []).reduce(
+        (total, item) => total + Number(item.merma || 0),
+        0
+      ),
+      turnos: turnosResumen,
+    });
   }
 
   useEffect(() => {
@@ -338,7 +412,7 @@ export default function AdminPlanillasPage() {
 
   useEffect(() => {
     cargarResumenDia(fecha);
-  }, [fecha]);
+  }, [fecha, turnosConfigurados]);
 
   useEffect(() => {
     if (cargandoTurnos || !turnoSeleccionado) return;
@@ -1067,38 +1141,75 @@ export default function AdminPlanillasPage() {
         </div>
       )}
 
-      <section className="grid gap-3 rounded-lg border border-[#4B2818]/15 bg-white p-4 sm:grid-cols-3">
-        <div>
-          <p className="text-xs font-black uppercase text-[#A51F2B]">
-            Rinde general del dia
-          </p>
-          <p className="mt-1 text-3xl font-black text-[#2A1710]">
-            {resumenDia ? Number(resumenDia.rinde_por_saco || 0).toFixed(2) : '--'}
-          </p>
+      <section className="overflow-hidden rounded-lg border border-[#4B2818]/15 bg-white">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#4B2818]/10 bg-[#FFF3DF] px-4 py-3">
+          <div>
+            <h2 className="font-black text-[#2A1710]">Resumen del dia</h2>
+            {resumenDia?.turno && (
+              <p className="text-xs font-semibold text-[#4B2818]/60">
+                Turnos registrados: {resumenDia.turno}
+              </p>
+            )}
+          </div>
+          <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-[#A51F2B]">
+            Rinde {resumenDia ? numeroDia(resumenDia.rinde_por_saco) : '--'}
+          </span>
         </div>
-        <div>
-          <p className="text-xs font-black uppercase text-[#4B2818]/55">
-            Kilos producidos
-          </p>
-          <p className="mt-1 text-xl font-black text-[#2A1710]">
-            {resumenDia
-              ? `${Number(resumenDia.kilos_producidos || 0).toFixed(2)} kg`
-              : '--'}
-          </p>
+
+        <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-6">
+          {[
+            ['Total vaciado', resumenDia ? `${numeroDia(resumenDia.quintal_total)} qq` : '--'],
+            ['Total amasado', resumenDia ? `${numeroDia(resumenDia.amasado_total)} sacos` : '--'],
+            ['Masa ocupada', resumenDia ? numeroDia(resumenDia.masa_ocupada) : '--'],
+            ['Masa queda', resumenDia ? numeroDia(resumenDia.masa_sobrante) : '--'],
+            ['Kilos totales', resumenDia ? `${numeroDia(resumenDia.kilos_producidos)} kg` : '--'],
+            ['Pan sobrante', resumenDia ? `${numeroDia(resumenDia.pan_sobra)} kg` : '--'],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-md border border-[#4B2818]/10 p-3">
+              <p className="text-[11px] font-black uppercase text-[#4B2818]/55">
+                {label}
+              </p>
+              <p className="mt-1 text-lg font-black text-[#2A1710]">{value}</p>
+            </div>
+          ))}
         </div>
-        <div>
-          <p className="text-xs font-black uppercase text-[#4B2818]/55">
-            Pan sobrante
-          </p>
-          <p className="mt-1 text-xl font-black text-[#2A1710]">
-            {resumenDia ? `${Number(resumenDia.pan_sobra || 0).toFixed(2)} kg` : '--'}
-          </p>
-          {resumenDia?.turno && (
-            <p className="mt-1 text-xs font-semibold text-[#4B2818]/55">
-              Turnos: {resumenDia.turno}
-            </p>
-          )}
+
+        <div className="grid gap-2 border-t border-[#4B2818]/10 px-4 py-3 md:grid-cols-4">
+          {[
+            ['Pan meson', resumenDia ? `${numeroDia(resumenDia.pan_meson)} kg` : '--'],
+            ['Pan racion', resumenDia ? `${numeroDia(resumenDia.pan_racion)} kg` : '--'],
+            ['Repartos', resumenDia ? `${numeroDia(resumenDia.turnos.reduce((total, item) => total + item.reparto, 0))} kg` : '--'],
+            ['Merma', resumenDia ? `${numeroDia(resumenDia.merma)} kg` : '--'],
+          ].map(([label, value]) => (
+            <div key={label} className="flex items-center justify-between rounded-md bg-[#FFF3DF]/60 px-3 py-2 text-sm">
+              <span className="font-bold text-[#4B2818]/65">{label}</span>
+              <span className="font-black text-[#2A1710]">{value}</span>
+            </div>
+          ))}
         </div>
+
+        {resumenDia?.turnos.length ? (
+          <div className="divide-y divide-[#4B2818]/10 border-t border-[#4B2818]/10">
+            {resumenDia.turnos.map((item) => (
+              <div
+                key={`${item.turno}-${item.nombre}`}
+                className="grid gap-2 px-4 py-3 text-sm md:grid-cols-[1.2fr_repeat(6,1fr)] md:items-center"
+              >
+                <p className="font-black text-[#2A1710]">{item.nombre}</p>
+                <p><span className="font-bold text-[#4B2818]/55">Vaciado:</span> {numeroDia(item.quintal)} qq</p>
+                <p><span className="font-bold text-[#4B2818]/55">Amasado:</span> {numeroDia(item.amasado)}</p>
+                <p><span className="font-bold text-[#4B2818]/55">Ocupa:</span> {numeroDia(item.masa_ocupa)}</p>
+                <p><span className="font-bold text-[#4B2818]/55">Queda:</span> {numeroDia(item.masa_queda)}</p>
+                <p><span className="font-bold text-[#4B2818]/55">Kilos:</span> {numeroDia(item.kilos)} kg</p>
+                <p><span className="font-bold text-[#4B2818]/55">Rinde:</span> {numeroDia(item.rinde)}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="border-t border-[#4B2818]/10 px-4 py-3 text-sm font-semibold text-[#4B2818]/55">
+            No hay turnos guardados para esta fecha.
+          </p>
+        )}
       </section>
 
       <section className={`rounded-lg border p-5 ${colorEstado}`}>
