@@ -20,6 +20,7 @@ type Funcionario = {
   rut: string | null;
   email: string | null;
   telefono: string | null;
+  fecha_nacimiento: string | null;
   cargo: string;
   activo: boolean;
 };
@@ -54,8 +55,20 @@ const funcionarioInicial = {
   rut: '',
   email: '',
   telefono: '',
+  fecha_nacimiento: '',
   cargo: '',
 };
+
+function fechaCorta(fecha: string | null) {
+  if (!fecha) return null;
+  const [anio, mes, dia] = fecha.split('-').map(Number);
+  if (!anio || !mes || !dia) return null;
+
+  return new Intl.DateTimeFormat('es-CL', {
+    day: '2-digit',
+    month: 'long',
+  }).format(new Date(anio, mes - 1, dia));
+}
 
 export default function UsuariosPage() {
   const { perfil, esAdmin } = useAdminSession();
@@ -186,6 +199,7 @@ export default function UsuariosPage() {
         rut: formFuncionario.rut || null,
         email: formFuncionario.email || null,
         telefono: formFuncionario.telefono || null,
+        fecha_nacimiento: formFuncionario.fecha_nacimiento || null,
         cargo: formFuncionario.cargo,
         activo: true,
       })
@@ -328,11 +342,13 @@ export default function UsuariosPage() {
                 ['rut', 'RUT'],
                 ['email', 'Correo'],
                 ['telefono', 'Teléfono'],
+                ['fecha_nacimiento', 'Fecha de nacimiento'],
                 ['cargo', 'Cargo'],
               ].map(([campo, etiqueta]) => (
                 <label key={campo} className="grid gap-1 text-xs font-black text-[#4B2818]">
                   {etiqueta}
                   <input
+                    type={campo === 'fecha_nacimiento' ? 'date' : 'text'}
                     required={campo === 'nombre_completo' || campo === 'cargo'}
                     value={formFuncionario[campo as keyof typeof formFuncionario]}
                     onChange={(event) =>
@@ -375,6 +391,11 @@ export default function UsuariosPage() {
                     <p className="text-xs font-bold uppercase text-[#A51F2B]">
                       {funcionario.cargo}
                     </p>
+                    {fechaCorta(funcionario.fecha_nacimiento) && (
+                      <p className="mt-1 text-xs font-semibold text-[#4B2818]/60">
+                        Cumpleanos: {fechaCorta(funcionario.fecha_nacimiento)}
+                      </p>
+                    )}
                   </div>
                   <span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${funcionario.activo ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
                     {funcionario.activo ? 'Activo' : 'Inactivo'}
