@@ -62,6 +62,23 @@ function normalizar(texto: string | null | undefined) {
     .trim();
 }
 
+function repartidorOficial(nombre: string | null | undefined) {
+  const valor = normalizar(nombre);
+
+  if (!valor) return '';
+  if (valor === 'juan' || valor.includes('tapia')) {
+    return 'JUAN ALFREDO TAPIA NAVARRETE';
+  }
+  if (valor === 'luis albornoz' || valor.includes('albornoz')) {
+    return 'LUIS ALBORNOZ';
+  }
+  if (valor === 'panaderia' || valor === 'panadería') {
+    return 'PANADERIA';
+  }
+
+  return nombre?.trim() || '';
+}
+
 function numero(valor: string) {
   const n = Number(String(valor || '').replace(',', '.'));
   return Number.isFinite(n) ? n : 0;
@@ -101,14 +118,8 @@ export default function ClientesPage() {
   }, [perfil]);
 
   const repartidores = useMemo(() => {
-    const valores = new Set(repartidoresBase);
-    clientes.forEach((cliente) => {
-      if (cliente.repartidor_nombre?.trim()) {
-        valores.add(cliente.repartidor_nombre.trim());
-      }
-    });
-    return Array.from(valores).sort((a, b) => a.localeCompare(b, 'es'));
-  }, [clientes]);
+    return repartidoresBase;
+  }, []);
 
   const clientesFiltrados = useMemo(() => {
     const texto = normalizar(busqueda);
@@ -123,7 +134,8 @@ export default function ClientesPage() {
 
       const coincideRepartidor =
         filtroRepartidor === 'todos' ||
-        normalizar(cliente.repartidor_nombre) === normalizar(filtroRepartidor);
+        normalizar(repartidorOficial(cliente.repartidor_nombre)) ===
+          normalizar(filtroRepartidor);
 
       const coincideEstado =
         filtroEstado === 'todos' ||
@@ -152,7 +164,7 @@ export default function ClientesPage() {
       telefono: cliente.telefono || '',
       codigo_legacy: cliente.codigo_legacy || '',
       sigla: cliente.sigla || '',
-      repartidor_nombre: cliente.repartidor_nombre || '',
+      repartidor_nombre: repartidorOficial(cliente.repartidor_nombre),
       forma_pago: cliente.forma_pago || '',
       plazo_pago: cliente.plazo_pago || '',
       precio_base: cliente.precio_base ? String(cliente.precio_base) : '',
@@ -176,7 +188,7 @@ export default function ClientesPage() {
       telefono: form.telefono.trim() || null,
       codigo_legacy: form.codigo_legacy.trim() || null,
       sigla: form.sigla.trim() || null,
-      repartidor_nombre: form.repartidor_nombre.trim() || null,
+      repartidor_nombre: repartidorOficial(form.repartidor_nombre) || null,
       forma_pago: form.forma_pago.trim() || null,
       plazo_pago: form.plazo_pago.trim() || null,
       precio_base: form.precio_base ? numero(form.precio_base) : null,
@@ -444,7 +456,9 @@ export default function ClientesPage() {
                         .join(', ') || 'Sin ubicacion'}
                     </p>
                     <p className="mt-1 text-xs font-bold text-[#A51F2B]">
-                      Repartidor: {cliente.repartidor_nombre || 'Sin asignar'}
+                      Repartidor:{' '}
+                      {repartidorOficial(cliente.repartidor_nombre) ||
+                        'Sin asignar'}
                     </p>
                   </div>
 
