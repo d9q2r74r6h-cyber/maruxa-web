@@ -1196,6 +1196,7 @@ export default function AdminPlanillasPage() {
 
         <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
           {[
+            ['Rinde general', resumenDia ? numeroDia(resumenDia.rinde_por_saco) : '--'],
             ['Total vaciado', resumenDia ? `${numeroDia(resumenDia.quintal_total)} qq` : '--'],
             ['Amasado registrado', resumenDia ? `${numeroDia(resumenDia.amasado_total)} sacos` : '--'],
             ['Ajuste masa', resumenDia ? `${resumenDia.ajuste_masa >= 0 ? '+' : ''}${numeroDia(resumenDia.ajuste_masa)} sacos` : '--'],
