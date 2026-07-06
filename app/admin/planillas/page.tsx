@@ -1189,14 +1189,23 @@ export default function AdminPlanillasPage() {
               </p>
             )}
           </div>
-          <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-[#A51F2B]">
-            Rinde {resumenDia ? numeroDia(resumenDia.rinde_por_saco) : '--'}
-          </span>
         </div>
 
-        <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 p-4 xl:grid-cols-[260px_1fr]">
+          <div className="rounded-md border border-[#A51F2B]/20 bg-[#A51F2B] p-5 text-white">
+            <p className="text-xs font-black uppercase text-white/75">
+              Rinde general
+            </p>
+            <p className="mt-2 text-5xl font-black leading-none">
+              {resumenDia ? numeroDia(resumenDia.rinde_por_saco) : '--'}
+            </p>
+            <p className="mt-2 text-xs font-bold text-white/75">
+              Kilos totales / amasado para rinde
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {[
-            ['Rinde general', resumenDia ? numeroDia(resumenDia.rinde_por_saco) : '--'],
             ['Total vaciado', resumenDia ? `${numeroDia(resumenDia.quintal_total)} qq` : '--'],
             ['Amasado registrado', resumenDia ? `${numeroDia(resumenDia.amasado_total)} sacos` : '--'],
             ['Ajuste masa', resumenDia ? `${resumenDia.ajuste_masa >= 0 ? '+' : ''}${numeroDia(resumenDia.ajuste_masa)} sacos` : '--'],
@@ -1213,6 +1222,7 @@ export default function AdminPlanillasPage() {
               <p className="mt-1 text-lg font-black text-[#2A1710]">{value}</p>
             </div>
           ))}
+          </div>
         </div>
 
         <div className="grid gap-2 border-t border-[#4B2818]/10 px-4 py-3 md:grid-cols-4">
