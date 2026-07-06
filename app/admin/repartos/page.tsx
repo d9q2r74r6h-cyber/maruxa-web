@@ -446,7 +446,7 @@ export default function RepartosPage() {
             type="number"
             value={anio}
             onChange={(e) => setAnio(Number(e.target.value || 2026))}
-            className="h-10 rounded-md border border-[#4B2818]/20 px-3 font-bold"
+            className="sin-spinner h-10 rounded-md border border-[#4B2818]/20 px-3 font-bold"
           />
         </label>
 
@@ -495,7 +495,7 @@ export default function RepartosPage() {
             type="number"
             value={saldoInicial || ''}
             onChange={(e) => setSaldoInicial(numero(e.target.value))}
-            className="h-10 rounded-md border border-[#4B2818]/20 px-3 font-bold"
+            className="sin-spinner h-10 rounded-md border border-[#4B2818]/20 px-3 font-bold"
           />
         </label>
 
@@ -585,7 +585,7 @@ export default function RepartosPage() {
                         value={fila.precio || ''}
                         onChange={(e) => actualizarPrecio(fila.key, e.target.value)}
                         onKeyDown={moverVertical}
-                        className="h-8 w-20 rounded border border-[#4B2818]/15 px-2 text-right font-bold"
+                        className="sin-spinner h-8 w-20 rounded border border-[#4B2818]/15 px-2 text-right font-bold"
                       />
                     </td>
                     {dias.map((dia) => {
@@ -605,7 +605,7 @@ export default function RepartosPage() {
                                 actualizarCelda(fila.key, dia, 'vendidos', e.target.value)
                               }
                               onKeyDown={moverVertical}
-                              className="h-8 w-14 rounded border border-[#4B2818]/15 px-1 text-right font-bold"
+                              className="sin-spinner h-8 w-14 rounded border border-[#4B2818]/15 px-1 text-right font-bold"
                             />
                           </td>
                           <td key={`${fila.key}-${dia}-d`} className="px-1 py-1">
@@ -617,7 +617,7 @@ export default function RepartosPage() {
                                 actualizarCelda(fila.key, dia, 'devueltos', e.target.value)
                               }
                               onKeyDown={moverVertical}
-                              className="h-8 w-14 rounded border border-red-200 bg-red-50 px-1 text-right font-bold text-red-800"
+                              className="sin-spinner h-8 w-14 rounded border border-red-200 bg-red-50 px-1 text-right font-bold text-red-800"
                             />
                           </td>
                         </>
@@ -690,7 +690,7 @@ export default function RepartosPage() {
                               [dia]: numero(e.target.value),
                             }))
                           }
-                          className="h-8 w-28 rounded border border-emerald-200 bg-white px-2 text-right font-bold text-emerald-800"
+                          className="sin-spinner h-8 w-28 rounded border border-emerald-200 bg-white px-2 text-right font-bold text-emerald-800"
                         />
                       </td>
                     </>
