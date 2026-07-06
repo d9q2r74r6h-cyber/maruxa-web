@@ -192,6 +192,18 @@ function numeroDia(valor: number | null | undefined, decimales = 2) {
   });
 }
 
+function turnoDesdeDetalle(nombre: string) {
+  const encontrado = nombre.match(/\[turno:(\d+)\]/i);
+  return encontrado ? Number(encontrado[1] || 0) : 0;
+}
+
+function esErrorColumnaPanaderos(error: { message?: string } | null) {
+  return Boolean(
+    error?.message?.toLowerCase().includes('panaderos') &&
+      error.message.toLowerCase().includes('column')
+  );
+}
+
 function CampoNumero({
   label,
   value,
@@ -273,6 +285,7 @@ export default function AdminPlanillasPage() {
   const [responsable, setResponsable] = useState('');
   const [quintal, setQuintal] = useState(0);
   const [panaderos, setPanaderos] = useState(0);
+  const [panaderosDisponible, setPanaderosDisponible] = useState(true);
   const [observaciones, setObservaciones] = useState('');
   const [turno, setTurno] = useState<DatosTurno>({ ...turnoInicial });
   const [panSobranteAnterior, setPanSobranteAnterior] = useState(0);
@@ -293,7 +306,7 @@ export default function AdminPlanillasPage() {
     const { data, error } = await supabase
       .from('planillas')
       .select(
-        'id,turno,quintal_total,amasado_total,masa_ocupada,masa_sobrante,kilos_producidos,rinde_por_saco,pan_racion,pan_meson,pan_sobra,cacho'
+        'id,turno,quintal1,quintal2,quintal_total,amasado1,amasado2,amasado_total,masa_ocupada,masa_sobrante,kilos_producidos,rinde_por_saco,pan_racion,pan_meson,pan_sobra,cacho'
       )
       .eq('empresa_id', empresa.id)
       .eq('fecha', fechaSeleccionada)
@@ -309,17 +322,36 @@ export default function AdminPlanillasPage() {
       return;
     }
 
-    const { data: turnosData } = await supabase
+    let { data: turnosData, error: errorTurnos } = await supabase
       .from('planilla_turnos')
       .select('turno,quintal,amasado,panaderos,masa_ocupa,masa_queda,kilos,rinde,reparto,otroskg')
       .eq('planilla_id', data.id)
       .order('turno', { ascending: true });
+
+    if (esErrorColumnaPanaderos(errorTurnos)) {
+      setPanaderosDisponible(false);
+      const respuesta = await supabase
+        .from('planilla_turnos')
+        .select('turno,quintal,amasado,masa_ocupa,masa_queda,kilos,rinde,reparto,otroskg')
+        .eq('planilla_id', data.id)
+        .order('turno', { ascending: true });
+      turnosData = (respuesta.data || []).map((item) => ({
+        ...item,
+        panaderos: 0,
+      }));
+      errorTurnos = respuesta.error;
+    }
+
+    if (errorTurnos) {
+      setResumenDia(null);
+      return;
+    }
     const { data: detallesData } = await supabase
       .from('planilla_detalles')
-      .select('merma')
+      .select('producto_id,nombre_producto,kilos_total,merma')
       .eq('planilla_id', data.id);
 
-    const turnosResumen = (turnosData || []).map((item) => ({
+    let turnosResumen = (turnosData || []).map((item) => ({
       turno: Number(item.turno || 0),
       nombre:
         turnosConfigurados.find((config) => config.orden === Number(item.turno))
@@ -334,6 +366,82 @@ export default function AdminPlanillasPage() {
       reparto: Number(item.reparto || 0),
       otroskg: Number(item.otroskg || 0),
     }));
+
+    if (turnosResumen.length === 0 && (detallesData || []).length > 0) {
+      const detallesPorTurno = new Map<
+        number,
+        { reparto: number; otroskg: number; merma: number }
+      >();
+
+      for (const detalle of detallesData || []) {
+        const numeroTurno = turnoDesdeDetalle(detalle.nombre_producto || '');
+        if (!numeroTurno) continue;
+
+        const actual =
+          detallesPorTurno.get(numeroTurno) || {
+            reparto: 0,
+            otroskg: 0,
+            merma: 0,
+          };
+
+        if (normalizar(detalle.nombre_producto).startsWith('merma')) {
+          actual.merma += Number(detalle.merma || 0);
+        } else if (detalle.producto_id) {
+          actual.otroskg += Number(detalle.kilos_total || 0);
+        } else {
+          actual.reparto += Number(detalle.kilos_total || 0);
+        }
+
+        detallesPorTurno.set(numeroTurno, actual);
+      }
+
+      turnosResumen = Array.from(detallesPorTurno.entries())
+        .sort(([turnoA], [turnoB]) => turnoA - turnoB)
+        .map(([numeroTurno, detalleTurno]) => {
+          const amasado =
+            numeroTurno === 1
+              ? Number(data.amasado1 || 0)
+              : numeroTurno === 2
+                ? Number(data.amasado2 || 0)
+                : 0;
+          const masaOcupa =
+            numeroTurno === 1 ? Number(data.masa_ocupada || 0) : 0;
+          const masaQueda =
+            numeroTurno === 1 ? Number(data.masa_sobrante || 0) : 0;
+          const panRacion =
+            numeroTurno === 1 ? Number(data.pan_racion || 0) : 0;
+          const panSobranteAnterior =
+            numeroTurno === 2 ? Number(data.pan_sobra || 0) : 0;
+          const kilos =
+            detalleTurno.reparto +
+            detalleTurno.otroskg +
+            detalleTurno.merma +
+            panRacion -
+            panSobranteAnterior;
+          const factor = calcularFactorAmasado(amasado, masaOcupa, masaQueda);
+
+          return {
+            turno: numeroTurno,
+            nombre:
+              turnosConfigurados.find((config) => config.orden === numeroTurno)
+                ?.nombre || `Turno ${numeroTurno}`,
+            quintal:
+              numeroTurno === 1
+                ? Number(data.quintal1 || 0)
+                : numeroTurno === 2
+                  ? Number(data.quintal2 || 0)
+                  : 0,
+            amasado,
+            panaderos: 0,
+            masa_ocupa: masaOcupa,
+            masa_queda: masaQueda,
+            kilos: Number(kilos.toFixed(2)),
+            rinde: factor > 0 ? Number((kilos / factor).toFixed(2)) : 0,
+            reparto: detalleTurno.reparto,
+            otroskg: detalleTurno.otroskg,
+          };
+        });
+    }
     const sacosAjustadosTurnos = turnosResumen.reduce(
       (total, item) =>
         total + calcularFactorAmasado(item.amasado, item.masa_ocupa, item.masa_queda),
@@ -639,7 +747,7 @@ export default function AdminPlanillasPage() {
       return;
     }
 
-    const { data: turnoDb, error: errorTurno } = await supabase
+    let { data: turnoDb, error: errorTurno } = await supabase
       .from('planilla_turnos')
       .select(
         'id,responsable,quintal,amasado,panaderos,masa_ocupa,masa_queda,pan_racion,pan_meson,pan_sobra,kilos,rinde'
@@ -647,6 +755,20 @@ export default function AdminPlanillasPage() {
       .eq('planilla_id', planilla.id)
       .eq('turno', turnoConfig.orden)
       .maybeSingle();
+
+    if (esErrorColumnaPanaderos(errorTurno)) {
+      setPanaderosDisponible(false);
+      const respuesta = await supabase
+        .from('planilla_turnos')
+        .select(
+          'id,responsable,quintal,amasado,masa_ocupa,masa_queda,pan_racion,pan_meson,pan_sobra,kilos,rinde'
+        )
+        .eq('planilla_id', planilla.id)
+        .eq('turno', turnoConfig.orden)
+        .maybeSingle();
+      turnoDb = respuesta.data ? { ...respuesta.data, panaderos: 0 } : null;
+      errorTurno = respuesta.error;
+    }
 
     if (errorTurno) {
       limpiarTurno();
@@ -828,25 +950,52 @@ export default function AdminPlanillasPage() {
       turnoConfig.orden === 1 ? planilla.quintal1 : planilla.quintal2;
     const amasadoResumen =
       turnoConfig.orden === 1 ? planilla.amasado1 : planilla.amasado2;
+    const usarResumenHistorico = !turnoDb && turnoEnResumen;
+    const usarTotalesHistoricosEnPrimerTurno =
+      usarResumenHistorico && turnoConfig.orden === 1;
 
     setResponsable(turnoDb?.responsable || planilla.responsable || '');
     setQuintal(Number(turnoDb?.quintal ?? quintalResumen ?? 0));
     setPanaderos(Number(turnoDb?.panaderos || 0));
     setObservaciones('');
-    setPanSobranteAnterior(Number(turnoAnterior?.pan_sobra || 0));
+    setPanSobranteAnterior(
+      Number(
+        turnoAnterior?.pan_sobra ??
+          (usarResumenHistorico && turnoConfig.orden === 2
+            ? planilla.pan_sobra
+            : 0) ??
+          0
+      )
+    );
     setTurno({
       amasado: Number(turnoDb?.amasado ?? amasadoResumen ?? 0),
       masaOcupa: Number(
-        turnoDb?.masa_ocupa ?? (resumenUnSoloTurno ? planilla.masa_ocupada : 0) ?? 0
+        turnoDb?.masa_ocupa ??
+          (resumenUnSoloTurno || usarTotalesHistoricosEnPrimerTurno
+            ? planilla.masa_ocupada
+            : 0) ??
+          0
       ),
       masaQueda: Number(
-        turnoDb?.masa_queda ?? (resumenUnSoloTurno ? planilla.masa_sobrante : 0) ?? 0
+        turnoDb?.masa_queda ??
+          (resumenUnSoloTurno || usarTotalesHistoricosEnPrimerTurno
+            ? planilla.masa_sobrante
+            : 0) ??
+          0
       ),
       panRacion: Number(
-        turnoDb?.pan_racion ?? (resumenUnSoloTurno ? planilla.pan_racion : 0) ?? 0
+        turnoDb?.pan_racion ??
+          (resumenUnSoloTurno || usarTotalesHistoricosEnPrimerTurno
+            ? planilla.pan_racion
+            : 0) ??
+          0
       ),
       panSobrante: Number(
-        turnoDb?.pan_sobra ?? (resumenUnSoloTurno ? planilla.pan_sobra : 0) ?? 0
+        turnoDb?.pan_sobra ??
+          (resumenUnSoloTurno || usarTotalesHistoricosEnPrimerTurno
+            ? planilla.pan_sobra
+            : 0) ??
+          0
       ),
       merma: mermaGuardada,
       otroskg: 0,
@@ -892,7 +1041,7 @@ export default function AdminPlanillasPage() {
     planillaId: string,
     observacionActual: string
   ) {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('planilla_turnos')
       .select(`
         turno,
@@ -913,6 +1062,35 @@ export default function AdminPlanillasPage() {
       `)
       .eq('planilla_id', planillaId)
       .order('turno', { ascending: true });
+
+    if (esErrorColumnaPanaderos(error)) {
+      setPanaderosDisponible(false);
+      const respuesta = await supabase
+        .from('planilla_turnos')
+        .select(`
+          turno,
+          quintal,
+          amasado,
+          masa_ocupa,
+          masa_queda,
+          pan_racion,
+          pan_meson,
+          pan_sobra,
+          cacho,
+          otroskg,
+          centeno,
+          meson,
+          kilos,
+          rinde
+        `)
+        .eq('planilla_id', planillaId)
+        .order('turno', { ascending: true });
+      data = (respuesta.data || []).map((item) => ({
+        ...item,
+        panaderos: 0,
+      }));
+      error = respuesta.error;
+    }
 
     if (error) throw error;
 
@@ -1093,7 +1271,6 @@ export default function AdminPlanillasPage() {
         turno: turnoSeleccionado.orden,
         responsable: responsable.trim(),
         quintal,
-        panaderos,
         amasado: turno.amasado,
         masa_ocupa: turno.masaOcupa,
         masa_queda: turno.masaQueda,
@@ -1108,9 +1285,10 @@ export default function AdminPlanillasPage() {
         insumos: totalInsumos,
         kilos: calculo.kilos,
         rinde: calculo.rinde,
+        ...(panaderosDisponible ? { panaderos } : {}),
       };
 
-      const { error: errorTurno } = turnoExistente
+      let { error: errorTurno } = turnoExistente
         ? await supabase
             .from('planilla_turnos')
             .update(payloadTurno)
@@ -1121,6 +1299,24 @@ export default function AdminPlanillasPage() {
               id: turnoId,
               ...payloadTurno,
             });
+
+      if (esErrorColumnaPanaderos(errorTurno)) {
+        setPanaderosDisponible(false);
+        const { panaderos: _panaderos, ...payloadSinPanaderos } =
+          payloadTurno as typeof payloadTurno & { panaderos?: number };
+        const respuesta = turnoExistente
+          ? await supabase
+              .from('planilla_turnos')
+              .update(payloadSinPanaderos)
+              .eq('id', turnoId)
+          : await supabase
+              .from('planilla_turnos')
+              .insert({
+                id: turnoId,
+                ...payloadSinPanaderos,
+              });
+        errorTurno = respuesta.error;
+      }
 
       if (errorTurno) {
         if (planillaNueva) {
