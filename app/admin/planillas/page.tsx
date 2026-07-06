@@ -423,6 +423,8 @@ export default function AdminPlanillasPage() {
             numeroTurno === 1 ? Number(data.masa_sobrante || 0) : 0;
           const panRacion =
             numeroTurno === 1 ? Number(data.pan_racion || 0) : 0;
+          const panSobrante =
+            numeroTurno === 1 ? Number(data.pan_sobra || 0) : 0;
           const panSobranteAnterior =
             numeroTurno === 2 ? Number(data.pan_sobra || 0) : 0;
           const kilos =
@@ -430,7 +432,8 @@ export default function AdminPlanillasPage() {
             detalleTurno.otroskg +
             detalleTurno.merma +
             panRacion -
-            panSobranteAnterior;
+            panSobranteAnterior +
+            panSobrante;
           const factor = calcularFactorAmasado(amasado, masaOcupa, masaQueda);
 
           return {
@@ -1732,7 +1735,7 @@ export default function AdminPlanillasPage() {
             onChange={(valor) => cambiarCampo('panRacion', valor)}
           />
           <CampoNumero
-            label="Pan sobrante para turno siguiente (kg)"
+            label="Pan sobrante (kg)"
             value={turno.panSobrante || 0}
             onChange={(valor) => cambiarCampo('panSobrante', valor)}
           />

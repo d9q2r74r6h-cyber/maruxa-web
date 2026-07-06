@@ -61,7 +61,8 @@ valores as (
       coalesce(dt.otroskg, 0) +
       coalesce(dt.merma, 0) +
       case when dt.turno = 1 then coalesce(p.pan_racion, 0) else 0 end -
-      case when dt.turno = 2 then coalesce(p.pan_sobra, 0) else 0 end as kilos
+      case when dt.turno = 2 then coalesce(p.pan_sobra, 0) else 0 end +
+      case when dt.turno = 1 then coalesce(p.pan_sobra, 0) else 0 end as kilos
   from detalle_turnos dt
   join public.planillas p on p.id = dt.planilla_id
 ),
