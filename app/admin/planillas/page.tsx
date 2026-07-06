@@ -1151,28 +1151,6 @@ export default function AdminPlanillasPage() {
         </div>
       </header>
 
-      <div className="flex flex-wrap gap-1 rounded-lg border border-[#4B2818]/15 bg-white p-1">
-        {turnosConfigurados.map((opcion) => (
-          <button
-            key={opcion.id}
-            type="button"
-            onClick={() => cambiarTurnoSeleccionado(opcion.id)}
-            className={`h-10 rounded-md px-5 text-sm font-black transition ${
-              turnoSeleccionadoId === opcion.id
-                ? 'bg-[#2A1710] text-white'
-                : 'text-[#4B2818] hover:bg-[#FFF3DF]'
-            }`}
-          >
-            {opcion.nombre}
-            {(opcion.hora_inicio || opcion.hora_fin) && (
-              <span className="ml-2 text-[11px] opacity-70">
-                {horaCorta(opcion.hora_inicio)} - {horaCorta(opcion.hora_fin)}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
       {mensaje && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-800">
           {mensaje}
@@ -1262,6 +1240,28 @@ export default function AdminPlanillasPage() {
           </p>
         )}
       </section>
+
+      <div className="flex flex-wrap gap-1 rounded-lg border border-[#4B2818]/15 bg-white p-1">
+        {turnosConfigurados.map((opcion) => (
+          <button
+            key={opcion.id}
+            type="button"
+            onClick={() => cambiarTurnoSeleccionado(opcion.id)}
+            className={`h-10 rounded-md px-5 text-sm font-black transition ${
+              turnoSeleccionadoId === opcion.id
+                ? 'bg-[#2A1710] text-white'
+                : 'text-[#4B2818] hover:bg-[#FFF3DF]'
+            }`}
+          >
+            {opcion.nombre}
+            {(opcion.hora_inicio || opcion.hora_fin) && (
+              <span className="ml-2 text-[11px] opacity-70">
+                {horaCorta(opcion.hora_inicio)} - {horaCorta(opcion.hora_fin)}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
 
       <section className={`rounded-lg border p-5 ${colorEstado}`}>
         <div className="flex flex-wrap items-start justify-between gap-4">
