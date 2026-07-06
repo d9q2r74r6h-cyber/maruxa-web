@@ -59,6 +59,13 @@ type ProductoRinde = {
   unidad_base: string | null;
 };
 
+type ProductoTurno = {
+  id: string;
+  producto_id: number;
+  nombre: string;
+  kilos: number;
+};
+
 type TurnoGuardado = {
   turno: number;
   quintal: number;
@@ -103,6 +110,7 @@ type ResumenDia = {
     kilos: number;
     rinde: number;
     reparto: number;
+    otroskg: number;
   }[];
 };
 
@@ -255,6 +263,11 @@ export default function AdminPlanillasPage() {
     Funcionario[]
   >([]);
   const [productosRinde, setProductosRinde] = useState<ProductoRinde[]>([]);
+  const [productosPanaderia, setProductosPanaderia] = useState<ProductoRinde[]>(
+    []
+  );
+  const [productosTurno, setProductosTurno] = useState<ProductoTurno[]>([]);
+  const [productoSeleccionadoId, setProductoSeleccionadoId] = useState('');
   const [tablaFuncionariosDisponible, setTablaFuncionariosDisponible] =
     useState(false);
   const [responsable, setResponsable] = useState('');
@@ -298,7 +311,7 @@ export default function AdminPlanillasPage() {
 
     const { data: turnosData } = await supabase
       .from('planilla_turnos')
-      .select('turno,quintal,amasado,panaderos,masa_ocupa,masa_queda,kilos,rinde,reparto')
+      .select('turno,quintal,amasado,panaderos,masa_ocupa,masa_queda,kilos,rinde,reparto,otroskg')
       .eq('planilla_id', data.id)
       .order('turno', { ascending: true });
     const { data: detallesData } = await supabase
@@ -319,6 +332,7 @@ export default function AdminPlanillasPage() {
       kilos: Number(item.kilos || 0),
       rinde: Number(item.rinde || 0),
       reparto: Number(item.reparto || 0),
+      otroskg: Number(item.otroskg || 0),
     }));
     const sacosAjustadosTurnos = turnosResumen.reduce(
       (total, item) =>
@@ -459,6 +473,22 @@ export default function AdminPlanillasPage() {
         );
       }
 
+      const { data: productosPanaderiaData, error: productosPanaderiaError } =
+        await supabase
+          .from('productos')
+          .select('id, nombre, unidad_base')
+          .eq('empresa_id', empresa.id)
+          .eq('activo', true)
+          .eq('tipo_producto', 'producto')
+          .eq('categoria', 'Panadería')
+          .order('nombre', { ascending: true });
+
+      if (productosPanaderiaError) {
+        alert(productosPanaderiaError.message);
+      } else {
+        setProductosPanaderia((productosPanaderiaData || []) as ProductoRinde[]);
+      }
+
       setCargandoTurnos(false);
       await cargarResumenDia();
     }
@@ -478,6 +508,7 @@ export default function AdminPlanillasPage() {
     fecha,
     turnoSeleccionadoId,
     productosRinde,
+    productosPanaderia,
     repartidoresConfigurados,
     tablaFuncionariosDisponible,
   ]);
@@ -486,15 +517,19 @@ export default function AdminPlanillasPage() {
     () => repartos.reduce((total, reparto) => total + reparto.kilos, 0),
     [repartos]
   );
+  const kilosProductosTurno = useMemo(
+    () => productosTurno.reduce((total, producto) => total + producto.kilos, 0),
+    [productosTurno]
+  );
 
   const datosTurno = useMemo<DatosTurno>(
     () => ({
       ...turno,
-      otroskg: 0,
+      otroskg: kilosProductosTurno,
       panSobranteAnterior,
       repartos: repartos.map((reparto) => reparto.kilos),
     }),
-    [panSobranteAnterior, repartos, turno]
+    [kilosProductosTurno, panSobranteAnterior, repartos, turno]
   );
 
   const calculo = useMemo(() => calcularTurno(datosTurno), [datosTurno]);
@@ -533,6 +568,40 @@ export default function AdminPlanillasPage() {
     }));
   }
 
+  function productosTurnoBase() {
+    return productosPanaderia.map((producto) => ({
+      id: String(producto.id),
+      producto_id: producto.id,
+      nombre: producto.nombre,
+      kilos: 0,
+    }));
+  }
+
+  function agregarProductoTurno() {
+    const producto = productosPanaderia.find(
+      (item) => String(item.id) === productoSeleccionadoId
+    );
+
+    if (!producto) return;
+
+    setProductosTurno((actuales) => {
+      if (actuales.some((item) => item.producto_id === producto.id)) {
+        return actuales;
+      }
+
+      return [
+        ...actuales,
+        {
+          id: String(producto.id),
+          producto_id: producto.id,
+          nombre: producto.nombre,
+          kilos: 0,
+        },
+      ];
+    });
+    setProductoSeleccionadoId('');
+  }
+
   function limpiarTurno() {
     setResponsable('');
     setQuintal(0);
@@ -541,6 +610,8 @@ export default function AdminPlanillasPage() {
     setTurno({ ...turnoInicial });
     setPanSobranteAnterior(0);
     setRepartos(repartosBase());
+    setProductosTurno([]);
+    setProductoSeleccionadoId('');
     setInsumos(insumosBase());
     setMensaje('');
   }
@@ -595,7 +666,7 @@ export default function AdminPlanillasPage() {
     const [{ data: detallesData }, { data: insumosData }] = await Promise.all([
       supabase
         .from('planilla_detalles')
-        .select('nombre_producto,kilos_total,merma')
+        .select('producto_id,nombre_producto,kilos_total,merma')
         .eq('planilla_id', planilla.id)
         .like('nombre_producto', `% [turno:${turnoConfig.orden}]`),
       turnoDb
@@ -607,6 +678,7 @@ export default function AdminPlanillasPage() {
     ]);
 
     const detalles = (detallesData || []) as {
+      producto_id: number | null;
       nombre_producto: string;
       kilos_total: number;
       merma: number;
@@ -620,7 +692,14 @@ export default function AdminPlanillasPage() {
     const marcadorTurno = ` [turno:${turnoConfig.orden}]`;
     const sufijoTurno = ` - ${turnoConfig.nombre}`;
     const detalleRepartos = detalles.filter(
-      (item) => !normalizar(item.nombre_producto).startsWith('merma')
+      (item) =>
+        !item.producto_id &&
+        !normalizar(item.nombre_producto).startsWith('merma')
+    );
+    const detalleProductos = detalles.filter(
+      (item) =>
+        item.producto_id &&
+        !normalizar(item.nombre_producto).startsWith('merma')
     );
     const turnosResumen = String(planilla.turno || '')
       .split(',')
@@ -683,6 +762,40 @@ export default function AdminPlanillasPage() {
           )
       );
 
+    const productosPorId = new Map(
+      detalleProductos.map((item) => [
+        Number(item.producto_id),
+        Number(item.kilos_total || 0),
+      ])
+    );
+    const baseProductosTurno = productosTurnoBase()
+      .map((item) => ({
+        ...item,
+        kilos: productosPorId.get(item.producto_id) || 0,
+      }))
+      .filter((item) => item.kilos > 0);
+    const productosExtras = detalleProductos
+      .map((item) => {
+        let nombre = item.nombre_producto.replace(marcadorTurno, '').trim();
+        if (nombre.endsWith(sufijoTurno)) {
+          nombre = nombre.slice(0, -sufijoTurno.length).trim();
+        }
+
+        return {
+          id: `guardado-producto-${item.producto_id}`,
+          producto_id: Number(item.producto_id || 0),
+          nombre,
+          kilos: Number(item.kilos_total || 0),
+        };
+      })
+      .filter(
+        (item) =>
+          item.kilos > 0 &&
+          !baseProductosTurno.some(
+            (base) => base.producto_id === item.producto_id
+          )
+      );
+
     const insumosPorNombre = new Map(
       insumosGuardados.map((item) => [normalizar(item.nombre), item])
     );
@@ -739,6 +852,7 @@ export default function AdminPlanillasPage() {
       otroskg: 0,
     });
     setRepartos([...baseRepartos, ...repartosExtras]);
+    setProductosTurno([...baseProductosTurno, ...productosExtras]);
     setInsumos([...baseInsumos, ...insumosExtras]);
     setMensaje(
       turnoDb
@@ -987,7 +1101,7 @@ export default function AdminPlanillasPage() {
         pan_meson: 0,
         pan_sobra: turno.panSobrante || 0,
         cacho: 0,
-        otroskg: 0,
+        otroskg: kilosProductosTurno,
         centeno: 0,
         meson: 0,
         reparto: kilosRepartos,
@@ -1061,6 +1175,20 @@ export default function AdminPlanillasPage() {
           kilos_total: item.kilos,
           merma: 0,
         }));
+
+      productosTurno
+        .filter((item) => item.kilos > 0)
+        .forEach((item) => {
+          filasRepartos.push({
+            planilla_id: planillaId,
+            producto_id: item.producto_id,
+            nombre_producto: `${item.nombre.trim()} - ${turnoSeleccionado.nombre} [turno:${turnoSeleccionado.orden}]`,
+            cantidad: 1,
+            peso_unitario: item.kilos,
+            kilos_total: item.kilos,
+            merma: 0,
+          });
+        });
 
       if (Number(turno.merma || 0) > 0) {
         filasRepartos.push({
@@ -1245,10 +1373,11 @@ export default function AdminPlanillasPage() {
           </div>
         </div>
 
-        <div className="grid gap-2 border-t border-[#4B2818]/10 px-4 py-3 md:grid-cols-3">
+        <div className="grid gap-2 border-t border-[#4B2818]/10 px-4 py-3 md:grid-cols-4">
           {[
             ['Pan racion', resumenDia ? `${numeroDia(resumenDia.pan_racion)} kg` : '--'],
             ['Repartos', resumenDia ? `${numeroDia(resumenDia.turnos.reduce((total, item) => total + item.reparto, 0))} kg` : '--'],
+            ['Productos rinde', resumenDia ? `${numeroDia(resumenDia.turnos.reduce((total, item) => total + item.otroskg, 0))} kg` : '--'],
             ['Merma', resumenDia ? `${numeroDia(resumenDia.merma)} kg` : '--'],
           ].map(([label, value]) => (
             <div key={label} className="flex items-center justify-between rounded-md bg-[#FFF3DF]/60 px-3 py-2 text-sm">
@@ -1263,7 +1392,7 @@ export default function AdminPlanillasPage() {
             {resumenDia.turnos.map((item) => (
               <div
                 key={`${item.turno}-${item.nombre}`}
-                className="grid gap-2 px-4 py-3 text-sm md:grid-cols-[1.2fr_repeat(7,1fr)] md:items-center"
+                className="grid gap-2 px-4 py-3 text-sm md:grid-cols-[1.2fr_repeat(8,1fr)] md:items-center"
               >
                 <p className="font-black text-[#2A1710]">{item.nombre}</p>
                 <p><span className="font-bold text-[#4B2818]/55">Vaciado:</span> {numeroDia(item.quintal)} qq</p>
@@ -1271,6 +1400,7 @@ export default function AdminPlanillasPage() {
                 <p><span className="font-bold text-[#4B2818]/55">Panaderos:</span> {numeroDia(item.panaderos, 0)}</p>
                 <p><span className="font-bold text-[#4B2818]/55">Ocupa:</span> {numeroDia(item.masa_ocupa)}</p>
                 <p><span className="font-bold text-[#4B2818]/55">Queda:</span> {numeroDia(item.masa_queda)}</p>
+                <p><span className="font-bold text-[#4B2818]/55">Productos:</span> {numeroDia(item.otroskg)} kg</p>
                 <p><span className="font-bold text-[#4B2818]/55">Kilos:</span> {numeroDia(item.kilos)} kg</p>
                 <p><span className="font-bold text-[#4B2818]/55">Rinde:</span> {numeroDia(item.rinde)}</p>
               </div>
@@ -1497,6 +1627,100 @@ export default function AdminPlanillasPage() {
         </div>
         <div className="border-t border-[#4B2818]/10 bg-[#FFF3DF]/60 px-4 py-3 text-right text-sm font-black text-[#2A1710]">
           Total repartos: {kilosRepartos.toFixed(2)} kg
+        </div>
+      </section>
+
+      <section className="overflow-hidden rounded-lg border border-[#4B2818]/15 bg-white">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#4B2818]/10 bg-[#FFF3DF] px-4 py-3">
+          <div>
+            <h2 className="font-black text-[#2A1710]">Productos para rinde</h2>
+            <p className="text-xs font-semibold text-[#4B2818]/60">
+              Productos de panadería producidos en kilos durante este turno.
+            </p>
+          </div>
+          <div className="flex w-full gap-2 sm:w-auto">
+            <select
+              value={productoSeleccionadoId}
+              onChange={(event) => setProductoSeleccionadoId(event.target.value)}
+              className="h-9 min-w-0 flex-1 rounded-md border border-[#4B2818]/20 bg-white px-3 text-sm font-bold text-[#2A1710] outline-none focus:border-[#A51F2B] sm:w-64"
+            >
+              <option value="">Seleccionar producto</option>
+              {productosPanaderia
+                .filter(
+                  (producto) =>
+                    !productosTurno.some(
+                      (item) => item.producto_id === producto.id
+                    )
+                )
+                .map((producto) => (
+                  <option key={producto.id} value={producto.id}>
+                    {producto.nombre}
+                  </option>
+                ))}
+            </select>
+            <button
+              type="button"
+              onClick={agregarProductoTurno}
+              disabled={!productoSeleccionadoId}
+              className="inline-flex h-9 items-center gap-2 rounded-md bg-[#2A1710] px-3 text-xs font-black text-white transition hover:bg-[#A51F2B] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Plus className="h-4 w-4" />
+              Agregar
+            </button>
+          </div>
+        </div>
+
+        {productosTurno.length === 0 ? (
+          <p className="px-4 py-5 text-sm font-semibold text-[#4B2818]/55">
+            Agrega productos como Hallulla Integral cuando sus kilos deban sumar al rinde.
+          </p>
+        ) : (
+          <div className="divide-y divide-[#4B2818]/10">
+            {productosTurno.map((producto) => (
+              <div
+                key={producto.id}
+                className="grid gap-2 px-4 py-3 sm:grid-cols-[1fr_150px_40px] sm:items-center"
+              >
+                <input
+                  value={producto.nombre}
+                  readOnly
+                  className="h-9 rounded-md border border-[#4B2818]/15 bg-gray-50 px-3 font-bold text-[#4B2818]/70 outline-none"
+                />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  aria-label={`Kilos ${producto.nombre}`}
+                  value={producto.kilos || ''}
+                  onChange={(event) =>
+                    setProductosTurno((actuales) =>
+                      actuales.map((item) =>
+                        item.id === producto.id
+                          ? { ...item, kilos: Number(event.target.value || 0) }
+                          : item
+                      )
+                    )
+                  }
+                  className="h-9 rounded-md border border-[#4B2818]/15 px-3 text-right font-bold outline-none focus:border-[#A51F2B]"
+                />
+                <button
+                  type="button"
+                  title="Quitar producto"
+                  onClick={() =>
+                    setProductosTurno((actuales) =>
+                      actuales.filter((item) => item.id !== producto.id)
+                    )
+                  }
+                  className="grid h-8 w-8 place-items-center rounded-md text-gray-400 transition hover:bg-red-50 hover:text-red-700"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="border-t border-[#4B2818]/10 bg-[#FFF3DF]/60 px-4 py-3 text-right text-sm font-black text-[#2A1710]">
+          Total productos para rinde: {kilosProductosTurno.toFixed(2)} kg
         </div>
       </section>
 
