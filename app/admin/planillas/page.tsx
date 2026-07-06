@@ -20,6 +20,7 @@ import { obtenerEmpresaActual } from '@/lib/empresa';
 import {
   calcularFactorAmasado,
   calcularTurno,
+  clasificarRinde,
   type DatosTurno,
 } from '@/lib/planillas/planillas';
 
@@ -202,6 +203,18 @@ function esErrorColumnaPanaderos(error: { message?: string } | null) {
     error?.message?.toLowerCase().includes('panaderos') &&
       error.message.toLowerCase().includes('column')
   );
+}
+
+function colorRinde(estado: string) {
+  if (estado === 'ideal') {
+    return 'border-emerald-200 bg-emerald-50 text-emerald-800';
+  }
+
+  if (estado === 'aceptable') {
+    return 'border-amber-200 bg-amber-50 text-amber-800';
+  }
+
+  return 'border-red-200 bg-red-50 text-red-800';
 }
 
 function CampoNumero({
@@ -1440,12 +1453,13 @@ export default function AdminPlanillasPage() {
     }
   }
 
-  const colorEstado =
-    calculo.estadoRinde === 'ideal'
-      ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-      : calculo.estadoRinde === 'aceptable'
-        ? 'border-amber-200 bg-amber-50 text-amber-800'
-        : 'border-red-200 bg-red-50 text-red-800';
+  const colorEstado = colorRinde(calculo.estadoRinde);
+  const estadoRindeGeneral: ReturnType<typeof clasificarRinde> = resumenDia
+    ? clasificarRinde(resumenDia.rinde_por_saco)
+    : 'bajo';
+  const colorRindeGeneral = resumenDia
+    ? colorRinde(estadoRindeGeneral)
+    : 'border-[#A51F2B]/20 bg-[#A51F2B] text-white';
 
   if (cargandoTurnos) {
     return (
@@ -1536,14 +1550,17 @@ export default function AdminPlanillasPage() {
         </div>
 
         <div className="grid gap-4 p-4 xl:grid-cols-[260px_1fr]">
-          <div className="rounded-md border border-[#A51F2B]/20 bg-[#A51F2B] p-5 text-white">
-            <p className="text-xs font-black uppercase text-white/75">
+          <div className={`rounded-md border p-5 ${colorRindeGeneral}`}>
+            <p className="text-xs font-black uppercase opacity-75">
               Rinde general
             </p>
             <p className="mt-2 text-5xl font-black leading-none">
               {resumenDia ? numeroDia(resumenDia.rinde_por_saco) : '--'}
             </p>
-            <p className="mt-2 text-xs font-bold text-white/75">
+            <p className="mt-2 text-xs font-bold uppercase opacity-75">
+              {resumenDia ? estadoRindeGeneral : 'Sin datos'}
+            </p>
+            <p className="mt-2 text-xs font-bold opacity-75">
               Kilos totales / amasado para rinde
             </p>
           </div>
