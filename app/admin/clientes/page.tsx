@@ -91,7 +91,7 @@ export default function ClientesPage() {
   const [clienteEditando, setClienteEditando] = useState<Cliente | null>(null);
   const [busqueda, setBusqueda] = useState('');
   const [filtroRepartidor, setFiltroRepartidor] = useState('todos');
-  const [filtroEstado, setFiltroEstado] = useState('activos');
+  const [filtroEstado, setFiltroEstado] = useState('todos');
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [clienteCambiandoEstado, setClienteCambiandoEstado] = useState<string | null>(
@@ -402,9 +402,9 @@ export default function ClientesPage() {
               onChange={(event) => setFiltroEstado(event.target.value)}
               className="h-9 rounded-md border border-[#4B2818]/15 bg-white px-3 text-sm font-bold outline-none"
             >
+              <option value="todos">Todos</option>
               <option value="activos">Activos</option>
               <option value="inactivos">Inactivos</option>
-              <option value="todos">Todos</option>
             </select>
           </div>
 
@@ -422,7 +422,7 @@ export default function ClientesPage() {
                 <article
                   key={cliente.id}
                   className={`grid gap-3 px-5 py-4 md:grid-cols-[140px_1fr_170px_120px] ${
-                    cliente.activo ? 'bg-white' : 'bg-zinc-50 opacity-75'
+                    cliente.activo ? 'bg-white' : 'bg-red-50/35'
                   }`}
                 >
                   <div>
@@ -443,7 +443,7 @@ export default function ClientesPage() {
                         className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${
                           cliente.activo
                             ? 'bg-emerald-50 text-emerald-700'
-                            : 'bg-zinc-200 text-zinc-600'
+                            : 'bg-red-50 text-red-700'
                         }`}
                       >
                         {cliente.activo ? 'Activo' : 'Inactivo'}
@@ -488,7 +488,7 @@ export default function ClientesPage() {
                       className={`relative h-7 w-14 rounded-full transition disabled:cursor-wait disabled:opacity-70 ${
                         cliente.activo
                           ? 'bg-emerald-500'
-                          : 'bg-zinc-300'
+                          : 'bg-red-500'
                       }`}
                       title={cliente.activo ? 'Desactivar' : 'Activar'}
                       aria-label={cliente.activo ? 'Desactivar cliente' : 'Activar cliente'}
