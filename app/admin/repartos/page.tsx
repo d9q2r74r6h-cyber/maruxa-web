@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { CalendarDays, Loader2, Save, Truck } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAdminSession } from '@/components/AdminSession';
@@ -72,6 +72,29 @@ function nombreMes(mes: number) {
   return new Intl.DateTimeFormat('es-CL', { month: 'long' }).format(
     new Date(2026, mes - 1, 1)
   );
+}
+
+function moverVertical(event: KeyboardEvent<HTMLInputElement>) {
+  if (event.key !== 'Enter') return;
+
+  const input = event.currentTarget;
+  const columna = input.dataset.columna;
+
+  if (!columna) return;
+
+  const fila = input.closest('tr');
+  const siguienteFila = event.shiftKey
+    ? fila?.previousElementSibling
+    : fila?.nextElementSibling;
+  const siguiente = siguienteFila?.querySelector<HTMLInputElement>(
+    `input[data-columna="${columna}"]`
+  );
+
+  if (!siguiente) return;
+
+  event.preventDefault();
+  siguiente.focus();
+  siguiente.select();
 }
 
 function filaDesdeCliente(cliente: Cliente): Fila {
@@ -558,8 +581,10 @@ export default function RepartosPage() {
                     <td className="sticky left-36 z-[5] bg-white px-2 py-1">
                       <input
                         type="number"
+                        data-columna="precio"
                         value={fila.precio || ''}
                         onChange={(e) => actualizarPrecio(fila.key, e.target.value)}
+                        onKeyDown={moverVertical}
                         className="h-8 w-20 rounded border border-[#4B2818]/15 px-2 text-right font-bold"
                       />
                     </td>
@@ -574,20 +599,24 @@ export default function RepartosPage() {
                           <td key={`${fila.key}-${dia}-v`} className="border-l border-[#4B2818]/10 px-1 py-1">
                             <input
                               type="number"
+                              data-columna={`${dia}-vendidos`}
                               value={celda.vendidos || ''}
                               onChange={(e) =>
                                 actualizarCelda(fila.key, dia, 'vendidos', e.target.value)
                               }
+                              onKeyDown={moverVertical}
                               className="h-8 w-14 rounded border border-[#4B2818]/15 px-1 text-right font-bold"
                             />
                           </td>
                           <td key={`${fila.key}-${dia}-d`} className="px-1 py-1">
                             <input
                               type="number"
+                              data-columna={`${dia}-devueltos`}
                               value={celda.devueltos || ''}
                               onChange={(e) =>
                                 actualizarCelda(fila.key, dia, 'devueltos', e.target.value)
                               }
+                              onKeyDown={moverVertical}
                               className="h-8 w-14 rounded border border-red-200 bg-red-50 px-1 text-right font-bold text-red-800"
                             />
                           </td>
