@@ -63,6 +63,7 @@ type TurnoGuardado = {
   turno: number;
   quintal: number;
   amasado: number;
+  panaderos: number;
   masa_ocupa: number;
   masa_queda: number;
   pan_racion: number;
@@ -96,6 +97,7 @@ type ResumenDia = {
     nombre: string;
     quintal: number;
     amasado: number;
+    panaderos: number;
     masa_ocupa: number;
     masa_queda: number;
     kilos: number;
@@ -186,10 +188,12 @@ function CampoNumero({
   label,
   value,
   onChange,
+  step = '0.01',
 }: {
   label: string;
   value: number;
   onChange: (value: number) => void;
+  step?: string;
 }) {
   return (
     <label className="grid gap-1.5 text-xs font-bold text-[#4B2818]">
@@ -197,7 +201,7 @@ function CampoNumero({
       <input
         type="number"
         min="0"
-        step="0.01"
+        step={step}
         value={value || ''}
         onChange={(event) => onChange(Number(event.target.value || 0))}
         className="h-10 w-full rounded-md border border-[#4B2818]/20 bg-white px-3 text-right text-sm font-bold outline-none transition focus:border-[#A51F2B] focus:ring-2 focus:ring-[#A51F2B]/10"
@@ -255,6 +259,7 @@ export default function AdminPlanillasPage() {
     useState(false);
   const [responsable, setResponsable] = useState('');
   const [quintal, setQuintal] = useState(0);
+  const [panaderos, setPanaderos] = useState(0);
   const [observaciones, setObservaciones] = useState('');
   const [turno, setTurno] = useState<DatosTurno>({ ...turnoInicial });
   const [panSobranteAnterior, setPanSobranteAnterior] = useState(0);
@@ -293,7 +298,7 @@ export default function AdminPlanillasPage() {
 
     const { data: turnosData } = await supabase
       .from('planilla_turnos')
-      .select('turno,quintal,amasado,masa_ocupa,masa_queda,kilos,rinde,reparto')
+      .select('turno,quintal,amasado,panaderos,masa_ocupa,masa_queda,kilos,rinde,reparto')
       .eq('planilla_id', data.id)
       .order('turno', { ascending: true });
     const { data: detallesData } = await supabase
@@ -308,6 +313,7 @@ export default function AdminPlanillasPage() {
           ?.nombre || `Turno ${item.turno}`,
       quintal: Number(item.quintal || 0),
       amasado: Number(item.amasado || 0),
+      panaderos: Number(item.panaderos || 0),
       masa_ocupa: Number(item.masa_ocupa || 0),
       masa_queda: Number(item.masa_queda || 0),
       kilos: Number(item.kilos || 0),
@@ -530,6 +536,7 @@ export default function AdminPlanillasPage() {
   function limpiarTurno() {
     setResponsable('');
     setQuintal(0);
+    setPanaderos(0);
     setObservaciones('');
     setTurno({ ...turnoInicial });
     setPanSobranteAnterior(0);
@@ -564,7 +571,7 @@ export default function AdminPlanillasPage() {
     const { data: turnoDb, error: errorTurno } = await supabase
       .from('planilla_turnos')
       .select(
-        'id,responsable,quintal,amasado,masa_ocupa,masa_queda,pan_racion,pan_meson,pan_sobra,kilos,rinde'
+        'id,responsable,quintal,amasado,panaderos,masa_ocupa,masa_queda,pan_racion,pan_meson,pan_sobra,kilos,rinde'
       )
       .eq('planilla_id', planilla.id)
       .eq('turno', turnoConfig.orden)
@@ -711,6 +718,7 @@ export default function AdminPlanillasPage() {
 
     setResponsable(turnoDb?.responsable || planilla.responsable || '');
     setQuintal(Number(turnoDb?.quintal ?? quintalResumen ?? 0));
+    setPanaderos(Number(turnoDb?.panaderos || 0));
     setObservaciones('');
     setPanSobranteAnterior(Number(turnoAnterior?.pan_sobra || 0));
     setTurno({
@@ -776,6 +784,7 @@ export default function AdminPlanillasPage() {
         turno,
         quintal,
         amasado,
+        panaderos,
         masa_ocupa,
         masa_queda,
         pan_racion,
@@ -970,6 +979,7 @@ export default function AdminPlanillasPage() {
         turno: turnoSeleccionado.orden,
         responsable: responsable.trim(),
         quintal,
+        panaderos,
         amasado: turno.amasado,
         masa_ocupa: turno.masaOcupa,
         masa_queda: turno.masaQueda,
@@ -1253,11 +1263,12 @@ export default function AdminPlanillasPage() {
             {resumenDia.turnos.map((item) => (
               <div
                 key={`${item.turno}-${item.nombre}`}
-                className="grid gap-2 px-4 py-3 text-sm md:grid-cols-[1.2fr_repeat(6,1fr)] md:items-center"
+                className="grid gap-2 px-4 py-3 text-sm md:grid-cols-[1.2fr_repeat(7,1fr)] md:items-center"
               >
                 <p className="font-black text-[#2A1710]">{item.nombre}</p>
                 <p><span className="font-bold text-[#4B2818]/55">Vaciado:</span> {numeroDia(item.quintal)} qq</p>
                 <p><span className="font-bold text-[#4B2818]/55">Amasado:</span> {numeroDia(item.amasado)}</p>
+                <p><span className="font-bold text-[#4B2818]/55">Panaderos:</span> {numeroDia(item.panaderos, 0)}</p>
                 <p><span className="font-bold text-[#4B2818]/55">Ocupa:</span> {numeroDia(item.masa_ocupa)}</p>
                 <p><span className="font-bold text-[#4B2818]/55">Queda:</span> {numeroDia(item.masa_queda)}</p>
                 <p><span className="font-bold text-[#4B2818]/55">Kilos:</span> {numeroDia(item.kilos)} kg</p>
@@ -1351,6 +1362,12 @@ export default function AdminPlanillasPage() {
             )}
           </label>
           <CampoNumero label="Quintal" value={quintal} onChange={setQuintal} />
+          <CampoNumero
+            label="Panaderos"
+            value={panaderos}
+            onChange={setPanaderos}
+            step="1"
+          />
           <CampoNumero
             label="Amasado (sacos)"
             value={turno.amasado}
