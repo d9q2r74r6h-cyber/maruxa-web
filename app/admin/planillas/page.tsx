@@ -109,7 +109,6 @@ const turnoInicial: DatosTurno = {
   masaOcupa: 0,
   masaQueda: 0,
   panRacion: 0,
-  panMeson: 0,
   panSobrante: 0,
   merma: 0,
   otroskg: 0,
@@ -119,7 +118,10 @@ const repartidoresPorDefecto = [
   'JUAN ALFREDO TAPIA NAVARRETE',
   'LUIS ALBORNOZ',
   'PANADERIA',
+  'MESON',
 ];
+
+const repartoMesonNombre = 'MESON';
 
 function hoy() {
   const fecha = new Date();
@@ -152,6 +154,25 @@ function normalizar(texto: string | null | undefined) {
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .trim();
+}
+
+function asegurarRepartoMeson(repartos: Reparto[]) {
+  if (
+    repartos.some(
+      (item) => normalizar(item.nombre) === normalizar(repartoMesonNombre)
+    )
+  ) {
+    return repartos;
+  }
+
+  return [
+    ...repartos,
+    {
+      id: 'base-meson',
+      nombre: repartoMesonNombre,
+      kilos: 0,
+    },
+  ];
 }
 
 function numeroDia(valor: number | null | undefined, decimales = 2) {
@@ -383,16 +404,20 @@ export default function AdminPlanillasPage() {
         setRepartidoresConfigurados(repartidoresActivos);
         setRepartos(
           repartidoresActivos.length > 0
-            ? repartidoresActivos.map((item) => ({
-                id: item.id,
-                nombre: item.nombre_completo,
-                kilos: 0,
-              }))
-            : repartidoresPorDefecto.map((nombre) => ({
-                id: `base-${normalizar(nombre)}`,
-                nombre,
-                kilos: 0,
-              }))
+            ? asegurarRepartoMeson(
+                repartidoresActivos.map((item) => ({
+                  id: item.id,
+                  nombre: item.nombre_completo,
+                  kilos: 0,
+                }))
+              )
+            : asegurarRepartoMeson(
+                repartidoresPorDefecto.map((nombre) => ({
+                  id: `base-${normalizar(nombre)}`,
+                  nombre,
+                  kilos: 0,
+                }))
+              )
         );
         setTablaFuncionariosDisponible(true);
       } else {
@@ -474,18 +499,22 @@ export default function AdminPlanillasPage() {
 
   function repartosBase() {
     if (tablaFuncionariosDisponible && repartidoresConfigurados.length > 0) {
-      return repartidoresConfigurados.map((item) => ({
-        id: item.id,
-        nombre: item.nombre_completo,
-        kilos: 0,
-      }));
+      return asegurarRepartoMeson(
+        repartidoresConfigurados.map((item) => ({
+          id: item.id,
+          nombre: item.nombre_completo,
+          kilos: 0,
+        }))
+      );
     }
 
-    return repartidoresPorDefecto.map((nombre) => ({
-      id: `base-${normalizar(nombre)}`,
-      nombre,
-      kilos: 0,
-    }));
+    return asegurarRepartoMeson(
+      repartidoresPorDefecto.map((nombre) => ({
+        id: `base-${normalizar(nombre)}`,
+        nombre,
+        kilos: 0,
+      }))
+    );
   }
 
   function insumosBase() {
@@ -614,6 +643,15 @@ export default function AdminPlanillasPage() {
         return [normalizar(nombre), Number(item.kilos_total || 0)];
       })
     );
+    const mesonHistorico = Number(
+      turnoDb?.pan_meson ?? (resumenUnSoloTurno ? planilla.pan_meson : 0) ?? 0
+    );
+    const claveMeson = normalizar(repartoMesonNombre);
+
+    if (mesonHistorico > 0 && !repartosPorNombre.has(claveMeson)) {
+      repartosPorNombre.set(claveMeson, mesonHistorico);
+    }
+
     const baseRepartos = repartosBase().map((item) => ({
       ...item,
       kilos: repartosPorNombre.get(normalizar(item.nombre)) || 0,
@@ -685,9 +723,6 @@ export default function AdminPlanillasPage() {
       ),
       panRacion: Number(
         turnoDb?.pan_racion ?? (resumenUnSoloTurno ? planilla.pan_racion : 0) ?? 0
-      ),
-      panMeson: Number(
-        turnoDb?.pan_meson ?? (resumenUnSoloTurno ? planilla.pan_meson : 0) ?? 0
       ),
       panSobrante: Number(
         turnoDb?.pan_sobra ?? (resumenUnSoloTurno ? planilla.pan_sobra : 0) ?? 0
@@ -821,10 +856,7 @@ export default function AdminPlanillasPage() {
           (total, item) => total + Number(item.pan_racion || 0),
           0
         ),
-        pan_meson: turnos.reduce(
-          (total, item) => total + Number(item.pan_meson || 0),
-          0
-        ),
+        pan_meson: 0,
         pan_sobra: turnos.reduce(
           (total, item) => total + Number(item.pan_sobra || 0),
           0
@@ -942,7 +974,7 @@ export default function AdminPlanillasPage() {
         masa_ocupa: turno.masaOcupa,
         masa_queda: turno.masaQueda,
         pan_racion: turno.panRacion,
-        pan_meson: turno.panMeson,
+        pan_meson: 0,
         pan_sobra: turno.panSobrante || 0,
         cacho: 0,
         otroskg: 0,
@@ -1203,9 +1235,8 @@ export default function AdminPlanillasPage() {
           </div>
         </div>
 
-        <div className="grid gap-2 border-t border-[#4B2818]/10 px-4 py-3 md:grid-cols-4">
+        <div className="grid gap-2 border-t border-[#4B2818]/10 px-4 py-3 md:grid-cols-3">
           {[
-            ['Pan meson', resumenDia ? `${numeroDia(resumenDia.pan_meson)} kg` : '--'],
             ['Pan racion', resumenDia ? `${numeroDia(resumenDia.pan_racion)} kg` : '--'],
             ['Repartos', resumenDia ? `${numeroDia(resumenDia.turnos.reduce((total, item) => total + item.reparto, 0))} kg` : '--'],
             ['Merma', resumenDia ? `${numeroDia(resumenDia.merma)} kg` : '--'],
@@ -1334,11 +1365,6 @@ export default function AdminPlanillasPage() {
             label="Masa queda"
             value={turno.masaQueda}
             onChange={(valor) => cambiarCampo('masaQueda', valor)}
-          />
-          <CampoNumero
-            label="Pan mesón (kg)"
-            value={turno.panMeson}
-            onChange={(valor) => cambiarCampo('panMeson', valor)}
           />
           <CampoNumero
             label="Pan ración (kg)"
