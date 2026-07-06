@@ -416,7 +416,7 @@ export default function RepartosPage() {
         </button>
       </header>
 
-      <section className="grid gap-3 rounded-lg border border-[#4B2818]/15 bg-white p-4 md:grid-cols-[120px_120px_1fr_150px_auto] md:items-end">
+      <section className="grid gap-3 rounded-lg border border-[#4B2818]/15 bg-white p-4 md:grid-cols-2 xl:grid-cols-[120px_170px_minmax(260px,1fr)_180px_120px] xl:items-end">
         <label className="grid gap-1 text-xs font-black text-[#4B2818]">
           Ano
           <input
@@ -480,7 +480,7 @@ export default function RepartosPage() {
           type="button"
           onClick={abrirPlanilla}
           disabled={cargando}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-[#A51F2B]/25 px-4 text-sm font-black text-[#A51F2B] disabled:opacity-60"
+          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-[#A51F2B]/25 px-4 text-sm font-black text-[#A51F2B] disabled:opacity-60"
         >
           {cargando ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarDays className="h-4 w-4" />}
           Abrir
