@@ -112,6 +112,7 @@ type ResumenDia = {
     rinde: number;
     reparto: number;
     otroskg: number;
+    cacho: number;
   }[];
 };
 
@@ -122,6 +123,7 @@ const turnoInicial: DatosTurno = {
   panRacion: 0,
   panSobrante: 0,
   merma: 0,
+  cacho: 0,
   otroskg: 0,
 };
 
@@ -243,6 +245,65 @@ function CampoNumero({
   );
 }
 
+function CampoLinea({
+  label,
+  value,
+  onChange,
+  step = '0.01',
+  className = '',
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  step?: string;
+  className?: string;
+}) {
+  return (
+    <label
+      className={`grid min-w-[92px] gap-1 border-r border-[#4B2818]/10 bg-white px-2 py-2 text-[10px] font-black uppercase text-[#4B2818]/65 ${className}`}
+    >
+      <span className="truncate" title={label}>
+        {label}
+      </span>
+      <input
+        type="number"
+        min="0"
+        step={step}
+        value={value || ''}
+        onChange={(event) => onChange(Number(event.target.value || 0))}
+        className="h-8 w-full rounded border border-[#4B2818]/20 bg-[#FFFDF8] px-2 text-right text-sm font-black text-[#2A1710] outline-none transition focus:border-[#A51F2B] focus:bg-white focus:ring-2 focus:ring-[#A51F2B]/10"
+      />
+    </label>
+  );
+}
+
+function CeldaResultado({
+  label,
+  value,
+  emphasis = false,
+}: {
+  label: string;
+  value: string;
+  emphasis?: boolean;
+}) {
+  return (
+    <div
+      className={`grid min-w-[102px] gap-1 border-r border-[#4B2818]/10 px-2 py-2 text-[10px] font-black uppercase ${
+        emphasis
+          ? 'bg-[#2A1710] text-white'
+          : 'bg-[#FFF3DF] text-[#4B2818]/70'
+      }`}
+    >
+      <span className="truncate" title={label}>
+        {label}
+      </span>
+      <span className="h-8 rounded border border-black/5 bg-white/80 px-2 py-1.5 text-right text-sm font-black text-[#2A1710]">
+        {value}
+      </span>
+    </div>
+  );
+}
+
 function moverConEnter(event: KeyboardEvent<HTMLDivElement>) {
   if (event.key !== 'Enter' || event.target instanceof HTMLTextAreaElement) {
     return;
@@ -337,7 +398,7 @@ export default function AdminPlanillasPage() {
 
     let { data: turnosData, error: errorTurnos } = await supabase
       .from('planilla_turnos')
-      .select('turno,quintal,amasado,panaderos,masa_ocupa,masa_queda,kilos,rinde,reparto,otroskg')
+      .select('turno,quintal,amasado,panaderos,masa_ocupa,masa_queda,kilos,rinde,reparto,otroskg,cacho')
       .eq('planilla_id', data.id)
       .order('turno', { ascending: true });
 
@@ -345,7 +406,7 @@ export default function AdminPlanillasPage() {
       setPanaderosDisponible(false);
       const respuesta = await supabase
         .from('planilla_turnos')
-        .select('turno,quintal,amasado,masa_ocupa,masa_queda,kilos,rinde,reparto,otroskg')
+        .select('turno,quintal,amasado,masa_ocupa,masa_queda,kilos,rinde,reparto,otroskg,cacho')
         .eq('planilla_id', data.id)
         .order('turno', { ascending: true });
       turnosData = (respuesta.data || []).map((item) => ({
@@ -378,6 +439,7 @@ export default function AdminPlanillasPage() {
       rinde: Number(item.rinde || 0),
       reparto: Number(item.reparto || 0),
       otroskg: Number(item.otroskg || 0),
+      cacho: Number(item.cacho || 0),
     }));
 
     if (turnosResumen.length === 0 && (detallesData || []).length > 0) {
@@ -423,8 +485,6 @@ export default function AdminPlanillasPage() {
             numeroTurno === 1 ? Number(data.masa_sobrante || 0) : 0;
           const panRacion =
             numeroTurno === 1 ? Number(data.pan_racion || 0) : 0;
-          const panSobrante =
-            numeroTurno === 1 ? Number(data.pan_sobra || 0) : 0;
           const panSobranteAnterior =
             numeroTurno === 2 ? Number(data.pan_sobra || 0) : 0;
           const kilos =
@@ -432,8 +492,7 @@ export default function AdminPlanillasPage() {
             detalleTurno.otroskg +
             detalleTurno.merma +
             panRacion -
-            panSobranteAnterior +
-            panSobrante;
+            panSobranteAnterior;
           const factor = calcularFactorAmasado(amasado, masaOcupa, masaQueda);
 
           return {
@@ -455,6 +514,7 @@ export default function AdminPlanillasPage() {
             rinde: factor > 0 ? Number((kilos / factor).toFixed(2)) : 0,
             reparto: detalleTurno.reparto,
             otroskg: detalleTurno.otroskg,
+            cacho: 0,
           };
         });
     }
@@ -752,7 +812,7 @@ export default function AdminPlanillasPage() {
     const { data: planilla, error: errorPlanilla } = await supabase
       .from('planillas')
       .select(
-        'id,turno,responsable,observaciones,quintal1,quintal2,amasado1,amasado2,masa_ocupada,masa_sobrante,pan_racion,pan_meson,pan_sobra'
+        'id,turno,responsable,observaciones,quintal1,quintal2,amasado1,amasado2,masa_ocupada,masa_sobrante,pan_racion,pan_meson,pan_sobra,cacho'
       )
       .eq('empresa_id', empresa.id)
       .eq('fecha', fechaSeleccionada)
@@ -766,7 +826,7 @@ export default function AdminPlanillasPage() {
     let { data: turnoDb, error: errorTurno } = await supabase
       .from('planilla_turnos')
       .select(
-        'id,responsable,quintal,amasado,panaderos,masa_ocupa,masa_queda,pan_racion,pan_meson,pan_sobra,kilos,rinde'
+        'id,responsable,quintal,amasado,panaderos,masa_ocupa,masa_queda,pan_racion,pan_meson,pan_sobra,cacho,kilos,rinde'
       )
       .eq('planilla_id', planilla.id)
       .eq('turno', turnoConfig.orden)
@@ -777,7 +837,7 @@ export default function AdminPlanillasPage() {
       const respuesta = await supabase
         .from('planilla_turnos')
         .select(
-          'id,responsable,quintal,amasado,masa_ocupa,masa_queda,pan_racion,pan_meson,pan_sobra,kilos,rinde'
+          'id,responsable,quintal,amasado,masa_ocupa,masa_queda,pan_racion,pan_meson,pan_sobra,cacho,kilos,rinde'
         )
         .eq('planilla_id', planilla.id)
         .eq('turno', turnoConfig.orden)
@@ -1014,6 +1074,13 @@ export default function AdminPlanillasPage() {
           0
       ),
       merma: mermaGuardada,
+      cacho: Number(
+        turnoDb?.cacho ??
+          (resumenUnSoloTurno || usarTotalesHistoricosEnPrimerTurno
+            ? planilla.cacho
+            : 0) ??
+          0
+      ),
       otroskg: 0,
     });
     setRepartos([...baseRepartos, ...repartosExtras]);
@@ -1293,7 +1360,7 @@ export default function AdminPlanillasPage() {
         pan_racion: turno.panRacion,
         pan_meson: 0,
         pan_sobra: turno.panSobrante || 0,
-        cacho: 0,
+        cacho: turno.cacho || 0,
         otroskg: kilosProductosTurno,
         centeno: 0,
         meson: 0,
@@ -1651,6 +1718,263 @@ export default function AdminPlanillasPage() {
         ))}
       </div>
 
+      <section className="overflow-hidden rounded-lg border border-[#4B2818]/15 bg-white">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#4B2818]/10 bg-[#FFF3DF] px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Calculator className="h-4 w-4 text-[#A51F2B]" />
+            <div>
+              <h2 className="font-black text-[#2A1710]">
+                Linea de rinde estilo Excel
+              </h2>
+              <p className="text-xs font-semibold text-[#4B2818]/60">
+                Un turno en una sola fila: vaciado, amasado, masas, repartos,
+                productos, insumos y resultado.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {!tablaFuncionariosDisponible && (
+              <button
+                type="button"
+                onClick={() =>
+                  setRepartos((actuales) => [
+                    ...actuales,
+                    {
+                      id: `temporal-${Date.now()}`,
+                      nombre: `Reparto ${actuales.length + 1}`,
+                      kilos: 0,
+                    },
+                  ])
+                }
+                className="inline-flex h-9 items-center gap-2 rounded-md bg-[#2A1710] px-3 text-xs font-black text-white transition hover:bg-[#A51F2B]"
+              >
+                <Plus className="h-4 w-4" />
+                Reparto
+              </button>
+            )}
+            <select
+              value={productoSeleccionadoId}
+              onChange={(event) => setProductoSeleccionadoId(event.target.value)}
+              className="h-9 min-w-0 rounded-md border border-[#4B2818]/20 bg-white px-3 text-sm font-bold text-[#2A1710] outline-none focus:border-[#A51F2B]"
+            >
+              <option value="">Producto para rinde</option>
+              {productosPanaderia
+                .filter(
+                  (producto) =>
+                    !productosTurno.some(
+                      (item) => item.producto_id === producto.id
+                    )
+                )
+                .map((producto) => (
+                  <option key={producto.id} value={producto.id}>
+                    {producto.nombre}
+                  </option>
+                ))}
+            </select>
+            <button
+              type="button"
+              onClick={agregarProductoTurno}
+              disabled={!productoSeleccionadoId}
+              className="inline-flex h-9 items-center gap-2 rounded-md bg-[#2A1710] px-3 text-xs font-black text-white transition hover:bg-[#A51F2B] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Plus className="h-4 w-4" />
+              Producto
+            </button>
+          </div>
+        </div>
+
+        <div className="grid gap-3 border-b border-[#4B2818]/10 p-4 lg:grid-cols-[1.5fr_1fr]">
+          <label className="grid gap-1.5 text-xs font-bold text-[#4B2818]">
+            Mayordomo responsable
+            {tablaFuncionariosDisponible ? (
+              <select
+                value={responsable}
+                onChange={(event) => setResponsable(event.target.value)}
+                className="h-10 rounded-md border border-[#4B2818]/20 bg-white px-3 text-sm font-bold outline-none focus:border-[#A51F2B]"
+              >
+                <option value="">Seleccionar mayordomo</option>
+                {mayordomos.map((funcionario) => (
+                  <option key={funcionario.id} value={funcionario.nombre_completo}>
+                    {funcionario.nombre_completo}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                value={responsable}
+                onChange={(event) => setResponsable(event.target.value)}
+                placeholder="Ingreso temporal hasta crear funcionarios"
+                className="h-10 rounded-md border border-amber-300 bg-amber-50 px-3 text-sm font-bold outline-none focus:border-[#A51F2B]"
+              />
+            )}
+          </label>
+
+          <label className="grid gap-1.5 text-xs font-bold text-[#4B2818]">
+            Observaciones
+            <input
+              value={observaciones}
+              onChange={(event) => setObservaciones(event.target.value)}
+              className="h-10 rounded-md border border-[#4B2818]/20 px-3 text-sm font-semibold outline-none focus:border-[#A51F2B]"
+            />
+          </label>
+        </div>
+
+        <div className="overflow-x-auto">
+          <div className="flex min-w-max border-b border-[#4B2818]/10">
+            <div className="sticky left-0 z-10 grid min-w-[150px] gap-1 border-r border-[#4B2818]/10 bg-[#2A1710] px-3 py-2 text-[10px] font-black uppercase text-white shadow-sm">
+              <span>Dia / turno</span>
+              <span className="h-8 rounded bg-white/10 px-2 py-1.5 text-sm">
+                {fecha.slice(-2)} - {turnoSeleccionado?.nombre}
+              </span>
+            </div>
+
+            <CampoLinea label="1ra / Quintal" value={quintal} onChange={setQuintal} />
+            <CampoLinea
+              label="Amasado"
+              value={turno.amasado}
+              onChange={(valor) => cambiarCampo('amasado', valor)}
+            />
+            <CampoLinea
+              label="Masa queda"
+              value={turno.masaQueda}
+              onChange={(valor) => cambiarCampo('masaQueda', valor)}
+            />
+            <CampoLinea
+              label="Masa ocupada"
+              value={turno.masaOcupa}
+              onChange={(valor) => cambiarCampo('masaOcupa', valor)}
+            />
+            <CampoLinea
+              label="Panaderos"
+              value={panaderos}
+              onChange={setPanaderos}
+              step="1"
+            />
+            <CampoLinea
+              label="Raciones"
+              value={turno.panRacion}
+              onChange={(valor) => cambiarCampo('panRacion', valor)}
+            />
+            <CampoLinea
+              label="Cacho"
+              value={turno.cacho || 0}
+              onChange={(valor) => cambiarCampo('cacho', valor)}
+            />
+
+            {repartos.map((reparto) => (
+              <CampoLinea
+                key={reparto.id}
+                label={reparto.nombre}
+                value={reparto.kilos}
+                onChange={(valor) =>
+                  setRepartos((actuales) =>
+                    actuales.map((item) =>
+                      item.id === reparto.id ? { ...item, kilos: valor } : item
+                    )
+                  )
+                }
+                className="min-w-[118px]"
+              />
+            ))}
+
+            {productosTurno.map((producto) => (
+              <div key={producto.id} className="relative">
+                <CampoLinea
+                  label={producto.nombre}
+                  value={producto.kilos}
+                  onChange={(valor) =>
+                    setProductosTurno((actuales) =>
+                      actuales.map((item) =>
+                        item.id === producto.id
+                          ? { ...item, kilos: valor }
+                          : item
+                      )
+                    )
+                  }
+                  className="min-w-[128px] bg-[#F6FFF7]"
+                />
+                <button
+                  type="button"
+                  title="Quitar producto"
+                  onClick={() =>
+                    setProductosTurno((actuales) =>
+                      actuales.filter((item) => item.id !== producto.id)
+                    )
+                  }
+                  className="absolute right-1 top-1 grid h-4 w-4 place-items-center rounded text-[#4B2818]/45 transition hover:bg-red-50 hover:text-red-700"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+
+            <CampoLinea
+              label="Otro"
+              value={turno.merma || 0}
+              onChange={(valor) => cambiarCampo('merma', valor)}
+            />
+            <CampoLinea
+              label="KPAN sobrante"
+              value={turno.panSobrante || 0}
+              onChange={(valor) => cambiarCampo('panSobrante', valor)}
+            />
+
+            {insumos.map((insumo) => (
+              <CampoLinea
+                key={insumo.id}
+                label={insumo.nombre}
+                value={insumo.cantidad}
+                onChange={(valor) =>
+                  setInsumos((actuales) =>
+                    actuales.map((item) =>
+                      item.id === insumo.id ? { ...item, cantidad: valor } : item
+                    )
+                  )
+                }
+                className="min-w-[112px] bg-[#F8FAFC]"
+              />
+            ))}
+
+            <CeldaResultado
+              label="Total repartos"
+              value={`${kilosRepartos.toFixed(2)} kg`}
+            />
+            <CeldaResultado
+              label="Productos"
+              value={`${kilosProductosTurno.toFixed(2)} kg`}
+            />
+            <CeldaResultado
+              label="Desc. KPAN ant."
+              value={`${panSobranteAnterior.toFixed(2)} kg`}
+            />
+            <CeldaResultado
+              label="Kilos"
+              value={`${calculo.kilos.toFixed(2)} kg`}
+              emphasis
+            />
+            <CeldaResultado
+              label="Amasado calc."
+              value={calculo.factorAmasado.toFixed(2)}
+              emphasis
+            />
+            <CeldaResultado
+              label="Rinde"
+              value={calculo.rinde.toFixed(2)}
+              emphasis
+            />
+          </div>
+        </div>
+
+        <div className={`border-t px-4 py-3 text-sm font-black ${colorEstado}`}>
+          Estado {turnoSeleccionado?.nombre}: {calculo.estadoRinde}.{' '}
+          {panSobranteAnterior > 0
+            ? `Descuenta ${panSobranteAnterior.toFixed(2)} kg de pan sobrante del turno anterior.`
+            : 'El KPAN sobrante se guarda para descontarlo en el turno siguiente.'}
+        </div>
+      </section>
+
+      <div className="hidden">
       <section className={`rounded-lg border p-5 ${colorEstado}`}>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -1998,6 +2322,7 @@ export default function AdminPlanillasPage() {
           </div>
         )}
       </section>
+      </div>
 
       <div className="flex justify-end">
         <button
