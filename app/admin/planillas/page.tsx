@@ -116,6 +116,45 @@ type ResumenDia = {
   }[];
 };
 
+type ResumenMensualDia = {
+  fecha: string;
+  planilla: {
+    quintal1: number;
+    quintal2: number;
+    centeno: number;
+    meson: number;
+    quintal_total: number;
+    amasado1: number;
+    amasado2: number;
+    amasado_total: number;
+    masa_ocupada: number;
+    masa_sobrante: number;
+    kilos_producidos: number;
+    rinde_por_saco: number;
+    pan_racion: number;
+    pan_sobra: number;
+    cacho: number;
+  };
+  turnos: Record<
+    number,
+    {
+      quintal: number;
+      amasado: number;
+      panaderos: number;
+      masa_ocupa: number;
+      masa_queda: number;
+      pan_racion: number;
+      pan_sobra: number;
+      cacho: number;
+      kilos: number;
+      rinde: number;
+      reparto: number;
+      otroskg: number;
+    }
+  >;
+  merma: number;
+};
+
 const turnoInicial: DatosTurno = {
   amasado: 0,
   masaOcupa: 0,
@@ -159,6 +198,28 @@ function fechaEnPalabras(fecha: string) {
     month: 'long',
     year: 'numeric',
   }).format(new Date(anio, mes - 1, dia));
+}
+
+function rangoMes(fecha: string) {
+  const [anio, mes] = fecha.split('-').map(Number);
+  const ultimoDia = new Date(anio, mes, 0).getDate();
+
+  return {
+    anio,
+    mes,
+    ultimoDia,
+    inicio: `${anio}-${String(mes).padStart(2, '0')}-01`,
+    fin: `${anio}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`,
+  };
+}
+
+function nombreMes(fecha: string) {
+  const { anio, mes } = rangoMes(fecha);
+
+  return new Intl.DateTimeFormat('es-CL', {
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date(anio, mes - 1, 1));
 }
 
 function normalizar(texto: string | null | undefined) {
@@ -370,8 +431,108 @@ export default function AdminPlanillasPage() {
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState('');
   const [resumenDia, setResumenDia] = useState<ResumenDia | null>(null);
+  const [resumenMensual, setResumenMensual] = useState<
+    Record<string, ResumenMensualDia>
+  >({});
   const turnoSeleccionado =
     turnosConfigurados.find((item) => item.id === turnoSeleccionadoId) || null;
+
+  async function cargarResumenMensual(fechaSeleccionada = fecha) {
+    const empresa = await obtenerEmpresaActual();
+    if (!empresa) return;
+
+    const { inicio, fin } = rangoMes(fechaSeleccionada);
+
+    const { data: planillasData, error } = await supabase
+      .from('planillas')
+      .select(
+        'id,fecha,quintal1,quintal2,centeno,meson,quintal_total,amasado1,amasado2,amasado_total,masa_ocupada,masa_sobrante,kilos_producidos,rinde_por_saco,pan_racion,pan_sobra,cacho'
+      )
+      .eq('empresa_id', empresa.id)
+      .gte('fecha', inicio)
+      .lte('fecha', fin)
+      .order('fecha', { ascending: true });
+
+    if (error) {
+      setResumenMensual({});
+      return;
+    }
+
+    const planillas = planillasData || [];
+    const ids = planillas.map((item) => item.id);
+    const turnosPorPlanilla = new Map<string, ResumenMensualDia['turnos']>();
+    const mermaPorPlanilla = new Map<string, number>();
+
+    if (ids.length > 0) {
+      const { data: turnosData } = await supabase
+        .from('planilla_turnos')
+        .select(
+          'planilla_id,turno,quintal,amasado,panaderos,masa_ocupa,masa_queda,pan_racion,pan_sobra,cacho,kilos,rinde,reparto,otroskg'
+        )
+        .in('planilla_id', ids);
+
+      for (const item of turnosData || []) {
+        const planillaId = String(item.planilla_id);
+        const turnos = turnosPorPlanilla.get(planillaId) || {};
+        turnos[Number(item.turno || 0)] = {
+          quintal: Number(item.quintal || 0),
+          amasado: Number(item.amasado || 0),
+          panaderos: Number(item.panaderos || 0),
+          masa_ocupa: Number(item.masa_ocupa || 0),
+          masa_queda: Number(item.masa_queda || 0),
+          pan_racion: Number(item.pan_racion || 0),
+          pan_sobra: Number(item.pan_sobra || 0),
+          cacho: Number(item.cacho || 0),
+          kilos: Number(item.kilos || 0),
+          rinde: Number(item.rinde || 0),
+          reparto: Number(item.reparto || 0),
+          otroskg: Number(item.otroskg || 0),
+        };
+        turnosPorPlanilla.set(planillaId, turnos);
+      }
+
+      const { data: detallesData } = await supabase
+        .from('planilla_detalles')
+        .select('planilla_id,merma')
+        .in('planilla_id', ids);
+
+      for (const item of detallesData || []) {
+        const planillaId = String(item.planilla_id);
+        mermaPorPlanilla.set(
+          planillaId,
+          (mermaPorPlanilla.get(planillaId) || 0) + Number(item.merma || 0)
+        );
+      }
+    }
+
+    const mensual: Record<string, ResumenMensualDia> = {};
+    for (const item of planillas) {
+      mensual[item.fecha] = {
+        fecha: item.fecha,
+        planilla: {
+          quintal1: Number(item.quintal1 || 0),
+          quintal2: Number(item.quintal2 || 0),
+          centeno: Number(item.centeno || 0),
+          meson: Number(item.meson || 0),
+          quintal_total: Number(item.quintal_total || 0),
+          amasado1: Number(item.amasado1 || 0),
+          amasado2: Number(item.amasado2 || 0),
+          amasado_total: Number(item.amasado_total || 0),
+          masa_ocupada: Number(item.masa_ocupada || 0),
+          masa_sobrante: Number(item.masa_sobrante || 0),
+          kilos_producidos: Number(item.kilos_producidos || 0),
+          rinde_por_saco: Number(item.rinde_por_saco || 0),
+          pan_racion: Number(item.pan_racion || 0),
+          pan_sobra: Number(item.pan_sobra || 0),
+          cacho: Number(item.cacho || 0),
+        },
+        turnos: turnosPorPlanilla.get(item.id) || {},
+        merma: mermaPorPlanilla.get(item.id) || 0,
+      };
+    }
+
+    setResumenMensual(mensual);
+  }
 
   async function cargarResumenDia(fechaSeleccionada = fecha) {
     const empresa = await obtenerEmpresaActual();
@@ -675,6 +836,7 @@ export default function AdminPlanillasPage() {
 
       setCargandoTurnos(false);
       await cargarResumenDia();
+      await cargarResumenMensual();
     }
 
     cargarConfiguracion();
@@ -682,6 +844,7 @@ export default function AdminPlanillasPage() {
 
   useEffect(() => {
     cargarResumenDia(fecha);
+    cargarResumenMensual(fecha);
   }, [fecha, turnosConfigurados]);
 
   useEffect(() => {
@@ -1516,6 +1679,7 @@ export default function AdminPlanillasPage() {
         `${turnoSeleccionado.nombre} guardado correctamente.`
       );
       await cargarResumenDia(fecha);
+      await cargarResumenMensual(fecha);
     } catch (error) {
       alert(error instanceof Error ? error.message : 'No se pudo guardar el turno.');
     } finally {
@@ -1530,6 +1694,54 @@ export default function AdminPlanillasPage() {
   const colorRindeGeneral = resumenDia
     ? colorRinde(estadoRindeGeneral)
     : 'border-[#A51F2B]/20 bg-[#A51F2B] text-white';
+  const { anio: anioMes, mes: mesSeleccionado, ultimoDia } = rangoMes(fecha);
+  const diasMes = Array.from({ length: ultimoDia }, (_, indice) => indice + 1);
+  const fechaDiaMes = (dia: number) =>
+    `${anioMes}-${String(mesSeleccionado).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+  const valorMes = (
+    dia: number,
+    obtener: (item: ResumenMensualDia) => number,
+    decimales = 2
+  ) => {
+    const item = resumenMensual[fechaDiaMes(dia)];
+    if (!item) return '';
+
+    const valor = obtener(item);
+    return valor ? numeroDia(valor, decimales) : '';
+  };
+  const filasMensuales = [
+    ['1ra', (item: ResumenMensualDia) => item.turnos[1]?.quintal || item.planilla.quintal1, 2],
+    ['2da', (item: ResumenMensualDia) => item.turnos[2]?.quintal || item.planilla.quintal2, 2],
+    ['Centeno', (item: ResumenMensualDia) => item.planilla.centeno, 2],
+    ['Meson', (item: ResumenMensualDia) => item.planilla.meson, 2],
+    ['Quintales vaciados', (item: ResumenMensualDia) => item.planilla.quintal_total, 2],
+    ['KILOS', (item: ResumenMensualDia) => item.planilla.kilos_producidos, 2],
+    ['RINDE', (item: ResumenMensualDia) => item.planilla.rinde_por_saco, 2],
+    ['Amasado 1ra', (item: ResumenMensualDia) => item.turnos[1]?.amasado || item.planilla.amasado1, 2],
+    ['Amasado 2da', (item: ResumenMensualDia) => item.turnos[2]?.amasado || item.planilla.amasado2, 2],
+    ['Total amasado', (item: ResumenMensualDia) => item.planilla.amasado_total, 2],
+    ['Masa queda 1ra', (item: ResumenMensualDia) => item.turnos[1]?.masa_queda || 0, 2],
+    ['Masa ocupada 1ra', (item: ResumenMensualDia) => item.turnos[1]?.masa_ocupa || 0, 2],
+    ['Masa 1ra', (item: ResumenMensualDia) => (item.turnos[1]?.masa_ocupa || 0) - (item.turnos[1]?.masa_queda || 0), 2],
+    ['Masa queda 2da', (item: ResumenMensualDia) => item.turnos[2]?.masa_queda || item.planilla.masa_sobrante, 2],
+    ['Masa ocupada 2da', (item: ResumenMensualDia) => item.turnos[2]?.masa_ocupa || item.planilla.masa_ocupada, 2],
+    ['Masa 2da', (item: ResumenMensualDia) => (item.turnos[2]?.masa_ocupa || item.planilla.masa_ocupada) - (item.turnos[2]?.masa_queda || item.planilla.masa_sobrante), 2],
+    ['Kilos 1ra', (item: ResumenMensualDia) => item.turnos[1]?.kilos || 0, 2],
+    ['Kilos 2da', (item: ResumenMensualDia) => item.turnos[2]?.kilos || 0, 2],
+    ['Total kilos', (item: ResumenMensualDia) => item.planilla.kilos_producidos, 2],
+    ['Rinde 1ra', (item: ResumenMensualDia) => item.turnos[1]?.rinde || 0, 2],
+    ['Rinde 2da', (item: ResumenMensualDia) => item.turnos[2]?.rinde || 0, 2],
+    ['Panaderos 1ra', (item: ResumenMensualDia) => item.turnos[1]?.panaderos || 0, 0],
+    ['Panaderos 2da', (item: ResumenMensualDia) => item.turnos[2]?.panaderos || 0, 0],
+    ['Total panaderos', (item: ResumenMensualDia) => (item.turnos[1]?.panaderos || 0) + (item.turnos[2]?.panaderos || 0), 0],
+    ['Cacho', (item: ResumenMensualDia) => item.planilla.cacho, 2],
+    ['Repartos 1ra', (item: ResumenMensualDia) => item.turnos[1]?.reparto || 0, 2],
+    ['Repartos 2da', (item: ResumenMensualDia) => item.turnos[2]?.reparto || 0, 2],
+    ['Productos rinde 1ra', (item: ResumenMensualDia) => item.turnos[1]?.otroskg || 0, 2],
+    ['Productos rinde 2da', (item: ResumenMensualDia) => item.turnos[2]?.otroskg || 0, 2],
+    ['Merma / Otro', (item: ResumenMensualDia) => item.merma, 2],
+    ['KPAN', (item: ResumenMensualDia) => item.planilla.pan_sobra, 2],
+  ] as const;
 
   if (cargandoTurnos) {
     return (
@@ -1719,6 +1931,77 @@ export default function AdminPlanillasPage() {
       </div>
 
       <section className="overflow-hidden rounded-lg border border-[#4B2818]/15 bg-white">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#4B2818]/10 bg-[#FFF3DF] px-4 py-3">
+          <div>
+            <h2 className="font-black capitalize text-[#2A1710]">
+              Planilla mensual de rinde - {nombreMes(fecha)}
+            </h2>
+            <p className="text-xs font-semibold text-[#4B2818]/60">
+              Vista tipo Excel: conceptos hacia abajo y todos los dias del mes
+              hacia el lado.
+            </p>
+          </div>
+          <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-[#4B2818]">
+            {Object.keys(resumenMensual).length} dias con datos
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="min-w-max border-collapse text-sm">
+            <thead>
+              <tr>
+                <th className="sticky left-0 z-10 min-w-[190px] border-b border-r border-[#4B2818]/15 bg-[#2A1710] px-3 py-2 text-left text-xs font-black uppercase text-white">
+                  Concepto
+                </th>
+                {diasMes.map((dia) => (
+                  <th
+                    key={dia}
+                    className={`min-w-[74px] border-b border-r border-[#4B2818]/10 px-2 py-2 text-center text-xs font-black ${
+                      fechaDiaMes(dia) === fecha
+                        ? 'bg-[#A51F2B] text-white'
+                        : 'bg-[#FFF3DF] text-[#4B2818]'
+                    }`}
+                  >
+                    {dia}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filasMensuales.map(([label, obtener, decimales], indice) => (
+                <tr
+                  key={label}
+                  className={
+                    ['Quintales vaciados', 'KILOS', 'RINDE', 'Total amasado', 'Total kilos'].includes(
+                      label
+                    )
+                      ? 'bg-[#FFF3DF]/60'
+                      : indice % 2 === 0
+                        ? 'bg-white'
+                        : 'bg-[#FFFDF8]'
+                  }
+                >
+                  <th className="sticky left-0 z-10 min-w-[190px] border-b border-r border-[#4B2818]/10 bg-inherit px-3 py-2 text-left text-xs font-black uppercase text-[#2A1710]">
+                    {label}
+                  </th>
+                  {diasMes.map((dia) => (
+                    <td
+                      key={`${label}-${dia}`}
+                      className={`border-b border-r border-[#4B2818]/10 px-2 py-2 text-right font-bold text-[#2A1710] ${
+                        fechaDiaMes(dia) === fecha ? 'bg-[#A51F2B]/10' : ''
+                      }`}
+                    >
+                      {valorMes(dia, obtener, decimales)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#4B2818]/10 bg-[#FFF3DF] px-4 py-3">
           <div className="flex items-center gap-2">
             <Calculator className="h-4 w-4 text-[#A51F2B]" />
@@ -1974,7 +2257,7 @@ export default function AdminPlanillasPage() {
         </div>
       </section>
 
-      <div className="hidden">
+      <div className="space-y-6">
       <section className={`rounded-lg border p-5 ${colorEstado}`}>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
