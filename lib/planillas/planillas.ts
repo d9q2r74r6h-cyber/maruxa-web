@@ -7,6 +7,8 @@ export type DatosTurno = {
   panSobranteAnterior?: number;
   merma?: number;
   cacho?: number;
+  centeno?: number;
+  meson?: number;
   otroskg?: number;
   repartos?: number[];
 };

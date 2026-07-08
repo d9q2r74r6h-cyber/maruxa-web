@@ -147,6 +147,8 @@ type ResumenMensualDia = {
       pan_racion: number;
       pan_sobra: number;
       cacho: number;
+      centeno: number;
+      meson: number;
       kilos: number;
       rinde: number;
       reparto: number;
@@ -165,6 +167,8 @@ type CampoGrilla =
   | 'panaderos'
   | 'panRacion'
   | 'cacho'
+  | 'centeno'
+  | 'meson'
   | 'merma'
   | 'panSobrante'
   | 'insumo';
@@ -177,6 +181,8 @@ const turnoInicial: DatosTurno = {
   panSobrante: 0,
   merma: 0,
   cacho: 0,
+  centeno: 0,
+  meson: 0,
   otroskg: 0,
 };
 
@@ -509,7 +515,7 @@ export default function AdminPlanillasPage() {
       const { data: turnosData } = await supabase
         .from('planilla_turnos')
         .select(
-          'id,planilla_id,turno,quintal,amasado,panaderos,masa_ocupa,masa_queda,pan_racion,pan_sobra,cacho,kilos,rinde,reparto,otroskg'
+          'id,planilla_id,turno,quintal,amasado,panaderos,masa_ocupa,masa_queda,pan_racion,pan_sobra,cacho,centeno,meson,kilos,rinde,reparto,otroskg'
         )
         .in('planilla_id', ids);
       const turnoIdAPlanilla = new Map<string, string>();
@@ -527,6 +533,8 @@ export default function AdminPlanillasPage() {
           pan_racion: Number(item.pan_racion || 0),
           pan_sobra: Number(item.pan_sobra || 0),
           cacho: Number(item.cacho || 0),
+          centeno: Number(item.centeno || 0),
+          meson: Number(item.meson || 0),
           kilos: Number(item.kilos || 0),
           rinde: Number(item.rinde || 0),
           reparto: Number(item.reparto || 0),
@@ -979,6 +987,8 @@ export default function AdminPlanillasPage() {
     if (campo === 'masaOcupa') return turno.masaOcupa;
     if (campo === 'panRacion') return turno.panRacion;
     if (campo === 'cacho') return turno.cacho || 0;
+    if (campo === 'centeno') return turno.centeno || 0;
+    if (campo === 'meson') return turno.meson || 0;
     if (campo === 'merma') return turno.merma || 0;
     if (campo === 'panSobrante') return turno.panSobrante || 0;
     return 0;
@@ -1011,6 +1021,8 @@ export default function AdminPlanillasPage() {
     if (campo === 'masaOcupa') cambiarCampo('masaOcupa', valor);
     if (campo === 'panRacion') cambiarCampo('panRacion', valor);
     if (campo === 'cacho') cambiarCampo('cacho', valor);
+    if (campo === 'centeno') cambiarCampo('centeno', valor);
+    if (campo === 'meson') cambiarCampo('meson', valor);
     if (campo === 'merma') cambiarCampo('merma', valor);
     if (campo === 'panSobrante') cambiarCampo('panSobrante', valor);
   }
@@ -1132,7 +1144,7 @@ export default function AdminPlanillasPage() {
     const { data: planilla, error: errorPlanilla } = await supabase
       .from('planillas')
       .select(
-        'id,turno,responsable,observaciones,quintal1,quintal2,amasado1,amasado2,masa_ocupada,masa_sobrante,pan_racion,pan_meson,pan_sobra,cacho'
+        'id,turno,responsable,observaciones,quintal1,quintal2,centeno,meson,amasado1,amasado2,masa_ocupada,masa_sobrante,pan_racion,pan_meson,pan_sobra,cacho'
       )
       .eq('empresa_id', empresa.id)
       .eq('fecha', fechaSeleccionada)
@@ -1146,7 +1158,7 @@ export default function AdminPlanillasPage() {
     let { data: turnoDb, error: errorTurno } = await supabase
       .from('planilla_turnos')
       .select(
-        'id,responsable,quintal,amasado,panaderos,masa_ocupa,masa_queda,pan_racion,pan_meson,pan_sobra,cacho,kilos,rinde'
+        'id,responsable,quintal,amasado,panaderos,masa_ocupa,masa_queda,pan_racion,pan_meson,pan_sobra,cacho,centeno,meson,kilos,rinde'
       )
       .eq('planilla_id', planilla.id)
       .eq('turno', turnoConfig.orden)
@@ -1157,7 +1169,7 @@ export default function AdminPlanillasPage() {
       const respuesta = await supabase
         .from('planilla_turnos')
         .select(
-          'id,responsable,quintal,amasado,masa_ocupa,masa_queda,pan_racion,pan_meson,pan_sobra,cacho,kilos,rinde'
+          'id,responsable,quintal,amasado,masa_ocupa,masa_queda,pan_racion,pan_meson,pan_sobra,cacho,centeno,meson,kilos,rinde'
         )
         .eq('planilla_id', planilla.id)
         .eq('turno', turnoConfig.orden)
@@ -1398,6 +1410,20 @@ export default function AdminPlanillasPage() {
         turnoDb?.cacho ??
           (resumenUnSoloTurno || usarTotalesHistoricosEnPrimerTurno
             ? planilla.cacho
+            : 0) ??
+          0
+      ),
+      centeno: Number(
+        turnoDb?.centeno ??
+          (resumenUnSoloTurno || usarTotalesHistoricosEnPrimerTurno
+            ? planilla.centeno
+            : 0) ??
+          0
+      ),
+      meson: Number(
+        turnoDb?.meson ??
+          (resumenUnSoloTurno || usarTotalesHistoricosEnPrimerTurno
+            ? planilla.meson
             : 0) ??
           0
       ),
@@ -1682,8 +1708,8 @@ export default function AdminPlanillasPage() {
         pan_sobra: turno.panSobrante || 0,
         cacho: turno.cacho || 0,
         otroskg: kilosProductosTurno,
-        centeno: 0,
-        meson: 0,
+        centeno: turno.centeno || 0,
+        meson: turno.meson || 0,
         reparto: kilosRepartos,
         insumos: totalInsumos,
         kilos: calculo.kilos,
@@ -1874,8 +1900,8 @@ export default function AdminPlanillasPage() {
   }[] = [
     { label: '1ra', obtener: (item) => item.turnos[1]?.quintal || item.planilla.quintal1, decimales: 2, editable: { turno: 1, campo: 'quintal' } },
     { label: '2da', obtener: (item) => item.turnos[2]?.quintal || item.planilla.quintal2, decimales: 2, editable: { turno: 2, campo: 'quintal' } },
-    { label: 'Centeno', obtener: (item) => item.planilla.centeno, decimales: 2 },
-    { label: 'Meson', obtener: (item) => item.planilla.meson, decimales: 2 },
+    { label: 'Centeno', obtener: (item) => item.planilla.centeno, decimales: 2, editable: { campo: 'centeno' } },
+    { label: 'Meson sala venta', obtener: (item) => item.planilla.meson, decimales: 2, editable: { campo: 'meson' } },
     ...insumos.map((insumo) => ({
       label: insumo.nombre,
       obtener: (item: ResumenMensualDia) => item.insumos[normalizar(insumo.nombre)] || 0,
