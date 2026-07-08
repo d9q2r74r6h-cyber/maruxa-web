@@ -292,17 +292,25 @@ export async function GET(request: Request) {
     let baseDatosLista = false;
     let baseDatosError: string | null = admin ? null : 'Cliente Supabase no configurado.';
     let baseDatosEstado: number | null = null;
+    let destinosWhatsappConfigurados = 0;
 
     if (admin) {
       const resultado = await admin
         .from('whatsapp_eventos')
         .select('id')
         .limit(1);
+      const { count } = await admin
+        .from('perfiles_usuario')
+        .select('id', { count: 'exact', head: true })
+        .eq('activo', true)
+        .eq('notificar_whatsapp', true)
+        .not('notificacion_whatsapp', 'is', null);
       baseDatosLista = !resultado.error;
       baseDatosEstado = resultado.status;
       baseDatosError = resultado.error
         ? JSON.stringify(resultado.error)
         : null;
+      destinosWhatsappConfigurados = count || 0;
     }
 
     return NextResponse.json({
@@ -316,6 +324,7 @@ export async function GET(request: Request) {
       baseDatosLista,
       baseDatosEstado,
       baseDatosError,
+      destinosWhatsappConfigurados,
     });
   }
 

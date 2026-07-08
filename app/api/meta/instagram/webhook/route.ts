@@ -168,6 +168,7 @@ export async function GET(request: Request) {
     let baseDatosLista = false;
     let baseDatosError: string | null = admin ? null : 'Cliente Supabase no configurado.';
     let baseDatosEstado: number | null = null;
+    let destinosWhatsappConfigurados = 0;
 
     if (admin) {
       const resultado = await admin
@@ -175,9 +176,16 @@ export async function GET(request: Request) {
         .select('id,created_at,tipo,estado,sender_id,texto,observacion')
         .order('created_at', { ascending: false })
         .limit(5);
+      const { count } = await admin
+        .from('perfiles_usuario')
+        .select('id', { count: 'exact', head: true })
+        .eq('activo', true)
+        .eq('notificar_whatsapp', true)
+        .not('notificacion_whatsapp', 'is', null);
       baseDatosLista = !resultado.error;
       baseDatosEstado = resultado.status;
       baseDatosError = resultado.error ? JSON.stringify(resultado.error) : null;
+      destinosWhatsappConfigurados = count || 0;
 
       return NextResponse.json({
         webhook: 'instagram',
@@ -188,6 +196,7 @@ export async function GET(request: Request) {
         baseDatosLista,
         baseDatosEstado,
         baseDatosError,
+        destinosWhatsappConfigurados,
         ultimosEventos: resultado.data || [],
       });
     }
@@ -201,6 +210,7 @@ export async function GET(request: Request) {
       baseDatosLista,
       baseDatosEstado,
       baseDatosError,
+      destinosWhatsappConfigurados,
     });
   }
 

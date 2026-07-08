@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import {
   CheckCircle2,
   Clock,
@@ -163,6 +164,10 @@ function estaPendiente(evento: WhatsappEvento) {
   );
 }
 
+function esEventoNotificable(evento: WhatsappEvento) {
+  return !esMensajePropio(evento) && evento.estado !== 'informativo';
+}
+
 export default function AdminWhatsappPage() {
   const [eventos, setEventos] = useState<WhatsappEvento[]>([]);
   const [loading, setLoading] = useState(true);
@@ -170,16 +175,54 @@ export default function AdminWhatsappPage() {
   const [telefonoActivo, setTelefonoActivo] = useState<string | null>(null);
   const [respuestas, setRespuestas] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState<string | null>(null);
+  const [permisoNotificaciones, setPermisoNotificaciones] =
+    useState<NotificationPermission | 'no-disponible'>('no-disponible');
   const finalMensajesRef = useRef<HTMLDivElement | null>(null);
+  const ultimoEventoNotificadoRef = useRef<string | null>(null);
+  const cargaInicialRef = useRef(true);
 
-  async function cargarMensajes() {
-    setLoading(true);
+  function notificarNuevoEvento(evento: WhatsappEvento) {
+    const titulo =
+      evento.origen === 'instagram'
+        ? 'Nuevo mensaje de Instagram'
+        : evento.tipo === 'order'
+          ? 'Nuevo pedido por WhatsApp'
+          : 'Nuevo mensaje de WhatsApp';
+    const cuerpo = `${nombreContacto(evento)}: ${textoMensaje(evento)}`;
+
+    toast.info(titulo, {
+      description: cuerpo,
+      duration: 8000,
+    });
+
+    if (
+      typeof window !== 'undefined' &&
+      'Notification' in window &&
+      Notification.permission === 'granted'
+    ) {
+      const notificacion = new Notification(titulo, {
+        body: cuerpo,
+        tag: `maruxa-${evento.id}`,
+      });
+      notificacion.onclick = () => {
+        window.focus();
+        setTelefonoActivo(
+          evento.origen === 'instagram'
+            ? `instagram:${evento.sender_id || evento.telefono || evento.id}`
+            : evento.telefono || 'Sin telefono'
+        );
+      };
+    }
+  }
+
+  async function cargarMensajes(silencioso = false) {
+    if (!silencioso) setLoading(true);
 
     const empresa = await obtenerEmpresaActual();
 
     if (!empresa) {
       alert('No se pudo identificar la empresa.');
-      setLoading(false);
+      if (!silencioso) setLoading(false);
       return;
     }
 
@@ -192,7 +235,7 @@ export default function AdminWhatsappPage() {
 
     if (error) {
       alert(error.message);
-      setLoading(false);
+      if (!silencioso) setLoading(false);
       return;
     }
 
@@ -216,13 +259,25 @@ export default function AdminWhatsappPage() {
           pedido_id: null,
         }));
 
-    setEventos(
-      [...eventosWhatsapp, ...eventosInstagram].sort(
-        (a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      )
+    const eventosOrdenados = [...eventosWhatsapp, ...eventosInstagram].sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
-    setLoading(false);
+    const ultimoNotificable = eventosOrdenados.find(esEventoNotificable);
+
+    setEventos(eventosOrdenados);
+
+    if (ultimoNotificable) {
+      if (cargaInicialRef.current) {
+        ultimoEventoNotificadoRef.current = ultimoNotificable.id;
+      } else if (ultimoEventoNotificadoRef.current !== ultimoNotificable.id) {
+        ultimoEventoNotificadoRef.current = ultimoNotificable.id;
+        notificarNuevoEvento(ultimoNotificable);
+      }
+    }
+
+    cargaInicialRef.current = false;
+    if (!silencioso) setLoading(false);
   }
 
   const conversaciones = useMemo(() => {
@@ -262,6 +317,36 @@ export default function AdminWhatsappPage() {
   useEffect(() => {
     cargarMensajes();
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      setPermisoNotificaciones('no-disponible');
+      return;
+    }
+
+    setPermisoNotificaciones(Notification.permission);
+    const intervalo = window.setInterval(() => {
+      cargarMensajes(true);
+    }, 30000);
+
+    return () => window.clearInterval(intervalo);
+  }, []);
+
+  async function activarNotificacionesWeb() {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      toast.error('Este navegador no permite notificaciones.');
+      return;
+    }
+
+    const permiso = await Notification.requestPermission();
+    setPermisoNotificaciones(permiso);
+
+    if (permiso === 'granted') {
+      toast.success('Avisos web activados.');
+    } else {
+      toast.error('No se activaron los avisos web.');
+    }
+  }
 
   useEffect(() => {
     if (!telefonoActivo && conversaciones.length > 0) {
@@ -403,14 +488,26 @@ export default function AdminWhatsappPage() {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={cargarMensajes}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-full bg-white px-4 text-xs font-black text-maruxa-chocolate shadow-premium"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Actualizar
-          </button>
+          <div className="flex flex-wrap gap-2">
+            {permisoNotificaciones === 'default' && (
+              <button
+                type="button"
+                onClick={activarNotificacionesWeb}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-full bg-[#A51F2B] px-4 text-xs font-black text-white shadow-premium"
+              >
+                Activar avisos web
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => cargarMensajes()}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-full bg-white px-4 text-xs font-black text-maruxa-chocolate shadow-premium"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Actualizar
+            </button>
+          </div>
         </div>
 
         <div className="mt-4 grid gap-2 md:grid-cols-4">

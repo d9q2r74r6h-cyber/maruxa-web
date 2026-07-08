@@ -146,7 +146,7 @@ export default function PerfilPage() {
             </button>
 
             <p className="text-xs font-semibold text-[#4B2818]/60">
-              Estos avisos se envian cuando entra un mensaje o pedido desde WhatsApp.
+              Estos avisos se envian cuando entra un mensaje o pedido desde WhatsApp o Instagram.
             </p>
           </div>
         </div>
