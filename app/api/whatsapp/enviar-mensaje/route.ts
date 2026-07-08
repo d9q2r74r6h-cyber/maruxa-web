@@ -41,7 +41,7 @@ export async function POST(request: Request) {
 
   const { data: perfil } = await admin
     .from('perfiles_usuario')
-    .select('activo')
+    .select('activo,empresa_id,nombre_visible')
     .eq('id', autenticacion.user.id)
     .maybeSingle();
 
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Acceso denegado.' }, { status: 403 });
   }
 
-  const { telefono, mensaje } = await request.json();
+  const { telefono, mensaje, idsPendientes } = await request.json();
   const destino = normalizarDestino(telefono);
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
@@ -88,13 +88,54 @@ export async function POST(request: Request) {
     }
   );
 
+  const dataMeta = await respuesta.json().catch(() => null);
+
   if (!respuesta.ok) {
-    const detalle = await respuesta.text();
     return NextResponse.json(
-      { error: detalle || `Meta respondio ${respuesta.status}` },
+      { error: JSON.stringify(dataMeta) || `Meta respondio ${respuesta.status}` },
       { status: 502 }
     );
   }
 
-  return NextResponse.json({ ok: true });
+  const messageId =
+    dataMeta?.messages?.[0]?.id ||
+    `respuesta-${destino}-${Date.now()}`;
+
+  if (Array.isArray(idsPendientes) && idsPendientes.length > 0) {
+    await admin
+      .from('whatsapp_eventos')
+      .update({
+        estado: 'respondido',
+        observacion: 'Respuesta enviada desde la bandeja WhatsApp.',
+      })
+      .in('id', idsPendientes);
+  }
+
+  const { error: errorRegistro } = await admin.from('whatsapp_eventos').insert({
+    empresa_id: perfil.empresa_id,
+    message_id: messageId,
+    telefono,
+    tipo: 'respuesta',
+    estado: 'enviado',
+    observacion: mensaje,
+    payload: {
+      direccion: 'saliente',
+      mensaje,
+      origen: 'admin',
+      enviado_por: perfil.nombre_visible || autenticacion.user.email || null,
+      meta: dataMeta,
+    },
+  });
+
+  if (errorRegistro) {
+    return NextResponse.json(
+      {
+        error: `Mensaje enviado, pero no se pudo registrar en el chat: ${errorRegistro.message}`,
+        enviado: true,
+      },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({ ok: true, message_id: messageId });
 }

@@ -415,6 +415,10 @@ export default function AdminWhatsappPage() {
 
     setEnviando(conversacion.telefono);
 
+    const idsPendientes = conversacion.eventos
+      .filter(estaPendiente)
+      .map((evento) => evento.id);
+
     const respuesta = await fetch('/api/whatsapp/enviar-mensaje', {
       method: 'POST',
       headers: {
@@ -424,6 +428,7 @@ export default function AdminWhatsappPage() {
       body: JSON.stringify({
         telefono: conversacion.telefono,
         mensaje,
+        idsPendientes,
       }),
     });
 
@@ -432,37 +437,6 @@ export default function AdminWhatsappPage() {
       setEnviando(null);
       alert(data.error || 'No se pudo enviar la respuesta.');
       return;
-    }
-
-    const idsPendientes = conversacion.eventos
-      .filter(estaPendiente)
-      .map((evento) => evento.id);
-
-    if (idsPendientes.length > 0) {
-      await supabase
-        .from('whatsapp_eventos')
-        .update({
-          estado: 'respondido',
-          observacion: 'Respuesta enviada desde la bandeja WhatsApp.',
-        })
-        .in('id', idsPendientes);
-    }
-
-    const empresa = await obtenerEmpresaActual();
-
-    if (empresa) {
-      await supabase.from('whatsapp_eventos').insert({
-        empresa_id: empresa.id,
-        telefono: conversacion.telefono,
-        tipo: 'respuesta',
-        estado: 'enviado',
-        observacion: mensaje,
-        payload: {
-          direccion: 'saliente',
-          mensaje,
-          origen: 'admin',
-        },
-      });
     }
 
     setRespuestas((actual) => ({ ...actual, [conversacion.telefono]: '' }));
