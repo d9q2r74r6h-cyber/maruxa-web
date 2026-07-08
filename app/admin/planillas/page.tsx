@@ -437,6 +437,48 @@ function moverConEnter(event: KeyboardEvent<HTMLDivElement>) {
 
   if (!actual.matches('input, select')) return;
 
+  if (actual instanceof HTMLInputElement && actual.dataset.grillaFila) {
+    const columna = actual.dataset.grillaColumna;
+    const filaActual = Number(actual.dataset.grillaFila || 0);
+    const direccion = event.shiftKey ? -1 : 1;
+    const camposGrilla = Array.from(
+      event.currentTarget.querySelectorAll<HTMLInputElement>(
+        'input[data-grilla-fila][data-grilla-columna]:not([disabled])'
+      )
+    )
+      .filter(
+        (campo) =>
+          campo.dataset.grillaColumna === columna && campo.offsetParent !== null
+      )
+      .sort(
+        (a, b) =>
+          Number(a.dataset.grillaFila || 0) - Number(b.dataset.grillaFila || 0)
+      );
+    const siguiente = camposGrilla.find((campo) => {
+      const fila = Number(campo.dataset.grillaFila || 0);
+      return direccion > 0 ? fila > filaActual : fila < filaActual;
+    });
+    const anterior =
+      direccion < 0
+        ? camposGrilla
+            .filter(
+              (campo) => Number(campo.dataset.grillaFila || 0) < filaActual
+            )
+            .at(-1)
+        : null;
+    const destino = direccion > 0 ? siguiente : anterior;
+
+    if (destino) {
+      event.preventDefault();
+      destino.focus();
+      destino.select();
+      return;
+    }
+
+    event.preventDefault();
+    return;
+  }
+
   const campos = Array.from(
     event.currentTarget.querySelectorAll<HTMLElement>(
       'input:not([disabled]), select:not([disabled]), textarea:not([disabled])'
@@ -2584,6 +2626,9 @@ export default function AdminPlanillasPage() {
             {gruposFilasMensuales.map((grupo) => (
               <tbody key={grupo.seccion}>
                 {grupo.filas.map((fila, indice) => {
+                const indiceFilaMensual = filasMensuales.findIndex(
+                  (item) => item.label === fila.label
+                );
                 const filaResumen = ['Quintales vaciados', 'KILOS', 'RINDE', 'Total amasado', 'Total kilos', 'Total repartos 1ra', 'Total repartos 2da'].includes(fila.label);
 
                 return (
@@ -2640,6 +2685,8 @@ export default function AdminPlanillasPage() {
                         {esEditable && fila.editable ? (
                           <input
                             type="number"
+                            data-grilla-fila={indiceFilaMensual}
+                            data-grilla-columna={dia}
                             min="0"
                             step={fila.decimales === 0 ? '1' : '0.01'}
                             value={
