@@ -3,6 +3,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type KeyboardEvent,
   type WheelEvent,
@@ -66,6 +67,18 @@ type ProductoTurno = {
   producto_id: number;
   nombre: string;
   kilos: number;
+};
+
+type BorradorTurno = {
+  responsable: string;
+  quintal: number;
+  panaderos: number;
+  observaciones: string;
+  turno: DatosTurno;
+  panSobranteAnterior: number;
+  repartos: Reparto[];
+  productosTurno: ProductoTurno[];
+  insumos: InsumoPlanilla[];
 };
 
 type TurnoGuardado = {
@@ -429,6 +442,8 @@ function CeldaResultado({
 }
 
 function moverConEnter(event: KeyboardEvent<HTMLDivElement>) {
+  if (event.defaultPrevented) return;
+
   if (event.key !== 'Enter' || event.target instanceof HTMLTextAreaElement) {
     return;
   }
@@ -540,6 +555,11 @@ export default function AdminPlanillasPage() {
   const [resumenMensual, setResumenMensual] = useState<
     Record<string, ResumenMensualDia>
   >({});
+  const borradoresTurno = useRef<Record<string, BorradorTurno>>({});
+  const [focoGrillaPendiente, setFocoGrillaPendiente] = useState<{
+    dia: number;
+    fila: number;
+  } | null>(null);
   const turnoSeleccionado =
     turnosConfigurados.find((item) => item.id === turnoSeleccionadoId) || null;
 
@@ -1038,6 +1058,41 @@ export default function AdminPlanillasPage() {
 
   const calculo = useMemo(() => calcularTurno(datosTurno), [datosTurno]);
 
+  function claveBorrador(fechaClave: string, orden: number) {
+    return `${fechaClave}::${orden}`;
+  }
+
+  function guardarBorradorTurnoActual() {
+    if (!turnoSeleccionado) return;
+
+    borradoresTurno.current[
+      claveBorrador(fecha, turnoSeleccionado.orden)
+    ] = {
+      responsable,
+      quintal,
+      panaderos,
+      observaciones,
+      turno: { ...turno },
+      panSobranteAnterior,
+      repartos: repartos.map((item) => ({ ...item })),
+      productosTurno: productosTurno.map((item) => ({ ...item })),
+      insumos: insumos.map((item) => ({ ...item })),
+    };
+  }
+
+  function restaurarBorradorTurno(borrador: BorradorTurno) {
+    setResponsable(borrador.responsable);
+    setQuintal(borrador.quintal);
+    setPanaderos(borrador.panaderos);
+    setObservaciones(borrador.observaciones);
+    setTurno({ ...borrador.turno });
+    setPanSobranteAnterior(borrador.panSobranteAnterior);
+    setRepartos(borrador.repartos.map((item) => ({ ...item })));
+    setProductosTurno(borrador.productosTurno.map((item) => ({ ...item })));
+    setInsumos(borrador.insumos.map((item) => ({ ...item })));
+    setMensaje('');
+  }
+
   function cambiarCampo(campo: CampoTurno, valor: number) {
     setTurno((actual) => ({ ...actual, [campo]: valor }));
   }
@@ -1045,17 +1100,48 @@ export default function AdminPlanillasPage() {
   function seleccionarTurnoPorOrden(orden: number) {
     const turnoConfig = turnosConfigurados.find((item) => item.orden === orden);
     if (!turnoConfig || turnoConfig.id === turnoSeleccionadoId) return;
+    guardarBorradorTurnoActual();
     setTurnoSeleccionadoId(turnoConfig.id);
   }
 
   function seleccionarCeldaGrilla(fechaCelda: string, orden?: number) {
     if (fechaCelda !== fecha) {
+      guardarBorradorTurnoActual();
       setFecha(fechaCelda);
     }
 
     if (orden) {
       seleccionarTurnoPorOrden(orden);
     }
+  }
+
+  function moverEnterGrilla(
+    event: KeyboardEvent<HTMLInputElement>,
+    fila: FilaMensual,
+    indiceFila: number,
+    dia: number
+  ) {
+    if (event.key !== 'Enter' || event.shiftKey || !fila.editable?.turno) {
+      return;
+    }
+
+    const siguienteTurno = filasMensuales.findIndex(
+      (item, indice) =>
+        indice > indiceFila &&
+        item.editable?.turno &&
+        item.editable.turno > Number(fila.editable?.turno || 0)
+    );
+
+    if (siguienteTurno === -1) return;
+
+    const filaDestino = filasMensuales[siguienteTurno];
+    const ordenDestino = filaDestino.editable?.turno;
+    if (!ordenDestino || ordenDestino === turnoSeleccionado?.orden) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    setFocoGrillaPendiente({ dia, fila: siguienteTurno });
+    seleccionarCeldaGrilla(fechaDiaMes(dia), ordenDestino);
   }
 
   function valorEditableGrilla(
@@ -1283,6 +1369,14 @@ export default function AdminPlanillasPage() {
     turnoConfig = turnoSeleccionado
   ) {
     if (!turnoConfig) return;
+
+    const borrador = borradoresTurno.current[
+      claveBorrador(fechaSeleccionada, turnoConfig.orden)
+    ];
+    if (borrador) {
+      restaurarBorradorTurno(borrador);
+      return;
+    }
 
     const empresa = await obtenerEmpresaActual();
     if (!empresa) return;
@@ -1588,8 +1682,8 @@ export default function AdminPlanillasPage() {
 
   function cambiarTurnoSeleccionado(turnoId: string) {
     if (turnoId === turnoSeleccionadoId) return;
+    guardarBorradorTurnoActual();
     setTurnoSeleccionadoId(turnoId);
-    limpiarTurno();
   }
 
   async function eliminarTurnoIncompleto(
@@ -2008,6 +2102,9 @@ export default function AdminPlanillasPage() {
       setMensaje(
         `${turnoSeleccionado.nombre} guardado correctamente.`
       );
+      delete borradoresTurno.current[
+        claveBorrador(fecha, turnoSeleccionado.orden)
+      ];
       await cargarResumenDia(fecha);
       await cargarResumenMensual(fecha);
     } catch (error) {
@@ -2283,6 +2380,24 @@ export default function AdminPlanillasPage() {
 
     return grupos;
   }, []);
+
+  useEffect(() => {
+    if (!focoGrillaPendiente) return;
+
+    const timeout = window.setTimeout(() => {
+      const input = document.querySelector<HTMLInputElement>(
+        `input[data-grilla-fila="${focoGrillaPendiente.fila}"][data-grilla-columna="${focoGrillaPendiente.dia}"]`
+      );
+
+      if (input) {
+        input.focus();
+        input.select();
+        setFocoGrillaPendiente(null);
+      }
+    }, 80);
+
+    return () => window.clearTimeout(timeout);
+  }, [focoGrillaPendiente, turnoSeleccionadoId, fecha]);
 
   if (cargandoTurnos) {
     return (
@@ -2702,6 +2817,14 @@ export default function AdminPlanillasPage() {
                                 Number(event.target.value || 0),
                                 fila.editable!.insumoId,
                                 fila.editable!.repartoId
+                              )
+                            }
+                            onKeyDown={(event) =>
+                              moverEnterGrilla(
+                                event,
+                                fila,
+                                indiceFilaMensual,
+                                dia
                               )
                             }
                             className="h-9 w-[74px] border-0 bg-white px-2 text-right text-sm font-black outline-none ring-1 ring-[#A51F2B]/25 focus:ring-2 focus:ring-[#A51F2B]"
