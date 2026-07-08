@@ -2227,6 +2227,21 @@ export default function AdminPlanillasPage() {
     { label: 'KPAN 2da', obtener: (item) => item.turnos[2]?.pan_sobra || item.planilla.pan_sobra, vivo: (item) => turnoMensualVivo(item, 2).pan_sobra, decimales: 2, editable: { turno: 2, campo: 'panSobrante' } },
   ];
 
+  const gruposFilasMensuales = filasMensuales.reduce<
+    { seccion: string; filas: FilaMensual[] }[]
+  >((grupos, fila) => {
+    const seccion = seccionFilaMensual(fila.label);
+    const ultimo = grupos[grupos.length - 1];
+
+    if (ultimo?.seccion === seccion) {
+      ultimo.filas.push(fila);
+    } else {
+      grupos.push({ seccion, filas: [fila] });
+    }
+
+    return grupos;
+  }, []);
+
   if (cargandoTurnos) {
     return (
       <div className="flex min-h-64 items-center justify-center rounded-lg border border-[#4B2818]/15 bg-white">
@@ -2506,10 +2521,8 @@ export default function AdminPlanillasPage() {
           <table className="min-w-max border-collapse text-sm">
             <thead>
               <tr>
-                <th className="sticky left-0 z-20 min-w-[96px] border-b border-r border-[#4B2818]/15 bg-[#2A1710] px-3 py-1 text-left text-xs font-black uppercase text-white">
-                  Seccion
-                </th>
-                <th className="sticky left-[96px] z-10 min-w-[190px] border-b border-r border-[#4B2818]/15 bg-[#2A1710] px-3 py-1 text-left text-xs font-black uppercase text-white">
+                <th className="sticky left-0 z-20 w-[118px] min-w-[118px] border-b border-r-4 border-[#A51F2B] bg-[#FFF3DF]" />
+                <th className="sticky left-[118px] z-10 min-w-[190px] border-b border-r border-[#4B2818]/15 bg-[#2A1710] px-3 py-1 text-left text-xs font-black uppercase text-white">
                   Dia
                 </th>
                 {diasMes.map((dia) => {
@@ -2533,10 +2546,8 @@ export default function AdminPlanillasPage() {
                 })}
               </tr>
               <tr>
-                <th className="sticky left-0 z-20 min-w-[96px] border-b border-r border-[#4B2818]/15 bg-[#2A1710] px-3 py-2 text-left text-xs font-black uppercase text-white">
-                  {'{'}
-                </th>
-                <th className="sticky left-[96px] z-10 min-w-[190px] border-b border-r border-[#4B2818]/15 bg-[#2A1710] px-3 py-2 text-left text-xs font-black uppercase text-white">
+                <th className="sticky left-0 z-20 w-[118px] min-w-[118px] border-b border-r-4 border-[#A51F2B] bg-[#FFF3DF]" />
+                <th className="sticky left-[118px] z-10 min-w-[190px] border-b border-r border-[#4B2818]/15 bg-[#2A1710] px-3 py-2 text-left text-xs font-black uppercase text-white">
                   Concepto
                 </th>
                 {diasMes.map((dia) => {
@@ -2568,12 +2579,9 @@ export default function AdminPlanillasPage() {
                 })}
               </tr>
             </thead>
-            <tbody>
-              {filasMensuales.map((fila, indice) => {
-                const seccion = seccionFilaMensual(fila.label);
-                const seccionAnterior =
-                  indice > 0 ? seccionFilaMensual(filasMensuales[indice - 1].label) : '';
-                const mostrarSeccion = seccion !== seccionAnterior;
+            {gruposFilasMensuales.map((grupo) => (
+              <tbody key={grupo.seccion}>
+                {grupo.filas.map((fila, indice) => {
                 const filaResumen = ['Quintales vaciados', 'KILOS', 'RINDE', 'Total amasado', 'Total kilos', 'Total repartos 1ra', 'Total repartos 2da'].includes(fila.label);
 
                 return (
@@ -2587,10 +2595,22 @@ export default function AdminPlanillasPage() {
                         : 'bg-[#FFFDF8]'
                   }
                 >
-                  <th className="sticky left-0 z-20 min-w-[96px] border-b border-r border-[#4B2818]/10 bg-inherit px-3 py-2 text-left text-[11px] font-black uppercase text-[#A51F2B]">
-                    {mostrarSeccion ? `${seccion} {` : ''}
-                  </th>
-                  <th className="sticky left-[96px] z-10 min-w-[190px] border-b border-r border-[#4B2818]/10 bg-inherit px-3 py-2 text-left text-xs font-black uppercase text-[#2A1710]">
+                  {indice === 0 && (
+                    <th
+                      rowSpan={grupo.filas.length}
+                      className="sticky left-0 z-20 w-[118px] min-w-[118px] border-r-4 border-[#A51F2B] bg-[#FFF3DF] px-2 py-2 text-left align-middle shadow-sm"
+                    >
+                      <div className="flex h-full min-h-[76px] items-center gap-2">
+                        <span className="font-serif text-6xl leading-none text-[#A51F2B]">
+                          {'{'}
+                        </span>
+                        <span className="[writing-mode:vertical-rl] rotate-180 text-[11px] font-black uppercase tracking-wide text-[#2A1710]">
+                          {grupo.seccion}
+                        </span>
+                      </div>
+                    </th>
+                  )}
+                  <th className="sticky left-[118px] z-10 min-w-[190px] border-b border-r border-[#4B2818]/10 bg-inherit px-3 py-2 text-left text-xs font-black uppercase text-[#2A1710]">
                     {fila.label}
                   </th>
                   {diasMes.map((dia) => {
@@ -2661,7 +2681,8 @@ export default function AdminPlanillasPage() {
                 </tr>
                 );
               })}
-            </tbody>
+              </tbody>
+            ))}
           </table>
         </div>
       </section>
