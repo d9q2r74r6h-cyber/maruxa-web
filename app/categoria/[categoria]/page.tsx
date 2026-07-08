@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { supabase } from '@/lib/supabase';
+import { obtenerEmpresaActual } from '@/lib/empresa';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -43,12 +44,28 @@ export async function generateMetadata({
 export default async function CategoriaPage({ params }: Props) {
   const { categoria } = await params;
   const nombreCategoria = formatearCategoria(categoria);
+  const empresa = await obtenerEmpresaActual();
+
+  if (!empresa) {
+    return null;
+  }
 
   const { data: productos } = await supabase
     .from('productos')
-    .select('*')
+    .select(`
+      *,
+      familias_productos!inner (
+        id
+      )
+    `)
+    .eq('empresa_id', empresa.id)
+    .eq('activo', true)
+    .eq('tipo_producto', 'producto')
+    .eq('familias_productos.activo', true)
+    .eq('familias_productos.mostrar_catalogo', true)
     .ilike('categoria', `%${nombreCategoria}%`)
-    .not('slug', 'is', null);
+    .not('slug', 'is', null)
+    .gt('precio', 0);
 
   return (
     <main className="min-h-screen bg-maruxa-crema py-20">

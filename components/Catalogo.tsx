@@ -88,11 +88,17 @@ export default function Catalogo() {
       const { data, error } = await supabasePublic
   .from('productos')
   .select(
-    'id,nombre,descripcion,precio,categoria,imagen,destacado,slug,tipo_producto,precio_10,precio_15,precio_20,precio_25'
+    `id,nombre,descripcion,precio,categoria,imagen,destacado,slug,tipo_producto,precio_10,precio_15,precio_20,precio_25,
+    familias_productos!inner (
+      id
+    )`
   )
   .eq('empresa_id', empresa.id)
   .eq('activo', true)
   .eq('tipo_producto', 'producto')
+  .eq('familias_productos.activo', true)
+  .eq('familias_productos.mostrar_catalogo', true)
+  .gt('precio', 0)
   .order('destacado', {
     ascending: false,
   })

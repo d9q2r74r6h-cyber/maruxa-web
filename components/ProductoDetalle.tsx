@@ -55,10 +55,18 @@ const [tamano, setTamano] = useState<TamanoTorta>(tamanos[0]);
       const { data } = await supabasePublic
         .from('productos')
         .select(
-          'id,nombre,descripcion,precio,categoria,imagen,slug,precio_10,precio_15,precio_20,precio_25'
+          `id,nombre,descripcion,precio,categoria,imagen,slug,precio_10,precio_15,precio_20,precio_25,
+          familias_productos!inner (
+            id
+          )`
         )
         .eq('slug', slug)
         .eq('empresa_id', empresa.id)
+        .eq('activo', true)
+        .eq('tipo_producto', 'producto')
+        .eq('familias_productos.activo', true)
+        .eq('familias_productos.mostrar_catalogo', true)
+        .gt('precio', 0)
         .maybeSingle();
   
       setProducto(data as Producto);
