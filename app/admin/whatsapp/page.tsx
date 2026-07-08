@@ -37,6 +37,8 @@ type Conversacion = {
   ultimoEvento: WhatsappEvento;
 };
 
+type CanalActivo = 'whatsapp' | 'instagram' | 'todos';
+
 function valoresPayload(evento: WhatsappEvento) {
   if (evento.origen === 'instagram') {
     return {
@@ -172,6 +174,7 @@ export default function AdminWhatsappPage() {
   const [eventos, setEventos] = useState<WhatsappEvento[]>([]);
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState('');
+  const [canalActivo, setCanalActivo] = useState<CanalActivo>('whatsapp');
   const [telefonoActivo, setTelefonoActivo] = useState<string | null>(null);
   const [respuestas, setRespuestas] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState<string | null>(null);
@@ -280,10 +283,15 @@ export default function AdminWhatsappPage() {
     if (!silencioso) setLoading(false);
   }
 
+  const eventosVisibles = useMemo(() => {
+    if (canalActivo === 'todos') return eventos;
+    return eventos.filter((evento) => evento.origen === canalActivo);
+  }, [canalActivo, eventos]);
+
   const conversaciones = useMemo(() => {
     const grupos = new Map<string, WhatsappEvento[]>();
 
-    eventos.forEach((evento) => {
+    eventosVisibles.forEach((evento) => {
       const telefono =
         evento.origen === 'instagram'
           ? `instagram:${evento.sender_id || evento.telefono || evento.id}`
@@ -312,7 +320,7 @@ export default function AdminWhatsappPage() {
           new Date(b.ultimoEvento.created_at).getTime() -
           new Date(a.ultimoEvento.created_at).getTime()
       );
-  }, [eventos]);
+  }, [eventosVisibles]);
 
   useEffect(() => {
     cargarMensajes();
@@ -349,7 +357,16 @@ export default function AdminWhatsappPage() {
   }
 
   useEffect(() => {
-    if (!telefonoActivo && conversaciones.length > 0) {
+    const telefonoValido = conversaciones.some(
+      (conversacion) => conversacion.telefono === telefonoActivo
+    );
+
+    if (conversaciones.length === 0) {
+      setTelefonoActivo(null);
+      return;
+    }
+
+    if (!telefonoActivo || !telefonoValido) {
       setTelefonoActivo(conversaciones[0].telefono);
     }
   }, [conversaciones, telefonoActivo]);
@@ -373,18 +390,40 @@ export default function AdminWhatsappPage() {
 
   const resumen = {
     conversaciones: conversaciones.length,
-    mensajes: eventos.filter((evento) => evento.tipo !== 'order').length,
-    pedidos: eventos.filter((evento) => evento.tipo === 'order').length,
-    pendientes: eventos.filter(estaPendiente).length,
+    mensajes: eventosVisibles.filter((evento) => evento.tipo !== 'order').length,
+    pedidos: eventosVisibles.filter((evento) => evento.tipo === 'order').length,
+    pendientes: eventosVisibles.filter(estaPendiente).length,
   };
 
-  const eventosRecientes = [...eventos]
+  const eventosRecientes = [...eventosVisibles]
     .filter((evento) => evento.tipo !== 'order')
     .sort(
       (a, b) =>
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     )
     .slice(0, 8);
+
+  const canales = [
+    {
+      id: 'whatsapp' as const,
+      label: 'WhatsApp',
+      detalle: 'Numero conectado',
+      total: eventos.filter((evento) => evento.origen === 'whatsapp').length,
+    },
+    {
+      id: 'instagram' as const,
+      label: 'Instagram',
+      detalle: 'Solo lectura',
+      total: eventos.filter((evento) => evento.origen === 'instagram').length,
+    },
+    {
+      id: 'todos' as const,
+      label: 'Todo',
+      detalle: 'Vista unificada',
+      total: eventos.length,
+    },
+  ];
+  const canalActual = canales.find((canal) => canal.id === canalActivo);
 
   async function enviarRespuesta(conversacion: Conversacion) {
     const mensaje = respuestas[conversacion.telefono]?.trim();
@@ -450,15 +489,15 @@ export default function AdminWhatsappPage() {
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[.22em] text-maruxa-rojo">
-              Meta Business
+              Inbox conectado
             </p>
 
             <h1 className="mt-1 text-2xl font-black text-maruxa-chocolate md:text-3xl">
-              Chat Meta
+              WhatsApp Business
             </h1>
 
             <p className="mt-1 max-w-2xl text-xs font-bold text-maruxa-cafe/70">
-              Conversaciones agrupadas por cliente desde WhatsApp e Instagram.
+              Bandeja para ver y responder los mensajes que llegan por el numero conectado a Meta.
             </p>
           </div>
 
@@ -484,6 +523,39 @@ export default function AdminWhatsappPage() {
           </div>
         </div>
 
+        <div className="mt-4 grid gap-2 md:grid-cols-3">
+          {canales.map((canal) => {
+            const activo = canalActivo === canal.id;
+
+            return (
+              <button
+                key={canal.id}
+                type="button"
+                onClick={() => setCanalActivo(canal.id)}
+                className={`rounded-xl px-4 py-3 text-left shadow-premium transition ${
+                  activo
+                    ? 'bg-[#A51F2B] text-white'
+                    : 'bg-white text-maruxa-chocolate hover:bg-maruxa-crema'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-black">{canal.label}</p>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
+                      activo ? 'bg-white/15 text-white' : 'bg-maruxa-crema text-maruxa-rojo'
+                    }`}
+                  >
+                    {canal.total}
+                  </span>
+                </div>
+                <p className={`mt-1 text-[11px] font-bold ${activo ? 'text-white/70' : 'text-maruxa-cafe/60'}`}>
+                  {canal.detalle}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+
         <div className="mt-4 grid gap-2 md:grid-cols-4">
           {[
             ['Conversaciones', resumen.conversaciones, 'text-maruxa-chocolate'],
@@ -506,14 +578,14 @@ export default function AdminWhatsappPage() {
               Ultimos mensajes
             </p>
             <p className="text-[10px] font-bold text-maruxa-cafe/50">
-              WhatsApp e Instagram
+              {canalActual?.label || 'Vista unificada'}
             </p>
           </div>
 
           <div className="mt-2 max-h-24 overflow-y-auto">
             {eventosRecientes.length === 0 ? (
               <p className="rounded-lg bg-maruxa-crema px-3 py-2 text-xs font-bold text-maruxa-cafe/70">
-                No hay mensajes recientes distintos de pedidos.
+                No hay mensajes recientes en esta vista.
               </p>
             ) : (
               eventosRecientes.map((evento) => (
@@ -551,7 +623,7 @@ export default function AdminWhatsappPage() {
                   <input
                     value={busqueda}
                     onChange={(e) => setBusqueda(e.target.value)}
-                    placeholder="Buscar chat"
+                    placeholder={`Buscar en ${canalActual?.label || 'chats'}`}
                     className="h-9 w-full rounded-lg border border-maruxa-rojo/10 bg-maruxa-crema pl-9 pr-3 text-xs font-bold text-maruxa-chocolate outline-none"
                   />
                 </label>
