@@ -2084,6 +2084,10 @@ export default function AdminPlanillasPage() {
     return fechaCelda === fecha && fila.vivo ? fila.vivo(item) : fila.obtener(item);
   }
 
+  const repartosGrilla = repartos.filter(
+    (item) => normalizar(item.nombre) !== normalizar(repartoMesonNombre)
+  );
+
   const filasMensuales: FilaMensual[] = [
     { label: '1ra', obtener: (item) => item.turnos[1]?.quintal || item.planilla.quintal1, vivo: (item) => turnoMensualVivo(item, 1).quintal, decimales: 2, editable: { turno: 1, campo: 'quintal' } },
     { label: '2da', obtener: (item) => item.turnos[2]?.quintal || item.planilla.quintal2, vivo: (item) => turnoMensualVivo(item, 2).quintal, decimales: 2, editable: { turno: 2, campo: 'quintal' } },
@@ -2119,9 +2123,8 @@ export default function AdminPlanillasPage() {
     { label: 'Raciones 2da', obtener: (item) => item.turnos[2]?.pan_racion || item.planilla.pan_racion, vivo: (item) => turnoMensualVivo(item, 2).pan_racion, decimales: 2, editable: { turno: 2, campo: 'panRacion' } },
     { label: 'Cacho 1ra', obtener: (item) => item.turnos[1]?.cacho || 0, vivo: (item) => turnoMensualVivo(item, 1).cacho, decimales: 2, editable: { turno: 1, campo: 'cacho' } },
     { label: 'Cacho 2da', obtener: (item) => item.turnos[2]?.cacho || item.planilla.cacho, vivo: (item) => turnoMensualVivo(item, 2).cacho, decimales: 2, editable: { turno: 2, campo: 'cacho' } },
-    { label: 'Repartos 1ra', obtener: (item) => item.turnos[1]?.reparto || 0, vivo: (item) => turnoMensualVivo(item, 1).reparto, decimales: 2 },
-    ...repartos.map((reparto) => ({
-      label: `${reparto.nombre} 1ra`,
+    ...repartosGrilla.map((reparto) => ({
+      label: `Rep. ${reparto.nombre} 1ra`,
       obtener: (item: ResumenMensualDia) =>
         item.turnos[1]?.repartos?.[normalizar(reparto.nombre)] || 0,
       vivo: (item: ResumenMensualDia) =>
@@ -2133,9 +2136,9 @@ export default function AdminPlanillasPage() {
         repartoId: reparto.id,
       },
     })),
-    { label: 'Repartos 2da', obtener: (item) => item.turnos[2]?.reparto || 0, vivo: (item) => turnoMensualVivo(item, 2).reparto, decimales: 2 },
-    ...repartos.map((reparto) => ({
-      label: `${reparto.nombre} 2da`,
+    { label: 'Total repartos 1ra', obtener: (item) => item.turnos[1]?.reparto || 0, vivo: (item) => turnoMensualVivo(item, 1).reparto, decimales: 2 },
+    ...repartosGrilla.map((reparto) => ({
+      label: `Rep. ${reparto.nombre} 2da`,
       obtener: (item: ResumenMensualDia) =>
         item.turnos[2]?.repartos?.[normalizar(reparto.nombre)] || 0,
       vivo: (item: ResumenMensualDia) =>
@@ -2147,6 +2150,7 @@ export default function AdminPlanillasPage() {
         repartoId: reparto.id,
       },
     })),
+    { label: 'Total repartos 2da', obtener: (item) => item.turnos[2]?.reparto || 0, vivo: (item) => turnoMensualVivo(item, 2).reparto, decimales: 2 },
     { label: 'Productos rinde 1ra', obtener: (item) => item.turnos[1]?.otroskg || 0, vivo: (item) => turnoMensualVivo(item, 1).otroskg, decimales: 2, editable: { turno: 1, campo: 'productos' } },
     { label: 'Productos rinde 2da', obtener: (item) => item.turnos[2]?.otroskg || 0, vivo: (item) => turnoMensualVivo(item, 2).otroskg, decimales: 2, editable: { turno: 2, campo: 'productos' } },
     { label: 'Merma / Otro 1ra', obtener: (item) => item.merma && item.turnos[1] ? item.merma : 0, vivo: (item) => turnoSeleccionado?.orden === 1 ? turno.merma || 0 : item.merma && item.turnos[1] ? item.merma : 0, decimales: 2, editable: { turno: 1, campo: 'merma' } },
@@ -2495,9 +2499,7 @@ export default function AdminPlanillasPage() {
                 <tr
                   key={fila.label}
                   className={
-                    ['Quintales vaciados', 'KILOS', 'RINDE', 'Total amasado', 'Total kilos'].includes(
-                      fila.label
-                    )
+                    ['Quintales vaciados', 'KILOS', 'RINDE', 'Total amasado', 'Total kilos', 'Total repartos 1ra', 'Total repartos 2da'].includes(fila.label)
                       ? 'bg-[#FFF3DF]/60'
                       : indice % 2 === 0
                         ? 'bg-white'
