@@ -263,6 +263,19 @@ function normalizar(texto: string | null | undefined) {
     .trim();
 }
 
+function referenciaRepartidor(nombre: string) {
+  const limpio = nombre.trim();
+  if (!limpio) return '';
+  if (normalizar(limpio) === normalizar(repartoMesonNombre)) {
+    return repartoMesonNombre;
+  }
+
+  const partes = limpio.split(/\s+/);
+  if (partes.length >= 4) return partes[partes.length - 2];
+  if (partes.length >= 2) return partes[partes.length - 1];
+  return limpio;
+}
+
 function asegurarRepartoMeson(repartos: Reparto[]) {
   if (
     repartos.some(
@@ -846,14 +859,14 @@ export default function AdminPlanillasPage() {
             ? asegurarRepartoMeson(
                 repartidoresActivos.map((item) => ({
                   id: item.id,
-                  nombre: item.nombre_completo,
+                  nombre: referenciaRepartidor(item.nombre_completo),
                   kilos: 0,
                 }))
               )
             : asegurarRepartoMeson(
                 repartidoresPorDefecto.map((nombre) => ({
                   id: `base-${normalizar(nombre)}`,
-                  nombre,
+                  nombre: referenciaRepartidor(nombre),
                   kilos: 0,
                 }))
               )
@@ -1068,7 +1081,7 @@ export default function AdminPlanillasPage() {
       return asegurarRepartoMeson(
         repartidoresConfigurados.map((item) => ({
           id: item.id,
-          nombre: item.nombre_completo,
+          nombre: referenciaRepartidor(item.nombre_completo),
           kilos: 0,
         }))
       );
@@ -1077,7 +1090,7 @@ export default function AdminPlanillasPage() {
     return asegurarRepartoMeson(
       repartidoresPorDefecto.map((nombre) => ({
         id: `base-${normalizar(nombre)}`,
-        nombre,
+        nombre: referenciaRepartidor(nombre),
         kilos: 0,
       }))
     );
@@ -1286,15 +1299,16 @@ export default function AdminPlanillasPage() {
       (total, item) => total + Number(item.merma || 0),
       0
     );
-    const repartosPorNombre = new Map(
-      detalleRepartos.map((item) => {
+    const repartosPorNombre = new Map<string, number>();
+    for (const item of detalleRepartos) {
         let nombre = item.nombre_producto.replace(marcadorTurno, '').trim();
         if (nombre.endsWith(sufijoTurno)) {
           nombre = nombre.slice(0, -sufijoTurno.length).trim();
         }
-        return [normalizar(nombre), Number(item.kilos_total || 0)];
-      })
-    );
+      const kilos = Number(item.kilos_total || 0);
+      repartosPorNombre.set(normalizar(nombre), kilos);
+      repartosPorNombre.set(normalizar(referenciaRepartidor(nombre)), kilos);
+    }
     const mesonHistorico = Number(
       turnoDb?.pan_meson ?? (resumenUnSoloTurno ? planilla.pan_meson : 0) ?? 0
     );
@@ -1316,7 +1330,7 @@ export default function AdminPlanillasPage() {
         }
         return {
           id: `guardado-${nombre}`,
-          nombre,
+          nombre: referenciaRepartidor(nombre),
           kilos: Number(item.kilos_total || 0),
         };
       })
