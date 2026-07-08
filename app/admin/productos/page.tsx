@@ -1118,7 +1118,7 @@ export default function AdminProductosPage() {
                     })
                   }
                 />
-                Usar en planilla de rinde
+                Harina en 1era franja de control
               </label>
             )}
 

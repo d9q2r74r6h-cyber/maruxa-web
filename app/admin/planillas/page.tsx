@@ -153,6 +153,7 @@ type ResumenMensualDia = {
       otroskg: number;
     }
   >;
+  insumos: Record<string, number>;
   merma: number;
 };
 
@@ -165,7 +166,8 @@ type CampoGrilla =
   | 'panRacion'
   | 'cacho'
   | 'merma'
-  | 'panSobrante';
+  | 'panSobrante'
+  | 'insumo';
 
 const turnoInicial: DatosTurno = {
   amasado: 0,
@@ -234,6 +236,17 @@ function nombreMes(fecha: string) {
   }).format(new Date(anio, mes - 1, 1));
 }
 
+function letraDiaSemana(fecha: string) {
+  const [anio, mes, dia] = fecha.split('-').map(Number);
+  const letras = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+  return letras[new Date(anio, mes - 1, dia).getDay()] || '';
+}
+
+function esDomingo(fecha: string) {
+  const [anio, mes, dia] = fecha.split('-').map(Number);
+  return new Date(anio, mes - 1, dia).getDay() === 0;
+}
+
 function normalizar(texto: string | null | undefined) {
   return String(texto || '')
     .normalize('NFD')
@@ -290,6 +303,13 @@ function colorRinde(estado: string) {
   }
 
   return 'border-red-200 bg-red-50 text-red-800';
+}
+
+function colorCeldaRinde(valor: number) {
+  if (valor >= 64) return 'bg-emerald-100 text-emerald-900';
+  if (valor >= 63) return 'bg-amber-100 text-amber-900';
+  if (valor > 0) return 'bg-red-100 text-red-900';
+  return '';
 }
 
 function evitarScrollCasillaNumero(event: WheelEvent<HTMLDivElement>) {
@@ -435,6 +455,7 @@ export default function AdminPlanillasPage() {
   );
   const [productosTurno, setProductosTurno] = useState<ProductoTurno[]>([]);
   const [productoSeleccionadoId, setProductoSeleccionadoId] = useState('');
+  const [harinaSeleccionadaId, setHarinaSeleccionadaId] = useState('');
   const [tablaFuncionariosDisponible, setTablaFuncionariosDisponible] =
     useState(false);
   const [responsable, setResponsable] = useState('');
@@ -482,17 +503,20 @@ export default function AdminPlanillasPage() {
     const ids = planillas.map((item) => item.id);
     const turnosPorPlanilla = new Map<string, ResumenMensualDia['turnos']>();
     const mermaPorPlanilla = new Map<string, number>();
+    const insumosPorPlanilla = new Map<string, Record<string, number>>();
 
     if (ids.length > 0) {
       const { data: turnosData } = await supabase
         .from('planilla_turnos')
         .select(
-          'planilla_id,turno,quintal,amasado,panaderos,masa_ocupa,masa_queda,pan_racion,pan_sobra,cacho,kilos,rinde,reparto,otroskg'
+          'id,planilla_id,turno,quintal,amasado,panaderos,masa_ocupa,masa_queda,pan_racion,pan_sobra,cacho,kilos,rinde,reparto,otroskg'
         )
         .in('planilla_id', ids);
+      const turnoIdAPlanilla = new Map<string, string>();
 
       for (const item of turnosData || []) {
         const planillaId = String(item.planilla_id);
+        turnoIdAPlanilla.set(String(item.id), planillaId);
         const turnos = turnosPorPlanilla.get(planillaId) || {};
         turnos[Number(item.turno || 0)] = {
           quintal: Number(item.quintal || 0),
@@ -509,6 +533,25 @@ export default function AdminPlanillasPage() {
           otroskg: Number(item.otroskg || 0),
         };
         turnosPorPlanilla.set(planillaId, turnos);
+      }
+
+      const turnoIds = Array.from(turnoIdAPlanilla.keys());
+      if (turnoIds.length > 0) {
+        const { data: insumosData } = await supabase
+          .from('planilla_insumos')
+          .select('planilla_turno_id,nombre,cantidad')
+          .in('planilla_turno_id', turnoIds);
+
+        for (const item of insumosData || []) {
+          const planillaId = turnoIdAPlanilla.get(String(item.planilla_turno_id));
+          if (!planillaId) continue;
+
+          const insumosPlanilla = insumosPorPlanilla.get(planillaId) || {};
+          const clave = normalizar(item.nombre);
+          insumosPlanilla[clave] =
+            (insumosPlanilla[clave] || 0) + Number(item.cantidad || 0);
+          insumosPorPlanilla.set(planillaId, insumosPlanilla);
+        }
       }
 
       const { data: detallesData } = await supabase
@@ -547,6 +590,7 @@ export default function AdminPlanillasPage() {
           cacho: Number(item.cacho || 0),
         },
         turnos: turnosPorPlanilla.get(item.id) || {},
+        insumos: insumosPorPlanilla.get(item.id) || {},
         merma: mermaPorPlanilla.get(item.id) || 0,
       };
     }
@@ -921,7 +965,13 @@ export default function AdminPlanillasPage() {
     }
   }
 
-  function valorEditableGrilla(campo: CampoGrilla) {
+  function valorEditableGrilla(campo: CampoGrilla, insumoId?: string) {
+    if (campo === 'insumo') {
+      return (
+        insumos.find((item) => item.id === insumoId)?.cantidad || 0
+      );
+    }
+
     if (campo === 'quintal') return quintal;
     if (campo === 'panaderos') return panaderos;
     if (campo === 'amasado') return turno.amasado;
@@ -934,7 +984,18 @@ export default function AdminPlanillasPage() {
     return 0;
   }
 
-  function cambiarCampoGrilla(campo: CampoGrilla, valor: number) {
+  function cambiarCampoGrilla(campo: CampoGrilla, valor: number, insumoId?: string) {
+    if (campo === 'insumo') {
+      const actualizados = insumos.map((item) =>
+        item.id === insumoId ? { ...item, cantidad: valor } : item
+      );
+      setInsumos(actualizados);
+      setQuintal(
+        actualizados.reduce((total, item) => total + Number(item.cantidad || 0), 0)
+      );
+      return;
+    }
+
     if (campo === 'quintal') {
       setQuintal(valor);
       return;
@@ -993,6 +1054,32 @@ export default function AdminPlanillasPage() {
     }));
   }
 
+  function agregarHarinaGrilla() {
+    const producto = productosRinde.find(
+      (item) => String(item.id) === harinaSeleccionadaId
+    );
+
+    if (!producto) return;
+
+    setInsumos((actuales) => {
+      if (actuales.some((item) => item.producto_id === producto.id)) {
+        return actuales;
+      }
+
+      return [
+        ...actuales,
+        {
+          id: String(producto.id),
+          producto_id: producto.id,
+          nombre: producto.nombre,
+          unidad: producto.unidad_base || 'kg',
+          cantidad: 0,
+        },
+      ];
+    });
+    setHarinaSeleccionadaId('');
+  }
+
   function agregarProductoTurno() {
     const producto = productosPanaderia.find(
       (item) => String(item.id) === productoSeleccionadoId
@@ -1028,6 +1115,7 @@ export default function AdminPlanillasPage() {
     setRepartos(repartosBase());
     setProductosTurno([]);
     setProductoSeleccionadoId('');
+    setHarinaSeleccionadaId('');
     setInsumos(insumosBase());
     setMensaje('');
   }
@@ -1782,12 +1870,18 @@ export default function AdminPlanillasPage() {
     label: string;
     obtener: (item: ResumenMensualDia) => number;
     decimales: number;
-    editable?: { turno?: number; campo: CampoGrilla };
+    editable?: { turno?: number; campo: CampoGrilla; insumoId?: string };
   }[] = [
     { label: '1ra', obtener: (item) => item.turnos[1]?.quintal || item.planilla.quintal1, decimales: 2, editable: { turno: 1, campo: 'quintal' } },
     { label: '2da', obtener: (item) => item.turnos[2]?.quintal || item.planilla.quintal2, decimales: 2, editable: { turno: 2, campo: 'quintal' } },
     { label: 'Centeno', obtener: (item) => item.planilla.centeno, decimales: 2 },
     { label: 'Meson', obtener: (item) => item.planilla.meson, decimales: 2 },
+    ...insumos.map((insumo) => ({
+      label: insumo.nombre,
+      obtener: (item: ResumenMensualDia) => item.insumos[normalizar(insumo.nombre)] || 0,
+      decimales: 2,
+      editable: { campo: 'insumo' as CampoGrilla, insumoId: insumo.id },
+    })),
     { label: 'Quintales vaciados', obtener: (item) => item.planilla.quintal_total, decimales: 2 },
     { label: 'KILOS', obtener: (item) => item.planilla.kilos_producidos, decimales: 2 },
     { label: 'RINDE', obtener: (item) => item.planilla.rinde_por_saco, decimales: 2 },
@@ -2065,33 +2159,96 @@ export default function AdminPlanillasPage() {
           </label>
         </div>
 
+        <div className="flex flex-wrap items-end gap-2 border-b border-[#4B2818]/10 bg-[#FFFDF8] px-4 py-3">
+          <label className="grid min-w-64 flex-1 gap-1.5 text-xs font-bold text-[#4B2818]">
+            Agregar harina a sacos vaciados
+            <select
+              value={harinaSeleccionadaId}
+              onChange={(event) => setHarinaSeleccionadaId(event.target.value)}
+              className="h-9 rounded-md border border-[#4B2818]/20 bg-white px-3 text-sm font-bold outline-none focus:border-[#A51F2B]"
+            >
+              <option value="">Seleccionar harina</option>
+              {productosRinde
+                .filter(
+                  (producto) =>
+                    !insumos.some((item) => item.producto_id === producto.id)
+                )
+                .map((producto) => (
+                  <option key={producto.id} value={producto.id}>
+                    {producto.nombre}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={agregarHarinaGrilla}
+            disabled={!harinaSeleccionadaId}
+            className="inline-flex h-9 items-center gap-2 rounded-md bg-[#2A1710] px-3 text-xs font-black text-white transition hover:bg-[#A51F2B] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Plus className="h-4 w-4" />
+            Harina
+          </button>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="min-w-max border-collapse text-sm">
             <thead>
               <tr>
+                <th className="sticky left-0 z-10 min-w-[190px] border-b border-r border-[#4B2818]/15 bg-[#2A1710] px-3 py-1 text-left text-xs font-black uppercase text-white">
+                  Dia
+                </th>
+                {diasMes.map((dia) => {
+                  const fechaColumna = fechaDiaMes(dia);
+                  const domingo = esDomingo(fechaColumna);
+
+                  return (
+                    <th
+                      key={`semana-${dia}`}
+                      className={`min-w-[74px] border-b border-r border-[#4B2818]/10 px-2 py-1 text-center text-xs font-black ${
+                        domingo
+                          ? 'bg-amber-200 text-amber-950'
+                          : fechaColumna === fecha
+                            ? 'bg-[#A51F2B] text-white'
+                            : 'bg-[#FFF3DF] text-[#4B2818]'
+                      }`}
+                    >
+                      {letraDiaSemana(fechaColumna)}
+                    </th>
+                  );
+                })}
+              </tr>
+              <tr>
                 <th className="sticky left-0 z-10 min-w-[190px] border-b border-r border-[#4B2818]/15 bg-[#2A1710] px-3 py-2 text-left text-xs font-black uppercase text-white">
                   Concepto
                 </th>
-                {diasMes.map((dia) => (
-                  <th
-                    key={dia}
-                    className={`min-w-[74px] border-b border-r border-[#4B2818]/10 px-2 py-2 text-center text-xs font-black ${
-                      fechaDiaMes(dia) === fecha
-                        ? 'bg-[#A51F2B] text-white'
-                        : 'bg-[#FFF3DF] text-[#4B2818]'
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFecha(fechaDiaMes(dia));
-                      }}
-                      className="h-full w-full"
+                {diasMes.map((dia) => {
+                  const fechaColumna = fechaDiaMes(dia);
+                  const domingo = esDomingo(fechaColumna);
+
+                  return (
+                    <th
+                      key={dia}
+                      className={`min-w-[74px] border-b border-r border-[#4B2818]/10 px-2 py-2 text-center text-xs font-black ${
+                        domingo
+                          ? 'bg-amber-200 text-amber-950'
+                          : fechaColumna === fecha
+                            ? 'bg-[#A51F2B] text-white'
+                            : 'bg-[#FFF3DF] text-[#4B2818]'
+                      }`}
                     >
-                      {dia}
-                    </button>
-                  </th>
-                ))}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFecha(fechaColumna);
+                        }}
+                        className="h-full w-full"
+                      >
+                        {dia}
+                      </button>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
@@ -2114,6 +2271,11 @@ export default function AdminPlanillasPage() {
                   {diasMes.map((dia) => {
                     const fechaCelda = fechaDiaMes(dia);
                     const esDiaActivo = fechaCelda === fecha;
+                    const domingo = esDomingo(fechaCelda);
+                    const valorCelda = resumenMensual[fechaCelda]
+                      ? fila.obtener(resumenMensual[fechaCelda])
+                      : 0;
+                    const esFilaRinde = fila.label.toLowerCase().includes('rinde');
                     const esTurnoActivo =
                       !fila.editable?.turno ||
                       fila.editable.turno === turnoSeleccionado?.orden;
@@ -2126,6 +2288,8 @@ export default function AdminPlanillasPage() {
                         key={`${fila.label}-${dia}`}
                         className={`border-b border-r border-[#4B2818]/10 p-0 text-right font-bold text-[#2A1710] ${
                           esDiaActivo ? 'bg-[#A51F2B]/10' : ''
+                        } ${domingo ? 'bg-amber-50' : ''} ${
+                          esFilaRinde ? colorCeldaRinde(valorCelda) : ''
                         }`}
                       >
                         {esEditable && fila.editable ? (
@@ -2133,11 +2297,17 @@ export default function AdminPlanillasPage() {
                             type="number"
                             min="0"
                             step={fila.decimales === 0 ? '1' : '0.01'}
-                            value={valorEditableGrilla(fila.editable.campo) || ''}
+                            value={
+                              valorEditableGrilla(
+                                fila.editable.campo,
+                                fila.editable.insumoId
+                              ) || ''
+                            }
                             onChange={(event) =>
                               cambiarCampoGrilla(
                                 fila.editable!.campo,
-                                Number(event.target.value || 0)
+                                Number(event.target.value || 0),
+                                fila.editable!.insumoId
                               )
                             }
                             className="h-9 w-[74px] border-0 bg-white px-2 text-right text-sm font-black outline-none ring-1 ring-[#A51F2B]/25 focus:ring-2 focus:ring-[#A51F2B]"
