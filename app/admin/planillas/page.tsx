@@ -2090,6 +2090,47 @@ export default function AdminPlanillasPage() {
     (item) => normalizar(item.nombre) !== normalizar(repartoMesonNombre)
   );
 
+  function seccionFilaMensual(label: string) {
+    const etiqueta = normalizar(label);
+    if (
+      ['1ra', '2da', 'centeno', 'meson sala venta'].includes(etiqueta) ||
+      insumos.some((item) => normalizar(item.nombre) === etiqueta) ||
+      etiqueta === 'quintales vaciados'
+    ) {
+      return 'Insumos';
+    }
+
+    if (
+      etiqueta.includes('amasado') ||
+      etiqueta.includes('masa queda') ||
+      etiqueta.includes('masa ocupada') ||
+      etiqueta === 'masa 1ra' ||
+      etiqueta === 'masa 2da'
+    ) {
+      return 'Amasado';
+    }
+
+    if (
+      etiqueta.includes('raciones') ||
+      etiqueta.includes('cacho') ||
+      etiqueta.includes('merma') ||
+      etiqueta.includes('kpan') ||
+      etiqueta.includes('productos rinde')
+    ) {
+      return 'Kilos';
+    }
+
+    if (etiqueta.includes('repartos') || etiqueta.startsWith('rep.')) {
+      return 'Repartos';
+    }
+
+    if (etiqueta.includes('panaderos')) {
+      return 'Personal';
+    }
+
+    return 'Resultado';
+  }
+
   const filasMensuales: FilaMensual[] = [
     { label: '1ra', obtener: (item) => item.turnos[1]?.quintal || item.planilla.quintal1, vivo: (item) => turnoMensualVivo(item, 1).quintal, decimales: 2, editable: { turno: 1, campo: 'quintal' } },
     { label: '2da', obtener: (item) => item.turnos[2]?.quintal || item.planilla.quintal2, vivo: (item) => turnoMensualVivo(item, 2).quintal, decimales: 2, editable: { turno: 2, campo: 'quintal' } },
@@ -2465,7 +2506,10 @@ export default function AdminPlanillasPage() {
           <table className="min-w-max border-collapse text-sm">
             <thead>
               <tr>
-                <th className="sticky left-0 z-10 min-w-[190px] border-b border-r border-[#4B2818]/15 bg-[#2A1710] px-3 py-1 text-left text-xs font-black uppercase text-white">
+                <th className="sticky left-0 z-20 min-w-[96px] border-b border-r border-[#4B2818]/15 bg-[#2A1710] px-3 py-1 text-left text-xs font-black uppercase text-white">
+                  Seccion
+                </th>
+                <th className="sticky left-[96px] z-10 min-w-[190px] border-b border-r border-[#4B2818]/15 bg-[#2A1710] px-3 py-1 text-left text-xs font-black uppercase text-white">
                   Dia
                 </th>
                 {diasMes.map((dia) => {
@@ -2489,7 +2533,10 @@ export default function AdminPlanillasPage() {
                 })}
               </tr>
               <tr>
-                <th className="sticky left-0 z-10 min-w-[190px] border-b border-r border-[#4B2818]/15 bg-[#2A1710] px-3 py-2 text-left text-xs font-black uppercase text-white">
+                <th className="sticky left-0 z-20 min-w-[96px] border-b border-r border-[#4B2818]/15 bg-[#2A1710] px-3 py-2 text-left text-xs font-black uppercase text-white">
+                  {'{'}
+                </th>
+                <th className="sticky left-[96px] z-10 min-w-[190px] border-b border-r border-[#4B2818]/15 bg-[#2A1710] px-3 py-2 text-left text-xs font-black uppercase text-white">
                   Concepto
                 </th>
                 {diasMes.map((dia) => {
@@ -2522,18 +2569,28 @@ export default function AdminPlanillasPage() {
               </tr>
             </thead>
             <tbody>
-              {filasMensuales.map((fila, indice) => (
+              {filasMensuales.map((fila, indice) => {
+                const seccion = seccionFilaMensual(fila.label);
+                const seccionAnterior =
+                  indice > 0 ? seccionFilaMensual(filasMensuales[indice - 1].label) : '';
+                const mostrarSeccion = seccion !== seccionAnterior;
+                const filaResumen = ['Quintales vaciados', 'KILOS', 'RINDE', 'Total amasado', 'Total kilos', 'Total repartos 1ra', 'Total repartos 2da'].includes(fila.label);
+
+                return (
                 <tr
                   key={fila.label}
                   className={
-                    ['Quintales vaciados', 'KILOS', 'RINDE', 'Total amasado', 'Total kilos', 'Total repartos 1ra', 'Total repartos 2da'].includes(fila.label)
+                    filaResumen
                       ? 'bg-[#FFF3DF]/60'
                       : indice % 2 === 0
                         ? 'bg-white'
                         : 'bg-[#FFFDF8]'
                   }
                 >
-                  <th className="sticky left-0 z-10 min-w-[190px] border-b border-r border-[#4B2818]/10 bg-inherit px-3 py-2 text-left text-xs font-black uppercase text-[#2A1710]">
+                  <th className="sticky left-0 z-20 min-w-[96px] border-b border-r border-[#4B2818]/10 bg-inherit px-3 py-2 text-left text-[11px] font-black uppercase text-[#A51F2B]">
+                    {mostrarSeccion ? `${seccion} {` : ''}
+                  </th>
+                  <th className="sticky left-[96px] z-10 min-w-[190px] border-b border-r border-[#4B2818]/10 bg-inherit px-3 py-2 text-left text-xs font-black uppercase text-[#2A1710]">
                     {fila.label}
                   </th>
                   {diasMes.map((dia) => {
@@ -2602,7 +2659,8 @@ export default function AdminPlanillasPage() {
                     );
                   })}
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
