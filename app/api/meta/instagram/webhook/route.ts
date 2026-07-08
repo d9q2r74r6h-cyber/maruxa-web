@@ -91,6 +91,71 @@ function recipientId(evento: any) {
   return evento.recipient?.id || evento.entry_id || null;
 }
 
+async function enviarMensajeWhatsApp(telefono: string, mensaje: string) {
+  const token = process.env.WHATSAPP_ACCESS_TOKEN;
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const destino = telefono.replace(/\D/g, '');
+
+  if (!token || !phoneNumberId || !destino) return null;
+
+  const respuesta = await fetch(
+    `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to: destino,
+        type: 'text',
+        text: {
+          preview_url: false,
+          body: mensaje,
+        },
+      }),
+    }
+  );
+
+  if (respuesta.ok) return null;
+
+  const detalle = await respuesta.text();
+  return detalle || `Meta respondio ${respuesta.status}`;
+}
+
+async function avisarAdministradoresInstagram(
+  admin: NonNullable<ReturnType<typeof crearAdmin>>,
+  empresaId: string,
+  datos: {
+    senderId: string;
+    resumen: string;
+  }
+) {
+  const { data: perfiles } = await admin
+    .from('perfiles_usuario')
+    .select('id,nombre_visible,notificar_whatsapp,notificacion_whatsapp')
+    .eq('empresa_id', empresaId)
+    .eq('activo', true)
+    .eq('notificar_whatsapp', true)
+    .not('notificacion_whatsapp', 'is', null);
+
+  if (!perfiles?.length) return;
+
+  const texto = [
+    'Nuevo mensaje Instagram',
+    `Cliente: ${datos.senderId}`,
+    `Detalle: ${datos.resumen || 'Mensaje recibido.'}`,
+    'Revisar en https://panaderiamaruxa.cl/admin/whatsapp',
+  ].join('\n');
+
+  await Promise.all(
+    perfiles.map((perfil: any) =>
+      enviarMensajeWhatsApp(perfil.notificacion_whatsapp, texto)
+    )
+  );
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const modo = url.searchParams.get('hub.mode');
@@ -227,19 +292,30 @@ export async function POST(request: Request) {
 
     if (existente) continue;
 
+    const tipo = tipoEvento(evento);
+    const texto = textoEvento(evento);
+    const remitente = senderId(evento) || 'Instagram';
+
     await admin.from('instagram_eventos').insert({
       empresa_id: empresaId,
-      sender_id: senderId(evento),
+      sender_id: remitente,
       recipient_id: recipientId(evento),
       message_id: id,
-      tipo: tipoEvento(evento),
-      texto: textoEvento(evento),
-      estado: ['read', 'delivery'].includes(tipoEvento(evento)) ? 'informativo' : 'recibido',
+      tipo,
+      texto,
+      estado: ['read', 'delivery'].includes(tipo) ? 'informativo' : 'recibido',
       observacion: payload.object
         ? `Origen Meta: ${payload.object} (${evento.formato || 'evento'})`
         : 'Mensaje recibido desde Instagram.',
       payload,
     });
+
+    if (!['read', 'delivery'].includes(tipo)) {
+      await avisarAdministradoresInstagram(admin, empresaId, {
+        senderId: remitente,
+        resumen: texto || `Evento de Instagram: ${tipo}`,
+      });
+    }
   }
 
   return NextResponse.json({ recibido: true });
