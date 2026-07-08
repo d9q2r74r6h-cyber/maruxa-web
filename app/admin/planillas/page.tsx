@@ -5,6 +5,7 @@ import {
   useMemo,
   useState,
   type KeyboardEvent,
+  type WheelEvent,
 } from 'react';
 import {
   Calculator,
@@ -289,6 +290,14 @@ function colorRinde(estado: string) {
   }
 
   return 'border-red-200 bg-red-50 text-red-800';
+}
+
+function evitarScrollCasillaNumero(event: WheelEvent<HTMLDivElement>) {
+  const objetivo = event.target;
+
+  if (objetivo instanceof HTMLInputElement && objetivo.type === 'number') {
+    objetivo.blur();
+  }
 }
 
 function CampoNumero({
@@ -1837,7 +1846,11 @@ export default function AdminPlanillasPage() {
   }
 
   return (
-    <div className="space-y-6 pb-12" onKeyDown={moverConEnter}>
+    <div
+      className="space-y-6 pb-12"
+      onKeyDown={moverConEnter}
+      onWheelCapture={evitarScrollCasillaNumero}
+    >
       <header className="flex flex-col justify-between gap-4 border-b border-[#4B2818]/15 pb-5 md:flex-row md:items-end">
         <div>
           <div className="flex items-center gap-2 text-[#A51F2B]">

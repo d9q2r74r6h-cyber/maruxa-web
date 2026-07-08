@@ -2,7 +2,7 @@
 :root{--rojo:#A51F2B;--vino:#74151F;--crema:#FFF3DF;--masa:#F5D9A9;--cafe:#4B2818;--chocolate:#2A1710;--dorado:#C69245}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--crema);color:var(--chocolate);font-family:ui-serif,Georgia,Cambria,"Times New Roman",Times,serif}
 button,input,textarea,select{font-family:ui-sans-serif,system-ui,sans-serif}.contenedor{width:min(1180px,calc(100% - 32px));margin-inline:auto}.text-balance{text-wrap:balance}
-.sin-spinner{-moz-appearance:textfield}.sin-spinner::-webkit-outer-spin-button,.sin-spinner::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.sin-spinner,input[type="number"]{-moz-appearance:textfield}.sin-spinner::-webkit-outer-spin-button,.sin-spinner::-webkit-inner-spin-button,input[type="number"]::-webkit-outer-spin-button,input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .card-premium{border:1px solid rgba(75,40,24,.12);background:rgba(255,255,255,.62);box-shadow:0 24px 80px rgba(42,23,16,.12);backdrop-filter:blur(14px)}
 .btn-rojo{background:var(--rojo);color:white;border-radius:999px;padding:14px 22px;font-weight:800;transition:.25s ease}.btn-rojo:hover{background:var(--vino);transform:translateY(-2px)}
 .btn-crema{background:var(--crema);color:var(--vino);border-radius:999px;padding:14px 22px;font-weight:800}
