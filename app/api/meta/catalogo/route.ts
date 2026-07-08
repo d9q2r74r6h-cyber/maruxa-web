@@ -16,6 +16,14 @@ type ProductoFeed = {
   categoria: string | null;
   imagen: string | null;
   slug: string | null;
+  activo?: boolean | null;
+  tipo_producto?: string | null;
+  familia_id?: string | number | null;
+  familias_productos?: {
+    nombre?: string | null;
+    mostrar_catalogo?: boolean | null;
+    activo?: boolean | null;
+  } | null;
 };
 
 type ItemFeed = {
@@ -26,6 +34,29 @@ type ItemFeed = {
   enlace: string;
   imagen: string;
   categoria: string;
+};
+
+type ProductoDiagnostico = {
+  id: number;
+  codigo: string | null;
+  nombre: string;
+  precio: number | null;
+  categoria: string | null;
+  activo: boolean | null;
+  tipo_producto: string | null;
+  familia_id: string | number | null;
+  familias_productos?:
+    | {
+        nombre?: string | null;
+        mostrar_catalogo?: boolean | null;
+        activo?: boolean | null;
+      }
+    | {
+        nombre?: string | null;
+        mostrar_catalogo?: boolean | null;
+        activo?: boolean | null;
+      }[]
+    | null;
 };
 
 const baseUrl = 'https://panaderiamaruxa.cl';
@@ -133,7 +164,7 @@ function crearItemsFeed(producto: ProductoFeed): ItemFeed[] {
   }));
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const admin = crearAdmin();
 
   if (!admin) {
@@ -141,6 +172,72 @@ export async function GET() {
       { error: 'Cliente Supabase no configurado.' },
       { status: 500 }
     );
+  }
+
+  const url = new URL(request.url);
+  const diagnostico = url.searchParams.get('debug')?.trim();
+
+  if (diagnostico) {
+    const { data, error } = await admin
+      .from('productos')
+      .select(`
+        id,
+        codigo,
+        nombre,
+        precio,
+        categoria,
+        activo,
+        tipo_producto,
+        familia_id,
+        familias_productos (
+          nombre,
+          mostrar_catalogo,
+          activo
+        )
+      `)
+      .ilike('nombre', `%${diagnostico}%`)
+      .order('nombre', { ascending: true });
+
+    if (error) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      busqueda: diagnostico,
+      productos: ((data || []) as ProductoDiagnostico[]).map((producto) => {
+        const familia = Array.isArray(producto.familias_productos)
+          ? producto.familias_productos[0]
+          : producto.familias_productos;
+        const incluido =
+          producto.tipo_producto === 'producto' &&
+          producto.activo === true &&
+          Number(producto.precio || 0) > 0 &&
+          familia?.activo === true &&
+          familia?.mostrar_catalogo === true;
+
+        return {
+          id: producto.id,
+          codigo: producto.codigo,
+          nombre: producto.nombre,
+          categoria: producto.categoria,
+          precio: producto.precio,
+          activo: producto.activo,
+          tipo_producto: producto.tipo_producto,
+          familia: familia?.nombre || null,
+          familia_activa: familia?.activo ?? null,
+          familia_mostrar_catalogo: familia?.mostrar_catalogo ?? null,
+          incluido_en_feed_meta: incluido,
+        };
+      }),
+    }, {
+      headers: {
+        'cache-control': 'no-store, no-cache, max-age=0, must-revalidate',
+        pragma: 'no-cache',
+      },
+    });
   }
 
   const { data, error } = await admin
@@ -159,6 +256,7 @@ export async function GET() {
       imagen,
       slug,
       familias_productos!inner (
+        nombre,
         mostrar_catalogo,
         activo
       )
@@ -213,7 +311,9 @@ export async function GET() {
   return new Response(contenido, {
     headers: {
       'content-type': 'text/csv; charset=utf-8',
-      'cache-control': 'no-store, max-age=0',
+      'cache-control': 'no-store, no-cache, max-age=0, must-revalidate',
+      pragma: 'no-cache',
+      expires: '0',
     },
   });
 }
