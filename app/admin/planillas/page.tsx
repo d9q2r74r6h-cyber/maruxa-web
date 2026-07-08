@@ -2290,19 +2290,21 @@ export default function AdminPlanillasPage() {
         <div className="flex flex-wrap items-end gap-2">
           <div>
             <label className="grid gap-1 text-xs font-bold text-[#4B2818]">
-              Fecha
+              Mes
               <input
-                type="date"
-                value={fecha}
+                type="month"
+                value={`${anioMes}-${String(mesSeleccionado).padStart(2, '0')}`}
                 onChange={(event) => {
-                  setFecha(event.target.value);
+                  if (event.target.value) {
+                    setFecha(`${event.target.value}-01`);
+                  }
                   limpiarTurno();
                 }}
                 className="h-10 rounded-md border border-[#4B2818]/20 bg-white px-3 font-bold"
               />
             </label>
             <p className="mt-1 text-xs font-black capitalize text-[#A51F2B]">
-              {fechaEnPalabras(fecha)}
+              {nombreMes(fecha)}
             </p>
           </div>
           <button
@@ -2322,7 +2324,7 @@ export default function AdminPlanillasPage() {
         </div>
       )}
 
-      <section className="overflow-hidden rounded-lg border border-[#4B2818]/15 bg-white">
+      <section className="hidden">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#4B2818]/10 bg-[#FFF3DF] px-4 py-3">
           <div>
             <h2 className="font-black text-[#2A1710]">Resumen del dia</h2>
@@ -2943,7 +2945,7 @@ export default function AdminPlanillasPage() {
         </div>
       </section>
 
-      <div className="space-y-6">
+      <div className="hidden">
       <section className={`rounded-lg border p-5 ${colorEstado}`}>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
