@@ -2027,9 +2027,11 @@ export default function AdminPlanillasPage() {
         reparto: Number(guardado?.reparto || 0),
         repartos: guardado?.repartos || {},
         otroskg: Number(guardado?.otroskg || 0),
-        factor: guardado?.rinde
-          ? Number(guardado.kilos || 0) / Number(guardado.rinde || 1)
-          : 0,
+        factor: calcularFactorAmasado(
+          Number(guardado?.amasado || 0),
+          Number(guardado?.masa_ocupa || 0),
+          Number(guardado?.masa_queda || 0)
+        ),
       };
     }
 
@@ -2104,7 +2106,32 @@ export default function AdminPlanillasPage() {
     { label: 'RINDE', obtener: (item) => item.planilla.rinde_por_saco, vivo: (item) => totalMensualVivo(item, 'factor') > 0 ? totalMensualVivo(item, 'kilos') / totalMensualVivo(item, 'factor') : 0, decimales: 2 },
     { label: 'Amasado 1ra', obtener: (item) => item.turnos[1]?.amasado || item.planilla.amasado1, vivo: (item) => turnoMensualVivo(item, 1).amasado, decimales: 2, editable: { turno: 1, campo: 'amasado' } },
     { label: 'Amasado 2da', obtener: (item) => item.turnos[2]?.amasado || item.planilla.amasado2, vivo: (item) => turnoMensualVivo(item, 2).amasado, decimales: 2, editable: { turno: 2, campo: 'amasado' } },
-    { label: 'Total amasado', obtener: (item) => item.planilla.amasado_total, vivo: (item) => totalMensualVivo(item, 'amasado'), decimales: 2 },
+    {
+      label: 'Total amasado',
+      obtener: (item) => {
+        const turnos = Object.values(item.turnos);
+        if (turnos.length > 0) {
+          return turnos.reduce(
+            (total, turnoItem) =>
+              total +
+              calcularFactorAmasado(
+                turnoItem.amasado,
+                turnoItem.masa_ocupa,
+                turnoItem.masa_queda
+              ),
+            0
+          );
+        }
+
+        return calcularFactorAmasado(
+          item.planilla.amasado_total,
+          item.planilla.masa_ocupada,
+          item.planilla.masa_sobrante
+        );
+      },
+      vivo: (item) => totalMensualVivo(item, 'factor'),
+      decimales: 2,
+    },
     { label: 'Masa queda 1ra', obtener: (item) => item.turnos[1]?.masa_queda || 0, vivo: (item) => turnoMensualVivo(item, 1).masa_queda, decimales: 2, editable: { turno: 1, campo: 'masaQueda' } },
     { label: 'Masa ocupada 1ra', obtener: (item) => item.turnos[1]?.masa_ocupa || 0, vivo: (item) => turnoMensualVivo(item, 1).masa_ocupa, decimales: 2, editable: { turno: 1, campo: 'masaOcupa' } },
     { label: 'Masa 1ra', obtener: (item) => (item.turnos[1]?.masa_ocupa || 0) - (item.turnos[1]?.masa_queda || 0), vivo: (item) => turnoMensualVivo(item, 1).masa_ocupa - turnoMensualVivo(item, 1).masa_queda, decimales: 2 },
