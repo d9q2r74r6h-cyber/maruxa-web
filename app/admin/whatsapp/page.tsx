@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CheckCircle2,
   Clock,
@@ -77,9 +77,26 @@ function nombreContacto(evento: WhatsappEvento) {
   return contacto?.profile?.name || 'Cliente WhatsApp';
 }
 
+function esMensajePropio(evento: WhatsappEvento) {
+  return (
+    evento.tipo === 'respuesta' ||
+    evento.estado === 'enviado' ||
+    evento.payload?.direccion === 'saliente'
+  );
+}
+
 function textoMensaje(evento: WhatsappEvento) {
   if (evento.origen === 'instagram') {
     return evento.texto || evento.observacion || 'Mensaje recibido desde Instagram.';
+  }
+
+  if (esMensajePropio(evento)) {
+    return (
+      evento.payload?.mensaje ||
+      evento.payload?.text?.body ||
+      evento.observacion ||
+      'Respuesta enviada.'
+    );
   }
 
   const { mensaje } = valoresPayload(evento);
@@ -126,6 +143,7 @@ function horaChile(valor: string) {
 }
 
 function etiquetaTipo(tipo: string | null) {
+  if (tipo === 'respuesta') return 'Tu respuesta';
   if (tipo === 'text') return 'Texto';
   if (tipo === 'order') return 'Pedido';
   if (tipo === 'image') return 'Imagen';
@@ -139,6 +157,7 @@ function etiquetaTipo(tipo: string | null) {
 function estaPendiente(evento: WhatsappEvento) {
   return (
     evento.tipo !== 'order' &&
+    !esMensajePropio(evento) &&
     evento.estado !== 'respondido' &&
     evento.estado !== 'informativo'
   );
@@ -151,6 +170,7 @@ export default function AdminWhatsappPage() {
   const [telefonoActivo, setTelefonoActivo] = useState<string | null>(null);
   const [respuestas, setRespuestas] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState<string | null>(null);
+  const finalMensajesRef = useRef<HTMLDivElement | null>(null);
 
   async function cargarMensajes() {
     setLoading(true);
@@ -262,6 +282,10 @@ export default function AdminWhatsappPage() {
     conversacionesFiltradas[0] ||
     null;
 
+  useEffect(() => {
+    finalMensajesRef.current?.scrollIntoView({ block: 'end' });
+  }, [conversacionActiva?.telefono, conversacionActiva?.eventos.length]);
+
   const resumen = {
     conversaciones: conversaciones.length,
     mensajes: eventos.filter((evento) => evento.tipo !== 'order').length,
@@ -339,6 +363,23 @@ export default function AdminWhatsappPage() {
         .in('id', idsPendientes);
     }
 
+    const empresa = await obtenerEmpresaActual();
+
+    if (empresa) {
+      await supabase.from('whatsapp_eventos').insert({
+        empresa_id: empresa.id,
+        telefono: conversacion.telefono,
+        tipo: 'respuesta',
+        estado: 'enviado',
+        observacion: mensaje,
+        payload: {
+          direccion: 'saliente',
+          mensaje,
+          origen: 'admin',
+        },
+      });
+    }
+
     setRespuestas((actual) => ({ ...actual, [conversacion.telefono]: '' }));
     setEnviando(null);
     cargarMensajes();
@@ -391,7 +432,7 @@ export default function AdminWhatsappPage() {
         <section className="mt-3 rounded-xl bg-white p-2 shadow-premium">
           <div className="flex items-center justify-between gap-3 px-1">
             <p className="text-[10px] font-black uppercase tracking-widest text-maruxa-cafe/60">
-              Ultimos mensajes recibidos
+              Ultimos mensajes
             </p>
             <p className="text-[10px] font-bold text-maruxa-cafe/50">
               WhatsApp e Instagram
@@ -548,17 +589,24 @@ export default function AdminWhatsappPage() {
                     )}
                   </header>
 
-                  <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
+                  <div className="min-h-0 flex-1 overflow-y-auto p-3">
+                    <div className="flex min-h-full flex-col justify-end gap-2">
                     {conversacionActiva.eventos.map((evento) => {
                       const esPedido = evento.tipo === 'order';
                       const esInstagram = evento.origen === 'instagram';
+                      const propio = esMensajePropio(evento);
                       const pendiente = estaPendiente(evento);
 
                       return (
-                        <div key={evento.id} className="flex justify-start">
+                        <div
+                          key={evento.id}
+                          className={`flex ${propio ? 'justify-end' : 'justify-start'}`}
+                        >
                           <div
                             className={`max-w-[min(620px,92%)] rounded-xl px-3 py-2 shadow-sm ${
-                              esInstagram
+                              propio
+                                ? 'bg-[#A51F2B] text-white'
+                                : esInstagram
                                 ? 'bg-pink-50 text-maruxa-chocolate'
                                 : esPedido
                                 ? 'bg-[#A51F2B] text-white'
@@ -570,18 +618,20 @@ export default function AdminWhatsappPage() {
                             <div className="mb-1 flex flex-wrap items-center gap-1.5">
                               <span
                                 className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase ${
-                                  esPedido
+                                  propio || esPedido
                                     ? 'bg-white/15 text-white'
                                     : esInstagram
                                       ? 'bg-pink-100 text-pink-700'
                                     : 'bg-maruxa-crema text-maruxa-cafe'
                                 }`}
                               >
-                                {evento.origen === 'instagram'
-                                  ? `Instagram · ${etiquetaTipo(evento.tipo)}`
-                                  : etiquetaTipo(evento.tipo)}
+                                {propio
+                                  ? 'Tu respuesta'
+                                  : evento.origen === 'instagram'
+                                    ? `Instagram - ${etiquetaTipo(evento.tipo)}`
+                                    : etiquetaTipo(evento.tipo)}
                               </span>
-                              {evento.estado === 'respondido' && (
+                              {evento.estado === 'respondido' && !propio && (
                                 <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-700">
                                   Respondido
                                 </span>
@@ -592,10 +642,10 @@ export default function AdminWhatsappPage() {
                               {textoMensaje(evento)}
                             </p>
 
-                            {evento.observacion && (
+                            {evento.observacion && evento.observacion !== textoMensaje(evento) && (
                               <p
                                 className={`mt-1.5 break-words rounded-lg p-2 text-[11px] font-bold ${
-                                  esPedido
+                                  propio || esPedido
                                     ? 'bg-white/10 text-white/85'
                                     : 'bg-amber-50 text-amber-800'
                                 }`}
@@ -615,7 +665,7 @@ export default function AdminWhatsappPage() {
 
                             <p
                               className={`mt-1.5 flex items-center gap-1 text-[10px] font-black ${
-                                esPedido ? 'text-white/70' : 'text-maruxa-cafe/50'
+                                propio || esPedido ? 'text-white/70' : 'text-maruxa-cafe/50'
                               }`}
                             >
                               <Clock className="h-3 w-3" />
@@ -625,6 +675,8 @@ export default function AdminWhatsappPage() {
                         </div>
                       );
                     })}
+                      <div ref={finalMensajesRef} />
+                    </div>
                   </div>
 
                   <footer className="border-t border-maruxa-rojo/10 bg-white p-3">
