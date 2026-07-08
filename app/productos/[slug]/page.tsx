@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import ProductoDetalle from '@/components/ProductoDetalle';
-import { supabase } from '@/lib/supabase';
+import { obtenerProductosCatalogo } from '@/lib/catalogo-publico';
 
 type Props = {
   params: Promise<{
@@ -9,20 +9,7 @@ type Props = {
 };
 
 export async function generateStaticParams() {
-  const { data } = await supabase
-    .from('productos')
-    .select(`
-      slug,
-      familias_productos!inner (
-        id
-      )
-    `)
-    .eq('activo', true)
-    .eq('tipo_producto', 'producto')
-    .eq('familias_productos.activo', true)
-    .eq('familias_productos.mostrar_catalogo', true)
-    .not('slug', 'is', null)
-    .gt('precio', 0);
+  const { data } = await obtenerProductosCatalogo();
 
   return (
     data?.map((producto) => ({

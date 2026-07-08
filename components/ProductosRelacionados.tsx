@@ -3,8 +3,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { supabasePublic } from '@/lib/supabase-public';
-import { obtenerEmpresaActual } from '@/lib/empresa';
 
 type Producto = {
   id: number;
@@ -27,29 +25,17 @@ export function ProductosRelacionados({
 
   useEffect(() => {
     async function cargar() {
-      const empresa = await obtenerEmpresaActual();
+      const params = new URLSearchParams({
+        categoria,
+        excluir: String(productoActualId),
+        limite: '3',
+      });
+      const respuesta = await fetch(`/api/catalogo?${params.toString()}`, {
+        cache: 'no-store',
+      });
+      const resultado = await respuesta.json();
 
-      if (!empresa) return;
-
-      const { data } = await supabasePublic
-        .from('productos')
-        .select(
-          `id,nombre,descripcion,precio,categoria,imagen,slug,
-          familias_productos!inner (
-            id
-          )`
-        )
-        .eq('empresa_id', empresa.id)
-        .eq('activo', true)
-        .eq('tipo_producto', 'producto')
-        .eq('familias_productos.activo', true)
-        .eq('familias_productos.mostrar_catalogo', true)
-        .eq('categoria', categoria)
-        .neq('id', productoActualId)
-        .gt('precio', 0)
-        .limit(3);
-
-      setProductos((data || []) as Producto[]);
+      setProductos((resultado.productos || []) as Producto[]);
     }
 
     cargar();

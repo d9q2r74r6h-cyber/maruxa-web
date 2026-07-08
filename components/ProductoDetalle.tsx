@@ -6,9 +6,7 @@ import { useCart } from '@/lib/cart';
 import { ProductosRelacionados } from '@/components/ProductosRelacionados';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
-import { supabasePublic } from '@/lib/supabase-public';
 import { useRouter } from 'next/navigation';
-import { obtenerEmpresaActual } from '@/lib/empresa';
 
 
 type Producto = {
@@ -44,32 +42,12 @@ const [tamano, setTamano] = useState<TamanoTorta>(tamanos[0]);
 
   useEffect(() => {
     async function cargarProducto() {
-      const empresa = await obtenerEmpresaActual();
+      const respuesta = await fetch(`/api/catalogo?slug=${encodeURIComponent(slug)}`, {
+        cache: 'no-store',
+      });
+      const resultado = await respuesta.json();
   
-      if (!empresa) {
-        console.error('No se pudo identificar la empresa.');
-        setCargando(false);
-        return;
-      }
-  
-      const { data } = await supabasePublic
-        .from('productos')
-        .select(
-          `id,nombre,descripcion,precio,categoria,imagen,slug,precio_10,precio_15,precio_20,precio_25,
-          familias_productos!inner (
-            id
-          )`
-        )
-        .eq('slug', slug)
-        .eq('empresa_id', empresa.id)
-        .eq('activo', true)
-        .eq('tipo_producto', 'producto')
-        .eq('familias_productos.activo', true)
-        .eq('familias_productos.mostrar_catalogo', true)
-        .gt('precio', 0)
-        .maybeSingle();
-  
-      setProducto(data as Producto);
+      setProducto((resultado.producto || null) as Producto | null);
       setCargando(false);
     }
   

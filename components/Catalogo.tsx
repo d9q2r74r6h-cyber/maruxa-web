@@ -9,8 +9,6 @@ import {
   Search,
 } from 'lucide-react';
 
-import { supabasePublic } from '@/lib/supabase-public';
-import { obtenerEmpresaActual } from '@/lib/empresa';
 import { useSearchParams } from 'next/navigation';
 
 type Producto = {
@@ -78,38 +76,13 @@ export default function Catalogo() {
 
   useEffect(() => {
     async function cargarProductos() {
-      const empresa = await obtenerEmpresaActual();
+      const respuesta = await fetch('/api/catalogo', { cache: 'no-store' });
+      const resultado = await respuesta.json();
     
-      if (!empresa) {
-        console.error('No se pudo identificar la empresa.');
-        return;
-      }
-    
-      const { data, error } = await supabasePublic
-  .from('productos')
-  .select(
-    `id,nombre,descripcion,precio,categoria,imagen,destacado,slug,tipo_producto,precio_10,precio_15,precio_20,precio_25,
-    familias_productos!inner (
-      id
-    )`
-  )
-  .eq('empresa_id', empresa.id)
-  .eq('activo', true)
-  .eq('tipo_producto', 'producto')
-  .eq('familias_productos.activo', true)
-  .eq('familias_productos.mostrar_catalogo', true)
-  .gt('precio', 0)
-  .order('destacado', {
-    ascending: false,
-  })
-  .order('id', {
-    ascending: true,
-  });
-    
-      if (!error && data) {
-        setProductos(data as Producto[]);
+      if (respuesta.ok) {
+        setProductos((resultado.productos || []) as Producto[]);
       } else {
-        console.error(error);
+        console.error(resultado.error || 'No se pudo cargar el catalogo.');
       }
     }
 
