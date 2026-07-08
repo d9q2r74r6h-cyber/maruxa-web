@@ -152,6 +152,7 @@ type ResumenMensualDia = {
       kilos: number;
       rinde: number;
       reparto: number;
+      repartos: Record<string, number>;
       otroskg: number;
     }
   >;
@@ -169,6 +170,7 @@ type CampoGrilla =
   | 'cacho'
   | 'centeno'
   | 'meson'
+  | 'reparto'
   | 'repartos'
   | 'productos'
   | 'merma'
@@ -553,6 +555,7 @@ export default function AdminPlanillasPage() {
           kilos: Number(item.kilos || 0),
           rinde: Number(item.rinde || 0),
           reparto: Number(item.reparto || 0),
+          repartos: {},
           otroskg: Number(item.otroskg || 0),
         };
         turnosPorPlanilla.set(planillaId, turnos);
@@ -579,7 +582,7 @@ export default function AdminPlanillasPage() {
 
       const { data: detallesData } = await supabase
         .from('planilla_detalles')
-        .select('planilla_id,merma')
+        .select('planilla_id,producto_id,nombre_producto,kilos_total,merma')
         .in('planilla_id', ids);
 
       for (const item of detallesData || []) {
@@ -588,6 +591,31 @@ export default function AdminPlanillasPage() {
           planillaId,
           (mermaPorPlanilla.get(planillaId) || 0) + Number(item.merma || 0)
         );
+
+        if (
+          item.producto_id ||
+          Number(item.kilos_total || 0) <= 0 ||
+          normalizar(item.nombre_producto).startsWith('merma')
+        ) {
+          continue;
+        }
+
+        const ordenTurno = turnoDesdeDetalle(item.nombre_producto);
+        const turnos = turnosPorPlanilla.get(planillaId);
+        const turnoDetalle = turnos?.[ordenTurno];
+        if (!turnoDetalle) continue;
+
+        let nombre = item.nombre_producto
+          .replace(/\s*\[turno:\d+\]\s*$/i, '')
+          .trim();
+        const separadorTurno = nombre.lastIndexOf(' - ');
+        if (separadorTurno > -1) {
+          nombre = nombre.slice(0, separadorTurno).trim();
+        }
+
+        const clave = normalizar(referenciaRepartidor(nombre));
+        turnoDetalle.repartos[clave] =
+          (turnoDetalle.repartos[clave] || 0) + Number(item.kilos_total || 0);
       }
     }
 
@@ -988,11 +1016,19 @@ export default function AdminPlanillasPage() {
     }
   }
 
-  function valorEditableGrilla(campo: CampoGrilla, insumoId?: string) {
+  function valorEditableGrilla(
+    campo: CampoGrilla,
+    insumoId?: string,
+    repartoId?: string
+  ) {
     if (campo === 'insumo') {
       return (
         insumos.find((item) => item.id === insumoId)?.cantidad || 0
       );
+    }
+
+    if (campo === 'reparto') {
+      return repartos.find((item) => item.id === repartoId)?.kilos || 0;
     }
 
     if (campo === 'quintal') return quintal;
@@ -1026,6 +1062,15 @@ export default function AdminPlanillasPage() {
     });
   }
 
+  function cambiarRepartoGrilla(repartoId: string | undefined, valor: number) {
+    if (!repartoId) return;
+    setRepartos((actuales) =>
+      actuales.map((item) =>
+        item.id === repartoId ? { ...item, kilos: valor } : item
+      )
+    );
+  }
+
   function cambiarTotalProductosGrilla(valor: number) {
     setProductosTurno((actuales) => {
       const base = actuales.length > 0 ? actuales : productosTurnoBase();
@@ -1041,7 +1086,12 @@ export default function AdminPlanillasPage() {
     });
   }
 
-  function cambiarCampoGrilla(campo: CampoGrilla, valor: number, insumoId?: string) {
+  function cambiarCampoGrilla(
+    campo: CampoGrilla,
+    valor: number,
+    insumoId?: string,
+    repartoId?: string
+  ) {
     if (campo === 'insumo') {
       const actualizados = insumos.map((item) =>
         item.id === insumoId ? { ...item, cantidad: valor } : item
@@ -1050,6 +1100,11 @@ export default function AdminPlanillasPage() {
       setQuintal(
         actualizados.reduce((total, item) => total + Number(item.cantidad || 0), 0)
       );
+      return;
+    }
+
+    if (campo === 'reparto') {
+      cambiarRepartoGrilla(repartoId, valor);
       return;
     }
 
@@ -1945,7 +2000,12 @@ export default function AdminPlanillasPage() {
     obtener: (item: ResumenMensualDia) => number;
     vivo?: (item: ResumenMensualDia) => number;
     decimales: number;
-    editable?: { turno?: number; campo: CampoGrilla; insumoId?: string };
+    editable?: {
+      turno?: number;
+      campo: CampoGrilla;
+      insumoId?: string;
+      repartoId?: string;
+    };
   };
 
   function turnoMensualVivo(item: ResumenMensualDia, orden: number) {
@@ -1965,6 +2025,7 @@ export default function AdminPlanillasPage() {
         kilos: Number(guardado?.kilos || 0),
         rinde: Number(guardado?.rinde || 0),
         reparto: Number(guardado?.reparto || 0),
+        repartos: guardado?.repartos || {},
         otroskg: Number(guardado?.otroskg || 0),
         factor: guardado?.rinde
           ? Number(guardado.kilos || 0) / Number(guardado.rinde || 1)
@@ -1986,6 +2047,9 @@ export default function AdminPlanillasPage() {
       kilos: calculo.kilos,
       rinde: calculo.rinde,
       reparto: kilosRepartos,
+      repartos: Object.fromEntries(
+        repartos.map((item) => [normalizar(item.nombre), Number(item.kilos || 0)])
+      ),
       otroskg: kilosProductosTurno,
       factor: calculo.factorAmasado,
     };
@@ -2055,8 +2119,34 @@ export default function AdminPlanillasPage() {
     { label: 'Raciones 2da', obtener: (item) => item.turnos[2]?.pan_racion || item.planilla.pan_racion, vivo: (item) => turnoMensualVivo(item, 2).pan_racion, decimales: 2, editable: { turno: 2, campo: 'panRacion' } },
     { label: 'Cacho 1ra', obtener: (item) => item.turnos[1]?.cacho || 0, vivo: (item) => turnoMensualVivo(item, 1).cacho, decimales: 2, editable: { turno: 1, campo: 'cacho' } },
     { label: 'Cacho 2da', obtener: (item) => item.turnos[2]?.cacho || item.planilla.cacho, vivo: (item) => turnoMensualVivo(item, 2).cacho, decimales: 2, editable: { turno: 2, campo: 'cacho' } },
-    { label: 'Repartos 1ra', obtener: (item) => item.turnos[1]?.reparto || 0, vivo: (item) => turnoMensualVivo(item, 1).reparto, decimales: 2, editable: { turno: 1, campo: 'repartos' } },
-    { label: 'Repartos 2da', obtener: (item) => item.turnos[2]?.reparto || 0, vivo: (item) => turnoMensualVivo(item, 2).reparto, decimales: 2, editable: { turno: 2, campo: 'repartos' } },
+    { label: 'Repartos 1ra', obtener: (item) => item.turnos[1]?.reparto || 0, vivo: (item) => turnoMensualVivo(item, 1).reparto, decimales: 2 },
+    ...repartos.map((reparto) => ({
+      label: `${reparto.nombre} 1ra`,
+      obtener: (item: ResumenMensualDia) =>
+        item.turnos[1]?.repartos?.[normalizar(reparto.nombre)] || 0,
+      vivo: (item: ResumenMensualDia) =>
+        turnoMensualVivo(item, 1).repartos[normalizar(reparto.nombre)] || 0,
+      decimales: 2,
+      editable: {
+        turno: 1,
+        campo: 'reparto' as CampoGrilla,
+        repartoId: reparto.id,
+      },
+    })),
+    { label: 'Repartos 2da', obtener: (item) => item.turnos[2]?.reparto || 0, vivo: (item) => turnoMensualVivo(item, 2).reparto, decimales: 2 },
+    ...repartos.map((reparto) => ({
+      label: `${reparto.nombre} 2da`,
+      obtener: (item: ResumenMensualDia) =>
+        item.turnos[2]?.repartos?.[normalizar(reparto.nombre)] || 0,
+      vivo: (item: ResumenMensualDia) =>
+        turnoMensualVivo(item, 2).repartos[normalizar(reparto.nombre)] || 0,
+      decimales: 2,
+      editable: {
+        turno: 2,
+        campo: 'reparto' as CampoGrilla,
+        repartoId: reparto.id,
+      },
+    })),
     { label: 'Productos rinde 1ra', obtener: (item) => item.turnos[1]?.otroskg || 0, vivo: (item) => turnoMensualVivo(item, 1).otroskg, decimales: 2, editable: { turno: 1, campo: 'productos' } },
     { label: 'Productos rinde 2da', obtener: (item) => item.turnos[2]?.otroskg || 0, vivo: (item) => turnoMensualVivo(item, 2).otroskg, decimales: 2, editable: { turno: 2, campo: 'productos' } },
     { label: 'Merma / Otro 1ra', obtener: (item) => item.merma && item.turnos[1] ? item.merma : 0, vivo: (item) => turnoSeleccionado?.orden === 1 ? turno.merma || 0 : item.merma && item.turnos[1] ? item.merma : 0, decimales: 2, editable: { turno: 1, campo: 'merma' } },
@@ -2447,14 +2537,16 @@ export default function AdminPlanillasPage() {
                             value={
                               valorEditableGrilla(
                                 fila.editable.campo,
-                                fila.editable.insumoId
+                                fila.editable.insumoId,
+                                fila.editable.repartoId
                               ) || ''
                             }
                             onChange={(event) =>
                               cambiarCampoGrilla(
                                 fila.editable!.campo,
                                 Number(event.target.value || 0),
-                                fila.editable!.insumoId
+                                fila.editable!.insumoId,
+                                fila.editable!.repartoId
                               )
                             }
                             className="h-9 w-[74px] border-0 bg-white px-2 text-right text-sm font-black outline-none ring-1 ring-[#A51F2B]/25 focus:ring-2 focus:ring-[#A51F2B]"
