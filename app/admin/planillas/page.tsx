@@ -2353,6 +2353,7 @@ export default function AdminPlanillasPage() {
       setMensaje(
         `${turnoSeleccionado.nombre} guardado correctamente.`
       );
+      setColumnaEditable('');
       delete borradoresTurno.current[
         claveBorrador(fecha, turnoSeleccionado.orden)
       ];
@@ -2744,32 +2745,34 @@ export default function AdminPlanillasPage() {
     { label: 'Raciones 2da', obtener: (item) => item.turnos[2]?.pan_racion || item.planilla.pan_racion, vivo: (item) => turnoMensualVivo(item, 2).pan_racion, decimales: 2, editable: { turno: 2, campo: 'panRacion' } },
     { label: 'Cacho 1ra', obtener: (item) => item.turnos[1]?.cacho || 0, vivo: (item) => turnoMensualVivo(item, 1).cacho, decimales: 2, editable: { turno: 1, campo: 'cacho' } },
     { label: 'Cacho 2da', obtener: (item) => item.turnos[2]?.cacho || item.planilla.cacho, vivo: (item) => turnoMensualVivo(item, 2).cacho, decimales: 2, editable: { turno: 2, campo: 'cacho' } },
-    ...repartosGrilla.map((reparto) => ({
-      label: `Rep. ${reparto.nombre} 1ra`,
-      obtener: (item: ResumenMensualDia) =>
-        item.turnos[1]?.repartos?.[normalizar(reparto.nombre)] || 0,
-      vivo: (item: ResumenMensualDia) =>
-        turnoMensualVivo(item, 1).repartos[normalizar(reparto.nombre)] || 0,
-      decimales: 2,
-      editable: {
-        turno: 1,
-        campo: 'reparto' as CampoGrilla,
-        repartoId: reparto.id,
+    ...repartosGrilla.flatMap((reparto) => [
+      {
+        label: `Rep. ${reparto.nombre} 1ra`,
+        obtener: (item: ResumenMensualDia) =>
+          item.turnos[1]?.repartos?.[normalizar(reparto.nombre)] || 0,
+        vivo: (item: ResumenMensualDia) =>
+          turnoMensualVivo(item, 1).repartos[normalizar(reparto.nombre)] || 0,
+        decimales: 2,
+        editable: {
+          turno: 1,
+          campo: 'reparto' as CampoGrilla,
+          repartoId: reparto.id,
+        },
       },
-    })),
-    ...repartosGrilla.map((reparto) => ({
-      label: `Rep. ${reparto.nombre} 2da`,
-      obtener: (item: ResumenMensualDia) =>
-        item.turnos[2]?.repartos?.[normalizar(reparto.nombre)] || 0,
-      vivo: (item: ResumenMensualDia) =>
-        turnoMensualVivo(item, 2).repartos[normalizar(reparto.nombre)] || 0,
-      decimales: 2,
-      editable: {
-        turno: 2,
-        campo: 'reparto' as CampoGrilla,
-        repartoId: reparto.id,
+      {
+        label: `Rep. ${reparto.nombre} 2da`,
+        obtener: (item: ResumenMensualDia) =>
+          item.turnos[2]?.repartos?.[normalizar(reparto.nombre)] || 0,
+        vivo: (item: ResumenMensualDia) =>
+          turnoMensualVivo(item, 2).repartos[normalizar(reparto.nombre)] || 0,
+        decimales: 2,
+        editable: {
+          turno: 2,
+          campo: 'reparto' as CampoGrilla,
+          repartoId: reparto.id,
+        },
       },
-    })),
+    ]),
     { label: 'Productos rinde 1ra', obtener: (item) => item.turnos[1]?.otroskg || 0, vivo: (item) => turnoMensualVivo(item, 1).otroskg, decimales: 2, editable: { turno: 1, campo: 'productos' } },
     { label: 'Productos rinde 2da', obtener: (item) => item.turnos[2]?.otroskg || 0, vivo: (item) => turnoMensualVivo(item, 2).otroskg, decimales: 2, editable: { turno: 2, campo: 'productos' } },
     { label: 'Merma / Otro 1ra', obtener: (item) => item.merma && item.turnos[1] ? item.merma : 0, vivo: (item) => turnoSeleccionado?.orden === 1 ? turno.merma || 0 : item.merma && item.turnos[1] ? item.merma : 0, decimales: 2, editable: { turno: 1, campo: 'merma' } },
@@ -3199,17 +3202,16 @@ export default function AdminPlanillasPage() {
                   'Total repartos 1ra',
                   'Total repartos 2da',
                 ].includes(fila.label);
+                const colorFilaBase = filaResumen
+                  ? 'bg-[#FFF3DF]'
+                  : indice % 2 === 0
+                    ? 'bg-white'
+                    : 'bg-[#FFFDF8]';
 
                 return (
                 <tr
                   key={fila.label}
-                  className={
-                    filaResumen
-                      ? 'bg-[#FFF3DF]/60'
-                      : indice % 2 === 0
-                        ? 'bg-white'
-                        : 'bg-[#FFFDF8]'
-                  }
+                  className={colorFilaBase}
                 >
                   {indice === 0 && (
                     <th
@@ -3226,7 +3228,7 @@ export default function AdminPlanillasPage() {
                       </div>
                     </th>
                   )}
-                  <th className="sticky left-[118px] z-10 min-w-[190px] border-b border-r border-[#4B2818]/10 bg-inherit px-3 py-2 text-left text-xs font-black uppercase text-[#2A1710]">
+                  <th className={`sticky left-[118px] z-10 min-w-[190px] border-b border-r border-[#4B2818]/10 px-3 py-2 text-left text-xs font-black uppercase text-[#2A1710] ${colorFilaBase}`}>
                     {fila.label}
                   </th>
                   {diasMes.map((dia) => {
@@ -3248,9 +3250,9 @@ export default function AdminPlanillasPage() {
                     return (
                       <td
                         key={`${fila.label}-${dia}`}
-                        className={`border-b border-r border-[#4B2818]/10 p-0 text-right font-bold text-[#2A1710] ${
-                          esDiaActivo ? 'bg-[#A51F2B]/10' : ''
-                        } ${domingo ? 'bg-amber-50' : ''} ${
+                        className={`border-b border-r border-[#4B2818]/10 p-0 text-right font-bold text-[#2A1710] ${colorFilaBase} ${
+                          domingo ? '!bg-amber-50' : ''
+                        } ${esDiaActivo ? '!bg-[#A51F2B]/10' : ''} ${
                           esFilaRinde ? colorCeldaRinde(valorCelda) : ''
                         }`}
                       >
