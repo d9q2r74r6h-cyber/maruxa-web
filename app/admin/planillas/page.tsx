@@ -8,6 +8,7 @@ import {
   type KeyboardEvent,
   type WheelEvent,
 } from 'react';
+import { flushSync } from 'react-dom';
 import {
   Calculator,
   Loader2,
@@ -1140,6 +1141,14 @@ export default function AdminPlanillasPage() {
 
     event.preventDefault();
     event.stopPropagation();
+    flushSync(() => {
+      cambiarCampoGrilla(
+        fila.editable!.campo,
+        Number(event.currentTarget.value || 0),
+        fila.editable!.insumoId,
+        fila.editable!.repartoId
+      );
+    });
     setFocoGrillaPendiente({ dia, fila: siguienteTurno });
     seleccionarCeldaGrilla(fechaDiaMes(dia), ordenDestino);
   }
