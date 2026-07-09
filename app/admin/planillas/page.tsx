@@ -564,6 +564,7 @@ export default function AdminPlanillasPage() {
     Record<string, ResumenMensualDia>
   >({});
   const borradoresTurno = useRef<Record<string, BorradorTurno>>({});
+  const borradoresEditados = useRef<Set<string>>(new Set());
   const cargaTurnoId = useRef(0);
   const [focoGrillaPendiente, setFocoGrillaPendiente] = useState<{
     dia: number;
@@ -1153,7 +1154,9 @@ export default function AdminPlanillasPage() {
 
   function marcarTurnoActualComoCargado() {
     if (!turnoSeleccionado) return;
-    setTurnoCargadoClave(claveBorrador(fecha, turnoSeleccionado.orden));
+    const claveActual = claveBorrador(fecha, turnoSeleccionado.orden);
+    borradoresEditados.current.add(claveActual);
+    setTurnoCargadoClave(claveActual);
   }
 
   function guardarBorradorTurnoActual() {
@@ -1261,9 +1264,9 @@ export default function AdminPlanillasPage() {
   ) {
     if (!turnoSeleccionado) return;
 
-    borradoresTurno.current[
-      claveBorrador(fecha, turnoSeleccionado.orden)
-    ] = borradorTurnoConCambio(
+    const claveActual = claveBorrador(fecha, turnoSeleccionado.orden);
+    borradoresEditados.current.add(claveActual);
+    borradoresTurno.current[claveActual] = borradorTurnoConCambio(
       campo,
       valor,
       insumoId,
@@ -2357,6 +2360,9 @@ export default function AdminPlanillasPage() {
       delete borradoresTurno.current[
         claveBorrador(fecha, turnoSeleccionado.orden)
       ];
+      borradoresEditados.current.delete(
+        claveBorrador(fecha, turnoSeleccionado.orden)
+      );
       await cargarResumenDia(fecha);
       await cargarResumenMensual(fecha);
     } catch (error) {
@@ -2475,13 +2481,15 @@ export default function AdminPlanillasPage() {
 
   function turnoMensualVivo(item: ResumenMensualDia, orden: number) {
     const guardado = item.turnos[orden];
-    const borrador = borradoresTurno.current[claveBorrador(item.fecha, orden)];
+    const clave = claveBorrador(item.fecha, orden);
+    const borrador = borradoresTurno.current[clave];
+    const borradorEditado = borradoresEditados.current.has(clave);
     const esTurnoActual =
       item.fecha === fecha && orden === turnoSeleccionado?.orden;
     const turnoActualCargado =
       esTurnoActual && turnoCargadoClave === claveBorrador(fecha, orden);
 
-    if (borrador && !turnoActualCargado) {
+    if (borrador && borradorEditado && !turnoActualCargado) {
       return datosMensualesBorrador(borrador);
     }
 
@@ -2574,12 +2582,13 @@ export default function AdminPlanillasPage() {
     );
     const tieneBorradorFila = fila.editable?.turno
       ? Boolean(
-          borradoresTurno.current[
+          borradoresEditados.current.has(
             claveBorrador(fechaCelda, fila.editable.turno)
-          ]
+          )
         )
       : Object.keys(borradoresTurno.current).some((clave) =>
-          clave.startsWith(`${fechaCelda}::`)
+          clave.startsWith(`${fechaCelda}::`) &&
+          borradoresEditados.current.has(clave)
         );
     return fila.vivo &&
       (tieneBorradorFila || (fechaCelda === fecha && turnoActualCargado))
@@ -3204,9 +3213,7 @@ export default function AdminPlanillasPage() {
                 ].includes(fila.label);
                 const colorFilaBase = filaResumen
                   ? 'bg-[#FFF3DF]'
-                  : indice % 2 === 0
-                    ? 'bg-white'
-                    : 'bg-[#FFFDF8]';
+                  : 'bg-white';
 
                 return (
                 <tr
