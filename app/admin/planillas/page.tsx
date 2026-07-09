@@ -2383,6 +2383,7 @@ export default function AdminPlanillasPage() {
   const diasMes = Array.from({ length: ultimoDia }, (_, indice) => indice + 1);
   const fechaDiaMes = (dia: number) =>
     `${anioMes}-${String(mesSeleccionado).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+  const etiquetaDiaMes = (dia: number) => String(dia).padStart(2, '0');
   const valorMes = (
     dia: number,
     fila: FilaMensual,
@@ -3141,7 +3142,7 @@ export default function AdminPlanillasPage() {
                         }}
                         className="block w-full"
                       >
-                        {dia}
+                        {etiquetaDiaMes(dia)}
                       </button>
                       <button
                         type="button"
