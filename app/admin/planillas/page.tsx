@@ -1475,10 +1475,18 @@ export default function AdminPlanillasPage() {
     () => ({
       ...turno,
       otroskg: kilosProductosTurno,
+      merma: otrosTurno.length > 0 ? kilosOtrosTurno : turno.merma,
       panSobranteAnterior,
       repartos: repartos.map((reparto) => reparto.kilos),
     }),
-    [kilosProductosTurno, panSobranteAnterior, repartos, turno]
+    [
+      kilosOtrosTurno,
+      kilosProductosTurno,
+      otrosTurno.length,
+      panSobranteAnterior,
+      repartos,
+      turno,
+    ]
   );
 
   const calculo = useMemo(() => calcularTurno(datosTurno), [datosTurno]);
@@ -2893,12 +2901,20 @@ export default function AdminPlanillasPage() {
   }
 
   function datosMensualesBorrador(borrador: BorradorTurno) {
+    const kilosOtrosBorrador = (borrador.otrosTurno || []).reduce(
+      (total, item) => total + Number(item.kilos || 0),
+      0
+    );
     const datos = {
       ...borrador.turno,
       otroskg: borrador.productosTurno.reduce(
         (total, producto) => total + Number(producto.kilos || 0),
         0
       ),
+      merma:
+        (borrador.otrosTurno || []).length > 0
+          ? kilosOtrosBorrador
+          : borrador.turno.merma,
       panSobranteAnterior: borrador.panSobranteAnterior,
       repartos: borrador.repartos.map((reparto) => Number(reparto.kilos || 0)),
     };
@@ -2928,7 +2944,7 @@ export default function AdminPlanillasPage() {
         ])
       ),
       otroskg: datos.otroskg,
-      merma: borrador.turno.merma || 0,
+      merma: Number(datos.merma || 0),
       insumos: Object.fromEntries(
         borrador.insumos.map((insumo) => [
           normalizar(insumo.nombre),
@@ -3007,7 +3023,7 @@ export default function AdminPlanillasPage() {
         repartos.map((item) => [normalizar(item.nombre), Number(item.kilos || 0)])
       ),
       otroskg: kilosProductosTurno,
-      merma: turno.merma || 0,
+      merma: otrosTurno.length > 0 ? kilosOtrosTurno : turno.merma || 0,
       insumos: Object.fromEntries(
         insumos.map((item) => [normalizar(item.nombre), Number(item.cantidad || 0)])
       ),
