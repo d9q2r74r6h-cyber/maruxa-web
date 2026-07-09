@@ -26,7 +26,7 @@ with valores as (
 calculos as (
   select
     *,
-    reparto + otroskg + pan_racion + merma + pan_sobra - pan_sobra_anterior as kilos_corregidos,
+    reparto + otroskg + pan_racion + merma - pan_sobra_anterior as kilos_corregidos,
     round(((((masa_ocupa - masa_queda) / 100) / 3) * 2)::numeric, 2) as ajuste_masa
   from valores
 ),
