@@ -2844,6 +2844,16 @@ export default function AdminPlanillasPage() {
     return 'Resultado';
   }
 
+  function valorTurnoMensual(
+    item: ResumenMensualDia,
+    orden: number,
+    campo: keyof ResumenMensualDia['turnos'][number],
+    fallback = 0
+  ) {
+    const turnoGuardado = item.turnos[orden];
+    return turnoGuardado ? Number(turnoGuardado[campo] ?? 0) : fallback;
+  }
+
   const filasMensuales: FilaMensual[] = [
     { label: 'Quintales vaciados', obtener: (item) => item.planilla.quintal_total, vivo: (item) => totalMensualVivo(item, 'quintal') + totalMensualVivo(item, 'centeno') + totalMensualVivo(item, 'meson'), decimales: 2 },
     { label: 'KILOS', obtener: (item) => item.planilla.kilos_producidos, vivo: (item) => totalMensualVivo(item, 'kilos'), decimales: 2 },
@@ -2874,18 +2884,18 @@ export default function AdminPlanillasPage() {
       vivo: (item) => totalMensualVivo(item, 'factor'),
       decimales: 2,
     },
-    { label: 'Masa 1ra', obtener: (item) => (item.turnos[1]?.masa_ocupa || 0) - (item.turnos[1]?.masa_queda || 0), vivo: (item) => turnoMensualVivo(item, 1).masa_ocupa - turnoMensualVivo(item, 1).masa_queda, decimales: 2 },
-    { label: 'Masa 2da', obtener: (item) => (item.turnos[2]?.masa_ocupa || item.planilla.masa_ocupada) - (item.turnos[2]?.masa_queda || item.planilla.masa_sobrante), vivo: (item) => turnoMensualVivo(item, 2).masa_ocupa - turnoMensualVivo(item, 2).masa_queda, decimales: 2 },
-    { label: 'Kilos 1ra', obtener: (item) => item.turnos[1]?.kilos || 0, vivo: (item) => turnoMensualVivo(item, 1).kilos, decimales: 2 },
-    { label: 'Kilos 2da', obtener: (item) => item.turnos[2]?.kilos || 0, vivo: (item) => turnoMensualVivo(item, 2).kilos, decimales: 2 },
+    { label: 'Masa 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'masa_ocupa') - valorTurnoMensual(item, 1, 'masa_queda'), vivo: (item) => turnoMensualVivo(item, 1).masa_ocupa - turnoMensualVivo(item, 1).masa_queda, decimales: 2 },
+    { label: 'Masa 2da', obtener: (item) => valorTurnoMensual(item, 2, 'masa_ocupa', item.planilla.masa_ocupada) - valorTurnoMensual(item, 2, 'masa_queda', item.planilla.masa_sobrante), vivo: (item) => turnoMensualVivo(item, 2).masa_ocupa - turnoMensualVivo(item, 2).masa_queda, decimales: 2 },
+    { label: 'Kilos 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'kilos'), vivo: (item) => turnoMensualVivo(item, 1).kilos, decimales: 2 },
+    { label: 'Kilos 2da', obtener: (item) => valorTurnoMensual(item, 2, 'kilos'), vivo: (item) => turnoMensualVivo(item, 2).kilos, decimales: 2 },
     { label: 'Total kilos', obtener: (item) => item.planilla.kilos_producidos, vivo: (item) => totalMensualVivo(item, 'kilos'), decimales: 2 },
-    { label: 'Rinde 1ra', obtener: (item) => item.turnos[1]?.rinde || 0, vivo: (item) => turnoMensualVivo(item, 1).rinde, decimales: 2 },
-    { label: 'Rinde 2da', obtener: (item) => item.turnos[2]?.rinde || 0, vivo: (item) => turnoMensualVivo(item, 2).rinde, decimales: 2 },
-    { label: 'Total panaderos', obtener: (item) => (item.turnos[1]?.panaderos || 0) + (item.turnos[2]?.panaderos || 0), vivo: (item) => totalMensualVivo(item, 'panaderos'), decimales: 0 },
-    { label: 'Total repartos 1ra', obtener: (item) => item.turnos[1]?.reparto || 0, vivo: (item) => turnoMensualVivo(item, 1).reparto, decimales: 2 },
-    { label: 'Total repartos 2da', obtener: (item) => item.turnos[2]?.reparto || 0, vivo: (item) => turnoMensualVivo(item, 2).reparto, decimales: 2 },
-    { label: '1ra', obtener: (item) => item.turnos[1]?.quintal || item.planilla.quintal1, vivo: (item) => turnoMensualVivo(item, 1).quintal, decimales: 2, editable: { turno: 1, campo: 'quintal' } },
-    { label: '2da', obtener: (item) => item.turnos[2]?.quintal || item.planilla.quintal2, vivo: (item) => turnoMensualVivo(item, 2).quintal, decimales: 2, editable: { turno: 2, campo: 'quintal' } },
+    { label: 'Rinde 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'rinde'), vivo: (item) => turnoMensualVivo(item, 1).rinde, decimales: 2 },
+    { label: 'Rinde 2da', obtener: (item) => valorTurnoMensual(item, 2, 'rinde'), vivo: (item) => turnoMensualVivo(item, 2).rinde, decimales: 2 },
+    { label: 'Total panaderos', obtener: (item) => valorTurnoMensual(item, 1, 'panaderos') + valorTurnoMensual(item, 2, 'panaderos'), vivo: (item) => totalMensualVivo(item, 'panaderos'), decimales: 0 },
+    { label: 'Total repartos 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'reparto'), vivo: (item) => turnoMensualVivo(item, 1).reparto, decimales: 2 },
+    { label: 'Total repartos 2da', obtener: (item) => valorTurnoMensual(item, 2, 'reparto'), vivo: (item) => turnoMensualVivo(item, 2).reparto, decimales: 2 },
+    { label: '1ra', obtener: (item) => valorTurnoMensual(item, 1, 'quintal', item.planilla.quintal1), vivo: (item) => turnoMensualVivo(item, 1).quintal, decimales: 2, editable: { turno: 1, campo: 'quintal' } },
+    { label: '2da', obtener: (item) => valorTurnoMensual(item, 2, 'quintal', item.planilla.quintal2), vivo: (item) => turnoMensualVivo(item, 2).quintal, decimales: 2, editable: { turno: 2, campo: 'quintal' } },
     { label: 'Centeno', obtener: (item) => item.planilla.centeno, vivo: (item) => totalMensualVivo(item, 'centeno'), decimales: 2, editable: { campo: 'centeno' } },
     { label: '+ Insumos', obtener: () => 0, decimales: 0, editable: { campo: 'agregarInsumo' } },
     { label: 'Meson sala venta', obtener: (item) => item.planilla.meson, vivo: (item) => totalMensualVivo(item, 'meson'), decimales: 2, editable: { campo: 'meson' } },
@@ -2917,18 +2927,18 @@ export default function AdminPlanillasPage() {
         },
       },
     ]),
-    { label: 'Amasado 1ra', obtener: (item) => item.turnos[1]?.amasado || item.planilla.amasado1, vivo: (item) => turnoMensualVivo(item, 1).amasado, decimales: 2, editable: { turno: 1, campo: 'amasado' } },
-    { label: 'Amasado 2da', obtener: (item) => item.turnos[2]?.amasado || item.planilla.amasado2, vivo: (item) => turnoMensualVivo(item, 2).amasado, decimales: 2, editable: { turno: 2, campo: 'amasado' } },
-    { label: 'Masa queda 1ra', obtener: (item) => item.turnos[1]?.masa_queda || 0, vivo: (item) => turnoMensualVivo(item, 1).masa_queda, decimales: 2, editable: { turno: 1, campo: 'masaQueda' } },
-    { label: 'Masa ocupada 1ra', obtener: (item) => item.turnos[1]?.masa_ocupa || 0, vivo: (item) => turnoMensualVivo(item, 1).masa_ocupa, decimales: 2, editable: { turno: 1, campo: 'masaOcupa' } },
-    { label: 'Masa queda 2da', obtener: (item) => item.turnos[2]?.masa_queda || item.planilla.masa_sobrante, vivo: (item) => turnoMensualVivo(item, 2).masa_queda, decimales: 2, editable: { turno: 2, campo: 'masaQueda' } },
-    { label: 'Masa ocupada 2da', obtener: (item) => item.turnos[2]?.masa_ocupa || item.planilla.masa_ocupada, vivo: (item) => turnoMensualVivo(item, 2).masa_ocupa, decimales: 2, editable: { turno: 2, campo: 'masaOcupa' } },
-    { label: 'Panaderos 1ra', obtener: (item) => item.turnos[1]?.panaderos || 0, vivo: (item) => turnoMensualVivo(item, 1).panaderos, decimales: 0, editable: { turno: 1, campo: 'panaderos' } },
-    { label: 'Panaderos 2da', obtener: (item) => item.turnos[2]?.panaderos || 0, vivo: (item) => turnoMensualVivo(item, 2).panaderos, decimales: 0, editable: { turno: 2, campo: 'panaderos' } },
-    { label: 'Raciones 1ra', obtener: (item) => item.turnos[1]?.pan_racion || 0, vivo: (item) => turnoMensualVivo(item, 1).pan_racion, decimales: 2, editable: { turno: 1, campo: 'panRacion' } },
-    { label: 'Raciones 2da', obtener: (item) => item.turnos[2]?.pan_racion || item.planilla.pan_racion, vivo: (item) => turnoMensualVivo(item, 2).pan_racion, decimales: 2, editable: { turno: 2, campo: 'panRacion' } },
-    { label: 'Cacho 1ra', obtener: (item) => item.turnos[1]?.cacho || 0, vivo: (item) => turnoMensualVivo(item, 1).cacho, decimales: 2, editable: { turno: 1, campo: 'cacho' } },
-    { label: 'Cacho 2da', obtener: (item) => item.turnos[2]?.cacho || item.planilla.cacho, vivo: (item) => turnoMensualVivo(item, 2).cacho, decimales: 2, editable: { turno: 2, campo: 'cacho' } },
+    { label: 'Amasado 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'amasado', item.planilla.amasado1), vivo: (item) => turnoMensualVivo(item, 1).amasado, decimales: 2, editable: { turno: 1, campo: 'amasado' } },
+    { label: 'Amasado 2da', obtener: (item) => valorTurnoMensual(item, 2, 'amasado', item.planilla.amasado2), vivo: (item) => turnoMensualVivo(item, 2).amasado, decimales: 2, editable: { turno: 2, campo: 'amasado' } },
+    { label: 'Masa queda 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'masa_queda'), vivo: (item) => turnoMensualVivo(item, 1).masa_queda, decimales: 2, editable: { turno: 1, campo: 'masaQueda' } },
+    { label: 'Masa ocupada 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'masa_ocupa'), vivo: (item) => turnoMensualVivo(item, 1).masa_ocupa, decimales: 2, editable: { turno: 1, campo: 'masaOcupa' } },
+    { label: 'Masa queda 2da', obtener: (item) => valorTurnoMensual(item, 2, 'masa_queda', item.planilla.masa_sobrante), vivo: (item) => turnoMensualVivo(item, 2).masa_queda, decimales: 2, editable: { turno: 2, campo: 'masaQueda' } },
+    { label: 'Masa ocupada 2da', obtener: (item) => valorTurnoMensual(item, 2, 'masa_ocupa', item.planilla.masa_ocupada), vivo: (item) => turnoMensualVivo(item, 2).masa_ocupa, decimales: 2, editable: { turno: 2, campo: 'masaOcupa' } },
+    { label: 'Panaderos 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'panaderos'), vivo: (item) => turnoMensualVivo(item, 1).panaderos, decimales: 0, editable: { turno: 1, campo: 'panaderos' } },
+    { label: 'Panaderos 2da', obtener: (item) => valorTurnoMensual(item, 2, 'panaderos'), vivo: (item) => turnoMensualVivo(item, 2).panaderos, decimales: 0, editable: { turno: 2, campo: 'panaderos' } },
+    { label: 'Raciones 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'pan_racion'), vivo: (item) => turnoMensualVivo(item, 1).pan_racion, decimales: 2, editable: { turno: 1, campo: 'panRacion' } },
+    { label: 'Raciones 2da', obtener: (item) => valorTurnoMensual(item, 2, 'pan_racion', item.planilla.pan_racion), vivo: (item) => turnoMensualVivo(item, 2).pan_racion, decimales: 2, editable: { turno: 2, campo: 'panRacion' } },
+    { label: 'Cacho 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'cacho'), vivo: (item) => turnoMensualVivo(item, 1).cacho, decimales: 2, editable: { turno: 1, campo: 'cacho' } },
+    { label: 'Cacho 2da', obtener: (item) => valorTurnoMensual(item, 2, 'cacho', item.planilla.cacho), vivo: (item) => turnoMensualVivo(item, 2).cacho, decimales: 2, editable: { turno: 2, campo: 'cacho' } },
     ...repartosGrilla.flatMap((reparto) => [
       {
         label: `Rep. ${reparto.nombre} 1ra`,
@@ -2957,12 +2967,12 @@ export default function AdminPlanillasPage() {
         },
       },
     ]),
-    { label: '+ Productos rinde 1ra', obtener: (item) => item.turnos[1]?.otroskg || 0, vivo: (item) => turnoMensualVivo(item, 1).otroskg, decimales: 2, editable: { turno: 1, campo: 'productos' } },
-    { label: '+ Productos rinde 2da', obtener: (item) => item.turnos[2]?.otroskg || 0, vivo: (item) => turnoMensualVivo(item, 2).otroskg, decimales: 2, editable: { turno: 2, campo: 'productos' } },
+    { label: '+ Productos rinde 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'otroskg'), vivo: (item) => turnoMensualVivo(item, 1).otroskg, decimales: 2, editable: { turno: 1, campo: 'productos' } },
+    { label: '+ Productos rinde 2da', obtener: (item) => valorTurnoMensual(item, 2, 'otroskg'), vivo: (item) => turnoMensualVivo(item, 2).otroskg, decimales: 2, editable: { turno: 2, campo: 'productos' } },
     { label: '+ Otros 1ra', obtener: (item) => item.merma && item.turnos[1] ? item.merma : 0, vivo: (item) => turnoSeleccionado?.orden === 1 ? turno.merma || 0 : item.merma && item.turnos[1] ? item.merma : 0, decimales: 2, editable: { turno: 1, campo: 'merma' } },
     { label: '+ Otros 2da', obtener: (item) => item.merma && item.turnos[2] ? item.merma : 0, vivo: (item) => turnoSeleccionado?.orden === 2 ? turno.merma || 0 : item.merma && item.turnos[2] ? item.merma : 0, decimales: 2, editable: { turno: 2, campo: 'merma' } },
-    { label: 'KPAN 1ra', obtener: (item) => item.turnos[1]?.pan_sobra || 0, vivo: (item) => turnoMensualVivo(item, 1).pan_sobra, decimales: 2, editable: { turno: 1, campo: 'panSobrante' } },
-    { label: 'KPAN 2da', obtener: (item) => item.turnos[2]?.pan_sobra || item.planilla.pan_sobra, vivo: (item) => turnoMensualVivo(item, 2).pan_sobra, decimales: 2, editable: { turno: 2, campo: 'panSobrante' } },
+    { label: 'KPAN 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'pan_sobra'), vivo: (item) => turnoMensualVivo(item, 1).pan_sobra, decimales: 2, editable: { turno: 1, campo: 'panSobrante' } },
+    { label: 'KPAN 2da', obtener: (item) => valorTurnoMensual(item, 2, 'pan_sobra', item.planilla.pan_sobra), vivo: (item) => turnoMensualVivo(item, 2).pan_sobra, decimales: 2, editable: { turno: 2, campo: 'panSobrante' } },
   ];
 
   const gruposFilasMensuales = filasMensuales.reduce<
