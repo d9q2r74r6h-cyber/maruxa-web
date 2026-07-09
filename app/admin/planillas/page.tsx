@@ -12,6 +12,7 @@ import { flushSync } from 'react-dom';
 import {
   Calculator,
   Loader2,
+  Pencil,
   Plus,
   RotateCcw,
   Save,
@@ -187,6 +188,7 @@ type CampoGrilla =
   | 'reparto'
   | 'repartos'
   | 'productos'
+  | 'productoTurno'
   | 'merma'
   | 'panSobrante'
   | 'insumo';
@@ -537,6 +539,7 @@ export default function AdminPlanillasPage() {
   const [productosTurno, setProductosTurno] = useState<ProductoTurno[]>([]);
   const [productoSeleccionadoId, setProductoSeleccionadoId] = useState('');
   const [harinaSeleccionadaId, setHarinaSeleccionadaId] = useState('');
+  const [columnaEditable, setColumnaEditable] = useState(hoy);
   const [tablaFuncionariosDisponible, setTablaFuncionariosDisponible] =
     useState(false);
   const [responsable, setResponsable] = useState('');
@@ -1086,7 +1089,8 @@ export default function AdminPlanillasPage() {
     campo: CampoGrilla,
     valor: number,
     insumoId?: string,
-    repartoId?: string
+    repartoId?: string,
+    productoTurnoId?: string
   ): BorradorTurno {
     const turnoBorrador = { ...turno };
     let quintalBorrador = quintal;
@@ -1108,6 +1112,12 @@ export default function AdminPlanillasPage() {
     if (campo === 'reparto') {
       repartosBorrador = repartosBorrador.map((item) =>
         item.id === repartoId ? { ...item, kilos: valor } : item
+      );
+    }
+
+    if (campo === 'productoTurno') {
+      productosTurnoBorrador = productosTurnoBorrador.map((item) =>
+        item.id === productoTurnoId ? { ...item, kilos: valor } : item
       );
     }
 
@@ -1161,13 +1171,20 @@ export default function AdminPlanillasPage() {
     campo: CampoGrilla,
     valor: number,
     insumoId?: string,
-    repartoId?: string
+    repartoId?: string,
+    productoTurnoId?: string
   ) {
     if (!turnoSeleccionado) return;
 
     borradoresTurno.current[
       claveBorrador(fecha, turnoSeleccionado.orden)
-    ] = borradorTurnoConCambio(campo, valor, insumoId, repartoId);
+    ] = borradorTurnoConCambio(
+      campo,
+      valor,
+      insumoId,
+      repartoId,
+      productoTurnoId
+    );
   }
 
   function restaurarBorradorTurno(borrador: BorradorTurno) {
@@ -1240,14 +1257,16 @@ export default function AdminPlanillasPage() {
         fila.editable!.campo,
         valorActual,
         fila.editable!.insumoId,
-        fila.editable!.repartoId
+        fila.editable!.repartoId,
+        fila.editable!.productoTurnoId
       );
     });
     guardarBorradorTurnoConCambio(
       fila.editable.campo,
       valorActual,
       fila.editable.insumoId,
-      fila.editable.repartoId
+      fila.editable.repartoId,
+      fila.editable.productoTurnoId
     );
     setFocoGrillaPendiente({ dia, fila: siguienteFila });
     seleccionarCeldaGrilla(fechaDiaMes(dia), ordenDestino, false);
@@ -1256,7 +1275,8 @@ export default function AdminPlanillasPage() {
   function valorEditableGrilla(
     campo: CampoGrilla,
     insumoId?: string,
-    repartoId?: string
+    repartoId?: string,
+    productoTurnoId?: string
   ) {
     if (campo === 'insumo') {
       return (
@@ -1266,6 +1286,10 @@ export default function AdminPlanillasPage() {
 
     if (campo === 'reparto') {
       return repartos.find((item) => item.id === repartoId)?.kilos || 0;
+    }
+
+    if (campo === 'productoTurno') {
+      return productosTurno.find((item) => item.id === productoTurnoId)?.kilos || 0;
     }
 
     if (campo === 'quintal') return quintal;
@@ -1327,7 +1351,8 @@ export default function AdminPlanillasPage() {
     campo: CampoGrilla,
     valor: number,
     insumoId?: string,
-    repartoId?: string
+    repartoId?: string,
+    productoTurnoId?: string
   ) {
     if (campo === 'insumo') {
       const actualizados = insumos.map((item) =>
@@ -1342,6 +1367,15 @@ export default function AdminPlanillasPage() {
 
     if (campo === 'reparto') {
       cambiarRepartoGrilla(repartoId, valor);
+      return;
+    }
+
+    if (campo === 'productoTurno') {
+      setProductosTurno((actuales) =>
+        actuales.map((item) =>
+          item.id === productoTurnoId ? { ...item, kilos: valor } : item
+        )
+      );
       return;
     }
 
@@ -2261,6 +2295,7 @@ export default function AdminPlanillasPage() {
       campo: CampoGrilla;
       insumoId?: string;
       repartoId?: string;
+      productoTurnoId?: string;
     };
   };
 
@@ -2449,7 +2484,8 @@ export default function AdminPlanillasPage() {
       etiqueta.includes('cacho') ||
       etiqueta.includes('merma') ||
       etiqueta.includes('kpan') ||
-      etiqueta.includes('productos rinde')
+      etiqueta.includes('productos rinde') ||
+      etiqueta.startsWith('prod.')
     ) {
       return 'Kilos';
     }
@@ -2554,7 +2590,29 @@ export default function AdminPlanillasPage() {
     })),
     { label: 'Total repartos 2da', obtener: (item) => item.turnos[2]?.reparto || 0, vivo: (item) => turnoMensualVivo(item, 2).reparto, decimales: 2 },
     { label: 'Productos rinde 1ra', obtener: (item) => item.turnos[1]?.otroskg || 0, vivo: (item) => turnoMensualVivo(item, 1).otroskg, decimales: 2, editable: { turno: 1, campo: 'productos' } },
+    ...productosTurno.map((producto) => ({
+      label: `Prod. ${producto.nombre} 1ra`,
+      obtener: () => 0,
+      vivo: () => (turnoSeleccionado?.orden === 1 ? producto.kilos : 0),
+      decimales: 2,
+      editable: {
+        turno: 1,
+        campo: 'productoTurno' as CampoGrilla,
+        productoTurnoId: producto.id,
+      },
+    })),
     { label: 'Productos rinde 2da', obtener: (item) => item.turnos[2]?.otroskg || 0, vivo: (item) => turnoMensualVivo(item, 2).otroskg, decimales: 2, editable: { turno: 2, campo: 'productos' } },
+    ...productosTurno.map((producto) => ({
+      label: `Prod. ${producto.nombre} 2da`,
+      obtener: () => 0,
+      vivo: () => (turnoSeleccionado?.orden === 2 ? producto.kilos : 0),
+      decimales: 2,
+      editable: {
+        turno: 2,
+        campo: 'productoTurno' as CampoGrilla,
+        productoTurnoId: producto.id,
+      },
+    })),
     { label: 'Merma / Otro 1ra', obtener: (item) => item.merma && item.turnos[1] ? item.merma : 0, vivo: (item) => turnoSeleccionado?.orden === 1 ? turno.merma || 0 : item.merma && item.turnos[1] ? item.merma : 0, decimales: 2, editable: { turno: 1, campo: 'merma' } },
     { label: 'Merma / Otro 2da', obtener: (item) => item.merma && item.turnos[2] ? item.merma : 0, vivo: (item) => turnoSeleccionado?.orden === 2 ? turno.merma || 0 : item.merma && item.turnos[2] ? item.merma : 0, decimales: 2, editable: { turno: 2, campo: 'merma' } },
     { label: 'KPAN 1ra', obtener: (item) => item.turnos[1]?.pan_sobra || 0, vivo: (item) => turnoMensualVivo(item, 1).pan_sobra, decimales: 2, editable: { turno: 1, campo: 'panSobrante' } },
@@ -2869,6 +2927,37 @@ export default function AdminPlanillasPage() {
             <Plus className="h-4 w-4" />
             Harina
           </button>
+          <label className="grid min-w-64 flex-1 gap-1.5 text-xs font-bold text-[#4B2818]">
+            Agregar producto al rinde
+            <select
+              value={productoSeleccionadoId}
+              onChange={(event) => setProductoSeleccionadoId(event.target.value)}
+              className="h-9 rounded-md border border-[#4B2818]/20 bg-white px-3 text-sm font-bold outline-none focus:border-[#A51F2B]"
+            >
+              <option value="">Seleccionar producto</option>
+              {productosPanaderia
+                .filter(
+                  (producto) =>
+                    !productosTurno.some(
+                      (item) => item.producto_id === producto.id
+                    )
+                )
+                .map((producto) => (
+                  <option key={producto.id} value={producto.id}>
+                    {producto.nombre}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={agregarProductoTurno}
+            disabled={!productoSeleccionadoId}
+            className="inline-flex h-9 items-center gap-2 rounded-md bg-[#2A1710] px-3 text-xs font-black text-white transition hover:bg-[#A51F2B] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Plus className="h-4 w-4" />
+            Producto rinde
+          </button>
         </div>
 
         <div className="overflow-x-auto">
@@ -2929,9 +3018,29 @@ export default function AdminPlanillasPage() {
                           }
                           setFecha(fechaColumna);
                         }}
-                        className="h-full w-full"
+                        className="block w-full"
                       >
                         {dia}
+                      </button>
+                      <button
+                        type="button"
+                        title="Editar columna"
+                        onClick={() => {
+                          if (fechaColumna !== fecha) {
+                            guardarBorradorTurnoActual();
+                            cargaTurnoId.current += 1;
+                            limpiarTurno();
+                            setFecha(fechaColumna);
+                          }
+                          setColumnaEditable(fechaColumna);
+                        }}
+                        className={`mx-auto mt-1 grid h-5 w-5 place-items-center rounded-full transition ${
+                          columnaEditable === fechaColumna
+                            ? 'bg-[#A51F2B] text-white'
+                            : 'bg-white/80 text-[#4B2818] hover:bg-white'
+                        }`}
+                      >
+                        <Pencil className="h-3 w-3" />
                       </button>
                     </th>
                   );
@@ -2985,7 +3094,10 @@ export default function AdminPlanillasPage() {
                       !fila.editable?.turno ||
                       fila.editable.turno === turnoSeleccionado?.orden;
                     const esEditable = Boolean(
-                      fila.editable && esDiaActivo && esTurnoActivo
+                      fila.editable &&
+                      esDiaActivo &&
+                      columnaEditable === fechaCelda &&
+                      esTurnoActivo
                     );
 
                     return (
@@ -3008,7 +3120,8 @@ export default function AdminPlanillasPage() {
                               valorEditableGrilla(
                                 fila.editable.campo,
                                 fila.editable.insumoId,
-                                fila.editable.repartoId
+                                fila.editable.repartoId,
+                                fila.editable.productoTurnoId
                               ) || ''
                             }
                             onChange={(event) =>
@@ -3016,7 +3129,8 @@ export default function AdminPlanillasPage() {
                                 fila.editable!.campo,
                                 Number(event.target.value || 0),
                                 fila.editable!.insumoId,
-                                fila.editable!.repartoId
+                                fila.editable!.repartoId,
+                                fila.editable!.productoTurnoId
                               )
                             }
                             onKeyDown={(event) =>
