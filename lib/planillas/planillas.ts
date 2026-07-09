@@ -68,7 +68,7 @@ export function calcularTurno(turno: DatosTurno) {
     n(turno.panRacion) +
     n(turno.otroskg) +
     kilosRepartos +
-    n(turno.merma) -
+    n(turno.merma) +
     n(turno.cacho) -
     n(turno.panSobranteAnterior);
 
@@ -88,14 +88,14 @@ export function calcularPlanillaRinde(datos: DatosPlanillaRinde) {
     n(datos.primera.panRacion) +
     n(datos.primera.otroskg) +
     repartosPrimera +
-    n(datos.primera.merma) -
+    n(datos.primera.merma) +
     n(datos.primera.cacho);
   const kilosSegunda =
     n(datos.segunda.panRacion) -
     n(datos.panSobrante) +
     n(datos.segunda.otroskg) +
     repartosSegunda +
-    n(datos.segunda.merma) -
+    n(datos.segunda.merma) +
     n(datos.segunda.cacho);
 
   const primera = resultado(

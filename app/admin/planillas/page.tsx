@@ -322,7 +322,7 @@ function kilosConProductosIncluidos(
     Number(turno.pan_racion || 0) +
     Number(turno.reparto || 0) +
     Number(turno.otroskg || 0) +
-    Number(turno.merma || 0) -
+    Number(turno.merma || 0) +
     Number(turno.cacho || 0) -
     Number(panSobranteAnterior || 0);
 
@@ -985,7 +985,7 @@ export default function AdminPlanillasPage() {
         ? Number(
             (
               (kilosDetallesPorPlanilla.get(String(item.id)) || 0) +
-              Number(item.pan_racion || 0) -
+              Number(item.pan_racion || 0) +
               Number(item.cacho || 0)
             ).toFixed(2)
           )
@@ -1284,7 +1284,7 @@ export default function AdminPlanillasPage() {
         ? Number(
             (
               kilosDetallesDia +
-              Number(data.pan_racion || 0) -
+              Number(data.pan_racion || 0) +
               Number(data.cacho || 0)
             ).toFixed(2)
           )

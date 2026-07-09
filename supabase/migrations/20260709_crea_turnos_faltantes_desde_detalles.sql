@@ -85,7 +85,7 @@ turnos_base as (
 calculos as (
   select
     *,
-    reparto + otroskg + merma + pan_racion_turno - cacho_turno - pan_sobra_anterior as kilos,
+    reparto + otroskg + merma + pan_racion_turno + cacho_turno - pan_sobra_anterior as kilos,
     round(((((masa_ocupa_turno - masa_queda_turno) / 100) / 3) * 2)::numeric, 2) as ajuste_masa
   from turnos_base
 ),
