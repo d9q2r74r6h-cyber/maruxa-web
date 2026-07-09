@@ -2482,12 +2482,16 @@ export default function AdminPlanillasPage() {
   function turnoMensualVivo(item: ResumenMensualDia, orden: number) {
     const guardado = item.turnos[orden];
     const borrador = borradoresTurno.current[claveBorrador(item.fecha, orden)];
+    const esTurnoActual =
+      item.fecha === fecha && orden === turnoSeleccionado?.orden;
+    const turnoActualCargado =
+      esTurnoActual && turnoCargadoClave === claveBorrador(fecha, orden);
 
-    if (borrador && (item.fecha !== fecha || orden !== turnoSeleccionado?.orden)) {
+    if (borrador && !turnoActualCargado) {
       return datosMensualesBorrador(borrador);
     }
 
-    if (item.fecha !== fecha || orden !== turnoSeleccionado?.orden) {
+    if (!turnoActualCargado) {
       return {
         quintal: Number(guardado?.quintal || 0),
         amasado: Number(guardado?.amasado || 0),
@@ -2574,7 +2578,17 @@ export default function AdminPlanillasPage() {
       turnoSeleccionado &&
         turnoCargadoClave === claveBorrador(fecha, turnoSeleccionado.orden)
     );
-    return fechaCelda === fecha && fila.vivo && turnoActualCargado
+    const tieneBorradorFila = fila.editable?.turno
+      ? Boolean(
+          borradoresTurno.current[
+            claveBorrador(fechaCelda, fila.editable.turno)
+          ]
+        )
+      : Object.keys(borradoresTurno.current).some((clave) =>
+          clave.startsWith(`${fechaCelda}::`)
+        );
+    return fila.vivo &&
+      (tieneBorradorFila || (fechaCelda === fecha && turnoActualCargado))
       ? fila.vivo(item)
       : fila.obtener(item);
   }
