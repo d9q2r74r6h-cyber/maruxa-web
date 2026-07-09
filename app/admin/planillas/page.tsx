@@ -1192,10 +1192,6 @@ export default function AdminPlanillasPage() {
       insumosBorrador = insumosBorrador.map((item) =>
         item.id === insumoId ? { ...item, cantidad: valor } : item
       );
-      quintalBorrador = insumosBorrador.reduce(
-        (total, item) => total + Number(item.cantidad || 0),
-        0
-      );
     }
 
     if (campo === 'reparto') {
@@ -1453,9 +1449,6 @@ export default function AdminPlanillasPage() {
         item.id === insumoId ? { ...item, cantidad: valor } : item
       );
       setInsumos(actualizados);
-      setQuintal(
-        actualizados.reduce((total, item) => total + Number(item.cantidad || 0), 0)
-      );
       return;
     }
 
