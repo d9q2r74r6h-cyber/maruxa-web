@@ -540,6 +540,8 @@ export default function AdminPlanillasPage() {
   const [productoSeleccionadoId, setProductoSeleccionadoId] = useState('');
   const [harinaSeleccionadaId, setHarinaSeleccionadaId] = useState('');
   const [columnaEditable, setColumnaEditable] = useState(hoy);
+  const [moduloProductosRindeAbierto, setModuloProductosRindeAbierto] =
+    useState(false);
   const [tablaFuncionariosDisponible, setTablaFuncionariosDisponible] =
     useState(false);
   const [responsable, setResponsable] = useState('');
@@ -1241,7 +1243,8 @@ export default function AdminPlanillasPage() {
     const siguienteFila = filasMensuales.findIndex(
       (item, indice) =>
         indice > indiceFila &&
-        item.editable
+        item.editable &&
+        item.editable.campo !== 'productos'
     );
 
     if (siguienteFila === -1) return;
@@ -1490,6 +1493,12 @@ export default function AdminPlanillasPage() {
       ];
     });
     setProductoSeleccionadoId('');
+  }
+
+  function abrirModuloProductosRinde(fechaCelda: string, orden?: number) {
+    setColumnaEditable(fechaCelda);
+    seleccionarCeldaGrilla(fechaCelda, orden);
+    setModuloProductosRindeAbierto(true);
   }
 
   function limpiarTurno() {
@@ -2590,29 +2599,7 @@ export default function AdminPlanillasPage() {
     })),
     { label: 'Total repartos 2da', obtener: (item) => item.turnos[2]?.reparto || 0, vivo: (item) => turnoMensualVivo(item, 2).reparto, decimales: 2 },
     { label: 'Productos rinde 1ra', obtener: (item) => item.turnos[1]?.otroskg || 0, vivo: (item) => turnoMensualVivo(item, 1).otroskg, decimales: 2, editable: { turno: 1, campo: 'productos' } },
-    ...productosTurno.map((producto) => ({
-      label: `Prod. ${producto.nombre} 1ra`,
-      obtener: () => 0,
-      vivo: () => (turnoSeleccionado?.orden === 1 ? producto.kilos : 0),
-      decimales: 2,
-      editable: {
-        turno: 1,
-        campo: 'productoTurno' as CampoGrilla,
-        productoTurnoId: producto.id,
-      },
-    })),
     { label: 'Productos rinde 2da', obtener: (item) => item.turnos[2]?.otroskg || 0, vivo: (item) => turnoMensualVivo(item, 2).otroskg, decimales: 2, editable: { turno: 2, campo: 'productos' } },
-    ...productosTurno.map((producto) => ({
-      label: `Prod. ${producto.nombre} 2da`,
-      obtener: () => 0,
-      vivo: () => (turnoSeleccionado?.orden === 2 ? producto.kilos : 0),
-      decimales: 2,
-      editable: {
-        turno: 2,
-        campo: 'productoTurno' as CampoGrilla,
-        productoTurnoId: producto.id,
-      },
-    })),
     { label: 'Merma / Otro 1ra', obtener: (item) => item.merma && item.turnos[1] ? item.merma : 0, vivo: (item) => turnoSeleccionado?.orden === 1 ? turno.merma || 0 : item.merma && item.turnos[1] ? item.merma : 0, decimales: 2, editable: { turno: 1, campo: 'merma' } },
     { label: 'Merma / Otro 2da', obtener: (item) => item.merma && item.turnos[2] ? item.merma : 0, vivo: (item) => turnoSeleccionado?.orden === 2 ? turno.merma || 0 : item.merma && item.turnos[2] ? item.merma : 0, decimales: 2, editable: { turno: 2, campo: 'merma' } },
     { label: 'KPAN 1ra', obtener: (item) => item.turnos[1]?.pan_sobra || 0, vivo: (item) => turnoMensualVivo(item, 1).pan_sobra, decimales: 2, editable: { turno: 1, campo: 'panSobrante' } },
@@ -2927,37 +2914,6 @@ export default function AdminPlanillasPage() {
             <Plus className="h-4 w-4" />
             Harina
           </button>
-          <label className="grid min-w-64 flex-1 gap-1.5 text-xs font-bold text-[#4B2818]">
-            Agregar producto al rinde
-            <select
-              value={productoSeleccionadoId}
-              onChange={(event) => setProductoSeleccionadoId(event.target.value)}
-              className="h-9 rounded-md border border-[#4B2818]/20 bg-white px-3 text-sm font-bold outline-none focus:border-[#A51F2B]"
-            >
-              <option value="">Seleccionar producto</option>
-              {productosPanaderia
-                .filter(
-                  (producto) =>
-                    !productosTurno.some(
-                      (item) => item.producto_id === producto.id
-                    )
-                )
-                .map((producto) => (
-                  <option key={producto.id} value={producto.id}>
-                    {producto.nombre}
-                  </option>
-                ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            onClick={agregarProductoTurno}
-            disabled={!productoSeleccionadoId}
-            className="inline-flex h-9 items-center gap-2 rounded-md bg-[#2A1710] px-3 text-xs font-black text-white transition hover:bg-[#A51F2B] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Plus className="h-4 w-4" />
-            Producto rinde
-          </button>
         </div>
 
         <div className="overflow-x-auto">
@@ -3109,7 +3065,28 @@ export default function AdminPlanillasPage() {
                           esFilaRinde ? colorCeldaRinde(valorCelda) : ''
                         }`}
                       >
-                        {esEditable && fila.editable ? (
+                        {fila.editable?.campo === 'productos' ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              abrirModuloProductosRinde(
+                                fechaCelda,
+                                fila.editable?.turno
+                              )
+                            }
+                            className={`inline-flex h-9 w-[74px] items-center justify-end gap-1 px-2 text-right font-bold transition hover:bg-[#FFF3DF] ${
+                              esDiaActivo && esTurnoActivo
+                                ? 'bg-[#F6FFF7] ring-1 ring-[#A51F2B]/20'
+                                : ''
+                            }`}
+                            title="Abrir productos producidos"
+                          >
+                            <span>{valorMes(dia, fila, fila.decimales)}</span>
+                            {esDiaActivo && esTurnoActivo && (
+                              <Plus className="h-3 w-3 text-[#A51F2B]" />
+                            )}
+                          </button>
+                        ) : esEditable && fila.editable ? (
                           <input
                             type="number"
                             data-grilla-fila={indiceFilaMensual}
@@ -3171,6 +3148,122 @@ export default function AdminPlanillasPage() {
             ))}
           </table>
         </div>
+
+        {moduloProductosRindeAbierto && turnoSeleccionado && (
+          <div className="border-t border-[#4B2818]/10 bg-[#F6FFF7] p-4">
+            <section className="overflow-hidden rounded-lg border border-[#4B2818]/15 bg-white">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#4B2818]/10 bg-[#FFF3DF] px-4 py-3">
+                <div>
+                  <h2 className="font-black text-[#2A1710]">
+                    Productos producidos para rinde
+                  </h2>
+                  <p className="text-xs font-semibold text-[#4B2818]/60">
+                    {fecha} - {turnoSeleccionado.nombre}. La grilla mensual solo
+                    muestra el total.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setModuloProductosRindeAbierto(false)}
+                  className="rounded-md border border-[#4B2818]/20 px-3 py-2 text-xs font-black text-[#4B2818] transition hover:bg-white"
+                >
+                  Cerrar
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-2 border-b border-[#4B2818]/10 px-4 py-3">
+                <select
+                  value={productoSeleccionadoId}
+                  onChange={(event) =>
+                    setProductoSeleccionadoId(event.target.value)
+                  }
+                  className="h-9 min-w-0 flex-1 rounded-md border border-[#4B2818]/20 bg-white px-3 text-sm font-bold text-[#2A1710] outline-none focus:border-[#A51F2B] sm:max-w-sm"
+                >
+                  <option value="">Seleccionar producto</option>
+                  {productosPanaderia
+                    .filter(
+                      (producto) =>
+                        !productosTurno.some(
+                          (item) => item.producto_id === producto.id
+                        )
+                    )
+                    .map((producto) => (
+                      <option key={producto.id} value={producto.id}>
+                        {producto.nombre}
+                      </option>
+                    ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={agregarProductoTurno}
+                  disabled={!productoSeleccionadoId}
+                  className="inline-flex h-9 items-center gap-2 rounded-md bg-[#2A1710] px-3 text-xs font-black text-white transition hover:bg-[#A51F2B] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Plus className="h-4 w-4" />
+                  Producto
+                </button>
+              </div>
+
+              {productosTurno.length === 0 ? (
+                <p className="px-4 py-5 text-sm font-semibold text-[#4B2818]/55">
+                  Agrega productos producidos solo cuando correspondan a este
+                  dia y turno.
+                </p>
+              ) : (
+                <div className="divide-y divide-[#4B2818]/10">
+                  {productosTurno.map((producto) => (
+                    <div
+                      key={producto.id}
+                      className="grid gap-2 px-4 py-3 sm:grid-cols-[1fr_150px_40px] sm:items-center"
+                    >
+                      <input
+                        value={producto.nombre}
+                        readOnly
+                        className="h-9 rounded-md border border-[#4B2818]/15 bg-gray-50 px-3 font-bold text-[#4B2818]/70 outline-none"
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        aria-label={`Kilos ${producto.nombre}`}
+                        value={producto.kilos || ''}
+                        onChange={(event) =>
+                          setProductosTurno((actuales) =>
+                            actuales.map((item) =>
+                              item.id === producto.id
+                                ? {
+                                    ...item,
+                                    kilos: Number(event.target.value || 0),
+                                  }
+                                : item
+                            )
+                          )
+                        }
+                        className="h-9 rounded-md border border-[#4B2818]/15 px-3 text-right font-bold outline-none focus:border-[#A51F2B]"
+                      />
+                      <button
+                        type="button"
+                        title="Quitar producto"
+                        onClick={() =>
+                          setProductosTurno((actuales) =>
+                            actuales.filter((item) => item.id !== producto.id)
+                          )
+                        }
+                        className="grid h-8 w-8 place-items-center rounded-md text-gray-400 transition hover:bg-red-50 hover:text-red-700"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="border-t border-[#4B2818]/10 bg-[#FFF3DF]/60 px-4 py-3 text-right text-sm font-black text-[#2A1710]">
+                Total productos para rinde: {kilosProductosTurno.toFixed(2)} kg
+              </div>
+            </section>
+          </div>
+        )}
       </section>
 
       <section className="hidden">
