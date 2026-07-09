@@ -169,6 +169,7 @@ type ResumenMensualDia = {
       reparto: number;
       repartos: Record<string, number>;
       otroskg: number;
+      insumos: Record<string, number>;
     }
   >;
   insumos: Record<string, number>;
@@ -542,6 +543,7 @@ export default function AdminPlanillasPage() {
   const [columnaEditable, setColumnaEditable] = useState(hoy);
   const [moduloProductosRindeAbierto, setModuloProductosRindeAbierto] =
     useState(false);
+  const [turnoCargadoClave, setTurnoCargadoClave] = useState('');
   const [tablaFuncionariosDisponible, setTablaFuncionariosDisponible] =
     useState(false);
   const [responsable, setResponsable] = useState('');
@@ -605,12 +607,16 @@ export default function AdminPlanillasPage() {
         )
         .in('planilla_id', ids);
       const turnoIdAPlanilla = new Map<string, string>();
+      const turnoIdAOrden = new Map<string, number>();
 
       for (const item of turnosData || []) {
         const planillaId = String(item.planilla_id);
-        turnoIdAPlanilla.set(String(item.id), planillaId);
+        const turnoId = String(item.id);
+        const ordenTurno = Number(item.turno || 0);
+        turnoIdAPlanilla.set(turnoId, planillaId);
+        turnoIdAOrden.set(turnoId, ordenTurno);
         const turnos = turnosPorPlanilla.get(planillaId) || {};
-        turnos[Number(item.turno || 0)] = {
+        turnos[ordenTurno] = {
           quintal: Number(item.quintal || 0),
           amasado: Number(item.amasado || 0),
           panaderos: Number(item.panaderos || 0),
@@ -626,6 +632,7 @@ export default function AdminPlanillasPage() {
           reparto: Number(item.reparto || 0),
           repartos: {},
           otroskg: Number(item.otroskg || 0),
+          insumos: {},
         };
         turnosPorPlanilla.set(planillaId, turnos);
       }
@@ -638,11 +645,22 @@ export default function AdminPlanillasPage() {
           .in('planilla_turno_id', turnoIds);
 
         for (const item of insumosData || []) {
-          const planillaId = turnoIdAPlanilla.get(String(item.planilla_turno_id));
+          const turnoId = String(item.planilla_turno_id);
+          const planillaId = turnoIdAPlanilla.get(turnoId);
           if (!planillaId) continue;
 
           const insumosPlanilla = insumosPorPlanilla.get(planillaId) || {};
           const clave = normalizar(item.nombre);
+          const ordenTurno = turnoIdAOrden.get(turnoId);
+          const turnoResumen = ordenTurno
+            ? turnosPorPlanilla.get(planillaId)?.[ordenTurno]
+            : null;
+
+          if (turnoResumen) {
+            turnoResumen.insumos[clave] =
+              (turnoResumen.insumos[clave] || 0) + Number(item.cantidad || 0);
+          }
+
           insumosPlanilla[clave] =
             (insumosPlanilla[clave] || 0) + Number(item.cantidad || 0);
           insumosPorPlanilla.set(planillaId, insumosPlanilla);
@@ -1071,10 +1089,10 @@ export default function AdminPlanillasPage() {
 
   function guardarBorradorTurnoActual() {
     if (!turnoSeleccionado) return;
+    const claveActual = claveBorrador(fecha, turnoSeleccionado.orden);
+    if (turnoCargadoClave !== claveActual) return;
 
-    borradoresTurno.current[
-      claveBorrador(fecha, turnoSeleccionado.orden)
-    ] = {
+    borradoresTurno.current[claveActual] = {
       responsable,
       quintal,
       panaderos,
@@ -1210,6 +1228,7 @@ export default function AdminPlanillasPage() {
     const turnoConfig = turnosConfigurados.find((item) => item.orden === orden);
     if (!turnoConfig || turnoConfig.id === turnoSeleccionadoId) return;
     if (guardarActual) guardarBorradorTurnoActual();
+    setTurnoCargadoClave('');
     setTurnoSeleccionadoId(turnoConfig.id);
   }
 
@@ -1221,6 +1240,7 @@ export default function AdminPlanillasPage() {
     if (fechaCelda !== fecha) {
       if (guardarActual) guardarBorradorTurnoActual();
       cargaTurnoId.current += 1;
+      setTurnoCargadoClave('');
       limpiarTurno();
       setFecha(fechaCelda);
     }
@@ -1530,6 +1550,7 @@ export default function AdminPlanillasPage() {
     if (borrador) {
       if (!cargaVigente()) return;
       restaurarBorradorTurno(borrador);
+      setTurnoCargadoClave(claveBorrador(fechaSeleccionada, turnoConfig.orden));
       return;
     }
 
@@ -1548,6 +1569,7 @@ export default function AdminPlanillasPage() {
     if (errorPlanilla || !planilla) {
       if (!cargaVigente()) return;
       limpiarTurno();
+      setTurnoCargadoClave(claveBorrador(fechaSeleccionada, turnoConfig.orden));
       return;
     }
 
@@ -1577,6 +1599,7 @@ export default function AdminPlanillasPage() {
     if (errorTurno) {
       if (!cargaVigente()) return;
       limpiarTurno();
+      setTurnoCargadoClave(claveBorrador(fechaSeleccionada, turnoConfig.orden));
       return;
     }
 
@@ -1641,6 +1664,7 @@ export default function AdminPlanillasPage() {
     if (!turnoDb && !turnoEnResumen && detalleRepartos.length === 0) {
       if (!cargaVigente()) return;
       limpiarTurno();
+      setTurnoCargadoClave(claveBorrador(fechaSeleccionada, turnoConfig.orden));
       return;
     }
 
@@ -1833,6 +1857,7 @@ export default function AdminPlanillasPage() {
     setRepartos([...baseRepartos, ...repartosExtras]);
     setProductosTurno([...baseProductosTurno, ...productosExtras]);
     setInsumos([...baseInsumos, ...insumosExtras]);
+    setTurnoCargadoClave(claveBorrador(fechaSeleccionada, turnoConfig.orden));
     setMensaje(
       turnoDb
         ? `${turnoConfig.nombre} cargado desde la planilla del dia.`
@@ -1843,6 +1868,7 @@ export default function AdminPlanillasPage() {
   function cambiarTurnoSeleccionado(turnoId: string) {
     if (turnoId === turnoSeleccionadoId) return;
     guardarBorradorTurnoActual();
+    setTurnoCargadoClave('');
     setTurnoSeleccionadoId(turnoId);
   }
 
@@ -2370,6 +2396,12 @@ export default function AdminPlanillasPage() {
         ])
       ),
       otroskg: datos.otroskg,
+      insumos: Object.fromEntries(
+        borrador.insumos.map((insumo) => [
+          normalizar(insumo.nombre),
+          Number(insumo.cantidad || 0),
+        ])
+      ),
       factor: calculoBorrador.factorAmasado,
     };
   }
@@ -2399,6 +2431,7 @@ export default function AdminPlanillasPage() {
         reparto: Number(guardado?.reparto || 0),
         repartos: guardado?.repartos || {},
         otroskg: Number(guardado?.otroskg || 0),
+        insumos: guardado?.insumos || {},
         factor: calcularFactorAmasado(
           Number(guardado?.amasado || 0),
           Number(guardado?.masa_ocupa || 0),
@@ -2425,6 +2458,9 @@ export default function AdminPlanillasPage() {
         repartos.map((item) => [normalizar(item.nombre), Number(item.kilos || 0)])
       ),
       otroskg: kilosProductosTurno,
+      insumos: Object.fromEntries(
+        insumos.map((item) => [normalizar(item.nombre), Number(item.cantidad || 0)])
+      ),
       factor: calculo.factorAmasado,
     };
   }
@@ -2461,7 +2497,13 @@ export default function AdminPlanillasPage() {
 
   function valorCeldaMensual(fechaCelda: string, fila: FilaMensual) {
     const item = resumenMensual[fechaCelda] || resumenMensualVacio(fechaCelda);
-    return fechaCelda === fecha && fila.vivo ? fila.vivo(item) : fila.obtener(item);
+    const turnoActualCargado = Boolean(
+      turnoSeleccionado &&
+        turnoCargadoClave === claveBorrador(fecha, turnoSeleccionado.orden)
+    );
+    return fechaCelda === fecha && fila.vivo && turnoActualCargado
+      ? fila.vivo(item)
+      : fila.obtener(item);
   }
 
   const repartosGrilla = repartos.filter(
@@ -2472,7 +2514,14 @@ export default function AdminPlanillasPage() {
     const etiqueta = normalizar(label);
     if (
       ['1ra', '2da', 'centeno', 'meson sala venta'].includes(etiqueta) ||
-      insumos.some((item) => normalizar(item.nombre) === etiqueta) ||
+      insumos.some((item) => {
+        const nombre = normalizar(item.nombre);
+        return (
+          etiqueta === nombre ||
+          etiqueta === `${nombre} 1ra` ||
+          etiqueta === `${nombre} 2da`
+        );
+      }) ||
       etiqueta === 'quintales vaciados'
     ) {
       return 'Insumos';
@@ -2515,12 +2564,34 @@ export default function AdminPlanillasPage() {
     { label: '2da', obtener: (item) => item.turnos[2]?.quintal || item.planilla.quintal2, vivo: (item) => turnoMensualVivo(item, 2).quintal, decimales: 2, editable: { turno: 2, campo: 'quintal' } },
     { label: 'Centeno', obtener: (item) => item.planilla.centeno, vivo: (item) => totalMensualVivo(item, 'centeno'), decimales: 2, editable: { campo: 'centeno' } },
     { label: 'Meson sala venta', obtener: (item) => item.planilla.meson, vivo: (item) => totalMensualVivo(item, 'meson'), decimales: 2, editable: { campo: 'meson' } },
-    ...insumos.map((insumo) => ({
-      label: insumo.nombre,
-      obtener: (item: ResumenMensualDia) => item.insumos[normalizar(insumo.nombre)] || 0,
-      decimales: 2,
-      editable: { campo: 'insumo' as CampoGrilla, insumoId: insumo.id },
-    })),
+    ...insumos.flatMap((insumo) => [
+      {
+        label: `${insumo.nombre} 1ra`,
+        obtener: (item: ResumenMensualDia) =>
+          item.turnos[1]?.insumos?.[normalizar(insumo.nombre)] || 0,
+        vivo: (item: ResumenMensualDia) =>
+          turnoMensualVivo(item, 1).insumos[normalizar(insumo.nombre)] || 0,
+        decimales: 2,
+        editable: {
+          turno: 1,
+          campo: 'insumo' as CampoGrilla,
+          insumoId: insumo.id,
+        },
+      },
+      {
+        label: `${insumo.nombre} 2da`,
+        obtener: (item: ResumenMensualDia) =>
+          item.turnos[2]?.insumos?.[normalizar(insumo.nombre)] || 0,
+        vivo: (item: ResumenMensualDia) =>
+          turnoMensualVivo(item, 2).insumos[normalizar(insumo.nombre)] || 0,
+        decimales: 2,
+        editable: {
+          turno: 2,
+          campo: 'insumo' as CampoGrilla,
+          insumoId: insumo.id,
+        },
+      },
+    ]),
     { label: 'Quintales vaciados', obtener: (item) => item.planilla.quintal_total, vivo: (item) => totalMensualVivo(item, 'quintal') + totalMensualVivo(item, 'centeno') + totalMensualVivo(item, 'meson'), decimales: 2 },
     { label: 'KILOS', obtener: (item) => item.planilla.kilos_producidos, vivo: (item) => totalMensualVivo(item, 'kilos'), decimales: 2 },
     { label: 'RINDE', obtener: (item) => item.planilla.rinde_por_saco, vivo: (item) => totalMensualVivo(item, 'factor') > 0 ? totalMensualVivo(item, 'kilos') / totalMensualVivo(item, 'factor') : 0, decimales: 2 },
@@ -2970,6 +3041,7 @@ export default function AdminPlanillasPage() {
                           if (fechaColumna !== fecha) {
                             guardarBorradorTurnoActual();
                             cargaTurnoId.current += 1;
+                            setTurnoCargadoClave('');
                             limpiarTurno();
                           }
                           setFecha(fechaColumna);
@@ -2985,6 +3057,7 @@ export default function AdminPlanillasPage() {
                           if (fechaColumna !== fecha) {
                             guardarBorradorTurnoActual();
                             cargaTurnoId.current += 1;
+                            setTurnoCargadoClave('');
                             limpiarTurno();
                             setFecha(fechaColumna);
                           }
