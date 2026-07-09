@@ -146,6 +146,7 @@ type ResumenDia = {
     rinde: number;
     reparto: number;
     otroskg: number;
+    merma: number;
     cacho: number;
   }[];
 };
@@ -300,6 +301,7 @@ function kilosConProductosIncluidos(
     pan_racion?: number | null;
     reparto?: number | null;
     otroskg?: number | null;
+    merma?: number | null;
     cacho?: number | null;
   },
   panSobranteAnterior = 0
@@ -312,7 +314,8 @@ function kilosConProductosIncluidos(
   const kilosCalculados =
     Number(turno.pan_racion || 0) +
     Number(turno.reparto || 0) +
-    productosRinde -
+    productosRinde +
+    Number(turno.merma || 0) -
     Number(turno.cacho || 0) -
     Number(panSobranteAnterior || 0);
 
@@ -786,6 +789,28 @@ export default function AdminPlanillasPage() {
         turnoDetalle.repartos[clave] =
           (turnoDetalle.repartos[clave] || 0) + Number(item.kilos_total || 0);
       }
+
+      turnosPorPlanilla.forEach((turnos) => {
+        Object.keys(turnos)
+          .map(Number)
+          .sort((a, b) => a - b)
+          .forEach((ordenTurno) => {
+            const turnoResumen = turnos[ordenTurno];
+            if (!turnoResumen) return;
+            const kilos = kilosConProductosIncluidos(
+              turnoResumen,
+              turnos[ordenTurno - 1]?.pan_sobra || 0
+            );
+            const factor = calcularFactorAmasado(
+              turnoResumen.amasado,
+              turnoResumen.masa_ocupa,
+              turnoResumen.masa_queda
+            );
+            turnoResumen.kilos = kilos;
+            turnoResumen.rinde =
+              factor > 0 ? Number((kilos / factor).toFixed(2)) : turnoResumen.rinde;
+          });
+      });
     }
 
     const mensual: Record<string, ResumenMensualDia> = {};
@@ -855,6 +880,25 @@ export default function AdminPlanillasPage() {
         }
       }
 
+      const turnosDelDia = Object.values(turnosHistoricos);
+      const kilosProducidosDia =
+        turnosDelDia.length > 0
+          ? turnosDelDia.reduce((total, turnoItem) => total + Number(turnoItem.kilos || 0), 0)
+          : Number(item.kilos_producidos || 0);
+      const factorDia =
+        turnosDelDia.length > 0
+          ? turnosDelDia.reduce(
+              (total, turnoItem) =>
+                total +
+                calcularFactorAmasado(
+                  turnoItem.amasado,
+                  turnoItem.masa_ocupa,
+                  turnoItem.masa_queda
+                ),
+              0
+            )
+          : 0;
+
       mensual[item.fecha] = {
         fecha: item.fecha,
         planilla: {
@@ -868,8 +912,11 @@ export default function AdminPlanillasPage() {
           amasado_total: Number(item.amasado_total || 0),
           masa_ocupada: Number(item.masa_ocupada || 0),
           masa_sobrante: Number(item.masa_sobrante || 0),
-          kilos_producidos: Number(item.kilos_producidos || 0),
-          rinde_por_saco: Number(item.rinde_por_saco || 0),
+          kilos_producidos: kilosProducidosDia,
+          rinde_por_saco:
+            factorDia > 0
+              ? Number((kilosProducidosDia / factorDia).toFixed(2))
+              : Number(item.rinde_por_saco || 0),
           pan_racion: Number(item.pan_racion || 0),
           pan_sobra: Number(item.pan_sobra || 0),
           cacho: Number(item.cacho || 0),
@@ -935,6 +982,16 @@ export default function AdminPlanillasPage() {
       .select('producto_id,nombre_producto,kilos_total,merma')
       .eq('planilla_id', data.id);
 
+    const mermaPorTurnoDia = new Map<number, number>();
+    for (const detalle of detallesData || []) {
+      const numeroTurno = turnoDesdeDetalle(detalle.nombre_producto || '');
+      if (!numeroTurno) continue;
+      mermaPorTurnoDia.set(
+        numeroTurno,
+        (mermaPorTurnoDia.get(numeroTurno) || 0) + Number(detalle.merma || 0)
+      );
+    }
+
     let turnosResumen = (turnosData || []).map((item) => ({
       turno: Number(item.turno || 0),
       nombre:
@@ -949,6 +1006,7 @@ export default function AdminPlanillasPage() {
       rinde: Number(item.rinde || 0),
       reparto: Number(item.reparto || 0),
       otroskg: Number(item.otroskg || 0),
+      merma: mermaPorTurnoDia.get(Number(item.turno || 0)) || 0,
       cacho: Number(item.cacho || 0),
       pan_sobra: Number(item.pan_sobra || 0),
     }));
@@ -1043,6 +1101,7 @@ export default function AdminPlanillasPage() {
             rinde: factor > 0 ? Number((kilos / factor).toFixed(2)) : 0,
             reparto: detalleTurno.reparto,
             otroskg: detalleTurno.otroskg,
+            merma: detalleTurno.merma,
             cacho: 0,
             pan_sobra: 0,
           };
@@ -1061,7 +1120,10 @@ export default function AdminPlanillasPage() {
             Number(data.masa_ocupada || 0),
             Number(data.masa_sobrante || 0)
           );
-    const kilosDia = Number(data.kilos_producidos || 0);
+    const kilosDia =
+      turnosResumen.length > 0
+        ? turnosResumen.reduce((total, item) => total + Number(item.kilos || 0), 0)
+        : Number(data.kilos_producidos || 0);
 
     setResumenDia({
       turno: data.turno,
