@@ -662,6 +662,17 @@ export default function AdminPlanillasPage() {
     const turnosPorPlanilla = new Map<string, ResumenMensualDia['turnos']>();
     const mermaPorPlanilla = new Map<string, number>();
     const insumosPorPlanilla = new Map<string, Record<string, number>>();
+    const detallesPorPlanillaTurno = new Map<
+      string,
+      {
+        planillaId: string;
+        turno: number;
+        reparto: number;
+        repartos: Record<string, number>;
+        otroskg: number;
+        merma: number;
+      }
+    >();
 
     if (ids.length > 0) {
       const { data: turnosData } = await supabase
@@ -753,44 +764,71 @@ export default function AdminPlanillasPage() {
 
       for (const item of detallesData || []) {
         const planillaId = String(item.planilla_id);
+        const ordenTurno = turnoDesdeDetalle(item.nombre_producto);
+        const claveDetalle = `${planillaId}::${ordenTurno}`;
+        const detalleTurno =
+          detallesPorPlanillaTurno.get(claveDetalle) || {
+            planillaId,
+            turno: ordenTurno,
+            reparto: 0,
+            repartos: {},
+            otroskg: 0,
+            merma: 0,
+          };
+        const kilosDetalle = Number(item.kilos_total || 0);
+        const esMerma = normalizar(item.nombre_producto).startsWith('merma');
+
         mermaPorPlanilla.set(
           planillaId,
           (mermaPorPlanilla.get(planillaId) || 0) + Number(item.merma || 0)
         );
 
-        const ordenTurno = turnoDesdeDetalle(item.nombre_producto);
-        const turnos = turnosPorPlanilla.get(planillaId);
-        const turnoDetalle = turnos?.[ordenTurno];
-
-        if (turnoDetalle && Number(item.merma || 0) > 0) {
-          turnoDetalle.merma =
-            Number(turnoDetalle.merma || 0) + Number(item.merma || 0);
-        }
-
-        if (
-          item.producto_id ||
-          Number(item.kilos_total || 0) <= 0 ||
-          normalizar(item.nombre_producto).startsWith('merma')
-        ) {
+        if (!ordenTurno) {
           continue;
         }
 
-        if (!turnoDetalle) continue;
+        if (esMerma) {
+          detalleTurno.merma += Number(item.merma || 0);
+        } else if (item.producto_id) {
+          detalleTurno.otroskg += kilosDetalle;
+        } else if (kilosDetalle > 0) {
+          detalleTurno.reparto += kilosDetalle;
 
-        let nombre = item.nombre_producto
-          .replace(/\s*\[turno:\d+\]\s*$/i, '')
-          .trim();
-        const separadorTurno = nombre.lastIndexOf(' - ');
-        if (separadorTurno > -1) {
-          nombre = nombre.slice(0, separadorTurno).trim();
+          let nombre = item.nombre_producto
+            .replace(/\s*\[turno:\d+\]\s*$/i, '')
+            .trim();
+          const separadorTurno = nombre.lastIndexOf(' - ');
+          if (separadorTurno > -1) {
+            nombre = nombre.slice(0, separadorTurno).trim();
+          }
+
+          const clave = normalizar(referenciaRepartidor(nombre));
+          detalleTurno.repartos[clave] =
+            (detalleTurno.repartos[clave] || 0) + kilosDetalle;
         }
 
-        const clave = normalizar(referenciaRepartidor(nombre));
-        turnoDetalle.repartos[clave] =
-          (turnoDetalle.repartos[clave] || 0) + Number(item.kilos_total || 0);
+        detallesPorPlanillaTurno.set(claveDetalle, detalleTurno);
       }
 
-      turnosPorPlanilla.forEach((turnos) => {
+      const aplicarDetallesTurnos = (
+        planillaId: string,
+        turnos: ResumenMensualDia['turnos']
+      ) => {
+        detallesPorPlanillaTurno.forEach((detalle) => {
+          if (detalle.planillaId !== planillaId || !detalle.turno) return;
+          const turnoResumen = turnos[detalle.turno];
+          if (!turnoResumen) return;
+
+          turnoResumen.reparto = detalle.reparto;
+          turnoResumen.repartos = detalle.repartos;
+          turnoResumen.otroskg = detalle.otroskg;
+          turnoResumen.merma = detalle.merma;
+        });
+      };
+
+      turnosPorPlanilla.forEach((turnos, planillaId) => {
+        aplicarDetallesTurnos(planillaId, turnos);
+
         Object.keys(turnos)
           .map(Number)
           .sort((a, b) => a - b)
@@ -818,59 +856,64 @@ export default function AdminPlanillasPage() {
       const turnosResumen = turnosPorPlanilla.get(item.id) || {};
       const tieneTurnos = Object.keys(turnosResumen).length > 0;
       const turnosHistoricos = tieneTurnos ? turnosResumen : {};
-
-      if (!tieneTurnos) {
-        const textoTurno = normalizar(String(item.turno || ''));
-        const usaPrimerTurno =
-          Number(item.quintal1 || 0) > 0 ||
-          Number(item.amasado1 || 0) > 0 ||
-          textoTurno.includes('1') ||
-          !textoTurno.includes('2');
-        const usaSegundoTurno =
-          Number(item.quintal2 || 0) > 0 ||
-          Number(item.amasado2 || 0) > 0 ||
-          textoTurno.includes('2');
-
-        const crearTurnoHistorico = (orden: number) => ({
-          quintal:
-            orden === 1
-              ? Number(item.quintal1 || 0)
-              : Number(item.quintal2 || 0),
-          amasado:
-            orden === 1
-              ? Number(item.amasado1 || 0)
-              : Number(item.amasado2 || 0),
-          panaderos: 0,
-          masa_ocupa: orden === 2 || !usaSegundoTurno
+      const textoTurno = normalizar(String(item.turno || ''));
+      const usaPrimerTurno =
+        Number(item.quintal1 || 0) > 0 ||
+        Number(item.amasado1 || 0) > 0 ||
+        textoTurno.includes('1') ||
+        !textoTurno.includes('2');
+      const usaSegundoTurno =
+        Number(item.quintal2 || 0) > 0 ||
+        Number(item.amasado2 || 0) > 0 ||
+        textoTurno.includes('2');
+      const crearTurnoHistorico = (orden: number) => ({
+        quintal:
+          orden === 1
+            ? Number(item.quintal1 || 0)
+            : Number(item.quintal2 || 0),
+        amasado:
+          orden === 1
+            ? Number(item.amasado1 || 0)
+            : Number(item.amasado2 || 0),
+        panaderos: 0,
+        masa_ocupa:
+          orden === 2 || !usaSegundoTurno
             ? Number(item.masa_ocupada || 0)
             : 0,
-          masa_queda: orden === 2 || !usaSegundoTurno
+        masa_queda:
+          orden === 2 || !usaSegundoTurno
             ? Number(item.masa_sobrante || 0)
             : 0,
-          pan_racion: orden === 2 || !usaSegundoTurno
+        pan_racion:
+          orden === 2 || !usaSegundoTurno
             ? Number(item.pan_racion || 0)
             : 0,
-          pan_sobra: orden === 2 || !usaSegundoTurno
+        pan_sobra:
+          orden === 2 || !usaSegundoTurno
             ? Number(item.pan_sobra || 0)
             : 0,
-          cacho: orden === 2 || !usaSegundoTurno
+        cacho:
+          orden === 2 || !usaSegundoTurno
             ? Number(item.cacho || 0)
             : 0,
-          centeno: orden === 1 ? Number(item.centeno || 0) : 0,
-          meson: orden === 1 ? Number(item.meson || 0) : 0,
-          kilos: orden === 2 || !usaSegundoTurno
+        centeno: orden === 1 ? Number(item.centeno || 0) : 0,
+        meson: orden === 1 ? Number(item.meson || 0) : 0,
+        kilos:
+          orden === 2 || !usaSegundoTurno
             ? Number(item.kilos_producidos || 0)
             : 0,
-          rinde: orden === 2 || !usaSegundoTurno
+        rinde:
+          orden === 2 || !usaSegundoTurno
             ? Number(item.rinde_por_saco || 0)
             : 0,
-          reparto: 0,
-          repartos: {},
-          otroskg: 0,
-          merma: 0,
-          insumos: {},
-        });
+        reparto: 0,
+        repartos: {},
+        otroskg: 0,
+        merma: 0,
+        insumos: {},
+      });
 
+      if (!tieneTurnos) {
         if (usaPrimerTurno) {
           turnosHistoricos[1] = crearTurnoHistorico(1);
         }
@@ -879,6 +922,42 @@ export default function AdminPlanillasPage() {
           turnosHistoricos[2] = crearTurnoHistorico(2);
         }
       }
+
+      detallesPorPlanillaTurno.forEach((detalle) => {
+        if (detalle.planillaId !== String(item.id) || !detalle.turno) return;
+        if (!turnosHistoricos[detalle.turno]) {
+          turnosHistoricos[detalle.turno] = crearTurnoHistorico(detalle.turno);
+        }
+      });
+
+      const aplicarDetallesHistoricos = (
+        turnos: ResumenMensualDia['turnos']
+      ) => {
+        detallesPorPlanillaTurno.forEach((detalle) => {
+          if (detalle.planillaId !== String(item.id) || !detalle.turno) return;
+          const turnoResumen = turnos[detalle.turno];
+          if (!turnoResumen) return;
+
+          turnoResumen.reparto = detalle.reparto;
+          turnoResumen.repartos = detalle.repartos;
+          turnoResumen.otroskg = detalle.otroskg;
+          turnoResumen.merma = detalle.merma;
+          const kilos = kilosConProductosIncluidos(
+            turnoResumen,
+            turnos[detalle.turno - 1]?.pan_sobra || 0
+          );
+          const factor = calcularFactorAmasado(
+            turnoResumen.amasado,
+            turnoResumen.masa_ocupa,
+            turnoResumen.masa_queda
+          );
+          turnoResumen.kilos = kilos;
+          turnoResumen.rinde =
+            factor > 0 ? Number((kilos / factor).toFixed(2)) : turnoResumen.rinde;
+        });
+      };
+
+      aplicarDetallesHistoricos(turnosHistoricos);
 
       const turnosDelDia = Object.values(turnosHistoricos);
       const kilosProducidosDia =
@@ -982,34 +1061,104 @@ export default function AdminPlanillasPage() {
       .select('producto_id,nombre_producto,kilos_total,merma')
       .eq('planilla_id', data.id);
 
-    const mermaPorTurnoDia = new Map<number, number>();
+    const detallesPorTurnoDia = new Map<
+      number,
+      { reparto: number; otroskg: number; merma: number }
+    >();
     for (const detalle of detallesData || []) {
       const numeroTurno = turnoDesdeDetalle(detalle.nombre_producto || '');
       if (!numeroTurno) continue;
-      mermaPorTurnoDia.set(
-        numeroTurno,
-        (mermaPorTurnoDia.get(numeroTurno) || 0) + Number(detalle.merma || 0)
-      );
+
+      const actual =
+        detallesPorTurnoDia.get(numeroTurno) || {
+          reparto: 0,
+          otroskg: 0,
+          merma: 0,
+        };
+
+      if (normalizar(detalle.nombre_producto).startsWith('merma')) {
+        actual.merma += Number(detalle.merma || 0);
+      } else if (detalle.producto_id) {
+        actual.otroskg += Number(detalle.kilos_total || 0);
+      } else {
+        actual.reparto += Number(detalle.kilos_total || 0);
+      }
+
+      detallesPorTurnoDia.set(numeroTurno, actual);
     }
 
-    let turnosResumen = (turnosData || []).map((item) => ({
-      turno: Number(item.turno || 0),
-      nombre:
-        turnosConfigurados.find((config) => config.orden === Number(item.turno))
-          ?.nombre || `Turno ${item.turno}`,
-      quintal: Number(item.quintal || 0),
-      amasado: Number(item.amasado || 0),
-      panaderos: Number(item.panaderos || 0),
-      masa_ocupa: Number(item.masa_ocupa || 0),
-      masa_queda: Number(item.masa_queda || 0),
-      kilos: Number(item.kilos || 0),
-      rinde: Number(item.rinde || 0),
-      reparto: Number(item.reparto || 0),
-      otroskg: Number(item.otroskg || 0),
-      merma: mermaPorTurnoDia.get(Number(item.turno || 0)) || 0,
-      cacho: Number(item.cacho || 0),
-      pan_sobra: Number(item.pan_sobra || 0),
-    }));
+    let turnosResumen = (turnosData || []).map((item) => {
+      const detalleTurno =
+        detallesPorTurnoDia.get(Number(item.turno || 0)) || null;
+
+      return {
+        turno: Number(item.turno || 0),
+        nombre:
+          turnosConfigurados.find((config) => config.orden === Number(item.turno))
+            ?.nombre || `Turno ${item.turno}`,
+        quintal: Number(item.quintal || 0),
+        amasado: Number(item.amasado || 0),
+        panaderos: Number(item.panaderos || 0),
+        masa_ocupa: Number(item.masa_ocupa || 0),
+        masa_queda: Number(item.masa_queda || 0),
+        kilos: Number(item.kilos || 0),
+        rinde: Number(item.rinde || 0),
+        reparto: detalleTurno?.reparto ?? Number(item.reparto || 0),
+        otroskg: detalleTurno?.otroskg ?? Number(item.otroskg || 0),
+        merma: detalleTurno?.merma ?? 0,
+        cacho: Number(item.cacho || 0),
+        pan_sobra: Number(item.pan_sobra || 0),
+      };
+    });
+
+    const textoTurnoDia = normalizar(String(data.turno || ''));
+    const usaSegundoTurnoDia =
+      Number(data.quintal2 || 0) > 0 ||
+      Number(data.amasado2 || 0) > 0 ||
+      textoTurnoDia.includes('2');
+
+    detallesPorTurnoDia.forEach((detalleTurno, numeroTurno) => {
+      const yaExiste = turnosResumen.some((item) => item.turno === numeroTurno);
+      if (yaExiste) return;
+
+      const amasado =
+        numeroTurno === 1
+          ? Number(data.amasado1 || 0)
+          : numeroTurno === 2
+            ? Number(data.amasado2 || 0)
+            : 0;
+      const usaDatosGenerales = numeroTurno === 2 || !usaSegundoTurnoDia;
+      const masaOcupa = usaDatosGenerales ? Number(data.masa_ocupada || 0) : 0;
+      const masaQueda = usaDatosGenerales ? Number(data.masa_sobrante || 0) : 0;
+      const panRacion = usaDatosGenerales ? Number(data.pan_racion || 0) : 0;
+      const panSobra = usaDatosGenerales ? Number(data.pan_sobra || 0) : 0;
+
+      turnosResumen.push({
+        turno: numeroTurno,
+        nombre:
+          turnosConfigurados.find((config) => config.orden === numeroTurno)
+            ?.nombre || `Turno ${numeroTurno}`,
+        quintal:
+          numeroTurno === 1
+            ? Number(data.quintal1 || 0)
+            : numeroTurno === 2
+              ? Number(data.quintal2 || 0)
+              : 0,
+        amasado,
+        panaderos: 0,
+        masa_ocupa: masaOcupa,
+        masa_queda: masaQueda,
+        kilos: 0,
+        rinde: 0,
+        reparto: detalleTurno.reparto,
+        otroskg: detalleTurno.otroskg,
+        merma: detalleTurno.merma,
+        cacho: usaDatosGenerales ? Number(data.cacho || 0) : 0,
+        pan_sobra: panSobra,
+      });
+    });
+
+    turnosResumen = turnosResumen.sort((a, b) => a.turno - b.turno);
 
     turnosResumen = turnosResumen.map((item) => {
       const anterior = turnosResumen.find(
@@ -1030,34 +1179,7 @@ export default function AdminPlanillasPage() {
     });
 
     if (turnosResumen.length === 0 && (detallesData || []).length > 0) {
-      const detallesPorTurno = new Map<
-        number,
-        { reparto: number; otroskg: number; merma: number }
-      >();
-
-      for (const detalle of detallesData || []) {
-        const numeroTurno = turnoDesdeDetalle(detalle.nombre_producto || '');
-        if (!numeroTurno) continue;
-
-        const actual =
-          detallesPorTurno.get(numeroTurno) || {
-            reparto: 0,
-            otroskg: 0,
-            merma: 0,
-          };
-
-        if (normalizar(detalle.nombre_producto).startsWith('merma')) {
-          actual.merma += Number(detalle.merma || 0);
-        } else if (detalle.producto_id) {
-          actual.otroskg += Number(detalle.kilos_total || 0);
-        } else {
-          actual.reparto += Number(detalle.kilos_total || 0);
-        }
-
-        detallesPorTurno.set(numeroTurno, actual);
-      }
-
-      turnosResumen = Array.from(detallesPorTurno.entries())
+      turnosResumen = Array.from(detallesPorTurnoDia.entries())
         .sort(([turnoA], [turnoB]) => turnoA - turnoB)
         .map(([numeroTurno, detalleTurno]) => {
           const amasado =
