@@ -1087,6 +1087,11 @@ export default function AdminPlanillasPage() {
     return `${fechaClave}::${orden}`;
   }
 
+  function marcarTurnoActualComoCargado() {
+    if (!turnoSeleccionado) return;
+    setTurnoCargadoClave(claveBorrador(fecha, turnoSeleccionado.orden));
+  }
+
   function guardarBorradorTurnoActual() {
     if (!turnoSeleccionado) return;
     const claveActual = claveBorrador(fecha, turnoSeleccionado.orden);
@@ -1377,6 +1382,8 @@ export default function AdminPlanillasPage() {
     repartoId?: string,
     productoTurnoId?: string
   ) {
+    marcarTurnoActualComoCargado();
+
     if (campo === 'insumo') {
       const actualizados = insumos.map((item) =>
         item.id === insumoId ? { ...item, cantidad: valor } : item
@@ -1512,6 +1519,7 @@ export default function AdminPlanillasPage() {
         },
       ];
     });
+    marcarTurnoActualComoCargado();
     setProductoSeleccionadoId('');
   }
 
@@ -1569,7 +1577,7 @@ export default function AdminPlanillasPage() {
     if (errorPlanilla || !planilla) {
       if (!cargaVigente()) return;
       limpiarTurno();
-      setTurnoCargadoClave(claveBorrador(fechaSeleccionada, turnoConfig.orden));
+      setTurnoCargadoClave('');
       return;
     }
 
@@ -1599,7 +1607,7 @@ export default function AdminPlanillasPage() {
     if (errorTurno) {
       if (!cargaVigente()) return;
       limpiarTurno();
-      setTurnoCargadoClave(claveBorrador(fechaSeleccionada, turnoConfig.orden));
+      setTurnoCargadoClave('');
       return;
     }
 
@@ -1664,7 +1672,7 @@ export default function AdminPlanillasPage() {
     if (!turnoDb && !turnoEnResumen && detalleRepartos.length === 0) {
       if (!cargaVigente()) return;
       limpiarTurno();
-      setTurnoCargadoClave(claveBorrador(fechaSeleccionada, turnoConfig.orden));
+      setTurnoCargadoClave('');
       return;
     }
 
@@ -3300,7 +3308,8 @@ export default function AdminPlanillasPage() {
                         step="0.01"
                         aria-label={`Kilos ${producto.nombre}`}
                         value={producto.kilos || ''}
-                        onChange={(event) =>
+                        onChange={(event) => {
+                          marcarTurnoActualComoCargado();
                           setProductosTurno((actuales) =>
                             actuales.map((item) =>
                               item.id === producto.id
@@ -3310,18 +3319,19 @@ export default function AdminPlanillasPage() {
                                   }
                                 : item
                             )
-                          )
-                        }
+                          );
+                        }}
                         className="h-9 rounded-md border border-[#4B2818]/15 px-3 text-right font-bold outline-none focus:border-[#A51F2B]"
                       />
                       <button
                         type="button"
                         title="Quitar producto"
-                        onClick={() =>
+                        onClick={() => {
+                          marcarTurnoActualComoCargado();
                           setProductosTurno((actuales) =>
                             actuales.filter((item) => item.id !== producto.id)
-                          )
-                        }
+                          );
+                        }}
                         className="grid h-8 w-8 place-items-center rounded-md text-gray-400 transition hover:bg-red-50 hover:text-red-700"
                       >
                         <Trash2 className="h-4 w-4" />
