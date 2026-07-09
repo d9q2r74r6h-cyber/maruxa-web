@@ -557,6 +557,7 @@ export default function AdminPlanillasPage() {
     Record<string, ResumenMensualDia>
   >({});
   const borradoresTurno = useRef<Record<string, BorradorTurno>>({});
+  const cargaTurnoId = useRef(0);
   const [focoGrillaPendiente, setFocoGrillaPendiente] = useState<{
     dia: number;
     fila: number;
@@ -1200,6 +1201,8 @@ export default function AdminPlanillasPage() {
   ) {
     if (fechaCelda !== fecha) {
       if (guardarActual) guardarBorradorTurnoActual();
+      cargaTurnoId.current += 1;
+      limpiarTurno();
       setFecha(fechaCelda);
     }
 
@@ -1214,22 +1217,20 @@ export default function AdminPlanillasPage() {
     indiceFila: number,
     dia: number
   ) {
-    if (event.key !== 'Enter' || event.shiftKey || !fila.editable?.turno) {
+    if (event.key !== 'Enter' || event.shiftKey || !fila.editable) {
       return;
     }
 
-    const siguienteTurno = filasMensuales.findIndex(
+    const siguienteFila = filasMensuales.findIndex(
       (item, indice) =>
         indice > indiceFila &&
-        item.editable?.turno &&
-        item.editable.turno > Number(fila.editable?.turno || 0)
+        item.editable
     );
 
-    if (siguienteTurno === -1) return;
+    if (siguienteFila === -1) return;
 
-    const filaDestino = filasMensuales[siguienteTurno];
+    const filaDestino = filasMensuales[siguienteFila];
     const ordenDestino = filaDestino.editable?.turno;
-    if (!ordenDestino || ordenDestino === turnoSeleccionado?.orden) return;
 
     event.preventDefault();
     event.stopPropagation();
@@ -1248,7 +1249,7 @@ export default function AdminPlanillasPage() {
       fila.editable.insumoId,
       fila.editable.repartoId
     );
-    setFocoGrillaPendiente({ dia, fila: siguienteTurno });
+    setFocoGrillaPendiente({ dia, fila: siguienteFila });
     seleccionarCeldaGrilla(fechaDiaMes(dia), ordenDestino, false);
   }
 
@@ -1477,17 +1478,20 @@ export default function AdminPlanillasPage() {
     turnoConfig = turnoSeleccionado
   ) {
     if (!turnoConfig) return;
+    const idCarga = ++cargaTurnoId.current;
+    const cargaVigente = () => idCarga === cargaTurnoId.current;
 
     const borrador = borradoresTurno.current[
       claveBorrador(fechaSeleccionada, turnoConfig.orden)
     ];
     if (borrador) {
+      if (!cargaVigente()) return;
       restaurarBorradorTurno(borrador);
       return;
     }
 
     const empresa = await obtenerEmpresaActual();
-    if (!empresa) return;
+    if (!empresa || !cargaVigente()) return;
 
     const { data: planilla, error: errorPlanilla } = await supabase
       .from('planillas')
@@ -1499,6 +1503,7 @@ export default function AdminPlanillasPage() {
       .maybeSingle();
 
     if (errorPlanilla || !planilla) {
+      if (!cargaVigente()) return;
       limpiarTurno();
       return;
     }
@@ -1527,6 +1532,7 @@ export default function AdminPlanillasPage() {
     }
 
     if (errorTurno) {
+      if (!cargaVigente()) return;
       limpiarTurno();
       return;
     }
@@ -1590,6 +1596,7 @@ export default function AdminPlanillasPage() {
     const resumenUnSoloTurno = turnosResumen.length <= 1 && turnoEnResumen;
 
     if (!turnoDb && !turnoEnResumen && detalleRepartos.length === 0) {
+      if (!cargaVigente()) return;
       limpiarTurno();
       return;
     }
@@ -1710,6 +1717,8 @@ export default function AdminPlanillasPage() {
     const usarResumenHistorico = !turnoDb && turnoEnResumen;
     const usarTotalesHistoricosEnPrimerTurno =
       usarResumenHistorico && turnoConfig.orden === 1;
+
+    if (!cargaVigente()) return;
 
     setResponsable(turnoDb?.responsable || planilla.responsable || '');
     setQuintal(Number(turnoDb?.quintal ?? quintalResumen ?? 0));
@@ -2913,6 +2922,11 @@ export default function AdminPlanillasPage() {
                       <button
                         type="button"
                         onClick={() => {
+                          if (fechaColumna !== fecha) {
+                            guardarBorradorTurnoActual();
+                            cargaTurnoId.current += 1;
+                            limpiarTurno();
+                          }
                           setFecha(fechaColumna);
                         }}
                         className="h-full w-full"
