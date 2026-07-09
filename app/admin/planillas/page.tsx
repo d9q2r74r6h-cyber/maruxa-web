@@ -570,6 +570,10 @@ export default function AdminPlanillasPage() {
     dia: number;
     fila: number;
   } | null>(null);
+  const [celdaEditable, setCeldaEditable] = useState<{
+    dia: number;
+    fila: number;
+  } | null>(null);
   const turnoSeleccionado =
     turnosConfigurados.find((item) => item.id === turnoSeleccionadoId) || null;
 
@@ -1309,6 +1313,7 @@ export default function AdminPlanillasPage() {
       if (guardarActual) guardarBorradorTurnoActual();
       cargaTurnoId.current += 1;
       setTurnoCargadoClave('');
+      setCeldaEditable(null);
       limpiarTurno();
       setFecha(fechaCelda);
     }
@@ -1359,6 +1364,7 @@ export default function AdminPlanillasPage() {
       fila.editable.repartoId,
       fila.editable.productoTurnoId
     );
+    setCeldaEditable({ dia, fila: siguienteFila });
     setFocoGrillaPendiente({ dia, fila: siguienteFila });
     seleccionarCeldaGrilla(fechaDiaMes(dia), ordenDestino, false);
   }
@@ -2356,6 +2362,7 @@ export default function AdminPlanillasPage() {
         `${turnoSeleccionado.nombre} guardado correctamente.`
       );
       setColumnaEditable('');
+      setCeldaEditable(null);
       delete borradoresTurno.current[
         claveBorrador(fecha, turnoSeleccionado.orden)
       ];
@@ -3154,6 +3161,7 @@ export default function AdminPlanillasPage() {
                             guardarBorradorTurnoActual();
                             cargaTurnoId.current += 1;
                             setTurnoCargadoClave('');
+                            setCeldaEditable(null);
                             limpiarTurno();
                           }
                           setFecha(fechaColumna);
@@ -3170,9 +3178,11 @@ export default function AdminPlanillasPage() {
                             guardarBorradorTurnoActual();
                             cargaTurnoId.current += 1;
                             setTurnoCargadoClave('');
+                            setCeldaEditable(null);
                             limpiarTurno();
                             setFecha(fechaColumna);
                           }
+                          setCeldaEditable(null);
                           setColumnaEditable(fechaColumna);
                         }}
                         className={`mx-auto mt-1 grid h-5 w-5 place-items-center rounded-full transition ${
@@ -3250,7 +3260,9 @@ export default function AdminPlanillasPage() {
                       fila.editable &&
                       esDiaActivo &&
                       columnaEditable === fechaCelda &&
-                      esTurnoActivo
+                      esTurnoActivo &&
+                      celdaEditable?.dia === dia &&
+                      celdaEditable?.fila === indiceFilaMensual
                     );
 
                     return (
@@ -3320,12 +3332,16 @@ export default function AdminPlanillasPage() {
                         ) : fila.editable ? (
                           <button
                             type="button"
-                            onClick={() =>
+                            onClick={() => {
                               seleccionarCeldaGrilla(
                                 fechaCelda,
                                 fila.editable?.turno
-                              )
-                            }
+                              );
+                              setCeldaEditable({
+                                dia,
+                                fila: indiceFilaMensual,
+                              });
+                            }}
                             className="h-9 w-[74px] px-2 text-right font-bold transition hover:bg-[#FFF3DF]"
                           >
                             {valorMes(dia, fila, fila.decimales)}
