@@ -71,6 +71,23 @@ type ProductoTurno = {
   kilos: number;
 };
 
+type ClientePlanilla = {
+  id: string;
+  razon_social: string;
+  sigla: string | null;
+  repartidor_nombre: string | null;
+  activo: boolean;
+};
+
+type OtroTurno = {
+  id: string;
+  cliente_id: string | null;
+  cliente_nombre: string;
+  producto_id: number | null;
+  producto_nombre: string;
+  kilos: number;
+};
+
 type BorradorTurno = {
   responsable: string;
   quintal: number;
@@ -80,6 +97,7 @@ type BorradorTurno = {
   panSobranteAnterior: number;
   repartos: Reparto[];
   productosTurno: ProductoTurno[];
+  otrosTurno: OtroTurno[];
   insumos: InsumoPlanilla[];
 };
 
@@ -537,12 +555,22 @@ export default function AdminPlanillasPage() {
   const [productosPanaderia, setProductosPanaderia] = useState<ProductoRinde[]>(
     []
   );
+  const [productosFamiliaPan, setProductosFamiliaPan] = useState<
+    ProductoRinde[]
+  >([]);
+  const [clientesPanaderia, setClientesPanaderia] = useState<ClientePlanilla[]>(
+    []
+  );
   const [productosTurno, setProductosTurno] = useState<ProductoTurno[]>([]);
+  const [otrosTurno, setOtrosTurno] = useState<OtroTurno[]>([]);
   const [productoSeleccionadoId, setProductoSeleccionadoId] = useState('');
+  const [otroClienteSeleccionadoId, setOtroClienteSeleccionadoId] = useState('');
+  const [otroProductoSeleccionadoId, setOtroProductoSeleccionadoId] = useState('');
   const [harinaSeleccionadaId, setHarinaSeleccionadaId] = useState('');
   const [columnaEditable, setColumnaEditable] = useState(hoy);
   const [moduloProductosRindeAbierto, setModuloProductosRindeAbierto] =
     useState(false);
+  const [moduloOtrosAbierto, setModuloOtrosAbierto] = useState(false);
   const [turnoCargadoClave, setTurnoCargadoClave] = useState('');
   const [tablaFuncionariosDisponible, setTablaFuncionariosDisponible] =
     useState(false);
@@ -1105,6 +1133,44 @@ export default function AdminPlanillasPage() {
         setProductosPanaderia((productosPanaderiaData || []) as ProductoRinde[]);
       }
 
+      const { data: productosFamiliaPanData, error: productosFamiliaPanError } =
+        await supabase
+          .from('productos')
+          .select(
+            `
+              id,
+              nombre,
+              unidad_base,
+              familias_productos!inner (
+                nombre
+              )
+            `
+          )
+          .eq('empresa_id', empresa.id)
+          .eq('activo', true)
+          .eq('tipo_producto', 'producto')
+          .ilike('familias_productos.nombre', '%pan%')
+          .order('nombre', { ascending: true });
+
+      if (!productosFamiliaPanError) {
+        setProductosFamiliaPan(
+          (productosFamiliaPanData || []) as ProductoRinde[]
+        );
+      }
+
+      const { data: clientesPanaderiaData, error: clientesPanaderiaError } =
+        await supabase
+          .from('clientes')
+          .select('id,razon_social,sigla,repartidor_nombre,activo')
+          .eq('empresa_id', empresa.id)
+          .eq('activo', true)
+          .ilike('repartidor_nombre', '%panader%')
+          .order('razon_social', { ascending: true });
+
+      if (!clientesPanaderiaError) {
+        setClientesPanaderia((clientesPanaderiaData || []) as ClientePlanilla[]);
+      }
+
       setCargandoTurnos(false);
       await cargarResumenDia();
       await cargarResumenMensual();
@@ -1127,6 +1193,7 @@ export default function AdminPlanillasPage() {
     turnoSeleccionadoId,
     productosRinde,
     productosPanaderia,
+    productosFamiliaPan,
     repartidoresConfigurados,
     tablaFuncionariosDisponible,
   ]);
@@ -1138,6 +1205,10 @@ export default function AdminPlanillasPage() {
   const kilosProductosTurno = useMemo(
     () => productosTurno.reduce((total, producto) => total + producto.kilos, 0),
     [productosTurno]
+  );
+  const kilosOtrosTurno = useMemo(
+    () => otrosTurno.reduce((total, item) => total + Number(item.kilos || 0), 0),
+    [otrosTurno]
   );
 
   const datosTurno = useMemo<DatosTurno>(
@@ -1177,6 +1248,7 @@ export default function AdminPlanillasPage() {
       panSobranteAnterior,
       repartos: repartos.map((item) => ({ ...item })),
       productosTurno: productosTurno.map((item) => ({ ...item })),
+      otrosTurno: otrosTurno.map((item) => ({ ...item })),
       insumos: insumos.map((item) => ({ ...item })),
     };
   }
@@ -1193,6 +1265,7 @@ export default function AdminPlanillasPage() {
     let panaderosBorrador = panaderos;
     let repartosBorrador = repartos.map((item) => ({ ...item }));
     let productosTurnoBorrador = productosTurno.map((item) => ({ ...item }));
+    const otrosTurnoBorrador = otrosTurno.map((item) => ({ ...item }));
     let insumosBorrador = insumos.map((item) => ({ ...item }));
 
     if (campo === 'insumo') {
@@ -1255,6 +1328,7 @@ export default function AdminPlanillasPage() {
       panSobranteAnterior,
       repartos: repartosBorrador,
       productosTurno: productosTurnoBorrador,
+      otrosTurno: otrosTurnoBorrador,
       insumos: insumosBorrador,
     };
   }
@@ -1288,6 +1362,7 @@ export default function AdminPlanillasPage() {
     setPanSobranteAnterior(borrador.panSobranteAnterior);
     setRepartos(borrador.repartos.map((item) => ({ ...item })));
     setProductosTurno(borrador.productosTurno.map((item) => ({ ...item })));
+    setOtrosTurno((borrador.otrosTurno || []).map((item) => ({ ...item })));
     setInsumos(borrador.insumos.map((item) => ({ ...item })));
     setMensaje('');
   }
@@ -1589,9 +1664,48 @@ export default function AdminPlanillasPage() {
     setProductoSeleccionadoId('');
   }
 
+  function actualizarOtrosTurno(siguiente: OtroTurno[]) {
+    setOtrosTurno(siguiente);
+    cambiarCampo(
+      'merma',
+      siguiente.reduce((total, item) => total + Number(item.kilos || 0), 0)
+    );
+    marcarTurnoActualComoCargado();
+  }
+
+  function agregarOtroTurno() {
+    const cliente = clientesPanaderia.find(
+      (item) => item.id === otroClienteSeleccionadoId
+    );
+    const producto = productosFamiliaPan.find(
+      (item) => String(item.id) === otroProductoSeleccionadoId
+    );
+
+    if (!cliente || !producto) return;
+
+    actualizarOtrosTurno([
+      ...otrosTurno,
+      {
+        id: `otro-${Date.now()}`,
+        cliente_id: cliente.id,
+        cliente_nombre: cliente.sigla || cliente.razon_social,
+        producto_id: producto.id,
+        producto_nombre: producto.nombre,
+        kilos: 0,
+      },
+    ]);
+    setOtroClienteSeleccionadoId('');
+    setOtroProductoSeleccionadoId('');
+  }
+
   function abrirModuloProductosRinde(fechaCelda: string, orden?: number) {
     seleccionarCeldaGrilla(fechaCelda, orden);
     setModuloProductosRindeAbierto(true);
+  }
+
+  function abrirModuloOtros(fechaCelda: string, orden?: number) {
+    seleccionarCeldaGrilla(fechaCelda, orden);
+    setModuloOtrosAbierto(true);
   }
 
   function limpiarTurno() {
@@ -1603,7 +1717,10 @@ export default function AdminPlanillasPage() {
     setPanSobranteAnterior(0);
     setRepartos(repartosBase());
     setProductosTurno([]);
+    setOtrosTurno([]);
     setProductoSeleccionadoId('');
+    setOtroClienteSeleccionadoId('');
+    setOtroProductoSeleccionadoId('');
     setHarinaSeleccionadaId('');
     setInsumos(insumosBase());
     setMensaje('');
@@ -1724,6 +1841,9 @@ export default function AdminPlanillasPage() {
         item.producto_id &&
         !normalizar(item.nombre_producto).startsWith('merma')
     );
+    const detalleOtros = detalles.filter((item) =>
+      normalizar(item.nombre_producto).startsWith('merma')
+    );
     const turnosResumen = String(planilla.turno || '')
       .split(',')
       .map((item) => normalizar(item));
@@ -1821,6 +1941,30 @@ export default function AdminPlanillasPage() {
             (base) => base.producto_id === item.producto_id
           )
       );
+    const otrosGuardados = detalleOtros
+      .filter((item) => Number(item.merma || 0) > 0)
+      .map((item, indice) => {
+        let nombre = item.nombre_producto
+          .replace(/^Merma\/Otro:\s*/i, '')
+          .replace(/^Merma\s*-\s*/i, '')
+          .replace(marcadorTurno, '')
+          .trim();
+        if (nombre.endsWith(sufijoTurno)) {
+          nombre = nombre.slice(0, -sufijoTurno.length).trim();
+        }
+        const [clienteNombre, productoNombre] = nombre
+          .split(' / ')
+          .map((parte) => parte.trim());
+
+        return {
+          id: `guardado-otro-${indice}`,
+          cliente_id: null,
+          cliente_nombre: clienteNombre || 'Otro',
+          producto_id: item.producto_id ? Number(item.producto_id) : null,
+          producto_nombre: productoNombre || 'Producto pan',
+          kilos: Number(item.merma || 0),
+        };
+      });
 
     const insumosPorNombre = new Map(
       insumosGuardados.map((item) => [normalizar(item.nombre), item])
@@ -1929,6 +2073,7 @@ export default function AdminPlanillasPage() {
     });
     setRepartos([...baseRepartos, ...repartosExtras]);
     setProductosTurno([...baseProductosTurno, ...productosExtras]);
+    setOtrosTurno(otrosGuardados);
     setInsumos([...baseInsumos, ...insumosExtras]);
     setTurnoCargadoClave(claveBorrador(fechaSeleccionada, turnoConfig.orden));
     setMensaje(
@@ -2315,7 +2460,21 @@ export default function AdminPlanillasPage() {
           });
         });
 
-      if (Number(turno.merma || 0) > 0) {
+      otrosTurno
+        .filter((item) => item.kilos > 0)
+        .forEach((item) => {
+          filasRepartos.push({
+            planilla_id: planillaId,
+            producto_id: item.producto_id,
+            nombre_producto: `Merma/Otro: ${item.cliente_nombre.trim()} / ${item.producto_nombre.trim()} - ${turnoSeleccionado.nombre} [turno:${turnoSeleccionado.orden}]`,
+            cantidad: 0,
+            peso_unitario: 0,
+            kilos_total: 0,
+            merma: Number(item.kilos || 0),
+          });
+        });
+
+      if (Number(turno.merma || 0) > 0 && otrosTurno.length === 0) {
         filasRepartos.push({
           planilla_id: planillaId,
           producto_id: null,
@@ -2658,6 +2817,7 @@ export default function AdminPlanillasPage() {
       etiqueta.includes('raciones') ||
       etiqueta.includes('cacho') ||
       etiqueta.includes('merma') ||
+      etiqueta.includes('otros') ||
       etiqueta.includes('kpan') ||
       etiqueta.includes('productos rinde') ||
       etiqueta.startsWith('prod.')
@@ -2790,8 +2950,8 @@ export default function AdminPlanillasPage() {
     ]),
     { label: 'Productos rinde 1ra', obtener: (item) => item.turnos[1]?.otroskg || 0, vivo: (item) => turnoMensualVivo(item, 1).otroskg, decimales: 2, editable: { turno: 1, campo: 'productos' } },
     { label: 'Productos rinde 2da', obtener: (item) => item.turnos[2]?.otroskg || 0, vivo: (item) => turnoMensualVivo(item, 2).otroskg, decimales: 2, editable: { turno: 2, campo: 'productos' } },
-    { label: 'Merma / Otro 1ra', obtener: (item) => item.merma && item.turnos[1] ? item.merma : 0, vivo: (item) => turnoSeleccionado?.orden === 1 ? turno.merma || 0 : item.merma && item.turnos[1] ? item.merma : 0, decimales: 2, editable: { turno: 1, campo: 'merma' } },
-    { label: 'Merma / Otro 2da', obtener: (item) => item.merma && item.turnos[2] ? item.merma : 0, vivo: (item) => turnoSeleccionado?.orden === 2 ? turno.merma || 0 : item.merma && item.turnos[2] ? item.merma : 0, decimales: 2, editable: { turno: 2, campo: 'merma' } },
+    { label: '+ Otros 1ra', obtener: (item) => item.merma && item.turnos[1] ? item.merma : 0, vivo: (item) => turnoSeleccionado?.orden === 1 ? turno.merma || 0 : item.merma && item.turnos[1] ? item.merma : 0, decimales: 2, editable: { turno: 1, campo: 'merma' } },
+    { label: '+ Otros 2da', obtener: (item) => item.merma && item.turnos[2] ? item.merma : 0, vivo: (item) => turnoSeleccionado?.orden === 2 ? turno.merma || 0 : item.merma && item.turnos[2] ? item.merma : 0, decimales: 2, editable: { turno: 2, campo: 'merma' } },
     { label: 'KPAN 1ra', obtener: (item) => item.turnos[1]?.pan_sobra || 0, vivo: (item) => turnoMensualVivo(item, 1).pan_sobra, decimales: 2, editable: { turno: 1, campo: 'panSobrante' } },
     { label: 'KPAN 2da', obtener: (item) => item.turnos[2]?.pan_sobra || item.planilla.pan_sobra, vivo: (item) => turnoMensualVivo(item, 2).pan_sobra, decimales: 2, editable: { turno: 2, campo: 'panSobrante' } },
   ];
@@ -3199,7 +3359,10 @@ export default function AdminPlanillasPage() {
               </tr>
             </thead>
             {gruposFilasMensuales.map((grupo) => (
-              <tbody key={grupo.seccion}>
+              <tbody
+                key={grupo.seccion}
+                className="border-t-4 border-[#A51F2B]"
+              >
                 {grupo.filas.map((fila, indice) => {
                 const indiceFilaMensual = filasMensuales.findIndex(
                   (item) => item.label === fila.label
@@ -3252,7 +3415,11 @@ export default function AdminPlanillasPage() {
                     const esDiaActivo = fechaCelda === fecha;
                     const domingo = esDomingo(fechaCelda);
                     const valorCelda = valorCeldaMensual(fechaCelda, fila);
-                    const esFilaRinde = fila.label.toLowerCase().includes('rinde');
+                    const etiquetaFila = normalizar(fila.label);
+                    const esFilaRinde =
+                      etiquetaFila === 'rinde' ||
+                      etiquetaFila === 'rinde 1ra' ||
+                      etiquetaFila === 'rinde 2da';
                     const esTurnoActivo =
                       !fila.editable?.turno ||
                       fila.editable.turno === turnoSeleccionado?.orden;
@@ -3283,12 +3450,22 @@ export default function AdminPlanillasPage() {
                                 fila.editable?.turno
                               )
                             }
-                            className={`inline-flex h-9 w-[74px] items-center justify-end gap-1 px-2 text-right font-bold transition hover:bg-[#FFF3DF] ${
-                              esDiaActivo && esTurnoActivo
-                                ? 'bg-[#F6FFF7] ring-1 ring-[#A51F2B]/20'
-                                : ''
-                            }`}
+                            className="inline-flex h-9 w-[74px] items-center justify-end gap-1 px-2 text-right font-bold transition hover:bg-[#FFF3DF]"
                             title="Abrir productos producidos"
+                          >
+                            <span>{valorMes(dia, fila, fila.decimales)}</span>
+                            {esDiaActivo && esTurnoActivo && (
+                              <Plus className="h-3 w-3 text-[#A51F2B]" />
+                            )}
+                          </button>
+                        ) : fila.editable?.campo === 'merma' ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              abrirModuloOtros(fechaCelda, fila.editable?.turno)
+                            }
+                            className="inline-flex h-9 w-[74px] items-center justify-end gap-1 px-2 text-right font-bold transition hover:bg-[#FFF3DF]"
+                            title="Agregar otros kilos"
                           >
                             <span>{valorMes(dia, fila, fila.decimales)}</span>
                             {esDiaActivo && esTurnoActivo && (
@@ -3475,6 +3652,135 @@ export default function AdminPlanillasPage() {
 
               <div className="border-t border-[#4B2818]/10 bg-[#FFF3DF]/60 px-4 py-3 text-right text-sm font-black text-[#2A1710]">
                 Total productos para rinde: {kilosProductosTurno.toFixed(2)} kg
+              </div>
+            </section>
+          </div>
+        )}
+
+        {moduloOtrosAbierto && turnoSeleccionado && (
+          <div className="border-t border-[#4B2818]/10 bg-[#FFFDF8] p-4">
+            <section className="overflow-hidden rounded-lg border border-[#4B2818]/15 bg-white">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#4B2818]/10 bg-[#FFF3DF] px-4 py-3">
+                <div>
+                  <h2 className="font-black text-[#2A1710]">
+                    Otros kilos para rinde
+                  </h2>
+                  <p className="text-xs font-semibold text-[#4B2818]/60">
+                    {fecha} - {turnoSeleccionado.nombre}. Selecciona clientes de
+                    reparto panaderia y productos de familia pan.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setModuloOtrosAbierto(false)}
+                  className="rounded-md border border-[#4B2818]/20 px-3 py-2 text-xs font-black text-[#4B2818] transition hover:bg-white"
+                >
+                  Cerrar
+                </button>
+              </div>
+
+              <div className="grid gap-2 border-b border-[#4B2818]/10 px-4 py-3 lg:grid-cols-[1fr_1fr_auto]">
+                <select
+                  value={otroClienteSeleccionadoId}
+                  onChange={(event) =>
+                    setOtroClienteSeleccionadoId(event.target.value)
+                  }
+                  className="h-9 min-w-0 rounded-md border border-[#4B2818]/20 bg-white px-3 text-sm font-bold text-[#2A1710] outline-none focus:border-[#A51F2B]"
+                >
+                  <option value="">Cliente panaderia</option>
+                  {clientesPanaderia.map((cliente) => (
+                    <option key={cliente.id} value={cliente.id}>
+                      {cliente.sigla || cliente.razon_social}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={otroProductoSeleccionadoId}
+                  onChange={(event) =>
+                    setOtroProductoSeleccionadoId(event.target.value)
+                  }
+                  className="h-9 min-w-0 rounded-md border border-[#4B2818]/20 bg-white px-3 text-sm font-bold text-[#2A1710] outline-none focus:border-[#A51F2B]"
+                >
+                  <option value="">Producto familia pan</option>
+                  {productosFamiliaPan.map((producto) => (
+                    <option key={producto.id} value={producto.id}>
+                      {producto.nombre}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={agregarOtroTurno}
+                  disabled={
+                    !otroClienteSeleccionadoId || !otroProductoSeleccionadoId
+                  }
+                  className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[#2A1710] px-3 text-xs font-black text-white transition hover:bg-[#A51F2B] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Plus className="h-4 w-4" />
+                  Agregar
+                </button>
+              </div>
+
+              {otrosTurno.length === 0 ? (
+                <p className="px-4 py-5 text-sm font-semibold text-[#4B2818]/55">
+                  Agrega otros kilos solo cuando correspondan a este dia y turno.
+                </p>
+              ) : (
+                <div className="divide-y divide-[#4B2818]/10">
+                  {otrosTurno.map((item) => (
+                    <div
+                      key={item.id}
+                      className="grid gap-2 px-4 py-3 lg:grid-cols-[1fr_1fr_150px_40px] lg:items-center"
+                    >
+                      <input
+                        value={item.cliente_nombre}
+                        readOnly
+                        className="h-9 rounded-md border border-[#4B2818]/15 bg-gray-50 px-3 font-bold text-[#4B2818]/70 outline-none"
+                      />
+                      <input
+                        value={item.producto_nombre}
+                        readOnly
+                        className="h-9 rounded-md border border-[#4B2818]/15 bg-gray-50 px-3 font-bold text-[#4B2818]/70 outline-none"
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        aria-label={`Kilos ${item.cliente_nombre}`}
+                        value={item.kilos || ''}
+                        onChange={(event) =>
+                          actualizarOtrosTurno(
+                            otrosTurno.map((otro) =>
+                              otro.id === item.id
+                                ? {
+                                    ...otro,
+                                    kilos: Number(event.target.value || 0),
+                                  }
+                                : otro
+                            )
+                          )
+                        }
+                        className="h-9 rounded-md border border-[#4B2818]/15 px-3 text-right font-bold outline-none focus:border-[#A51F2B]"
+                      />
+                      <button
+                        type="button"
+                        title="Quitar"
+                        onClick={() =>
+                          actualizarOtrosTurno(
+                            otrosTurno.filter((otro) => otro.id !== item.id)
+                          )
+                        }
+                        className="grid h-8 w-8 place-items-center rounded-md text-gray-400 transition hover:bg-red-50 hover:text-red-700"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="border-t border-[#4B2818]/10 bg-[#FFF3DF]/60 px-4 py-3 text-right text-sm font-black text-[#2A1710]">
+                Total otros para rinde: {kilosOtrosTurno.toFixed(2)} kg
               </div>
             </section>
           </div>
