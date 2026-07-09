@@ -1584,7 +1584,6 @@ export default function AdminPlanillasPage() {
   }
 
   function abrirModuloProductosRinde(fechaCelda: string, orden?: number) {
-    setColumnaEditable(fechaCelda);
     seleccionarCeldaGrilla(fechaCelda, orden);
     setModuloProductosRindeAbierto(true);
   }
