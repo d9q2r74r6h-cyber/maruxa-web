@@ -307,19 +307,25 @@ function kilosConProductosIncluidos(
   panSobranteAnterior = 0
 ) {
   const kilosGuardados = Number(turno.kilos || 0);
-  const productosRinde = Number(turno.otroskg || 0);
+  const componentesKilos =
+    Math.abs(Number(turno.pan_racion || 0)) +
+    Math.abs(Number(turno.reparto || 0)) +
+    Math.abs(Number(turno.otroskg || 0)) +
+    Math.abs(Number(turno.merma || 0)) +
+    Math.abs(Number(turno.cacho || 0)) +
+    Math.abs(Number(panSobranteAnterior || 0));
 
-  if (productosRinde <= 0) return kilosGuardados;
+  if (componentesKilos <= 0) return kilosGuardados;
 
   const kilosCalculados =
     Number(turno.pan_racion || 0) +
     Number(turno.reparto || 0) +
-    productosRinde +
+    Number(turno.otroskg || 0) +
     Number(turno.merma || 0) -
     Number(turno.cacho || 0) -
     Number(panSobranteAnterior || 0);
 
-  return Number(Math.max(kilosGuardados, kilosCalculados).toFixed(2));
+  return Number(kilosCalculados.toFixed(2));
 }
 
 function normalizar(texto: string | null | undefined) {
