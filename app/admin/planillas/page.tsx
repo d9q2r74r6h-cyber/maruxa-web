@@ -293,6 +293,31 @@ function esDomingo(fecha: string) {
   return new Date(anio, mes - 1, dia).getDay() === 0;
 }
 
+function kilosConProductosIncluidos(
+  turno: {
+    kilos?: number | null;
+    pan_racion?: number | null;
+    reparto?: number | null;
+    otroskg?: number | null;
+    cacho?: number | null;
+  },
+  panSobranteAnterior = 0
+) {
+  const kilosGuardados = Number(turno.kilos || 0);
+  const productosRinde = Number(turno.otroskg || 0);
+
+  if (productosRinde <= 0) return kilosGuardados;
+
+  const kilosCalculados =
+    Number(turno.pan_racion || 0) +
+    Number(turno.reparto || 0) +
+    productosRinde -
+    Number(turno.cacho || 0) -
+    Number(panSobranteAnterior || 0);
+
+  return Number(Math.max(kilosGuardados, kilosCalculados).toFixed(2));
+}
+
 function normalizar(texto: string | null | undefined) {
   return String(texto || '')
     .normalize('NFD')
@@ -672,6 +697,20 @@ export default function AdminPlanillasPage() {
         turnosPorPlanilla.set(planillaId, turnos);
       }
 
+      turnosPorPlanilla.forEach((turnos) => {
+        Object.keys(turnos)
+          .map(Number)
+          .sort((a, b) => a - b)
+          .forEach((ordenTurno) => {
+            const turnoResumen = turnos[ordenTurno];
+            if (!turnoResumen) return;
+            turnoResumen.kilos = kilosConProductosIncluidos(
+              turnoResumen,
+              turnos[ordenTurno - 1]?.pan_sobra || 0
+            );
+          });
+      });
+
       const turnoIds = Array.from(turnoIdAPlanilla.keys());
       if (turnoIds.length > 0) {
         const { data: insumosData } = await supabase
@@ -860,7 +899,7 @@ export default function AdminPlanillasPage() {
 
     let { data: turnosData, error: errorTurnos } = await supabase
       .from('planilla_turnos')
-      .select('turno,quintal,amasado,panaderos,masa_ocupa,masa_queda,kilos,rinde,reparto,otroskg,cacho')
+      .select('turno,quintal,amasado,panaderos,masa_ocupa,masa_queda,kilos,rinde,reparto,otroskg,cacho,pan_sobra')
       .eq('planilla_id', data.id)
       .order('turno', { ascending: true });
 
@@ -868,7 +907,7 @@ export default function AdminPlanillasPage() {
       setPanaderosDisponible(false);
       const respuesta = await supabase
         .from('planilla_turnos')
-        .select('turno,quintal,amasado,masa_ocupa,masa_queda,kilos,rinde,reparto,otroskg,cacho')
+        .select('turno,quintal,amasado,masa_ocupa,masa_queda,kilos,rinde,reparto,otroskg,cacho,pan_sobra')
         .eq('planilla_id', data.id)
         .order('turno', { ascending: true });
       turnosData = (respuesta.data || []).map((item) => ({
@@ -902,7 +941,26 @@ export default function AdminPlanillasPage() {
       reparto: Number(item.reparto || 0),
       otroskg: Number(item.otroskg || 0),
       cacho: Number(item.cacho || 0),
+      pan_sobra: Number(item.pan_sobra || 0),
     }));
+
+    turnosResumen = turnosResumen.map((item) => {
+      const anterior = turnosResumen.find(
+        (turnoItem) => turnoItem.turno === item.turno - 1
+      );
+      const kilos = kilosConProductosIncluidos(item, anterior?.pan_sobra || 0);
+      const factor = calcularFactorAmasado(
+        item.amasado,
+        item.masa_ocupa,
+        item.masa_queda
+      );
+
+      return {
+        ...item,
+        kilos,
+        rinde: factor > 0 ? Number((kilos / factor).toFixed(2)) : item.rinde,
+      };
+    });
 
     if (turnosResumen.length === 0 && (detallesData || []).length > 0) {
       const detallesPorTurno = new Map<
@@ -977,6 +1035,7 @@ export default function AdminPlanillasPage() {
             reparto: detalleTurno.reparto,
             otroskg: detalleTurno.otroskg,
             cacho: 0,
+            pan_sobra: 0,
           };
         });
     }
@@ -2175,7 +2234,23 @@ export default function AdminPlanillasPage() {
 
     if (error) throw error;
 
-    const turnos = (data || []) as TurnoGuardado[];
+    const turnos = ((data || []) as TurnoGuardado[]).map((item, indice, lista) => {
+      const anterior = lista.find(
+        (turnoItem) => Number(turnoItem.turno || 0) === Number(item.turno || 0) - 1
+      );
+      const kilos = kilosConProductosIncluidos(item, Number(anterior?.pan_sobra || 0));
+      const factor = calcularFactorAmasado(
+        Number(item.amasado || 0),
+        Number(item.masa_ocupa || 0),
+        Number(item.masa_queda || 0)
+      );
+
+      return {
+        ...item,
+        kilos,
+        rinde: factor > 0 ? Number((kilos / factor).toFixed(2)) : item.rinde,
+      };
+    });
     const primera = turnos.find((item) => item.turno === 1);
     const segunda = turnos.find((item) => item.turno === 2);
     const kilosTotal = turnos.reduce(
@@ -2666,6 +2741,16 @@ export default function AdminPlanillasPage() {
     }
 
     if (!turnoActualCargado) {
+      const kilosGuardados = kilosConProductosIncluidos(
+        guardado || {},
+        item.turnos[orden - 1]?.pan_sobra || 0
+      );
+      const factorGuardado = calcularFactorAmasado(
+        Number(guardado?.amasado || 0),
+        Number(guardado?.masa_ocupa || 0),
+        Number(guardado?.masa_queda || 0)
+      );
+
       return {
         quintal: Number(guardado?.quintal || 0),
         amasado: Number(guardado?.amasado || 0),
@@ -2677,17 +2762,16 @@ export default function AdminPlanillasPage() {
         cacho: Number(guardado?.cacho || 0),
         centeno: Number(guardado?.centeno || 0),
         meson: Number(guardado?.meson || 0),
-        kilos: Number(guardado?.kilos || 0),
-        rinde: Number(guardado?.rinde || 0),
+        kilos: kilosGuardados,
+        rinde:
+          factorGuardado > 0
+            ? Number((kilosGuardados / factorGuardado).toFixed(2))
+            : Number(guardado?.rinde || 0),
         reparto: Number(guardado?.reparto || 0),
         repartos: guardado?.repartos || {},
         otroskg: Number(guardado?.otroskg || 0),
         insumos: guardado?.insumos || {},
-        factor: calcularFactorAmasado(
-          Number(guardado?.amasado || 0),
-          Number(guardado?.masa_ocupa || 0),
-          Number(guardado?.masa_queda || 0)
-        ),
+        factor: factorGuardado,
       };
     }
 
