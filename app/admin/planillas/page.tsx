@@ -1081,6 +1081,94 @@ export default function AdminPlanillasPage() {
     };
   }
 
+  function borradorTurnoConCambio(
+    campo: CampoGrilla,
+    valor: number,
+    insumoId?: string,
+    repartoId?: string
+  ): BorradorTurno {
+    const turnoBorrador = { ...turno };
+    let quintalBorrador = quintal;
+    let panaderosBorrador = panaderos;
+    let repartosBorrador = repartos.map((item) => ({ ...item }));
+    let productosTurnoBorrador = productosTurno.map((item) => ({ ...item }));
+    let insumosBorrador = insumos.map((item) => ({ ...item }));
+
+    if (campo === 'insumo') {
+      insumosBorrador = insumosBorrador.map((item) =>
+        item.id === insumoId ? { ...item, cantidad: valor } : item
+      );
+      quintalBorrador = insumosBorrador.reduce(
+        (total, item) => total + Number(item.cantidad || 0),
+        0
+      );
+    }
+
+    if (campo === 'reparto') {
+      repartosBorrador = repartosBorrador.map((item) =>
+        item.id === repartoId ? { ...item, kilos: valor } : item
+      );
+    }
+
+    if (campo === 'quintal') quintalBorrador = valor;
+    if (campo === 'panaderos') panaderosBorrador = valor;
+    if (campo === 'amasado') turnoBorrador.amasado = valor;
+    if (campo === 'masaQueda') turnoBorrador.masaQueda = valor;
+    if (campo === 'masaOcupa') turnoBorrador.masaOcupa = valor;
+    if (campo === 'panRacion') turnoBorrador.panRacion = valor;
+    if (campo === 'cacho') turnoBorrador.cacho = valor;
+    if (campo === 'centeno') turnoBorrador.centeno = valor;
+    if (campo === 'meson') turnoBorrador.meson = valor;
+    if (campo === 'merma') turnoBorrador.merma = valor;
+    if (campo === 'panSobrante') turnoBorrador.panSobrante = valor;
+
+    if (campo === 'repartos') {
+      const base = repartosBorrador.length > 0 ? repartosBorrador : repartosBase();
+      const indiceDestino = Math.max(0, base.findIndex((item) => item.kilos > 0));
+      repartosBorrador = base.map((item, indice) => ({
+        ...item,
+        kilos: indice === indiceDestino ? valor : 0,
+      }));
+    }
+
+    if (campo === 'productos') {
+      const base =
+        productosTurnoBorrador.length > 0
+          ? productosTurnoBorrador
+          : productosTurnoBase();
+      const indiceDestino = Math.max(0, base.findIndex((item) => item.kilos > 0));
+      productosTurnoBorrador = base.map((item, indice) => ({
+        ...item,
+        kilos: indice === indiceDestino ? valor : 0,
+      }));
+    }
+
+    return {
+      responsable,
+      quintal: quintalBorrador,
+      panaderos: panaderosBorrador,
+      observaciones,
+      turno: turnoBorrador,
+      panSobranteAnterior,
+      repartos: repartosBorrador,
+      productosTurno: productosTurnoBorrador,
+      insumos: insumosBorrador,
+    };
+  }
+
+  function guardarBorradorTurnoConCambio(
+    campo: CampoGrilla,
+    valor: number,
+    insumoId?: string,
+    repartoId?: string
+  ) {
+    if (!turnoSeleccionado) return;
+
+    borradoresTurno.current[
+      claveBorrador(fecha, turnoSeleccionado.orden)
+    ] = borradorTurnoConCambio(campo, valor, insumoId, repartoId);
+  }
+
   function restaurarBorradorTurno(borrador: BorradorTurno) {
     setResponsable(borrador.responsable);
     setQuintal(borrador.quintal);
@@ -1098,21 +1186,25 @@ export default function AdminPlanillasPage() {
     setTurno((actual) => ({ ...actual, [campo]: valor }));
   }
 
-  function seleccionarTurnoPorOrden(orden: number) {
+  function seleccionarTurnoPorOrden(orden: number, guardarActual = true) {
     const turnoConfig = turnosConfigurados.find((item) => item.orden === orden);
     if (!turnoConfig || turnoConfig.id === turnoSeleccionadoId) return;
-    guardarBorradorTurnoActual();
+    if (guardarActual) guardarBorradorTurnoActual();
     setTurnoSeleccionadoId(turnoConfig.id);
   }
 
-  function seleccionarCeldaGrilla(fechaCelda: string, orden?: number) {
+  function seleccionarCeldaGrilla(
+    fechaCelda: string,
+    orden?: number,
+    guardarActual = true
+  ) {
     if (fechaCelda !== fecha) {
-      guardarBorradorTurnoActual();
+      if (guardarActual) guardarBorradorTurnoActual();
       setFecha(fechaCelda);
     }
 
     if (orden) {
-      seleccionarTurnoPorOrden(orden);
+      seleccionarTurnoPorOrden(orden, guardarActual);
     }
   }
 
@@ -1141,16 +1233,23 @@ export default function AdminPlanillasPage() {
 
     event.preventDefault();
     event.stopPropagation();
+    const valorActual = Number(event.currentTarget.value || 0);
     flushSync(() => {
       cambiarCampoGrilla(
         fila.editable!.campo,
-        Number(event.currentTarget.value || 0),
+        valorActual,
         fila.editable!.insumoId,
         fila.editable!.repartoId
       );
     });
+    guardarBorradorTurnoConCambio(
+      fila.editable.campo,
+      valorActual,
+      fila.editable.insumoId,
+      fila.editable.repartoId
+    );
     setFocoGrillaPendiente({ dia, fila: siguienteTurno });
-    seleccionarCeldaGrilla(fechaDiaMes(dia), ordenDestino);
+    seleccionarCeldaGrilla(fechaDiaMes(dia), ordenDestino, false);
   }
 
   function valorEditableGrilla(
@@ -2156,8 +2255,80 @@ export default function AdminPlanillasPage() {
     };
   };
 
+  function resumenMensualVacio(fechaCelda: string): ResumenMensualDia {
+    return {
+      fecha: fechaCelda,
+      planilla: {
+        quintal1: 0,
+        quintal2: 0,
+        centeno: 0,
+        meson: 0,
+        quintal_total: 0,
+        amasado1: 0,
+        amasado2: 0,
+        amasado_total: 0,
+        masa_ocupada: 0,
+        masa_sobrante: 0,
+        kilos_producidos: 0,
+        rinde_por_saco: 0,
+        pan_racion: 0,
+        pan_sobra: 0,
+        cacho: 0,
+      },
+      turnos: {},
+      insumos: {},
+      merma: 0,
+    };
+  }
+
+  function datosMensualesBorrador(borrador: BorradorTurno) {
+    const datos = {
+      ...borrador.turno,
+      otroskg: borrador.productosTurno.reduce(
+        (total, producto) => total + Number(producto.kilos || 0),
+        0
+      ),
+      panSobranteAnterior: borrador.panSobranteAnterior,
+      repartos: borrador.repartos.map((reparto) => Number(reparto.kilos || 0)),
+    };
+    const calculoBorrador = calcularTurno(datos);
+
+    return {
+      quintal: borrador.quintal,
+      amasado: borrador.turno.amasado,
+      panaderos: borrador.panaderos,
+      masa_ocupa: borrador.turno.masaOcupa,
+      masa_queda: borrador.turno.masaQueda,
+      pan_racion: borrador.turno.panRacion,
+      pan_sobra: borrador.turno.panSobrante || 0,
+      cacho: borrador.turno.cacho || 0,
+      centeno: borrador.turno.centeno || 0,
+      meson: borrador.turno.meson || 0,
+      kilos: calculoBorrador.kilos,
+      rinde: calculoBorrador.rinde,
+      reparto: borrador.repartos.reduce(
+        (total, reparto) => total + Number(reparto.kilos || 0),
+        0
+      ),
+      repartos: Object.fromEntries(
+        borrador.repartos.map((reparto) => [
+          normalizar(reparto.nombre),
+          Number(reparto.kilos || 0),
+        ])
+      ),
+      otroskg: datos.otroskg,
+      factor: calculoBorrador.factorAmasado,
+    };
+  }
+
   function turnoMensualVivo(item: ResumenMensualDia, orden: number) {
     const guardado = item.turnos[orden];
+    const borrador = borradoresTurno.current[claveBorrador(item.fecha, orden)];
+
+    if (borrador && (item.fecha !== fecha || orden !== turnoSeleccionado?.orden)) {
+      return datosMensualesBorrador(borrador);
+    }
+
     if (item.fecha !== fecha || orden !== turnoSeleccionado?.orden) {
       return {
         quintal: Number(guardado?.quintal || 0),
@@ -2212,6 +2383,13 @@ export default function AdminPlanillasPage() {
         .filter((orden) => orden > 0)
     );
 
+    Object.keys(borradoresTurno.current).forEach((clave) => {
+      const [fechaBorrador, ordenBorrador] = clave.split('::');
+      if (fechaBorrador === item.fecha) {
+        ordenes.add(Number(ordenBorrador));
+      }
+    });
+
     if (item.fecha === fecha && turnoSeleccionado?.orden) {
       ordenes.add(turnoSeleccionado.orden);
     }
@@ -2229,8 +2407,7 @@ export default function AdminPlanillasPage() {
   }
 
   function valorCeldaMensual(fechaCelda: string, fila: FilaMensual) {
-    const item = resumenMensual[fechaCelda];
-    if (!item) return 0;
+    const item = resumenMensual[fechaCelda] || resumenMensualVacio(fechaCelda);
     return fechaCelda === fecha && fila.vivo ? fila.vivo(item) : fila.obtener(item);
   }
 
