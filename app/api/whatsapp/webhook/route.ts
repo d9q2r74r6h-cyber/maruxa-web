@@ -179,7 +179,9 @@ async function enviarMensajeWhatsApp(telefono: string, mensaje: string) {
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const destino = telefono.replace(/\D/g, '');
 
-  if (!token || !phoneNumberId || !destino) return null;
+  if (!token || !phoneNumberId || !destino) {
+    return 'Falta token, phone number id o telefono destino.';
+  }
 
   const respuesta = await fetch(
     `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
@@ -196,6 +198,65 @@ async function enviarMensajeWhatsApp(telefono: string, mensaje: string) {
         text: {
           preview_url: false,
           body: mensaje,
+        },
+      }),
+    }
+  );
+
+  if (respuesta.ok) return null;
+
+  const detalle = await respuesta.text();
+  const errorTexto = detalle || `Meta respondio ${respuesta.status}`;
+  const errorPlantilla = await enviarPlantillaNotificacionWhatsApp(
+    destino,
+    mensaje
+  );
+
+  return errorPlantilla
+    ? `${errorTexto}. Fallback plantilla: ${errorPlantilla}`
+    : null;
+}
+
+async function enviarPlantillaNotificacionWhatsApp(
+  destino: string,
+  mensaje: string
+) {
+  const token = process.env.WHATSAPP_ACCESS_TOKEN;
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const templateName = process.env.WHATSAPP_NOTIFICATION_TEMPLATE_NAME;
+  const languageCode =
+    process.env.WHATSAPP_NOTIFICATION_TEMPLATE_LANGUAGE || 'es_CL';
+
+  if (!token || !phoneNumberId || !templateName) {
+    return 'No hay plantilla de notificacion configurada.';
+  }
+
+  const respuesta = await fetch(
+    `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to: destino,
+        type: 'template',
+        template: {
+          name: templateName,
+          language: { code: languageCode },
+          components: [
+            {
+              type: 'body',
+              parameters: [
+                {
+                  type: 'text',
+                  text: mensaje.slice(0, 900),
+                },
+              ],
+            },
+          ],
         },
       }),
     }
@@ -250,12 +311,19 @@ async function avisarAdministradores(
     'Revisar en https://panaderiamaruxa.cl/admin/whatsapp',
   ].join('\n');
 
-  await Promise.all(
+  const resultados = await Promise.all(
     perfiles.flatMap((perfil: any) => {
-      const tareas: Promise<unknown>[] = [];
+      const tareas: Promise<string | null>[] = [];
 
       if (perfil.notificar_whatsapp && perfil.notificacion_whatsapp) {
-        tareas.push(enviarMensajeWhatsApp(perfil.notificacion_whatsapp, texto));
+        tareas.push(
+          enviarMensajeWhatsApp(perfil.notificacion_whatsapp, texto).then(
+            (error) =>
+              error
+                ? `WhatsApp ${perfil.nombre_visible || perfil.id}: ${error}`
+                : null
+          )
+        );
       }
 
       if (perfil.notificar_email && perfil.notificacion_email && resend) {
@@ -271,13 +339,19 @@ async function avisarAdministradores(
               <p><strong>Detalle:</strong> ${escaparHtml(datos.resumen)}</p>
               <p><a href="https://panaderiamaruxa.cl/admin/whatsapp">Abrir Chat Meta</a></p>
             `,
-          })
+          }).then(({ error }) =>
+            error
+              ? `Email ${perfil.nombre_visible || perfil.id}: ${error.message}`
+              : null
+          )
         );
       }
 
       return tareas;
     })
   );
+
+  return resultados.filter(Boolean) as string[];
 }
 
 export async function GET(request: Request) {
@@ -415,18 +489,36 @@ export async function POST(request: Request) {
       };
 
       if (mensaje.type !== 'order' || !mensaje.order?.product_items?.length) {
-        await admin.from('whatsapp_eventos').insert({
-          ...eventoBase,
-          estado: 'ignorado',
-          observacion: 'El mensaje no corresponde a un carro de compra.',
-        });
+        const { data: eventoMensaje } = await admin
+          .from('whatsapp_eventos')
+          .insert({
+            ...eventoBase,
+            estado: 'ignorado',
+            observacion: 'El mensaje no corresponde a un carro de compra.',
+          })
+          .select('id,observacion')
+          .single();
 
-        await avisarAdministradores(admin, empresaId, {
+        const erroresAviso = await avisarAdministradores(admin, empresaId, {
           telefono: eventoBase.telefono || '',
           nombre: contacto?.profile?.name || `WhatsApp ${mensaje.from || ''}`,
           resumen: resumenMensajeEntrante(mensaje),
           pedidoId: null,
         });
+
+        if (eventoMensaje?.id && erroresAviso.length > 0) {
+          await admin
+            .from('whatsapp_eventos')
+            .update({
+              observacion: [
+                eventoMensaje.observacion,
+                `Aviso administrador no enviado: ${erroresAviso.join(' | ')}`,
+              ]
+                .filter(Boolean)
+                .join('\n'),
+            })
+            .eq('id', eventoMensaje.id);
+        }
 
         continue;
       }
@@ -556,7 +648,7 @@ export async function POST(request: Request) {
           ? await responderPedidoWhatsApp(telefonoCliente, pedido.id)
           : null;
 
-      await admin.from('whatsapp_eventos').insert({
+      const { data: eventoPedido } = await admin.from('whatsapp_eventos').insert({
         ...eventoBase,
         pedido_id: pedido?.id || null,
         estado: errorPedido
@@ -575,15 +667,29 @@ export async function POST(request: Request) {
           (faltantes.length
             ? `Códigos no encontrados: ${faltantes.join(', ')}`
             : null),
-      });
+      }).select('id,observacion').single();
 
       if (pedido && !errorPedido) {
-        await avisarAdministradores(admin, empresaId, {
+        const erroresAviso = await avisarAdministradores(admin, empresaId, {
           telefono: telefonoCliente,
           nombre: contacto?.profile?.name || `WhatsApp ${mensaje.from || ''}`,
           resumen: `Pedido recibido por $${Number(total || 0).toLocaleString('es-CL')}.`,
           pedidoId: pedido.id,
         });
+
+        if (eventoPedido?.id && erroresAviso.length > 0) {
+          await admin
+            .from('whatsapp_eventos')
+            .update({
+              observacion: [
+                eventoPedido.observacion,
+                `Aviso administrador no enviado: ${erroresAviso.join(' | ')}`,
+              ]
+                .filter(Boolean)
+                .join('\n'),
+            })
+            .eq('id', eventoPedido.id);
+        }
       }
     }
   }

@@ -96,7 +96,9 @@ async function enviarMensajeWhatsApp(telefono: string, mensaje: string) {
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const destino = telefono.replace(/\D/g, '');
 
-  if (!token || !phoneNumberId || !destino) return null;
+  if (!token || !phoneNumberId || !destino) {
+    return 'Falta token, phone number id o telefono destino.';
+  }
 
   const respuesta = await fetch(
     `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
@@ -113,6 +115,65 @@ async function enviarMensajeWhatsApp(telefono: string, mensaje: string) {
         text: {
           preview_url: false,
           body: mensaje,
+        },
+      }),
+    }
+  );
+
+  if (respuesta.ok) return null;
+
+  const detalle = await respuesta.text();
+  const errorTexto = detalle || `Meta respondio ${respuesta.status}`;
+  const errorPlantilla = await enviarPlantillaNotificacionWhatsApp(
+    destino,
+    mensaje
+  );
+
+  return errorPlantilla
+    ? `${errorTexto}. Fallback plantilla: ${errorPlantilla}`
+    : null;
+}
+
+async function enviarPlantillaNotificacionWhatsApp(
+  destino: string,
+  mensaje: string
+) {
+  const token = process.env.WHATSAPP_ACCESS_TOKEN;
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const templateName = process.env.WHATSAPP_NOTIFICATION_TEMPLATE_NAME;
+  const languageCode =
+    process.env.WHATSAPP_NOTIFICATION_TEMPLATE_LANGUAGE || 'es_CL';
+
+  if (!token || !phoneNumberId || !templateName) {
+    return 'No hay plantilla de notificacion configurada.';
+  }
+
+  const respuesta = await fetch(
+    `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to: destino,
+        type: 'template',
+        template: {
+          name: templateName,
+          language: { code: languageCode },
+          components: [
+            {
+              type: 'body',
+              parameters: [
+                {
+                  type: 'text',
+                  text: mensaje.slice(0, 900),
+                },
+              ],
+            },
+          ],
         },
       }),
     }
@@ -140,7 +201,7 @@ async function avisarAdministradoresInstagram(
     .eq('notificar_whatsapp', true)
     .not('notificacion_whatsapp', 'is', null);
 
-  if (!perfiles?.length) return;
+  if (!perfiles?.length) return [];
 
   const texto = [
     'Nuevo mensaje Instagram',
@@ -149,11 +210,17 @@ async function avisarAdministradoresInstagram(
     'Revisar en https://panaderiamaruxa.cl/admin/whatsapp',
   ].join('\n');
 
-  await Promise.all(
+  const resultados = await Promise.all(
     perfiles.map((perfil: any) =>
-      enviarMensajeWhatsApp(perfil.notificacion_whatsapp, texto)
+      enviarMensajeWhatsApp(perfil.notificacion_whatsapp, texto).then((error) =>
+        error
+          ? `WhatsApp ${perfil.nombre_visible || perfil.id}: ${error}`
+          : null
+      )
     )
   );
+
+  return resultados.filter(Boolean) as string[];
 }
 
 export async function GET(request: Request) {
@@ -306,25 +373,45 @@ export async function POST(request: Request) {
     const texto = textoEvento(evento);
     const remitente = senderId(evento) || 'Instagram';
 
-    await admin.from('instagram_eventos').insert({
-      empresa_id: empresaId,
-      sender_id: remitente,
-      recipient_id: recipientId(evento),
-      message_id: id,
-      tipo,
-      texto,
-      estado: ['read', 'delivery'].includes(tipo) ? 'informativo' : 'recibido',
-      observacion: payload.object
-        ? `Origen Meta: ${payload.object} (${evento.formato || 'evento'})`
-        : 'Mensaje recibido desde Instagram.',
-      payload,
-    });
+    const observacionEvento = payload.object
+      ? `Origen Meta: ${payload.object} (${evento.formato || 'evento'})`
+      : 'Mensaje recibido desde Instagram.';
+
+    const { data: eventoInsertado } = await admin
+      .from('instagram_eventos')
+      .insert({
+        empresa_id: empresaId,
+        sender_id: remitente,
+        recipient_id: recipientId(evento),
+        message_id: id,
+        tipo,
+        texto,
+        estado: ['read', 'delivery'].includes(tipo) ? 'informativo' : 'recibido',
+        observacion: observacionEvento,
+        payload,
+      })
+      .select('id,observacion')
+      .single();
 
     if (!['read', 'delivery'].includes(tipo)) {
-      await avisarAdministradoresInstagram(admin, empresaId, {
+      const erroresAviso = await avisarAdministradoresInstagram(admin, empresaId, {
         senderId: remitente,
         resumen: texto || `Evento de Instagram: ${tipo}`,
       });
+
+      if (eventoInsertado?.id && erroresAviso.length > 0) {
+        await admin
+          .from('instagram_eventos')
+          .update({
+            observacion: [
+              eventoInsertado.observacion,
+              `Aviso administrador no enviado: ${erroresAviso.join(' | ')}`,
+            ]
+              .filter(Boolean)
+              .join('\n'),
+          })
+          .eq('id', eventoInsertado.id);
+      }
     }
   }
 
