@@ -3063,10 +3063,6 @@ export default function AdminPlanillasPage() {
 
   function valorCeldaMensual(fechaCelda: string, fila: FilaMensual) {
     const item = resumenMensual[fechaCelda] || resumenMensualVacio(fechaCelda);
-    const turnoActualCargado = Boolean(
-      turnoSeleccionado &&
-        turnoCargadoClave === claveBorrador(fecha, turnoSeleccionado.orden)
-    );
     const tieneBorradorFila = fila.editable?.turno
       ? Boolean(
           borradoresEditados.current.has(
@@ -3077,10 +3073,8 @@ export default function AdminPlanillasPage() {
           clave.startsWith(`${fechaCelda}::`) &&
           borradoresEditados.current.has(clave)
         );
-    return fila.vivo &&
-      (tieneBorradorFila || (fechaCelda === fecha && turnoActualCargado))
-      ? fila.vivo(item)
-      : fila.obtener(item);
+
+    return fila.vivo && tieneBorradorFila ? fila.vivo(item) : fila.obtener(item);
   }
 
   const repartosGrilla = repartos.filter(
