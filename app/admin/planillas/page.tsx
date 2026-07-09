@@ -187,6 +187,7 @@ type ResumenMensualDia = {
       reparto: number;
       repartos: Record<string, number>;
       otroskg: number;
+      merma: number;
       insumos: Record<string, number>;
     }
   >;
@@ -692,6 +693,7 @@ export default function AdminPlanillasPage() {
           reparto: Number(item.reparto || 0),
           repartos: {},
           otroskg: Number(item.otroskg || 0),
+          merma: 0,
           insumos: {},
         };
         turnosPorPlanilla.set(planillaId, turnos);
@@ -753,6 +755,15 @@ export default function AdminPlanillasPage() {
           (mermaPorPlanilla.get(planillaId) || 0) + Number(item.merma || 0)
         );
 
+        const ordenTurno = turnoDesdeDetalle(item.nombre_producto);
+        const turnos = turnosPorPlanilla.get(planillaId);
+        const turnoDetalle = turnos?.[ordenTurno];
+
+        if (turnoDetalle && Number(item.merma || 0) > 0) {
+          turnoDetalle.merma =
+            Number(turnoDetalle.merma || 0) + Number(item.merma || 0);
+        }
+
         if (
           item.producto_id ||
           Number(item.kilos_total || 0) <= 0 ||
@@ -761,9 +772,6 @@ export default function AdminPlanillasPage() {
           continue;
         }
 
-        const ordenTurno = turnoDesdeDetalle(item.nombre_producto);
-        const turnos = turnosPorPlanilla.get(planillaId);
-        const turnoDetalle = turnos?.[ordenTurno];
         if (!turnoDetalle) continue;
 
         let nombre = item.nombre_producto
@@ -834,6 +842,7 @@ export default function AdminPlanillasPage() {
           reparto: 0,
           repartos: {},
           otroskg: 0,
+          merma: 0,
           insumos: {},
         });
 
@@ -1459,6 +1468,14 @@ export default function AdminPlanillasPage() {
     }
   }
 
+  function esFilaAccionGrilla(fila: FilaMensual) {
+    return (
+      fila.editable?.campo === 'agregarInsumo' ||
+      fila.editable?.campo === 'productos' ||
+      fila.editable?.campo === 'merma'
+    );
+  }
+
   function moverEnterGrilla(
     event: KeyboardEvent<HTMLInputElement>,
     fila: FilaMensual,
@@ -1473,7 +1490,7 @@ export default function AdminPlanillasPage() {
       (item, indice) =>
         indice > indiceFila &&
         item.editable &&
-        item.editable.campo !== 'productos'
+        !esFilaAccionGrilla(item)
     );
 
     if (siguienteFila === -1) return;
@@ -2716,6 +2733,7 @@ export default function AdminPlanillasPage() {
         ])
       ),
       otroskg: datos.otroskg,
+      merma: borrador.turno.merma || 0,
       insumos: Object.fromEntries(
         borrador.insumos.map((insumo) => [
           normalizar(insumo.nombre),
@@ -2770,6 +2788,7 @@ export default function AdminPlanillasPage() {
         reparto: Number(guardado?.reparto || 0),
         repartos: guardado?.repartos || {},
         otroskg: Number(guardado?.otroskg || 0),
+        merma: Number(guardado?.merma || 0),
         insumos: guardado?.insumos || {},
         factor: factorGuardado,
       };
@@ -2793,6 +2812,7 @@ export default function AdminPlanillasPage() {
         repartos.map((item) => [normalizar(item.nombre), Number(item.kilos || 0)])
       ),
       otroskg: kilosProductosTurno,
+      merma: turno.merma || 0,
       insumos: Object.fromEntries(
         insumos.map((item) => [normalizar(item.nombre), Number(item.cantidad || 0)])
       ),
@@ -3053,8 +3073,8 @@ export default function AdminPlanillasPage() {
     ]),
     { label: '+ Productos rinde 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'otroskg'), vivo: (item) => turnoMensualVivo(item, 1).otroskg, decimales: 2, editable: { turno: 1, campo: 'productos' } },
     { label: '+ Productos rinde 2da', obtener: (item) => valorTurnoMensual(item, 2, 'otroskg'), vivo: (item) => turnoMensualVivo(item, 2).otroskg, decimales: 2, editable: { turno: 2, campo: 'productos' } },
-    { label: '+ Otros 1ra', obtener: (item) => item.merma && item.turnos[1] ? item.merma : 0, vivo: (item) => turnoSeleccionado?.orden === 1 ? turno.merma || 0 : item.merma && item.turnos[1] ? item.merma : 0, decimales: 2, editable: { turno: 1, campo: 'merma' } },
-    { label: '+ Otros 2da', obtener: (item) => item.merma && item.turnos[2] ? item.merma : 0, vivo: (item) => turnoSeleccionado?.orden === 2 ? turno.merma || 0 : item.merma && item.turnos[2] ? item.merma : 0, decimales: 2, editable: { turno: 2, campo: 'merma' } },
+    { label: '+ Otros 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'merma'), vivo: (item) => turnoMensualVivo(item, 1).merma, decimales: 2, editable: { turno: 1, campo: 'merma' } },
+    { label: '+ Otros 2da', obtener: (item) => valorTurnoMensual(item, 2, 'merma'), vivo: (item) => turnoMensualVivo(item, 2).merma, decimales: 2, editable: { turno: 2, campo: 'merma' } },
     { label: 'KPAN 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'pan_sobra'), vivo: (item) => turnoMensualVivo(item, 1).pan_sobra, decimales: 2, editable: { turno: 1, campo: 'panSobrante' } },
     { label: 'KPAN 2da', obtener: (item) => valorTurnoMensual(item, 2, 'pan_sobra', item.planilla.pan_sobra), vivo: (item) => turnoMensualVivo(item, 2).pan_sobra, decimales: 2, editable: { turno: 2, campo: 'panSobrante' } },
   ];
