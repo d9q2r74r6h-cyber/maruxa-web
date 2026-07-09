@@ -1654,10 +1654,15 @@ export default function AdminPlanillasPage() {
 
   function esFilaAccionGrilla(fila: FilaMensual) {
     return (
+      !fila.editable ||
       fila.editable?.campo === 'agregarInsumo' ||
       fila.editable?.campo === 'productos' ||
       fila.editable?.campo === 'merma'
     );
+  }
+
+  function primeraFilaEditableGrilla() {
+    return filasMensuales.findIndex((fila) => !esFilaAccionGrilla(fila));
   }
 
   function moverEnterGrilla(
@@ -3076,8 +3081,6 @@ export default function AdminPlanillasPage() {
         'rinde 1ra',
         'rinde 2da',
         'total panaderos',
-        'total repartos 1ra',
-        'total repartos 2da',
       ].includes(etiqueta)
     ) {
       return 'Calculos';
@@ -3122,6 +3125,14 @@ export default function AdminPlanillasPage() {
     }
 
     if (etiqueta.includes('repartos') || etiqueta.startsWith('rep.')) {
+      return 'Repartos';
+    }
+
+    if (
+      repartosGrilla.some(
+        (reparto) => etiqueta === normalizar(`Total ${reparto.nombre}`)
+      )
+    ) {
       return 'Repartos';
     }
 
@@ -3180,8 +3191,6 @@ export default function AdminPlanillasPage() {
     { label: 'Rinde 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'rinde'), vivo: (item) => turnoMensualVivo(item, 1).rinde, decimales: 2 },
     { label: 'Rinde 2da', obtener: (item) => valorTurnoMensual(item, 2, 'rinde'), vivo: (item) => turnoMensualVivo(item, 2).rinde, decimales: 2 },
     { label: 'Total panaderos', obtener: (item) => valorTurnoMensual(item, 1, 'panaderos') + valorTurnoMensual(item, 2, 'panaderos'), vivo: (item) => totalMensualVivo(item, 'panaderos'), decimales: 0 },
-    { label: 'Total repartos 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'reparto'), vivo: (item) => turnoMensualVivo(item, 1).reparto, decimales: 2 },
-    { label: 'Total repartos 2da', obtener: (item) => valorTurnoMensual(item, 2, 'reparto'), vivo: (item) => turnoMensualVivo(item, 2).reparto, decimales: 2 },
     { label: '1ra', obtener: (item) => valorTurnoMensual(item, 1, 'quintal', item.planilla.quintal1), vivo: (item) => turnoMensualVivo(item, 1).quintal, decimales: 2, editable: { turno: 1, campo: 'quintal' } },
     { label: '2da', obtener: (item) => valorTurnoMensual(item, 2, 'quintal', item.planilla.quintal2), vivo: (item) => turnoMensualVivo(item, 2).quintal, decimales: 2, editable: { turno: 2, campo: 'quintal' } },
     { label: 'Centeno', obtener: (item) => item.planilla.centeno, vivo: (item) => totalMensualVivo(item, 'centeno'), decimales: 2, editable: { campo: 'centeno' } },
@@ -3253,6 +3262,16 @@ export default function AdminPlanillasPage() {
           campo: 'reparto' as CampoGrilla,
           repartoId: reparto.id,
         },
+      },
+      {
+        label: `Total ${reparto.nombre}`,
+        obtener: (item: ResumenMensualDia) =>
+          (item.turnos[1]?.repartos?.[normalizar(reparto.nombre)] || 0) +
+          (item.turnos[2]?.repartos?.[normalizar(reparto.nombre)] || 0),
+        vivo: (item: ResumenMensualDia) =>
+          (turnoMensualVivo(item, 1).repartos[normalizar(reparto.nombre)] || 0) +
+          (turnoMensualVivo(item, 2).repartos[normalizar(reparto.nombre)] || 0),
+        decimales: 2,
       },
     ]),
     { label: '+ Productos rinde 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'otroskg'), vivo: (item) => turnoMensualVivo(item, 1).otroskg, decimales: 2, editable: { turno: 1, campo: 'productos' } },
@@ -3609,16 +3628,28 @@ export default function AdminPlanillasPage() {
                         type="button"
                         title="Editar columna"
                         onClick={() => {
-                          if (fechaColumna !== fecha) {
-                            guardarBorradorTurnoActual();
-                            cargaTurnoId.current += 1;
-                            setTurnoCargadoClave('');
-                            setCeldaEditable(null);
-                            limpiarTurno();
-                            setFecha(fechaColumna);
-                          }
-                          setCeldaEditable(null);
+                          const primeraFila = primeraFilaEditableGrilla();
+                          const filaInicial = filasMensuales[primeraFila];
+                          const diaColumna = Number(fechaColumna.slice(-2));
+
                           setColumnaEditable(fechaColumna);
+                          if (primeraFila === -1 || !filaInicial?.editable) {
+                            setCeldaEditable(null);
+                            return;
+                          }
+
+                          seleccionarCeldaGrilla(
+                            fechaColumna,
+                            filaInicial.editable.turno
+                          );
+                          setCeldaEditable({
+                            dia: diaColumna,
+                            fila: primeraFila,
+                          });
+                          setFocoGrillaPendiente({
+                            dia: diaColumna,
+                            fila: primeraFila,
+                          });
                         }}
                         className={`mx-auto mt-1 grid h-5 w-5 place-items-center rounded-full transition ${
                           columnaEditable === fechaColumna
@@ -3655,9 +3686,12 @@ export default function AdminPlanillasPage() {
                   'Rinde 1ra',
                   'Rinde 2da',
                   'Total panaderos',
-                  'Total repartos 1ra',
-                  'Total repartos 2da',
-                ].includes(fila.label);
+                ].includes(fila.label) ||
+                  repartosGrilla.some(
+                    (reparto) =>
+                      normalizar(fila.label) ===
+                      normalizar(`Total ${reparto.nombre}`)
+                  );
                 const colorFilaBase = filaResumen
                   ? 'bg-[#FFF3DF]'
                   : 'bg-white';
