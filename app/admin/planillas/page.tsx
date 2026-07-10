@@ -740,7 +740,8 @@ export default function AdminPlanillasPage() {
         const { data: insumosData } = await supabase
           .from('planilla_insumos')
           .select('planilla_turno_id,nombre,cantidad')
-          .in('planilla_turno_id', turnoIds);
+          .in('planilla_turno_id', turnoIds)
+          .range(0, 9999);
 
         for (const item of insumosData || []) {
           const turnoId = String(item.planilla_turno_id);
@@ -768,7 +769,8 @@ export default function AdminPlanillasPage() {
       const { data: detallesData } = await supabase
         .from('planilla_detalles')
         .select('planilla_id,producto_id,nombre_producto,kilos_total,merma')
-        .in('planilla_id', ids);
+        .in('planilla_id', ids)
+        .range(0, 9999);
 
       for (const item of detallesData || []) {
         const planillaId = String(item.planilla_id);
