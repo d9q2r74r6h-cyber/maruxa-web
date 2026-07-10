@@ -934,14 +934,32 @@ export default function AdminPlanillasPage() {
         insumos: {},
       });
 
-      if (!tieneTurnos) {
-        if (usaPrimerTurno) {
-          turnosHistoricos[1] = crearTurnoHistorico(1);
+      const completarTurnoHistorico = (orden: number) => {
+        const historico = crearTurnoHistorico(orden);
+        const actual = turnosHistoricos[orden];
+
+        if (!actual) {
+          turnosHistoricos[orden] = historico;
+          return;
         }
 
-        if (usaSegundoTurno) {
-          turnosHistoricos[2] = crearTurnoHistorico(2);
-        }
+        Object.entries(historico).forEach(([campo, valorHistorico]) => {
+          if (
+            typeof valorHistorico === 'number' &&
+            Number(actual[campo as keyof typeof actual] || 0) === 0 &&
+            valorHistorico !== 0
+          ) {
+            (actual as Record<string, unknown>)[campo] = valorHistorico;
+          }
+        });
+      };
+
+      if (usaPrimerTurno) {
+        completarTurnoHistorico(1);
+      }
+
+      if (usaSegundoTurno) {
+        completarTurnoHistorico(2);
       }
 
       detallesPorPlanillaTurno.forEach((detalle) => {
