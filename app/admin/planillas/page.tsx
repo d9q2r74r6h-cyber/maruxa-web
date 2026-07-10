@@ -2502,6 +2502,16 @@ export default function AdminPlanillasPage() {
     planillaId: string,
     observacionActual: string
   ) {
+    const { data: resumenActual, error: errorResumenActual } = await supabase
+      .from('planillas')
+      .select(
+        'turno,responsable,quintal1,quintal2,centeno,meson,quintal_total,amasado1,amasado2,amasado_total,masa_ocupada,masa_sobrante,kilos_producidos,rinde_por_saco,pan_racion,pan_sobra,cacho'
+      )
+      .eq('id', planillaId)
+      .maybeSingle();
+
+    if (errorResumenActual) throw errorResumenActual;
+
     let { data, error } = await supabase
       .from('planilla_turnos')
       .select(`
@@ -2574,6 +2584,18 @@ export default function AdminPlanillasPage() {
     });
     const primera = turnos.find((item) => item.turno === 1);
     const segunda = turnos.find((item) => item.turno === 2);
+    const quintal1Resumen = primera
+      ? Number(primera.quintal || 0)
+      : Number(resumenActual?.quintal1 || 0);
+    const quintal2Resumen = segunda
+      ? Number(segunda.quintal || 0)
+      : Number(resumenActual?.quintal2 || 0);
+    const amasado1Resumen = primera
+      ? Number(primera.amasado || 0)
+      : Number(resumenActual?.amasado1 || 0);
+    const amasado2Resumen = segunda
+      ? Number(segunda.amasado || 0)
+      : Number(resumenActual?.amasado2 || 0);
     const kilosTotal = turnos.reduce(
       (total, item) => total + Number(item.kilos || 0),
       0
@@ -2583,65 +2605,89 @@ export default function AdminPlanillasPage() {
       return total + (rinde > 0 ? Number(item.kilos || 0) / rinde : 0);
     }, 0);
     const rindeTotal = factorTotal > 0 ? kilosTotal / factorTotal : 0;
+    const textoTurnosActualizado = turnos
+      .map(
+        (item) =>
+          turnosConfigurados.find((config) => config.orden === item.turno)
+            ?.nombre || `Turno ${item.turno}`
+      )
+      .join(', ');
 
     const { error: errorResumen } = await supabase
       .from('planillas')
       .update({
-        turno: turnos
-          .map(
-            (item) =>
-              turnosConfigurados.find((config) => config.orden === item.turno)
-                ?.nombre || `Turno ${item.turno}`
-          )
-          .join(', '),
+        turno: resumenActual?.turno || textoTurnosActualizado,
         responsable: turnos.length === 1 ? responsable.trim() : 'Varios',
-        quintal1: Number(primera?.quintal || 0),
-        quintal2: Number(segunda?.quintal || 0),
+        quintal1: quintal1Resumen,
+        quintal2: quintal2Resumen,
         centeno: turnos.reduce(
           (total, item) => total + Number(item.centeno || 0),
-          0
+          Number(resumenActual?.centeno || 0)
         ),
         meson: turnos.reduce(
           (total, item) => total + Number(item.meson || 0),
-          0
+          Number(resumenActual?.meson || 0)
         ),
-        quintal_total: turnos.reduce(
-          (total, item) =>
-            total +
-            Number(item.quintal || 0) +
-            Number(item.centeno || 0) +
-            Number(item.meson || 0),
-          0
+        quintal_total: Math.max(
+          turnos.reduce(
+            (total, item) =>
+              total +
+              Number(item.quintal || 0) +
+              Number(item.centeno || 0) +
+              Number(item.meson || 0),
+            0
+          ),
+          Number(resumenActual?.quintal_total || 0),
+          quintal1Resumen + quintal2Resumen
         ),
-        masa_ocupada: turnos.reduce(
-          (total, item) => total + Number(item.masa_ocupa || 0),
-          0
+        masa_ocupada: Math.max(
+          turnos.reduce(
+            (total, item) => total + Number(item.masa_ocupa || 0),
+            0
+          ),
+          Number(resumenActual?.masa_ocupada || 0)
         ),
-        masa_sobrante: turnos.reduce(
-          (total, item) => total + Number(item.masa_queda || 0),
-          0
+        masa_sobrante: Math.max(
+          turnos.reduce(
+            (total, item) => total + Number(item.masa_queda || 0),
+            0
+          ),
+          Number(resumenActual?.masa_sobrante || 0)
         ),
-        kilos_producidos: kilosTotal,
+        kilos_producidos: Math.max(kilosTotal, Number(resumenActual?.kilos_producidos || 0)),
         rinde: Number(rindeTotal.toFixed(2)),
         observaciones: observacionActual || null,
-        amasado1: Number(primera?.amasado || 0),
-        amasado2: Number(segunda?.amasado || 0),
-        amasado_total: turnos.reduce(
-          (total, item) => total + Number(item.amasado || 0),
-          0
+        amasado1: amasado1Resumen,
+        amasado2: amasado2Resumen,
+        amasado_total: Math.max(
+          turnos.reduce(
+            (total, item) => total + Number(item.amasado || 0),
+            0
+          ),
+          Number(resumenActual?.amasado_total || 0),
+          amasado1Resumen + amasado2Resumen
         ),
-        pan_racion: turnos.reduce(
-          (total, item) => total + Number(item.pan_racion || 0),
-          0
+        pan_racion: Math.max(
+          turnos.reduce(
+            (total, item) => total + Number(item.pan_racion || 0),
+            0
+          ),
+          Number(resumenActual?.pan_racion || 0)
         ),
         pan_meson: 0,
-        pan_sobra: turnos.reduce(
-          (total, item) => total + Number(item.pan_sobra || 0),
-          0
+        pan_sobra: Math.max(
+          turnos.reduce(
+            (total, item) => total + Number(item.pan_sobra || 0),
+            0
+          ),
+          Number(resumenActual?.pan_sobra || 0)
         ),
-        cacho: turnos.reduce(
-          (total, item) => total + Number(item.cacho || 0),
-          0
+        cacho: Math.max(
+          turnos.reduce(
+            (total, item) => total + Number(item.cacho || 0),
+            0
+          ),
+          Number(resumenActual?.cacho || 0)
         ),
         rinde_por_saco: Number(rindeTotal.toFixed(2)),
       })
