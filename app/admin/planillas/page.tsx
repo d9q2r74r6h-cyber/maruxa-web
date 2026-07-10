@@ -246,10 +246,6 @@ function hoy() {
   return `${anio}-${mes}-${dia}`;
 }
 
-function horaCorta(hora: string | null) {
-  return hora ? hora.slice(0, 5) : '--:--';
-}
-
 function fechaEnPalabras(fecha: string) {
   const [anio, mes, dia] = fecha.split('-').map(Number);
 
@@ -2412,13 +2408,6 @@ export default function AdminPlanillasPage() {
     );
   }
 
-  function cambiarTurnoSeleccionado(turnoId: string) {
-    if (turnoId === turnoSeleccionadoId) return;
-    guardarBorradorTurnoActual();
-    setTurnoCargadoClave('');
-    setTurnoSeleccionadoId(turnoId);
-  }
-
   async function eliminarTurnoIncompleto(
     turnoId: string,
     planillaId: string,
@@ -3610,28 +3599,6 @@ export default function AdminPlanillasPage() {
           </p>
         )}
       </section>
-
-      <div className="flex flex-wrap gap-1 rounded-lg border border-[#4B2818]/15 bg-white p-1">
-        {turnosConfigurados.map((opcion) => (
-          <button
-            key={opcion.id}
-            type="button"
-            onClick={() => cambiarTurnoSeleccionado(opcion.id)}
-            className={`h-10 rounded-md px-5 text-sm font-black transition ${
-              turnoSeleccionadoId === opcion.id
-                ? 'bg-[#2A1710] text-white'
-                : 'text-[#4B2818] hover:bg-[#FFF3DF]'
-            }`}
-          >
-            {opcion.nombre}
-            {(opcion.hora_inicio || opcion.hora_fin) && (
-              <span className="ml-2 text-[11px] opacity-70">
-                {horaCorta(opcion.hora_inicio)} - {horaCorta(opcion.hora_fin)}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
 
       <section className="overflow-hidden rounded-lg border border-[#4B2818]/15 bg-white">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#4B2818]/10 bg-[#FFF3DF] px-4 py-3">
