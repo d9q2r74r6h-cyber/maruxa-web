@@ -3339,7 +3339,6 @@ export default function AdminPlanillasPage() {
     { label: '+ Otros 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'merma'), vivo: (item) => turnoMensualVivo(item, 1).merma, decimales: 2, editable: { turno: 1, campo: 'merma' } },
     { label: '+ Otros 2da', obtener: (item) => valorTurnoMensual(item, 2, 'merma'), vivo: (item) => turnoMensualVivo(item, 2).merma, decimales: 2, editable: { turno: 2, campo: 'merma' } },
     { label: 'KPAN 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'pan_sobra'), vivo: (item) => turnoMensualVivo(item, 1).pan_sobra, decimales: 2, editable: { turno: 1, campo: 'panSobrante' } },
-    { label: 'KPAN 2da', obtener: (item) => valorTurnoMensual(item, 2, 'pan_sobra', item.planilla.pan_sobra), vivo: (item) => turnoMensualVivo(item, 2).pan_sobra, decimales: 2, editable: { turno: 2, campo: 'panSobrante' } },
   ];
 
   const gruposFilasMensuales = filasMensuales.reduce<
