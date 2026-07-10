@@ -246,6 +246,10 @@ function hoy() {
   return `${anio}-${mes}-${dia}`;
 }
 
+function horaCorta(hora: string | null) {
+  return hora ? hora.slice(0, 5) : '--:--';
+}
+
 function fechaEnPalabras(fecha: string) {
   const [anio, mes, dia] = fecha.split('-').map(Number);
 
@@ -2408,6 +2412,13 @@ export default function AdminPlanillasPage() {
     );
   }
 
+  function cambiarTurnoSeleccionado(turnoId: string) {
+    if (turnoId === turnoSeleccionadoId) return;
+    guardarBorradorTurnoActual();
+    setTurnoCargadoClave('');
+    setTurnoSeleccionadoId(turnoId);
+  }
+
   async function eliminarTurnoIncompleto(
     turnoId: string,
     planillaId: string,
@@ -3122,39 +3133,28 @@ export default function AdminPlanillasPage() {
         'kilos',
         'rinde',
         'total amasado',
+        'masa 1ra',
+        'masa 2da',
+        'kilos 1ra',
+        'kilos 2da',
         'total kilos',
+        'rinde 1ra',
+        'rinde 2da',
         'total panaderos',
-      ].includes(etiqueta) ||
-      turnosGrilla.some((turnoItem) => {
-        const sufijo = normalizar(etiquetaTurno(turnoItem.orden));
-        return (
-          etiqueta === `masa ${sufijo}` ||
-          etiqueta === `kilos ${sufijo}` ||
-          etiqueta === `rinde ${sufijo}`
-        );
-      })
+      ].includes(etiqueta)
     ) {
       return 'Calculos';
     }
 
     if (
-      [
-        ...turnosGrilla.map((turnoItem) =>
-          normalizar(etiquetaTurno(turnoItem.orden))
-        ),
-        'centeno',
-        'meson sala venta',
-      ].includes(etiqueta) ||
+      ['1ra', '2da', 'centeno', 'meson sala venta'].includes(etiqueta) ||
       etiqueta === '+ insumos' ||
       insumos.some((item) => {
         const nombre = normalizar(item.nombre);
         return (
           etiqueta === nombre ||
-          turnosGrilla.some(
-            (turnoItem) =>
-              etiqueta ===
-              `${nombre} ${normalizar(etiquetaTurno(turnoItem.orden))}`
-          )
+          etiqueta === `${nombre} 1ra` ||
+          etiqueta === `${nombre} 2da`
         );
       }) ||
       etiqueta === 'quintales vaciados'
@@ -3166,7 +3166,8 @@ export default function AdminPlanillasPage() {
       etiqueta.includes('amasado') ||
       etiqueta.includes('masa queda') ||
       etiqueta.includes('masa ocupada') ||
-      etiqueta.startsWith('masa ')
+      etiqueta === 'masa 1ra' ||
+      etiqueta === 'masa 2da'
     ) {
       return 'Amasado';
     }
@@ -3212,61 +3213,6 @@ export default function AdminPlanillasPage() {
     return turnoGuardado ? Number(turnoGuardado[campo] ?? 0) : fallback;
   }
 
-  function etiquetaTurno(orden: number) {
-    if (orden === 1) return '1ra';
-    if (orden === 2) return '2da';
-    if (orden === 3) return '3ra';
-    return `${orden}ta`;
-  }
-
-  const turnosGrilla =
-    turnosConfigurados.length > 0
-      ? [...turnosConfigurados].sort((a, b) => a.orden - b.orden)
-      : [
-          {
-            id: 'turno-1',
-            nombre: 'Turno 1',
-            orden: 1,
-            hora_inicio: null,
-            hora_fin: null,
-          },
-          {
-            id: 'turno-2',
-            nombre: 'Turno 2',
-            orden: 2,
-            hora_inicio: null,
-            hora_fin: null,
-          },
-        ];
-
-  function fallbackQuintal(item: ResumenMensualDia, orden: number) {
-    if (orden === 1) return item.planilla.quintal1;
-    if (orden === 2) return item.planilla.quintal2;
-    return 0;
-  }
-
-  function fallbackAmasado(item: ResumenMensualDia, orden: number) {
-    if (orden === 1) return item.planilla.amasado1;
-    if (orden === 2) return item.planilla.amasado2;
-    return 0;
-  }
-
-  function fallbackMasaOcupa(item: ResumenMensualDia, orden: number) {
-    return orden === 2 ? item.planilla.masa_ocupada : 0;
-  }
-
-  function fallbackMasaQueda(item: ResumenMensualDia, orden: number) {
-    return orden === 2 ? item.planilla.masa_sobrante : 0;
-  }
-
-  function fallbackPanRacion(item: ResumenMensualDia, orden: number) {
-    return orden === 2 ? item.planilla.pan_racion : 0;
-  }
-
-  function fallbackCacho(item: ResumenMensualDia, orden: number) {
-    return orden === 2 ? item.planilla.cacho : 0;
-  }
-
   const filasMensuales: FilaMensual[] = [
     { label: 'Quintales vaciados', obtener: (item) => item.planilla.quintal_total, vivo: (item) => totalMensualVivo(item, 'quintal') + totalMensualVivo(item, 'centeno') + totalMensualVivo(item, 'meson'), decimales: 2 },
     { label: 'KILOS', obtener: (item) => item.planilla.kilos_detalles || item.planilla.kilos_producidos, vivo: (item) => totalMensualVivo(item, 'kilos'), decimales: 2 },
@@ -3297,103 +3243,102 @@ export default function AdminPlanillasPage() {
       vivo: (item) => totalMensualVivo(item, 'factor'),
       decimales: 2,
     },
-    ...turnosGrilla.map((turnoItem) => ({
-      label: `Masa ${etiquetaTurno(turnoItem.orden)}`,
-      obtener: (item: ResumenMensualDia) =>
-        valorTurnoMensual(item, turnoItem.orden, 'masa_ocupa', fallbackMasaOcupa(item, turnoItem.orden)) -
-        valorTurnoMensual(item, turnoItem.orden, 'masa_queda', fallbackMasaQueda(item, turnoItem.orden)),
-      vivo: (item: ResumenMensualDia) =>
-        turnoMensualVivo(item, turnoItem.orden).masa_ocupa -
-        turnoMensualVivo(item, turnoItem.orden).masa_queda,
-      decimales: 2,
-    })),
-    ...turnosGrilla.map((turnoItem) => ({
-      label: `Kilos ${etiquetaTurno(turnoItem.orden)}`,
-      obtener: (item: ResumenMensualDia) =>
-        valorTurnoMensual(item, turnoItem.orden, 'kilos'),
-      vivo: (item: ResumenMensualDia) =>
-        turnoMensualVivo(item, turnoItem.orden).kilos,
-      decimales: 2,
-    })),
+    { label: 'Masa 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'masa_ocupa') - valorTurnoMensual(item, 1, 'masa_queda'), vivo: (item) => turnoMensualVivo(item, 1).masa_ocupa - turnoMensualVivo(item, 1).masa_queda, decimales: 2 },
+    { label: 'Masa 2da', obtener: (item) => valorTurnoMensual(item, 2, 'masa_ocupa', item.planilla.masa_ocupada) - valorTurnoMensual(item, 2, 'masa_queda', item.planilla.masa_sobrante), vivo: (item) => turnoMensualVivo(item, 2).masa_ocupa - turnoMensualVivo(item, 2).masa_queda, decimales: 2 },
+    { label: 'Kilos 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'kilos'), vivo: (item) => turnoMensualVivo(item, 1).kilos, decimales: 2 },
+    { label: 'Kilos 2da', obtener: (item) => valorTurnoMensual(item, 2, 'kilos'), vivo: (item) => turnoMensualVivo(item, 2).kilos, decimales: 2 },
     { label: 'Total kilos', obtener: (item) => item.planilla.kilos_detalles || item.planilla.kilos_producidos, vivo: (item) => totalMensualVivo(item, 'kilos'), decimales: 2 },
-    ...turnosGrilla.map((turnoItem) => ({
-      label: `Rinde ${etiquetaTurno(turnoItem.orden)}`,
-      obtener: (item: ResumenMensualDia) =>
-        valorTurnoMensual(item, turnoItem.orden, 'rinde'),
-      vivo: (item: ResumenMensualDia) =>
-        turnoMensualVivo(item, turnoItem.orden).rinde,
-      decimales: 2,
-    })),
-    { label: 'Total panaderos', obtener: (item) => turnosGrilla.reduce((total, turnoItem) => total + valorTurnoMensual(item, turnoItem.orden, 'panaderos'), 0), vivo: (item) => totalMensualVivo(item, 'panaderos'), decimales: 0 },
-    ...turnosGrilla.map((turnoItem) => ({
-      label: etiquetaTurno(turnoItem.orden),
-      obtener: (item: ResumenMensualDia) =>
-        valorTurnoMensual(item, turnoItem.orden, 'quintal', fallbackQuintal(item, turnoItem.orden)),
-      vivo: (item: ResumenMensualDia) =>
-        turnoMensualVivo(item, turnoItem.orden).quintal,
-      decimales: 2,
-      editable: { turno: turnoItem.orden, campo: 'quintal' as CampoGrilla },
-    })),
+    { label: 'Rinde 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'rinde'), vivo: (item) => turnoMensualVivo(item, 1).rinde, decimales: 2 },
+    { label: 'Rinde 2da', obtener: (item) => valorTurnoMensual(item, 2, 'rinde'), vivo: (item) => turnoMensualVivo(item, 2).rinde, decimales: 2 },
+    { label: 'Total panaderos', obtener: (item) => valorTurnoMensual(item, 1, 'panaderos') + valorTurnoMensual(item, 2, 'panaderos'), vivo: (item) => totalMensualVivo(item, 'panaderos'), decimales: 0 },
+    { label: '1ra', obtener: (item) => valorTurnoMensual(item, 1, 'quintal', item.planilla.quintal1), vivo: (item) => turnoMensualVivo(item, 1).quintal, decimales: 2, editable: { turno: 1, campo: 'quintal' } },
+    { label: '2da', obtener: (item) => valorTurnoMensual(item, 2, 'quintal', item.planilla.quintal2), vivo: (item) => turnoMensualVivo(item, 2).quintal, decimales: 2, editable: { turno: 2, campo: 'quintal' } },
     { label: 'Centeno', obtener: (item) => item.planilla.centeno, vivo: (item) => totalMensualVivo(item, 'centeno'), decimales: 2, editable: { campo: 'centeno' } },
     { label: '+ Insumos', obtener: () => 0, decimales: 0, editable: { campo: 'agregarInsumo' } },
     { label: 'Meson sala venta', obtener: (item) => item.planilla.meson, vivo: (item) => totalMensualVivo(item, 'meson'), decimales: 2, editable: { campo: 'meson' } },
-    ...insumos.flatMap((insumo) =>
-      turnosGrilla.map((turnoItem) => ({
-        label: `${insumo.nombre} ${etiquetaTurno(turnoItem.orden)}`,
+    ...insumos.flatMap((insumo) => [
+      {
+        label: `${insumo.nombre} 1ra`,
         obtener: (item: ResumenMensualDia) =>
-          item.turnos[turnoItem.orden]?.insumos?.[normalizar(insumo.nombre)] || 0,
+          item.turnos[1]?.insumos?.[normalizar(insumo.nombre)] || 0,
         vivo: (item: ResumenMensualDia) =>
-          turnoMensualVivo(item, turnoItem.orden).insumos[normalizar(insumo.nombre)] || 0,
+          turnoMensualVivo(item, 1).insumos[normalizar(insumo.nombre)] || 0,
         decimales: 2,
         editable: {
-          turno: turnoItem.orden,
+          turno: 1,
           campo: 'insumo' as CampoGrilla,
           insumoId: insumo.id,
         },
-      }))
-    ),
-    ...turnosGrilla.map((turnoItem) => ({ label: `Amasado ${etiquetaTurno(turnoItem.orden)}`, obtener: (item: ResumenMensualDia) => valorTurnoMensual(item, turnoItem.orden, 'amasado', fallbackAmasado(item, turnoItem.orden)), vivo: (item: ResumenMensualDia) => turnoMensualVivo(item, turnoItem.orden).amasado, decimales: 2, editable: { turno: turnoItem.orden, campo: 'amasado' as CampoGrilla } })),
-    ...turnosGrilla.map((turnoItem) => ({ label: `Masa queda ${etiquetaTurno(turnoItem.orden)}`, obtener: (item: ResumenMensualDia) => valorTurnoMensual(item, turnoItem.orden, 'masa_queda', fallbackMasaQueda(item, turnoItem.orden)), vivo: (item: ResumenMensualDia) => turnoMensualVivo(item, turnoItem.orden).masa_queda, decimales: 2, editable: { turno: turnoItem.orden, campo: 'masaQueda' as CampoGrilla } })),
-    ...turnosGrilla.map((turnoItem) => ({ label: `Masa ocupada ${etiquetaTurno(turnoItem.orden)}`, obtener: (item: ResumenMensualDia) => valorTurnoMensual(item, turnoItem.orden, 'masa_ocupa', fallbackMasaOcupa(item, turnoItem.orden)), vivo: (item: ResumenMensualDia) => turnoMensualVivo(item, turnoItem.orden).masa_ocupa, decimales: 2, editable: { turno: turnoItem.orden, campo: 'masaOcupa' as CampoGrilla } })),
-    ...turnosGrilla.map((turnoItem) => ({ label: `Panaderos ${etiquetaTurno(turnoItem.orden)}`, obtener: (item: ResumenMensualDia) => valorTurnoMensual(item, turnoItem.orden, 'panaderos'), vivo: (item: ResumenMensualDia) => turnoMensualVivo(item, turnoItem.orden).panaderos, decimales: 0, editable: { turno: turnoItem.orden, campo: 'panaderos' as CampoGrilla } })),
-    ...turnosGrilla.map((turnoItem) => ({ label: `Raciones ${etiquetaTurno(turnoItem.orden)}`, obtener: (item: ResumenMensualDia) => valorTurnoMensual(item, turnoItem.orden, 'pan_racion', fallbackPanRacion(item, turnoItem.orden)), vivo: (item: ResumenMensualDia) => turnoMensualVivo(item, turnoItem.orden).pan_racion, decimales: 2, editable: { turno: turnoItem.orden, campo: 'panRacion' as CampoGrilla } })),
-    ...turnosGrilla.map((turnoItem) => ({ label: `Cacho ${etiquetaTurno(turnoItem.orden)}`, obtener: (item: ResumenMensualDia) => valorTurnoMensual(item, turnoItem.orden, 'cacho', fallbackCacho(item, turnoItem.orden)), vivo: (item: ResumenMensualDia) => turnoMensualVivo(item, turnoItem.orden).cacho, decimales: 2, editable: { turno: turnoItem.orden, campo: 'cacho' as CampoGrilla } })),
-    ...repartosGrilla.flatMap((reparto) => [
-      ...turnosGrilla.map((turnoItem) => ({
-        label: `Rep. ${reparto.nombre} ${etiquetaTurno(turnoItem.orden)}`,
+      },
+      {
+        label: `${insumo.nombre} 2da`,
         obtener: (item: ResumenMensualDia) =>
-          item.turnos[turnoItem.orden]?.repartos?.[normalizar(reparto.nombre)] || 0,
+          item.turnos[2]?.insumos?.[normalizar(insumo.nombre)] || 0,
         vivo: (item: ResumenMensualDia) =>
-          turnoMensualVivo(item, turnoItem.orden).repartos[normalizar(reparto.nombre)] || 0,
+          turnoMensualVivo(item, 2).insumos[normalizar(insumo.nombre)] || 0,
         decimales: 2,
         editable: {
-          turno: turnoItem.orden,
+          turno: 2,
+          campo: 'insumo' as CampoGrilla,
+          insumoId: insumo.id,
+        },
+      },
+    ]),
+    { label: 'Amasado 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'amasado', item.planilla.amasado1), vivo: (item) => turnoMensualVivo(item, 1).amasado, decimales: 2, editable: { turno: 1, campo: 'amasado' } },
+    { label: 'Amasado 2da', obtener: (item) => valorTurnoMensual(item, 2, 'amasado', item.planilla.amasado2), vivo: (item) => turnoMensualVivo(item, 2).amasado, decimales: 2, editable: { turno: 2, campo: 'amasado' } },
+    { label: 'Masa queda 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'masa_queda'), vivo: (item) => turnoMensualVivo(item, 1).masa_queda, decimales: 2, editable: { turno: 1, campo: 'masaQueda' } },
+    { label: 'Masa ocupada 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'masa_ocupa'), vivo: (item) => turnoMensualVivo(item, 1).masa_ocupa, decimales: 2, editable: { turno: 1, campo: 'masaOcupa' } },
+    { label: 'Masa queda 2da', obtener: (item) => valorTurnoMensual(item, 2, 'masa_queda', item.planilla.masa_sobrante), vivo: (item) => turnoMensualVivo(item, 2).masa_queda, decimales: 2, editable: { turno: 2, campo: 'masaQueda' } },
+    { label: 'Masa ocupada 2da', obtener: (item) => valorTurnoMensual(item, 2, 'masa_ocupa', item.planilla.masa_ocupada), vivo: (item) => turnoMensualVivo(item, 2).masa_ocupa, decimales: 2, editable: { turno: 2, campo: 'masaOcupa' } },
+    { label: 'Panaderos 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'panaderos'), vivo: (item) => turnoMensualVivo(item, 1).panaderos, decimales: 0, editable: { turno: 1, campo: 'panaderos' } },
+    { label: 'Panaderos 2da', obtener: (item) => valorTurnoMensual(item, 2, 'panaderos'), vivo: (item) => turnoMensualVivo(item, 2).panaderos, decimales: 0, editable: { turno: 2, campo: 'panaderos' } },
+    { label: 'Raciones 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'pan_racion'), vivo: (item) => turnoMensualVivo(item, 1).pan_racion, decimales: 2, editable: { turno: 1, campo: 'panRacion' } },
+    { label: 'Raciones 2da', obtener: (item) => valorTurnoMensual(item, 2, 'pan_racion', item.planilla.pan_racion), vivo: (item) => turnoMensualVivo(item, 2).pan_racion, decimales: 2, editable: { turno: 2, campo: 'panRacion' } },
+    { label: 'Cacho 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'cacho'), vivo: (item) => turnoMensualVivo(item, 1).cacho, decimales: 2, editable: { turno: 1, campo: 'cacho' } },
+    { label: 'Cacho 2da', obtener: (item) => valorTurnoMensual(item, 2, 'cacho', item.planilla.cacho), vivo: (item) => turnoMensualVivo(item, 2).cacho, decimales: 2, editable: { turno: 2, campo: 'cacho' } },
+    ...repartosGrilla.flatMap((reparto) => [
+      {
+        label: `Rep. ${reparto.nombre} 1ra`,
+        obtener: (item: ResumenMensualDia) =>
+          item.turnos[1]?.repartos?.[normalizar(reparto.nombre)] || 0,
+        vivo: (item: ResumenMensualDia) =>
+          turnoMensualVivo(item, 1).repartos[normalizar(reparto.nombre)] || 0,
+        decimales: 2,
+        editable: {
+          turno: 1,
           campo: 'reparto' as CampoGrilla,
           repartoId: reparto.id,
         },
-      })),
+      },
+      {
+        label: `Rep. ${reparto.nombre} 2da`,
+        obtener: (item: ResumenMensualDia) =>
+          item.turnos[2]?.repartos?.[normalizar(reparto.nombre)] || 0,
+        vivo: (item: ResumenMensualDia) =>
+          turnoMensualVivo(item, 2).repartos[normalizar(reparto.nombre)] || 0,
+        decimales: 2,
+        editable: {
+          turno: 2,
+          campo: 'reparto' as CampoGrilla,
+          repartoId: reparto.id,
+        },
+      },
       {
         label: `Total ${reparto.nombre}`,
         obtener: (item: ResumenMensualDia) =>
-          turnosGrilla.reduce(
-            (total, turnoItem) =>
-              total +
-              (item.turnos[turnoItem.orden]?.repartos?.[normalizar(reparto.nombre)] || 0),
-            0
-          ),
+          (item.turnos[1]?.repartos?.[normalizar(reparto.nombre)] || 0) +
+          (item.turnos[2]?.repartos?.[normalizar(reparto.nombre)] || 0),
         vivo: (item: ResumenMensualDia) =>
-          turnosGrilla.reduce(
-            (total, turnoItem) =>
-              total +
-              (turnoMensualVivo(item, turnoItem.orden).repartos[normalizar(reparto.nombre)] || 0),
-            0
-          ),
+          (turnoMensualVivo(item, 1).repartos[normalizar(reparto.nombre)] || 0) +
+          (turnoMensualVivo(item, 2).repartos[normalizar(reparto.nombre)] || 0),
         decimales: 2,
       },
     ]),
-    ...turnosGrilla.map((turnoItem) => ({ label: `+ Productos rinde ${etiquetaTurno(turnoItem.orden)}`, obtener: (item: ResumenMensualDia) => valorTurnoMensual(item, turnoItem.orden, 'otroskg'), vivo: (item: ResumenMensualDia) => turnoMensualVivo(item, turnoItem.orden).otroskg, decimales: 2, editable: { turno: turnoItem.orden, campo: 'productos' as CampoGrilla } })),
-    ...turnosGrilla.map((turnoItem) => ({ label: `+ Otros ${etiquetaTurno(turnoItem.orden)}`, obtener: (item: ResumenMensualDia) => valorTurnoMensual(item, turnoItem.orden, 'merma'), vivo: (item: ResumenMensualDia) => turnoMensualVivo(item, turnoItem.orden).merma, decimales: 2, editable: { turno: turnoItem.orden, campo: 'merma' as CampoGrilla } })),
-    ...turnosGrilla.slice(0, -1).map((turnoItem) => ({ label: `KPAN ${etiquetaTurno(turnoItem.orden)}`, obtener: (item: ResumenMensualDia) => valorTurnoMensual(item, turnoItem.orden, 'pan_sobra'), vivo: (item: ResumenMensualDia) => turnoMensualVivo(item, turnoItem.orden).pan_sobra, decimales: 2, editable: { turno: turnoItem.orden, campo: 'panSobrante' as CampoGrilla } })),
+    { label: '+ Productos rinde 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'otroskg'), vivo: (item) => turnoMensualVivo(item, 1).otroskg, decimales: 2, editable: { turno: 1, campo: 'productos' } },
+    { label: '+ Productos rinde 2da', obtener: (item) => valorTurnoMensual(item, 2, 'otroskg'), vivo: (item) => turnoMensualVivo(item, 2).otroskg, decimales: 2, editable: { turno: 2, campo: 'productos' } },
+    { label: '+ Otros 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'merma'), vivo: (item) => turnoMensualVivo(item, 1).merma, decimales: 2, editable: { turno: 1, campo: 'merma' } },
+    { label: '+ Otros 2da', obtener: (item) => valorTurnoMensual(item, 2, 'merma'), vivo: (item) => turnoMensualVivo(item, 2).merma, decimales: 2, editable: { turno: 2, campo: 'merma' } },
+    { label: 'KPAN 1ra', obtener: (item) => valorTurnoMensual(item, 1, 'pan_sobra'), vivo: (item) => turnoMensualVivo(item, 1).pan_sobra, decimales: 2, editable: { turno: 1, campo: 'panSobrante' } },
   ];
 
   const gruposFilasMensuales = filasMensuales.reduce<
@@ -3600,6 +3545,28 @@ export default function AdminPlanillasPage() {
         )}
       </section>
 
+      <div className="flex flex-wrap gap-1 rounded-lg border border-[#4B2818]/15 bg-white p-1">
+        {turnosConfigurados.map((opcion) => (
+          <button
+            key={opcion.id}
+            type="button"
+            onClick={() => cambiarTurnoSeleccionado(opcion.id)}
+            className={`h-10 rounded-md px-5 text-sm font-black transition ${
+              turnoSeleccionadoId === opcion.id
+                ? 'bg-[#2A1710] text-white'
+                : 'text-[#4B2818] hover:bg-[#FFF3DF]'
+            }`}
+          >
+            {opcion.nombre}
+            {(opcion.hora_inicio || opcion.hora_fin) && (
+              <span className="ml-2 text-[11px] opacity-70">
+                {horaCorta(opcion.hora_inicio)} - {horaCorta(opcion.hora_fin)}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
       <section className="overflow-hidden rounded-lg border border-[#4B2818]/15 bg-white">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#4B2818]/10 bg-[#FFF3DF] px-4 py-3">
           <div>
@@ -3765,18 +3732,20 @@ export default function AdminPlanillasPage() {
                 const indiceFilaMensual = filasMensuales.findIndex(
                   (item) => item.label === fila.label
                 );
-                const etiquetaResumen = normalizar(fila.label);
                 const filaResumen = [
                   'Quintales vaciados',
                   'KILOS',
                   'RINDE',
                   'Total amasado',
+                  'Masa 1ra',
+                  'Masa 2da',
+                  'Kilos 1ra',
+                  'Kilos 2da',
                   'Total kilos',
+                  'Rinde 1ra',
+                  'Rinde 2da',
                   'Total panaderos',
                 ].includes(fila.label) ||
-                  etiquetaResumen.startsWith('masa ') ||
-                  etiquetaResumen.startsWith('kilos ') ||
-                  etiquetaResumen.startsWith('rinde ') ||
                   repartosGrilla.some(
                     (reparto) =>
                       normalizar(fila.label) ===
@@ -3817,10 +3786,8 @@ export default function AdminPlanillasPage() {
                     const etiquetaFila = normalizar(fila.label);
                     const esFilaRinde =
                       etiquetaFila === 'rinde' ||
-                      etiquetaFila.startsWith('rinde ');
-                    const colorRindeCelda = esFilaRinde
-                      ? colorCeldaRinde(valorCelda)
-                      : '';
+                      etiquetaFila === 'rinde 1ra' ||
+                      etiquetaFila === 'rinde 2da';
                     const esTurnoActivo =
                       !fila.editable?.turno ||
                       fila.editable.turno === turnoSeleccionado?.orden;
@@ -3837,13 +3804,9 @@ export default function AdminPlanillasPage() {
                       <td
                         key={`${fila.label}-${dia}`}
                         className={`border-b border-r border-[#4B2818]/10 p-0 text-right font-bold text-[#2A1710] ${colorFilaBase} ${
-                          domingo && !colorRindeCelda ? '!bg-amber-50' : ''
-                        } ${
-                          esDiaActivo && !colorRindeCelda
-                            ? '!bg-[#A51F2B]/10'
-                            : ''
-                        } ${
-                          colorRindeCelda
+                          domingo ? '!bg-amber-50' : ''
+                        } ${esDiaActivo ? '!bg-[#A51F2B]/10' : ''} ${
+                          esFilaRinde ? colorCeldaRinde(valorCelda) : ''
                         }`}
                       >
                         {fila.editable?.campo === 'agregarInsumo' ? (
