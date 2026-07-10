@@ -3210,7 +3210,10 @@ export default function AdminPlanillasPage() {
     fallback = 0
   ) {
     const turnoGuardado = item.turnos[orden];
-    return turnoGuardado ? Number(turnoGuardado[campo] ?? 0) : fallback;
+    if (!turnoGuardado) return fallback;
+
+    const valor = Number(turnoGuardado[campo] ?? 0);
+    return valor === 0 && fallback !== 0 ? fallback : valor;
   }
 
   const filasMensuales: FilaMensual[] = [
