@@ -737,11 +737,29 @@ export default function AdminPlanillasPage() {
 
       const turnoIds = Array.from(turnoIdAPlanilla.keys());
       if (turnoIds.length > 0) {
-        const { data: insumosData } = await supabase
-          .from('planilla_insumos')
-          .select('planilla_turno_id,nombre,cantidad')
-          .in('planilla_turno_id', turnoIds)
-          .range(0, 9999);
+        const insumosData: {
+          planilla_turno_id: string | number;
+          nombre: string;
+          cantidad: number | null;
+        }[] = [];
+
+        for (let desde = 0; ; desde += 1000) {
+          const { data: bloqueInsumos, error: errorInsumosMensuales } =
+            await supabase
+              .from('planilla_insumos')
+              .select('planilla_turno_id,nombre,cantidad')
+              .in('planilla_turno_id', turnoIds)
+              .range(desde, desde + 999);
+
+          if (errorInsumosMensuales) {
+            console.error(errorInsumosMensuales);
+            break;
+          }
+
+          if (!bloqueInsumos?.length) break;
+          insumosData.push(...bloqueInsumos);
+          if (bloqueInsumos.length < 1000) break;
+        }
 
         for (const item of insumosData || []) {
           const turnoId = String(item.planilla_turno_id);
@@ -766,11 +784,31 @@ export default function AdminPlanillasPage() {
         }
       }
 
-      const { data: detallesData } = await supabase
-        .from('planilla_detalles')
-        .select('planilla_id,producto_id,nombre_producto,kilos_total,merma')
-        .in('planilla_id', ids)
-        .range(0, 9999);
+      const detallesData: {
+        planilla_id: string | number;
+        producto_id: string | number | null;
+        nombre_producto: string;
+        kilos_total: number | null;
+        merma: number | null;
+      }[] = [];
+
+      for (let desde = 0; ; desde += 1000) {
+        const { data: bloqueDetalles, error: errorDetallesMensuales } =
+          await supabase
+            .from('planilla_detalles')
+            .select('planilla_id,producto_id,nombre_producto,kilos_total,merma')
+            .in('planilla_id', ids)
+            .range(desde, desde + 999);
+
+        if (errorDetallesMensuales) {
+          console.error(errorDetallesMensuales);
+          break;
+        }
+
+        if (!bloqueDetalles?.length) break;
+        detallesData.push(...bloqueDetalles);
+        if (bloqueDetalles.length < 1000) break;
+      }
 
       for (const item of detallesData || []) {
         const planillaId = String(item.planilla_id);
