@@ -3818,6 +3818,9 @@ export default function AdminPlanillasPage() {
                     const esFilaRinde =
                       etiquetaFila === 'rinde' ||
                       etiquetaFila.startsWith('rinde ');
+                    const colorRindeCelda = esFilaRinde
+                      ? colorCeldaRinde(valorCelda)
+                      : '';
                     const esTurnoActivo =
                       !fila.editable?.turno ||
                       fila.editable.turno === turnoSeleccionado?.orden;
@@ -3834,9 +3837,13 @@ export default function AdminPlanillasPage() {
                       <td
                         key={`${fila.label}-${dia}`}
                         className={`border-b border-r border-[#4B2818]/10 p-0 text-right font-bold text-[#2A1710] ${colorFilaBase} ${
-                          domingo ? '!bg-amber-50' : ''
-                        } ${esDiaActivo ? '!bg-[#A51F2B]/10' : ''} ${
-                          esFilaRinde ? colorCeldaRinde(valorCelda) : ''
+                          domingo && !colorRindeCelda ? '!bg-amber-50' : ''
+                        } ${
+                          esDiaActivo && !colorRindeCelda
+                            ? '!bg-[#A51F2B]/10'
+                            : ''
+                        } ${
+                          colorRindeCelda
                         }`}
                       >
                         {fila.editable?.campo === 'agregarInsumo' ? (
