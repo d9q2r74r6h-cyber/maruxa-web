@@ -91,6 +91,7 @@ export function AdminMenu() {
     useState<NotificationPermission | 'no-soportado'>('default');
   const menuRef = useRef<HTMLElement | null>(null);
   const pendientesPreviosRef = useRef<number | null>(null);
+  const ultimoEventoNotificadoRef = useRef<string | null>(null);
 
   useEffect(() => {
     function cerrarSiClickAfuera(event: MouseEvent) {
@@ -148,21 +149,26 @@ export function AdminMenu() {
       );
       const totalPendientes =
         pendientesWhatsapp.length + pendientesInstagram.length;
+      const ultimoWhatsapp = pendientesWhatsapp[0];
+      const ultimoInstagram = pendientesInstagram[0];
+      const ultimoEsInstagram =
+        ultimoInstagram &&
+        (!ultimoWhatsapp ||
+          new Date(ultimoInstagram.created_at).getTime() >
+            new Date(ultimoWhatsapp.created_at).getTime());
+      const ultimoEvento = ultimoEsInstagram ? ultimoInstagram : ultimoWhatsapp;
+      const ultimoEventoClave = ultimoEvento
+        ? `${ultimoEsInstagram ? 'instagram' : 'whatsapp'}-${ultimoEvento.id}`
+        : null;
 
       if (
-        pendientesPreviosRef.current !== null &&
-        totalPendientes > pendientesPreviosRef.current &&
+        ultimoEventoClave &&
+        ultimoEventoNotificadoRef.current &&
+        ultimoEventoClave !== ultimoEventoNotificadoRef.current &&
         typeof window !== 'undefined' &&
         'Notification' in window &&
         Notification.permission === 'granted'
       ) {
-        const ultimoWhatsapp = pendientesWhatsapp[0];
-        const ultimoInstagram = pendientesInstagram[0];
-        const ultimoEsInstagram =
-          ultimoInstagram &&
-          (!ultimoWhatsapp ||
-            new Date(ultimoInstagram.created_at).getTime() >
-              new Date(ultimoWhatsapp.created_at).getTime());
         const origen = ultimoEsInstagram ? 'Instagram' : 'WhatsApp';
         const remitente = ultimoEsInstagram
           ? ultimoInstagram?.sender_id || 'Instagram'
@@ -171,10 +177,13 @@ export function AdminMenu() {
         new Notification('Nuevo mensaje pendiente', {
           body: `${origen}: ${remitente}`,
           icon: '/apple-touch-icon.png',
-          tag: 'maruxa-mensajes-pendientes',
+          tag: `maruxa-mensajes-pendientes-${ultimoEventoClave}`,
         });
       }
 
+      if (ultimoEventoClave) {
+        ultimoEventoNotificadoRef.current = ultimoEventoClave;
+      }
       pendientesPreviosRef.current = totalPendientes;
       setPendientes(totalPendientes);
     }
