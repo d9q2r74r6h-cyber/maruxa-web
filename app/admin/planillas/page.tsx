@@ -1608,7 +1608,11 @@ export default function AdminPlanillasPage() {
     const claveActual = claveBorrador(fecha, turnoSeleccionado.orden);
     if (turnoCargadoClave !== claveActual) return;
 
-    borradoresTurno.current[claveActual] = {
+    borradoresTurno.current[claveActual] = crearBorradorTurnoActual();
+  }
+
+  function crearBorradorTurnoActual(): BorradorTurno {
+    return {
       responsable,
       quintal,
       panaderos,
@@ -1619,6 +1623,27 @@ export default function AdminPlanillasPage() {
       productosTurno: productosTurno.map((item) => ({ ...item })),
       otrosTurno: otrosTurno.map((item) => ({ ...item })),
       insumos: insumos.map((item) => ({ ...item })),
+    };
+  }
+
+  function datosTurnoDesdeBorrador(borrador: BorradorTurno): DatosTurno {
+    const kilosOtros = (borrador.otrosTurno || []).reduce(
+      (total, item) => total + Number(item.kilos || 0),
+      0
+    );
+
+    return {
+      ...borrador.turno,
+      otroskg: borrador.productosTurno.reduce(
+        (total, producto) => total + Number(producto.kilos || 0),
+        0
+      ),
+      merma:
+        (borrador.otrosTurno || []).length > 0
+          ? kilosOtros
+          : borrador.turno.merma,
+      panSobranteAnterior: borrador.panSobranteAnterior,
+      repartos: borrador.repartos.map((reparto) => Number(reparto.kilos || 0)),
     };
   }
 
@@ -2480,7 +2505,8 @@ export default function AdminPlanillasPage() {
   async function eliminarTurnoIncompleto(
     turnoId: string,
     planillaId: string,
-    planillaNueva: boolean
+    planillaNueva: boolean,
+    ordenTurno?: number
   ) {
     await supabase
       .from('planilla_insumos')
@@ -2491,7 +2517,7 @@ export default function AdminPlanillasPage() {
       .from('planilla_detalles')
       .delete()
       .eq('planilla_id', planillaId)
-      .like('nombre_producto', `% [turno:${turnoSeleccionado?.orden}]`);
+      .like('nombre_producto', `% [turno:${ordenTurno || turnoSeleccionado?.orden}]`);
 
     if (planillaNueva) {
       await supabase.from('planillas').delete().eq('id', planillaId);
@@ -2696,6 +2722,202 @@ export default function AdminPlanillasPage() {
     if (errorResumen) throw errorResumen;
   }
 
+  async function guardarDatosTurno(
+    planillaId: string,
+    turnoConfig: TurnoConfig,
+    borrador: BorradorTurno,
+    planillaNueva: boolean
+  ) {
+    const { data: turnoExistente, error: errorTurnoExistente } = await supabase
+      .from('planilla_turnos')
+      .select('id')
+      .eq('planilla_id', planillaId)
+      .eq('turno', turnoConfig.orden)
+      .limit(1)
+      .maybeSingle();
+
+    if (errorTurnoExistente) throw errorTurnoExistente;
+
+    const turnoId = turnoExistente?.id || crypto.randomUUID();
+    const datosBorrador = datosTurnoDesdeBorrador(borrador);
+    const calculoBorrador = calcularTurno(datosBorrador);
+    const totalInsumos = borrador.insumos.reduce(
+      (total, item) => total + Number(item.cantidad || 0),
+      0
+    );
+    const payloadTurno = {
+      planilla_id: planillaId,
+      turno: turnoConfig.orden,
+      responsable: borrador.responsable.trim(),
+      quintal: borrador.quintal,
+      amasado: borrador.turno.amasado,
+      masa_ocupa: borrador.turno.masaOcupa,
+      masa_queda: borrador.turno.masaQueda,
+      pan_racion: borrador.turno.panRacion,
+      pan_meson: 0,
+      pan_sobra: borrador.turno.panSobrante || 0,
+      cacho: borrador.turno.cacho || 0,
+      otroskg: Number(datosBorrador.otroskg || 0),
+      centeno: borrador.turno.centeno || 0,
+      meson: borrador.turno.meson || 0,
+      reparto: borrador.repartos.reduce(
+        (total, item) => total + Number(item.kilos || 0),
+        0
+      ),
+      insumos: totalInsumos,
+      kilos: calculoBorrador.kilos,
+      rinde: calculoBorrador.rinde,
+      ...(panaderosDisponible ? { panaderos: borrador.panaderos } : {}),
+    };
+
+    let { error: errorTurno } = turnoExistente
+      ? await supabase
+          .from('planilla_turnos')
+          .update(payloadTurno)
+          .eq('id', turnoId)
+      : await supabase
+          .from('planilla_turnos')
+          .insert({
+            id: turnoId,
+            ...payloadTurno,
+          });
+
+    if (esErrorColumnaPanaderos(errorTurno)) {
+      setPanaderosDisponible(false);
+      const { panaderos: _panaderos, ...payloadSinPanaderos } =
+        payloadTurno as typeof payloadTurno & { panaderos?: number };
+      const respuesta = turnoExistente
+        ? await supabase
+            .from('planilla_turnos')
+            .update(payloadSinPanaderos)
+            .eq('id', turnoId)
+        : await supabase
+            .from('planilla_turnos')
+            .insert({
+              id: turnoId,
+              ...payloadSinPanaderos,
+            });
+      errorTurno = respuesta.error;
+    }
+
+    if (errorTurno) {
+      if (planillaNueva) {
+        await supabase.from('planillas').delete().eq('id', planillaId);
+      }
+      throw errorTurno;
+    }
+
+    const { error: errorBorrarInsumos } = await supabase
+      .from('planilla_insumos')
+      .delete()
+      .eq('planilla_turno_id', turnoId);
+    if (errorBorrarInsumos) throw errorBorrarInsumos;
+
+    const { error: errorBorrarRepartos } = await supabase
+      .from('planilla_detalles')
+      .delete()
+      .eq('planilla_id', planillaId)
+      .like('nombre_producto', `% [turno:${turnoConfig.orden}]`);
+    if (errorBorrarRepartos) throw errorBorrarRepartos;
+
+    const filasInsumos = borrador.insumos
+      .filter((item) => item.cantidad > 0)
+      .map((item) => ({
+        planilla_turno_id: turnoId,
+        nombre: item.nombre.trim(),
+        cantidad: item.cantidad,
+        unidad: item.unidad.trim(),
+      }));
+
+    if (filasInsumos.length > 0) {
+      const { error: errorInsumos } = await supabase
+        .from('planilla_insumos')
+        .insert(filasInsumos);
+
+      if (errorInsumos) {
+        if (planillaNueva) {
+          await eliminarTurnoIncompleto(
+            turnoId,
+            planillaId,
+            planillaNueva,
+            turnoConfig.orden
+          );
+        }
+        throw errorInsumos;
+      }
+    }
+
+    const filasRepartos = borrador.repartos
+      .filter((item) => item.kilos > 0)
+      .map((item) => ({
+        planilla_id: planillaId,
+        producto_id: null,
+        nombre_producto: `${item.nombre.trim()} - ${turnoConfig.nombre} [turno:${turnoConfig.orden}]`,
+        cantidad: 1,
+        peso_unitario: item.kilos,
+        kilos_total: item.kilos,
+        merma: 0,
+      }));
+
+    borrador.productosTurno
+      .filter((item) => item.kilos > 0)
+      .forEach((item) => {
+        filasRepartos.push({
+          planilla_id: planillaId,
+          producto_id: item.producto_id,
+          nombre_producto: `${item.nombre.trim()} - ${turnoConfig.nombre} [turno:${turnoConfig.orden}]`,
+          cantidad: 1,
+          peso_unitario: item.kilos,
+          kilos_total: item.kilos,
+          merma: 0,
+        });
+      });
+
+    borrador.otrosTurno
+      .filter((item) => item.kilos > 0)
+      .forEach((item) => {
+        filasRepartos.push({
+          planilla_id: planillaId,
+          producto_id: item.producto_id,
+          nombre_producto: `Merma/Otro: ${item.cliente_nombre.trim()} / ${item.producto_nombre.trim()} - ${turnoConfig.nombre} [turno:${turnoConfig.orden}]`,
+          cantidad: 0,
+          peso_unitario: 0,
+          kilos_total: 0,
+          merma: Number(item.kilos || 0),
+        });
+      });
+
+    if (Number(borrador.turno.merma || 0) > 0 && borrador.otrosTurno.length === 0) {
+      filasRepartos.push({
+        planilla_id: planillaId,
+        producto_id: null,
+        nombre_producto: `Merma - ${turnoConfig.nombre} [turno:${turnoConfig.orden}]`,
+        cantidad: 0,
+        peso_unitario: 0,
+        kilos_total: 0,
+        merma: Number(borrador.turno.merma || 0),
+      });
+    }
+
+    if (filasRepartos.length > 0) {
+      const { error: errorRepartos } = await supabase
+        .from('planilla_detalles')
+        .insert(filasRepartos);
+
+      if (errorRepartos) {
+        if (planillaNueva) {
+          await eliminarTurnoIncompleto(
+            turnoId,
+            planillaId,
+            planillaNueva,
+            turnoConfig.orden
+          );
+        }
+        throw errorRepartos;
+      }
+    }
+  }
+
   async function guardarTurno() {
     setMensaje('');
 
@@ -2731,6 +2953,72 @@ export default function AdminPlanillasPage() {
       )
     ) {
       alert('Completa el nombre y la unidad de cada insumo utilizado.');
+      return;
+    }
+
+    const borradoresParaGuardar = new Map<number, BorradorTurno>();
+    Object.entries(borradoresTurno.current).forEach(([clave, borrador]) => {
+      const [fechaBorrador, ordenTexto] = clave.split('::');
+      const ordenBorrador = Number(ordenTexto);
+      if (
+        fechaBorrador === fecha &&
+        Number.isFinite(ordenBorrador) &&
+        borradoresEditados.current.has(clave)
+      ) {
+        borradoresParaGuardar.set(ordenBorrador, borrador);
+      }
+    });
+    borradoresParaGuardar.set(turnoSeleccionado.orden, crearBorradorTurnoActual());
+
+    const turnosParaGuardar = Array.from(borradoresParaGuardar.entries())
+      .map(([orden, borrador]) => ({
+        orden,
+        borrador,
+        config: turnosConfigurados.find((item) => item.orden === orden),
+      }))
+      .filter(
+        (
+          item
+        ): item is {
+          orden: number;
+          borrador: BorradorTurno;
+          config: TurnoConfig;
+        } => Boolean(item.config)
+      )
+      .sort((a, b) => a.orden - b.orden);
+
+    const turnoInvalido = turnosParaGuardar.find(({ borrador }) => {
+      const calculoBorrador = calcularTurno(datosTurnoDesdeBorrador(borrador));
+      return !borrador.responsable.trim() || calculoBorrador.factorAmasado <= 0;
+    });
+    if (turnoInvalido) {
+      alert(
+        `Completa responsable y amasado antes de guardar ${turnoInvalido.config.nombre}.`
+      );
+      return;
+    }
+
+    const repartoInvalido = turnosParaGuardar.find(({ borrador }) =>
+      borrador.repartos.some((item) => item.kilos > 0 && !item.nombre.trim())
+    );
+    if (repartoInvalido) {
+      alert(
+        `Asigna un nombre a cada reparto con kilos en ${repartoInvalido.config.nombre}.`
+      );
+      return;
+    }
+
+    const insumoInvalido = turnosParaGuardar.find(({ borrador }) =>
+      borrador.insumos.some(
+        (item) =>
+          item.cantidad > 0 &&
+          (!item.nombre.trim() || !item.unidad.trim())
+      )
+    );
+    if (insumoInvalido) {
+      alert(
+        `Completa nombre y unidad de cada insumo usado en ${insumoInvalido.config.nombre}.`
+      );
       return;
     }
 
@@ -2774,185 +3062,17 @@ export default function AdminPlanillasPage() {
         planillaNueva = true;
       }
 
-      const { data: turnoExistente, error: errorTurnoExistente } = await supabase
-        .from('planilla_turnos')
-        .select('id')
-        .eq('planilla_id', planillaId)
-        .eq('turno', turnoSeleccionado.orden)
-        .limit(1)
-        .maybeSingle();
-
-      if (errorTurnoExistente) throw errorTurnoExistente;
-
-      const turnoId = turnoExistente?.id || crypto.randomUUID();
-      const totalInsumos = insumos.reduce(
-        (total, item) => total + item.cantidad,
-        0
-      );
-      const payloadTurno = {
-        planilla_id: planillaId,
-        turno: turnoSeleccionado.orden,
-        responsable: responsable.trim(),
-        quintal,
-        amasado: turno.amasado,
-        masa_ocupa: turno.masaOcupa,
-        masa_queda: turno.masaQueda,
-        pan_racion: turno.panRacion,
-        pan_meson: 0,
-        pan_sobra: turno.panSobrante || 0,
-        cacho: turno.cacho || 0,
-        otroskg: kilosProductosTurno,
-        centeno: turno.centeno || 0,
-        meson: turno.meson || 0,
-        reparto: kilosRepartos,
-        insumos: totalInsumos,
-        kilos: calculo.kilos,
-        rinde: calculo.rinde,
-        ...(panaderosDisponible ? { panaderos } : {}),
-      };
-
-      let { error: errorTurno } = turnoExistente
-        ? await supabase
-            .from('planilla_turnos')
-            .update(payloadTurno)
-            .eq('id', turnoId)
-        : await supabase
-            .from('planilla_turnos')
-            .insert({
-              id: turnoId,
-              ...payloadTurno,
-            });
-
-      if (esErrorColumnaPanaderos(errorTurno)) {
-        setPanaderosDisponible(false);
-        const { panaderos: _panaderos, ...payloadSinPanaderos } =
-          payloadTurno as typeof payloadTurno & { panaderos?: number };
-        const respuesta = turnoExistente
-          ? await supabase
-              .from('planilla_turnos')
-              .update(payloadSinPanaderos)
-              .eq('id', turnoId)
-          : await supabase
-              .from('planilla_turnos')
-              .insert({
-                id: turnoId,
-                ...payloadSinPanaderos,
-              });
-        errorTurno = respuesta.error;
-      }
-
-      if (errorTurno) {
-        if (planillaNueva) {
-          await supabase.from('planillas').delete().eq('id', planillaId);
-        }
-        throw errorTurno;
-      }
-
-      const { error: errorBorrarInsumos } = await supabase
-        .from('planilla_insumos')
-        .delete()
-        .eq('planilla_turno_id', turnoId);
-      if (errorBorrarInsumos) throw errorBorrarInsumos;
-
-      const { error: errorBorrarRepartos } = await supabase
-        .from('planilla_detalles')
-        .delete()
-        .eq('planilla_id', planillaId)
-        .like('nombre_producto', `% [turno:${turnoSeleccionado.orden}]`);
-      if (errorBorrarRepartos) throw errorBorrarRepartos;
-
-      const filasInsumos = insumos
-        .filter((item) => item.cantidad > 0)
-        .map((item) => ({
-          planilla_turno_id: turnoId,
-          nombre: item.nombre.trim(),
-          cantidad: item.cantidad,
-          unidad: item.unidad.trim(),
-        }));
-
-      if (filasInsumos.length > 0) {
-        const { error: errorInsumos } = await supabase
-          .from('planilla_insumos')
-          .insert(filasInsumos);
-
-        if (errorInsumos) {
-          if (planillaNueva) {
-            await eliminarTurnoIncompleto(turnoId, planillaId, planillaNueva);
-          }
-          throw errorInsumos;
-        }
-      }
-
-      const filasRepartos = repartos
-        .filter((item) => item.kilos > 0)
-        .map((item) => ({
-          planilla_id: planillaId,
-          producto_id: null,
-          nombre_producto: `${item.nombre.trim()} - ${turnoSeleccionado.nombre} [turno:${turnoSeleccionado.orden}]`,
-          cantidad: 1,
-          peso_unitario: item.kilos,
-          kilos_total: item.kilos,
-          merma: 0,
-        }));
-
-      productosTurno
-        .filter((item) => item.kilos > 0)
-        .forEach((item) => {
-          filasRepartos.push({
-            planilla_id: planillaId,
-            producto_id: item.producto_id,
-            nombre_producto: `${item.nombre.trim()} - ${turnoSeleccionado.nombre} [turno:${turnoSeleccionado.orden}]`,
-            cantidad: 1,
-            peso_unitario: item.kilos,
-            kilos_total: item.kilos,
-            merma: 0,
-          });
-        });
-
-      otrosTurno
-        .filter((item) => item.kilos > 0)
-        .forEach((item) => {
-          filasRepartos.push({
-            planilla_id: planillaId,
-            producto_id: item.producto_id,
-            nombre_producto: `Merma/Otro: ${item.cliente_nombre.trim()} / ${item.producto_nombre.trim()} - ${turnoSeleccionado.nombre} [turno:${turnoSeleccionado.orden}]`,
-            cantidad: 0,
-            peso_unitario: 0,
-            kilos_total: 0,
-            merma: Number(item.kilos || 0),
-          });
-        });
-
-      if (Number(turno.merma || 0) > 0 && otrosTurno.length === 0) {
-        filasRepartos.push({
-          planilla_id: planillaId,
-          producto_id: null,
-          nombre_producto: `Merma - ${turnoSeleccionado.nombre} [turno:${turnoSeleccionado.orden}]`,
-          cantidad: 0,
-          peso_unitario: 0,
-          kilos_total: 0,
-          merma: Number(turno.merma || 0),
-        });
-      }
-
-      if (filasRepartos.length > 0) {
-        const { error: errorRepartos } = await supabase
-          .from('planilla_detalles')
-          .insert(filasRepartos);
-
-        if (errorRepartos) {
-          if (planillaNueva) {
-            await eliminarTurnoIncompleto(turnoId, planillaId, planillaNueva);
-          }
-          throw errorRepartos;
-        }
+      for (const { config, borrador } of turnosParaGuardar) {
+        await guardarDatosTurno(planillaId, config, borrador, planillaNueva);
       }
 
       const observacionConsolidada = [
         planillaExistente?.observaciones,
-        observaciones.trim()
-          ? `${turnoSeleccionado.nombre}: ${observaciones.trim()}`
-          : '',
+        ...turnosParaGuardar.map(({ config, borrador }) =>
+          borrador.observaciones.trim()
+            ? `${config.nombre}: ${borrador.observaciones.trim()}`
+            : ''
+        ),
       ]
         .filter(Boolean)
         .join('\n');
@@ -2961,22 +3081,23 @@ export default function AdminPlanillasPage() {
         await actualizarResumenPlanilla(planillaId, observacionConsolidada);
       } catch (error) {
         if (planillaNueva) {
-          await eliminarTurnoIncompleto(turnoId, planillaId, planillaNueva);
+          await supabase.from('planillas').delete().eq('id', planillaId);
         }
         throw error;
       }
 
       setMensaje(
-        `${turnoSeleccionado.nombre} guardado correctamente.`
+        turnosParaGuardar.length > 1
+          ? 'Turnos guardados correctamente.'
+          : `${turnoSeleccionado.nombre} guardado correctamente.`
       );
       setColumnaEditable('');
       setCeldaEditable(null);
-      delete borradoresTurno.current[
-        claveBorrador(fecha, turnoSeleccionado.orden)
-      ];
-      borradoresEditados.current.delete(
-        claveBorrador(fecha, turnoSeleccionado.orden)
-      );
+      turnosParaGuardar.forEach(({ orden }) => {
+        const clave = claveBorrador(fecha, orden);
+        delete borradoresTurno.current[clave];
+        borradoresEditados.current.delete(clave);
+      });
       await cargarResumenDia(fecha);
       await cargarResumenMensual(fecha);
     } catch (error) {
