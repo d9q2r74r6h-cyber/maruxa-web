@@ -3830,9 +3830,9 @@ export default function AdminPlanillasPage() {
                 })}
               </tr>
             </thead>
-            {gruposFilasMensuales.map((grupo) => (
+            {gruposFilasMensuales.map((grupo, indiceGrupo) => (
               <tbody
-                key={grupo.seccion}
+                key={`${grupo.seccion}-${indiceGrupo}`}
                 className="border-t-4 border-[#A51F2B]"
               >
                 {grupo.filas.map((fila, indice) => {
@@ -3864,7 +3864,7 @@ export default function AdminPlanillasPage() {
 
                 return (
                 <tr
-                  key={fila.label}
+                  key={`${fila.label}-${indiceFilaMensual}-${indice}`}
                   className={colorFilaBase}
                 >
                   {indice === 0 && (
@@ -3909,7 +3909,7 @@ export default function AdminPlanillasPage() {
 
                     return (
                       <td
-                        key={`${fila.label}-${dia}`}
+                        key={`${fila.label}-${indiceFilaMensual}-${dia}`}
                         className={`border-b border-r border-[#4B2818]/10 p-0 text-right font-bold text-[#2A1710] ${colorFilaBase} ${
                           domingo ? '!bg-amber-50' : ''
                         } ${esDiaActivo ? '!bg-[#A51F2B]/10' : ''} ${
