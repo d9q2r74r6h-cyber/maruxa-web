@@ -285,6 +285,21 @@ function nombreMes(fecha: string) {
   }).format(new Date(anio, mes - 1, 1));
 }
 
+const mesesDelAnio = [
+  'Enero',
+  'Febrero',
+  'Marzo',
+  'Abril',
+  'Mayo',
+  'Junio',
+  'Julio',
+  'Agosto',
+  'Septiembre',
+  'Octubre',
+  'Noviembre',
+  'Diciembre',
+];
+
 function letraDiaSemana(fecha: string) {
   const [anio, mes, dia] = fecha.split('-').map(Number);
   const letras = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
@@ -2928,11 +2943,6 @@ export default function AdminPlanillasPage() {
       return;
     }
 
-    if (!responsable.trim()) {
-      alert('Ingresa el responsable del dia.');
-      return;
-    }
-
     if (calculo.factorAmasado <= 0) {
       alert('Ingresa el amasado del turno antes de guardar.');
       return;
@@ -3101,13 +3111,13 @@ export default function AdminPlanillasPage() {
       );
       setColumnaEditable('');
       setCeldaEditable(null);
+      await cargarResumenDia(fecha);
+      await cargarResumenMensual(fecha);
       turnosParaGuardar.forEach(({ orden }) => {
         const clave = claveBorrador(fecha, orden);
         delete borradoresTurno.current[clave];
         borradoresEditados.current.delete(clave);
       });
-      await cargarResumenDia(fecha);
-      await cargarResumenMensual(fecha);
     } catch (error) {
       alert(error instanceof Error ? error.message : 'No se pudo guardar el turno.');
     } finally {
@@ -3123,6 +3133,11 @@ export default function AdminPlanillasPage() {
     ? colorRinde(estadoRindeGeneral)
     : 'border-[#A51F2B]/20 bg-[#A51F2B] text-white';
   const { anio: anioMes, mes: mesSeleccionado, ultimoDia } = rangoMes(fecha);
+  const anioActual = new Date().getFullYear();
+  const aniosDisponibles = Array.from(
+    { length: Math.max(anioActual + 1, anioMes) - 2023 },
+    (_, indice) => Math.max(anioActual + 1, anioMes) - indice
+  );
   const diasMes = Array.from({ length: ultimoDia }, (_, indice) => indice + 1);
   const fechaDiaMes = (dia: number) =>
     `${anioMes}-${String(mesSeleccionado).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
@@ -3656,25 +3671,25 @@ export default function AdminPlanillasPage() {
         </div>
 
         <div className="flex flex-wrap items-end gap-2">
-          <div>
-            <label className="grid gap-1 text-xs font-bold text-[#4B2818]">
-              Mes
-              <input
-                type="month"
-                value={`${anioMes}-${String(mesSeleccionado).padStart(2, '0')}`}
-                onChange={(event) => {
-                  if (event.target.value) {
-                    setFecha(`${event.target.value}-01`);
-                  }
-                  limpiarTurno();
-                }}
-                className="h-10 rounded-md border border-[#4B2818]/20 bg-white px-3 font-bold"
-              />
-            </label>
-            <p className="mt-1 text-xs font-black capitalize text-[#A51F2B]">
-              {nombreMes(fecha)}
-            </p>
-          </div>
+          <label className="grid gap-1 text-xs font-bold text-[#4B2818]">
+            Año
+            <select
+              value={anioMes}
+              onChange={(event) => {
+                setFecha(
+                  `${event.target.value}-${String(mesSeleccionado).padStart(2, '0')}-01`
+                );
+                limpiarTurno();
+              }}
+              className="h-10 rounded-md border border-[#4B2818]/20 bg-white px-3 font-bold"
+            >
+              {aniosDisponibles.map((anio) => (
+                <option key={anio} value={anio}>
+                  {anio}
+                </option>
+              ))}
+            </select>
+          </label>
           <button
             type="button"
             onClick={limpiarTurno}
@@ -3685,6 +3700,34 @@ export default function AdminPlanillasPage() {
           </button>
         </div>
       </header>
+
+      <nav className="flex overflow-x-auto rounded-lg border border-[#4B2818]/15 bg-white p-1">
+        {mesesDelAnio.map((mes, indice) => {
+          const numeroMes = indice + 1;
+          const activo = numeroMes === mesSeleccionado;
+
+          return (
+            <button
+              key={mes}
+              type="button"
+              onClick={() => {
+                guardarBorradorTurnoActual();
+                setFecha(
+                  `${anioMes}-${String(numeroMes).padStart(2, '0')}-01`
+                );
+                limpiarTurno();
+              }}
+              className={`min-w-max flex-1 rounded-md px-3 py-2 text-xs font-black transition ${
+                activo
+                  ? 'bg-[#A51F2B] text-white'
+                  : 'text-[#4B2818] hover:bg-[#FFF3DF]'
+              }`}
+            >
+              {mes}
+            </button>
+          );
+        })}
+      </nav>
 
       {mensaje && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-800">
@@ -3781,28 +3824,6 @@ export default function AdminPlanillasPage() {
         )}
       </section>
 
-      <div className="flex flex-wrap gap-1 rounded-lg border border-[#4B2818]/15 bg-white p-1">
-        {turnosConfigurados.map((opcion) => (
-          <button
-            key={opcion.id}
-            type="button"
-            onClick={() => cambiarTurnoSeleccionado(opcion.id)}
-            className={`h-10 rounded-md px-5 text-sm font-black transition ${
-              turnoSeleccionadoId === opcion.id
-                ? 'bg-[#2A1710] text-white'
-                : 'text-[#4B2818] hover:bg-[#FFF3DF]'
-            }`}
-          >
-            {opcion.nombre}
-            {(opcion.hora_inicio || opcion.hora_fin) && (
-              <span className="ml-2 text-[11px] opacity-70">
-                {horaCorta(opcion.hora_inicio)} - {horaCorta(opcion.hora_fin)}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
       <section className="overflow-hidden rounded-lg border border-[#4B2818]/15 bg-white">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#4B2818]/10 bg-[#FFF3DF] px-4 py-3">
           <div>
@@ -3819,32 +3840,7 @@ export default function AdminPlanillasPage() {
           </span>
         </div>
 
-        <div className="grid gap-3 border-b border-[#4B2818]/10 p-4 lg:grid-cols-[1.5fr_1fr]">
-          <label className="grid gap-1.5 text-xs font-bold text-[#4B2818]">
-            Mayordomo responsable
-            {tablaFuncionariosDisponible ? (
-              <select
-                value={responsable}
-                onChange={(event) => setResponsable(event.target.value)}
-                className="h-10 rounded-md border border-[#4B2818]/20 bg-white px-3 text-sm font-bold outline-none focus:border-[#A51F2B]"
-              >
-                <option value="">Seleccionar mayordomo</option>
-                {mayordomos.map((funcionario) => (
-                  <option key={funcionario.id} value={funcionario.nombre_completo}>
-                    {funcionario.nombre_completo}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                value={responsable}
-                onChange={(event) => setResponsable(event.target.value)}
-                placeholder="Ingreso temporal hasta crear funcionarios"
-                className="h-10 rounded-md border border-amber-300 bg-amber-50 px-3 text-sm font-bold outline-none focus:border-[#A51F2B]"
-              />
-            )}
-          </label>
-
+        <div className="border-b border-[#4B2818]/10 p-4">
           <label className="grid gap-1.5 text-xs font-bold text-[#4B2818]">
             Observaciones
             <input
