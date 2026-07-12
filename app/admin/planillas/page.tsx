@@ -2643,7 +2643,7 @@ export default function AdminPlanillasPage() {
       .from('planillas')
       .update({
         turno: resumenActual?.turno || textoTurnosActualizado,
-        responsable: turnos.length === 1 ? responsable.trim() : 'Varios',
+        responsable: responsable.trim(),
         quintal1: quintal1Resumen,
         quintal2: quintal2Resumen,
         centeno: turnos.reduce(
@@ -2726,7 +2726,8 @@ export default function AdminPlanillasPage() {
     planillaId: string,
     turnoConfig: TurnoConfig,
     borrador: BorradorTurno,
-    planillaNueva: boolean
+    planillaNueva: boolean,
+    responsableDia: string
   ) {
     const { data: turnoExistente, error: errorTurnoExistente } = await supabase
       .from('planilla_turnos')
@@ -2748,7 +2749,7 @@ export default function AdminPlanillasPage() {
     const payloadTurno = {
       planilla_id: planillaId,
       turno: turnoConfig.orden,
-      responsable: borrador.responsable.trim(),
+      responsable: responsableDia,
       quintal: borrador.quintal,
       amasado: borrador.turno.amasado,
       masa_ocupa: borrador.turno.masaOcupa,
@@ -2927,7 +2928,7 @@ export default function AdminPlanillasPage() {
     }
 
     if (!responsable.trim()) {
-      alert('Ingresa el responsable del turno.');
+      alert('Ingresa el responsable del dia.');
       return;
     }
 
@@ -2989,11 +2990,11 @@ export default function AdminPlanillasPage() {
 
     const turnoInvalido = turnosParaGuardar.find(({ borrador }) => {
       const calculoBorrador = calcularTurno(datosTurnoDesdeBorrador(borrador));
-      return !borrador.responsable.trim() || calculoBorrador.factorAmasado <= 0;
+      return calculoBorrador.factorAmasado <= 0;
     });
     if (turnoInvalido) {
       alert(
-        `Completa responsable y amasado antes de guardar ${turnoInvalido.config.nombre}.`
+        `Completa el amasado antes de guardar ${turnoInvalido.config.nombre}.`
       );
       return;
     }
@@ -3063,7 +3064,13 @@ export default function AdminPlanillasPage() {
       }
 
       for (const { config, borrador } of turnosParaGuardar) {
-        await guardarDatosTurno(planillaId, config, borrador, planillaNueva);
+        await guardarDatosTurno(
+          planillaId,
+          config,
+          borrador,
+          planillaNueva,
+          responsable.trim()
+        );
       }
 
       const observacionConsolidada = [
@@ -5085,9 +5092,7 @@ export default function AdminPlanillasPage() {
           ) : (
             <Save className="h-4 w-4" />
           )}
-          {guardando
-            ? 'Guardando turno'
-            : `Guardar ${turnoSeleccionado?.nombre || 'turno'}`}
+          {guardando ? 'Guardando' : 'Guardar'}
         </button>
       </div>
     </div>
