@@ -1599,6 +1599,7 @@ export default function AdminPlanillasPage() {
   function marcarTurnoActualComoCargado() {
     if (!turnoSeleccionado) return;
     const claveActual = claveBorrador(fecha, turnoSeleccionado.orden);
+    cargaTurnoId.current += 1;
     borradoresEditados.current.add(claveActual);
     setTurnoCargadoClave(claveActual);
   }
@@ -1819,7 +1820,6 @@ export default function AdminPlanillasPage() {
       (item, indice) =>
         indice > indiceFila &&
         item.editable &&
-        item.editable.turno === fila.editable?.turno &&
         !esFilaAccionGrilla(item)
     );
 
@@ -4100,15 +4100,23 @@ export default function AdminPlanillasPage() {
                                 fila.editable.productoTurnoId
                               ) || ''
                             }
-                            onChange={(event) =>
+                            onChange={(event) => {
+                              const valor = Number(event.target.value || 0);
                               cambiarCampoGrilla(
                                 fila.editable!.campo,
-                                Number(event.target.value || 0),
+                                valor,
                                 fila.editable!.insumoId,
                                 fila.editable!.repartoId,
                                 fila.editable!.productoTurnoId
-                              )
-                            }
+                              );
+                              guardarBorradorTurnoConCambio(
+                                fila.editable!.campo,
+                                valor,
+                                fila.editable!.insumoId,
+                                fila.editable!.repartoId,
+                                fila.editable!.productoTurnoId
+                              );
+                            }}
                             onKeyDown={(event) =>
                               moverEnterGrilla(
                                 event,
