@@ -648,7 +648,9 @@ export default function AdminPlanillasPage() {
   const borradoresTurno = useRef<Record<string, BorradorTurno>>({});
   const borradoresEditados = useRef<Set<string>>(new Set());
   const filaRindeMensualRef = useRef<HTMLTableRowElement>(null);
+  const grillaMensualRef = useRef<HTMLDivElement>(null);
   const cargaTurnoId = useRef(0);
+  const [mesResumenCargado, setMesResumenCargado] = useState('');
   const [focoGrillaPendiente, setFocoGrillaPendiente] = useState<{
     dia: number;
     fila: number;
@@ -678,6 +680,7 @@ export default function AdminPlanillasPage() {
 
     if (error) {
       setResumenMensual({});
+      setMesResumenCargado(fechaSeleccionada.slice(0, 7));
       return;
     }
 
@@ -1115,6 +1118,7 @@ export default function AdminPlanillasPage() {
     }
 
     setResumenMensual(mensual);
+    setMesResumenCargado(fechaSeleccionada.slice(0, 7));
   }
 
   async function cargarResumenDia(fechaSeleccionada = fecha) {
@@ -3178,6 +3182,38 @@ export default function AdminPlanillasPage() {
   const fechaDiaMes = (dia: number) =>
     `${anioMes}-${String(mesSeleccionado).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
   const etiquetaDiaMes = (dia: number) => String(dia).padStart(2, '0');
+
+  useEffect(() => {
+    const claveMesActual = `${anioMes}-${String(mesSeleccionado).padStart(2, '0')}`;
+    if (mesResumenCargado !== claveMesActual) return;
+
+    const ultimoDiaIngresado = Object.keys(resumenMensual).reduce(
+      (mayor, fechaConDatos) => {
+        if (!fechaConDatos.startsWith(`${claveMesActual}-`)) return mayor;
+        return Math.max(mayor, Number(fechaConDatos.slice(-2)) || 0);
+      },
+      0
+    );
+    const proximoDia = Math.min(
+      ultimoDia,
+      Math.max(1, ultimoDiaIngresado + 1)
+    );
+
+    window.requestAnimationFrame(() => {
+      const contenedor = grillaMensualRef.current;
+      const columna = contenedor?.querySelector<HTMLElement>(
+        `[data-dia-columna="${proximoDia}"]`
+      );
+      if (!contenedor || !columna) return;
+
+      const anchoColumnasFijas = 118 + 190;
+      contenedor.scrollTo({
+        left: Math.max(0, columna.offsetLeft - anchoColumnasFijas),
+        behavior: 'smooth',
+      });
+    });
+  }, [anioMes, mesSeleccionado, mesResumenCargado, resumenMensual, ultimoDia]);
+
   const valorMes = (
     dia: number,
     fila: FilaMensual,
@@ -3886,7 +3922,7 @@ export default function AdminPlanillasPage() {
           </label>
         </div>
 
-        <div className="overflow-x-auto">
+        <div ref={grillaMensualRef} className="overflow-x-auto">
           <table className="min-w-max border-collapse text-sm">
             <thead>
               <tr>
@@ -3926,6 +3962,7 @@ export default function AdminPlanillasPage() {
                   return (
                     <th
                       key={dia}
+                      data-dia-columna={dia}
                       className={`min-w-[74px] border-b border-r border-[#4B2818]/10 px-2 py-2 text-center text-xs font-black ${
                         domingo
                           ? 'bg-amber-200 text-amber-950'
