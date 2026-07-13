@@ -32,6 +32,7 @@ type Producto = {
   activo: boolean | null;
   controla_stock: boolean | null;
   contabiliza_como_saco: boolean | null;
+  mostrar_en_planilla_rinde: boolean | null;
   familias_productos?: {
     nombre: string;
     mostrar_catalogo: boolean | null;
@@ -73,6 +74,7 @@ const formInicial = {
   activo: true,
   controla_stock: true,
   contabiliza_como_saco: false,
+  mostrar_en_planilla_rinde: false,
 };
 
 function crearSlug(texto: string) {
@@ -363,6 +365,8 @@ export default function AdminProductosPage() {
       activo: producto.activo ?? true,
       controla_stock: producto.controla_stock ?? tipoProducto !== 'mano_obra',
       contabiliza_como_saco: producto.contabiliza_como_saco ?? false,
+      mostrar_en_planilla_rinde:
+        producto.mostrar_en_planilla_rinde ?? false,
     });
 
     window.scrollTo({
@@ -516,6 +520,10 @@ export default function AdminProductosPage() {
       contabiliza_como_saco:
         form.tipo_producto === 'ingrediente'
           ? form.contabiliza_como_saco
+          : false,
+      mostrar_en_planilla_rinde:
+        form.tipo_producto === 'ingrediente'
+          ? form.mostrar_en_planilla_rinde
           : false,
       activo: form.activo,
     };
@@ -1115,10 +1123,32 @@ export default function AdminProductosPage() {
                     setForm({
                       ...form,
                       contabiliza_como_saco: e.target.checked,
+                      mostrar_en_planilla_rinde: e.target.checked
+                        ? false
+                        : form.mostrar_en_planilla_rinde,
                     })
                   }
                 />
-                Harina en 1era franja de control
+                Planilla rinde · 1ra franja (Harinas)
+              </label>
+            )}
+
+            {form.tipo_producto === 'ingrediente' && (
+              <label className="flex items-center gap-3 font-black text-maruxa-chocolate">
+                <input
+                  type="checkbox"
+                  checked={form.mostrar_en_planilla_rinde}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      mostrar_en_planilla_rinde: e.target.checked,
+                      contabiliza_como_saco: e.target.checked
+                        ? false
+                        : form.contabiliza_como_saco,
+                    })
+                  }
+                />
+                Planilla rinde · 2da franja (Insumos)
               </label>
             )}
 

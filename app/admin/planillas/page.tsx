@@ -56,6 +56,7 @@ type InsumoPlanilla = {
   nombre: string;
   unidad: string;
   cantidad: number;
+  franja: 'harinas' | 'insumos';
 };
 
 type ProductoRinde = {
@@ -213,8 +214,7 @@ type CampoGrilla =
   | 'productoTurno'
   | 'merma'
   | 'panSobrante'
-  | 'insumo'
-  | 'agregarInsumo';
+  | 'insumo';
 
 const turnoInicial: DatosTurno = {
   amasado: 0,
@@ -604,6 +604,9 @@ export default function AdminPlanillasPage() {
     Funcionario[]
   >([]);
   const [productosRinde, setProductosRinde] = useState<ProductoRinde[]>([]);
+  const [productosInsumosRinde, setProductosInsumosRinde] = useState<
+    ProductoRinde[]
+  >([]);
   const [productosPanaderia, setProductosPanaderia] = useState<ProductoRinde[]>(
     []
   );
@@ -618,12 +621,10 @@ export default function AdminPlanillasPage() {
   const [productoSeleccionadoId, setProductoSeleccionadoId] = useState('');
   const [otroClienteSeleccionadoId, setOtroClienteSeleccionadoId] = useState('');
   const [otroProductoSeleccionadoId, setOtroProductoSeleccionadoId] = useState('');
-  const [harinaSeleccionadaId, setHarinaSeleccionadaId] = useState('');
   const [columnaEditable, setColumnaEditable] = useState(hoy);
   const [moduloProductosRindeAbierto, setModuloProductosRindeAbierto] =
     useState(false);
   const [moduloOtrosAbierto, setModuloOtrosAbierto] = useState(false);
-  const [moduloInsumosAbierto, setModuloInsumosAbierto] = useState(false);
   const [turnoCargadoClave, setTurnoCargadoClave] = useState('');
   const [tablaFuncionariosDisponible, setTablaFuncionariosDisponible] =
     useState(false);
@@ -1472,25 +1473,48 @@ export default function AdminPlanillasPage() {
 
       const { data: productosData, error: productosError } = await supabase
         .from('productos')
-        .select('id, nombre, unidad_base')
+        .select(
+          'id, nombre, unidad_base, contabiliza_como_saco, mostrar_en_planilla_rinde'
+        )
         .eq('empresa_id', empresa.id)
         .eq('activo', true)
-        .eq('contabiliza_como_saco', true)
+        .eq('tipo_producto', 'ingrediente')
+        .or('contabiliza_como_saco.eq.true,mostrar_en_planilla_rinde.eq.true')
         .order('nombre', { ascending: true });
 
       if (productosError) {
         alert(productosError.message);
       } else {
-        const productos = (productosData || []) as ProductoRinde[];
-        setProductosRinde(productos);
+        const productos = (productosData || []) as (ProductoRinde & {
+          contabiliza_como_saco: boolean | null;
+          mostrar_en_planilla_rinde: boolean | null;
+        })[];
+        const harinas = productos.filter(
+          (producto) => producto.contabiliza_como_saco
+        );
+        const productosInsumos = productos.filter(
+          (producto) => producto.mostrar_en_planilla_rinde
+        );
+        setProductosRinde(harinas);
+        setProductosInsumosRinde(productosInsumos);
         setInsumos(
-          productos.map((producto) => ({
-            id: String(producto.id),
-            producto_id: producto.id,
-            nombre: producto.nombre,
-            unidad: producto.unidad_base || 'kg',
-            cantidad: 0,
-          }))
+          [
+            ...harinas.map((producto) => ({
+              ...producto,
+              franja: 'harinas' as const,
+            })),
+            ...productosInsumos.map((producto) => ({
+              ...producto,
+              franja: 'insumos' as const,
+            })),
+          ].map((producto) => ({
+              id: String(producto.id),
+              producto_id: producto.id,
+              nombre: producto.nombre,
+              unidad: producto.unidad_base || 'kg',
+              cantidad: 0,
+              franja: producto.franja,
+            }))
         );
       }
 
@@ -1812,7 +1836,6 @@ export default function AdminPlanillasPage() {
   function esFilaAccionGrilla(fila: FilaMensual) {
     return (
       !fila.editable ||
-      fila.editable?.campo === 'agregarInsumo' ||
       fila.editable?.campo === 'productos' ||
       fila.editable?.campo === 'merma'
     );
@@ -2018,13 +2041,23 @@ export default function AdminPlanillasPage() {
   }
 
   function insumosBase() {
-    return productosRinde.map((producto) => ({
-      id: String(producto.id),
-      producto_id: producto.id,
-      nombre: producto.nombre,
-      unidad: producto.unidad_base || 'kg',
-      cantidad: 0,
-    }));
+    return [
+      ...productosRinde.map((producto) => ({
+        ...producto,
+        franja: 'harinas' as const,
+      })),
+      ...productosInsumosRinde.map((producto) => ({
+        ...producto,
+        franja: 'insumos' as const,
+      })),
+    ].map((producto) => ({
+        id: String(producto.id),
+        producto_id: producto.id,
+        nombre: producto.nombre,
+        unidad: producto.unidad_base || 'kg',
+        cantidad: 0,
+        franja: producto.franja,
+      }));
   }
 
   function productosTurnoBase() {
@@ -2034,32 +2067,6 @@ export default function AdminPlanillasPage() {
       nombre: producto.nombre,
       kilos: 0,
     }));
-  }
-
-  function agregarHarinaGrilla() {
-    const producto = productosRinde.find(
-      (item) => String(item.id) === harinaSeleccionadaId
-    );
-
-    if (!producto) return;
-
-    setInsumos((actuales) => {
-      if (actuales.some((item) => item.producto_id === producto.id)) {
-        return actuales;
-      }
-
-      return [
-        ...actuales,
-        {
-          id: String(producto.id),
-          producto_id: producto.id,
-          nombre: producto.nombre,
-          unidad: producto.unidad_base || 'kg',
-          cantidad: 0,
-        },
-      ];
-    });
-    setHarinaSeleccionadaId('');
   }
 
   function agregarProductoTurno() {
@@ -2132,11 +2139,6 @@ export default function AdminPlanillasPage() {
     setModuloOtrosAbierto(true);
   }
 
-  function abrirModuloInsumos(fechaCelda: string) {
-    seleccionarCeldaGrilla(fechaCelda);
-    setModuloInsumosAbierto(true);
-  }
-
   function limpiarTurno() {
     setResponsable('');
     setQuintal(0);
@@ -2150,7 +2152,6 @@ export default function AdminPlanillasPage() {
     setProductoSeleccionadoId('');
     setOtroClienteSeleccionadoId('');
     setOtroProductoSeleccionadoId('');
-    setHarinaSeleccionadaId('');
     setInsumos(insumosBase());
     setMensaje('');
   }
@@ -2421,6 +2422,7 @@ export default function AdminPlanillasPage() {
         nombre: item.nombre,
         unidad: item.unidad || 'kg',
         cantidad: Number(item.cantidad || 0),
+        franja: 'insumos' as const,
       }));
 
     const quintalResumen =
@@ -3382,6 +3384,15 @@ export default function AdminPlanillasPage() {
 
   function seccionFilaMensual(label: string) {
     const etiqueta = normalizar(label);
+    const insumoFila = insumos.find((item) => {
+      const nombre = normalizar(item.nombre);
+      return etiqueta === nombre || etiqueta === `${nombre} 1ra` || etiqueta === `${nombre} 2da`;
+    });
+
+    if (insumoFila) {
+      return insumoFila.franja === 'harinas' ? 'Harinas' : 'Insumos';
+    }
+
     if (
       [
         'quintales vaciados',
@@ -3403,18 +3414,9 @@ export default function AdminPlanillasPage() {
 
     if (
       ['1ra', '2da', 'centeno', 'meson sala venta'].includes(etiqueta) ||
-      etiqueta === '+ insumos' ||
-      insumos.some((item) => {
-        const nombre = normalizar(item.nombre);
-        return (
-          etiqueta === nombre ||
-          etiqueta === `${nombre} 1ra` ||
-          etiqueta === `${nombre} 2da`
-        );
-      }) ||
       etiqueta === 'quintales vaciados'
     ) {
-      return 'Insumos';
+      return 'Harinas';
     }
 
     if (
@@ -3512,7 +3514,6 @@ export default function AdminPlanillasPage() {
     { label: '1ra', obtener: (item) => valorTurnoMensual(item, 1, 'quintal', item.planilla.quintal1), vivo: (item) => turnoMensualVivo(item, 1).quintal, decimales: 2, editable: { turno: 1, campo: 'quintal' } },
     { label: '2da', obtener: (item) => valorTurnoMensual(item, 2, 'quintal', item.planilla.quintal2), vivo: (item) => turnoMensualVivo(item, 2).quintal, decimales: 2, editable: { turno: 2, campo: 'quintal' } },
     { label: 'Centeno', obtener: (item) => item.planilla.centeno, vivo: (item) => totalMensualVivo(item, 'centeno'), decimales: 2, editable: { campo: 'centeno' } },
-    { label: '+ Insumos', obtener: () => 0, decimales: 0, editable: { campo: 'agregarInsumo' } },
     { label: 'Meson sala venta', obtener: (item) => item.planilla.meson, vivo: (item) => totalMensualVivo(item, 'meson'), decimales: 2, editable: { campo: 'meson' } },
     ...insumos.flatMap((insumo) => [
       {
@@ -4049,16 +4050,7 @@ export default function AdminPlanillasPage() {
                           esFilaRinde ? colorCeldaRinde(valorCelda) : ''
                         }`}
                       >
-                        {fila.editable?.campo === 'agregarInsumo' ? (
-                          <button
-                            type="button"
-                            onClick={() => abrirModuloInsumos(fechaCelda)}
-                            className="inline-flex h-9 w-[74px] items-center justify-end gap-1 px-2 text-right font-bold transition hover:bg-[#FFF3DF]"
-                            title="Agregar insumos"
-                          >
-                            <Plus className="h-3 w-3 text-[#A51F2B]" />
-                          </button>
-                        ) : fila.editable?.campo === 'productos' ? (
+                        {fila.editable?.campo === 'productos' ? (
                           <button
                             type="button"
                             onClick={() =>
@@ -4163,81 +4155,6 @@ export default function AdminPlanillasPage() {
             ))}
           </table>
         </div>
-
-        {moduloInsumosAbierto && (
-          <div className="border-t border-[#4B2818]/10 bg-[#FFFDF8] p-4">
-            <section className="overflow-hidden rounded-lg border border-[#4B2818]/15 bg-white">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#4B2818]/10 bg-[#FFF3DF] px-4 py-3">
-                <div>
-                  <h2 className="font-black text-[#2A1710]">
-                    Agregar insumos
-                  </h2>
-                  <p className="text-xs font-semibold text-[#4B2818]/60">
-                    Incorpora harinas o insumos a la seccion Insumos de la
-                    grilla mensual.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setModuloInsumosAbierto(false)}
-                  className="rounded-md border border-[#4B2818]/20 px-3 py-2 text-xs font-black text-[#4B2818] transition hover:bg-white"
-                >
-                  Cerrar
-                </button>
-              </div>
-
-              <div className="flex flex-wrap gap-2 border-b border-[#4B2818]/10 px-4 py-3">
-                <select
-                  value={harinaSeleccionadaId}
-                  onChange={(event) =>
-                    setHarinaSeleccionadaId(event.target.value)
-                  }
-                  className="h-9 min-w-0 flex-1 rounded-md border border-[#4B2818]/20 bg-white px-3 text-sm font-bold text-[#2A1710] outline-none focus:border-[#A51F2B] sm:max-w-sm"
-                >
-                  <option value="">Seleccionar insumo</option>
-                  {productosRinde
-                    .filter(
-                      (producto) =>
-                        !insumos.some(
-                          (item) => item.producto_id === producto.id
-                        )
-                    )
-                    .map((producto) => (
-                      <option key={producto.id} value={producto.id}>
-                        {producto.nombre}
-                      </option>
-                    ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={agregarHarinaGrilla}
-                  disabled={!harinaSeleccionadaId}
-                  className="inline-flex h-9 items-center gap-2 rounded-md bg-[#2A1710] px-3 text-xs font-black text-white transition hover:bg-[#A51F2B] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Plus className="h-4 w-4" />
-                  Insumo
-                </button>
-              </div>
-
-              {insumos.length === 0 ? (
-                <p className="px-4 py-5 text-sm font-semibold text-[#4B2818]/55">
-                  Aun no hay insumos adicionales en la grilla.
-                </p>
-              ) : (
-                <div className="grid gap-2 px-4 py-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {insumos.map((insumo) => (
-                    <div
-                      key={insumo.id}
-                      className="rounded-md border border-[#4B2818]/10 bg-[#FFFDF8] px-3 py-2 text-sm font-bold text-[#4B2818]"
-                    >
-                      {insumo.nombre}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          </div>
-        )}
 
         {moduloProductosRindeAbierto && turnoSeleccionado && (
           <div className="border-t border-[#4B2818]/10 bg-[#F6FFF7] p-4">
