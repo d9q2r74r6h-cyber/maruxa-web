@@ -2148,11 +2148,13 @@ export default function AdminPlanillasPage() {
 
   function abrirModuloProductosRinde(fechaCelda: string, orden?: number) {
     seleccionarCeldaGrilla(fechaCelda, orden);
+    setModuloOtrosAbierto(false);
     setModuloProductosRindeAbierto(true);
   }
 
   function abrirModuloOtros(fechaCelda: string, orden?: number) {
     seleccionarCeldaGrilla(fechaCelda, orden);
+    setModuloProductosRindeAbierto(false);
     setModuloOtrosAbierto(true);
   }
 
@@ -2536,6 +2538,14 @@ export default function AdminPlanillasPage() {
     guardarBorradorTurnoActual();
     setTurnoCargadoClave('');
     setTurnoSeleccionadoId(turnoId);
+  }
+
+  function cambiarTurnoDesdeModulo(turnoId: string) {
+    if (turnoId === turnoSeleccionadoId) return;
+    setProductoSeleccionadoId('');
+    setOtroClienteSeleccionadoId('');
+    setOtroProductoSeleccionadoId('');
+    cambiarTurnoSeleccionado(turnoId);
   }
 
   async function eliminarTurnoIncompleto(
@@ -4182,8 +4192,8 @@ export default function AdminPlanillasPage() {
                     Productos producidos para rinde
                   </h2>
                   <p className="text-xs font-semibold text-[#4B2818]/60">
-                    {fecha} - {turnoSeleccionado.nombre}. La grilla mensual solo
-                    muestra el total.
+                    {fecha}. Elige un turno y carga sus productos sin cerrar
+                    este panel.
                   </p>
                 </div>
                 <button
@@ -4193,6 +4203,35 @@ export default function AdminPlanillasPage() {
                 >
                   Cerrar
                 </button>
+              </div>
+
+              <div className="grid gap-2 border-b border-[#4B2818]/10 bg-[#F6FFF7] px-4 py-3 sm:grid-cols-2 lg:grid-cols-3">
+                {turnosConfigurados.map((opcion) => {
+                  const activo = opcion.id === turnoSeleccionadoId;
+                  return (
+                    <button
+                      key={opcion.id}
+                      type="button"
+                      onClick={() => cambiarTurnoDesdeModulo(opcion.id)}
+                      className={`rounded-md border px-3 py-2 text-left transition ${
+                        activo
+                          ? 'border-[#A51F2B] bg-[#A51F2B] text-white shadow-sm'
+                          : 'border-[#4B2818]/15 bg-white text-[#2A1710] hover:border-[#A51F2B]/60 hover:bg-[#FFF3DF]'
+                      }`}
+                    >
+                      <span className="block text-xs font-black uppercase tracking-wide">
+                        {opcion.nombre}
+                      </span>
+                      <span
+                        className={`block text-[11px] font-semibold ${
+                          activo ? 'text-white/80' : 'text-[#4B2818]/55'
+                        }`}
+                      >
+                        {activo ? 'Ingresando ahora' : 'Abrir turno'}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
 
               <div className="flex flex-wrap gap-2 border-b border-[#4B2818]/10 px-4 py-3">
@@ -4300,8 +4339,8 @@ export default function AdminPlanillasPage() {
                     Otros kilos para rinde
                   </h2>
                   <p className="text-xs font-semibold text-[#4B2818]/60">
-                    {fecha} - {turnoSeleccionado.nombre}. Selecciona clientes de
-                    reparto panaderia y productos de familia pan.
+                    {fecha}. Elige un turno y carga clientes de reparto
+                    panaderia sin cerrar este panel.
                   </p>
                 </div>
                 <button
@@ -4311,6 +4350,35 @@ export default function AdminPlanillasPage() {
                 >
                   Cerrar
                 </button>
+              </div>
+
+              <div className="grid gap-2 border-b border-[#4B2818]/10 bg-[#FFFDF8] px-4 py-3 sm:grid-cols-2 lg:grid-cols-3">
+                {turnosConfigurados.map((opcion) => {
+                  const activo = opcion.id === turnoSeleccionadoId;
+                  return (
+                    <button
+                      key={opcion.id}
+                      type="button"
+                      onClick={() => cambiarTurnoDesdeModulo(opcion.id)}
+                      className={`rounded-md border px-3 py-2 text-left transition ${
+                        activo
+                          ? 'border-[#A51F2B] bg-[#A51F2B] text-white shadow-sm'
+                          : 'border-[#4B2818]/15 bg-white text-[#2A1710] hover:border-[#A51F2B]/60 hover:bg-[#FFF3DF]'
+                      }`}
+                    >
+                      <span className="block text-xs font-black uppercase tracking-wide">
+                        {opcion.nombre}
+                      </span>
+                      <span
+                        className={`block text-[11px] font-semibold ${
+                          activo ? 'text-white/80' : 'text-[#4B2818]/55'
+                        }`}
+                      >
+                        {activo ? 'Ingresando ahora' : 'Abrir turno'}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
 
               <div className="grid gap-2 border-b border-[#4B2818]/10 px-4 py-3 lg:grid-cols-[1fr_1fr_auto]">
