@@ -1471,7 +1471,7 @@ export default function AdminPlanillasPage() {
         setTablaFuncionariosDisponible(false);
       }
 
-      const { data: productosData, error: productosError } = await supabase
+      let { data: productosData, error: productosError } = await supabase
         .from('productos')
         .select(
           'id, nombre, unidad_base, contabiliza_como_saco, mostrar_en_planilla_rinde'
@@ -1481,6 +1481,23 @@ export default function AdminPlanillasPage() {
         .eq('tipo_producto', 'ingrediente')
         .or('contabiliza_como_saco.eq.true,mostrar_en_planilla_rinde.eq.true')
         .order('nombre', { ascending: true });
+
+      if (productosError?.code === '42703') {
+        const respuestaCompatible = await supabase
+          .from('productos')
+          .select('id, nombre, unidad_base, contabiliza_como_saco')
+          .eq('empresa_id', empresa.id)
+          .eq('activo', true)
+          .eq('tipo_producto', 'ingrediente')
+          .eq('contabiliza_como_saco', true)
+          .order('nombre', { ascending: true });
+
+        productosData = (respuestaCompatible.data || []).map((producto) => ({
+          ...producto,
+          mostrar_en_planilla_rinde: false,
+        }));
+        productosError = respuestaCompatible.error;
+      }
 
       if (productosError) {
         alert(productosError.message);
