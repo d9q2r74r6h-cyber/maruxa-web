@@ -416,9 +416,9 @@ function colorRinde(estado: string) {
 }
 
 function colorCeldaRinde(valor: number) {
-  if (valor >= 64) return 'bg-emerald-100 text-emerald-900';
-  if (valor >= 63) return 'bg-amber-100 text-amber-900';
-  if (valor > 0) return 'bg-red-100 text-red-900';
+  if (valor >= 64) return '!bg-emerald-300 !text-emerald-950';
+  if (valor >= 63) return '!bg-amber-300 !text-amber-950';
+  if (valor > 0) return '!bg-red-300 !text-red-950';
   return '';
 }
 
@@ -4036,8 +4036,8 @@ export default function AdminPlanillasPage() {
                       <td
                         key={`${fila.label}-${indiceFilaMensual}-${dia}`}
                         className={`border-b border-r border-[#4B2818]/10 p-0 text-right font-bold text-[#2A1710] ${colorFilaBase} ${
-                          domingo ? '!bg-amber-50' : ''
-                        } ${esDiaActivo ? '!bg-[#A51F2B]/10' : ''} ${
+                          domingo && !esFilaRinde ? '!bg-amber-50' : ''
+                        } ${esDiaActivo && !esFilaRinde ? '!bg-[#A51F2B]/10' : ''} ${
                           esFilaRinde ? colorCeldaRinde(valorCelda) : ''
                         }`}
                       >
