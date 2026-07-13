@@ -646,6 +646,7 @@ export default function AdminPlanillasPage() {
   >({});
   const borradoresTurno = useRef<Record<string, BorradorTurno>>({});
   const borradoresEditados = useRef<Set<string>>(new Set());
+  const filaRindeMensualRef = useRef<HTMLTableRowElement>(null);
   const cargaTurnoId = useRef(0);
   const [focoGrillaPendiente, setFocoGrillaPendiente] = useState<{
     dia: number;
@@ -3118,6 +3119,12 @@ export default function AdminPlanillasPage() {
         delete borradoresTurno.current[clave];
         borradoresEditados.current.delete(clave);
       });
+      window.requestAnimationFrame(() => {
+        filaRindeMensualRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      });
     } catch (error) {
       alert(error instanceof Error ? error.message : 'No se pudo guardar el turno.');
     } finally {
@@ -3989,6 +3996,7 @@ export default function AdminPlanillasPage() {
 
                 return (
                 <tr
+                  ref={fila.label === 'RINDE' ? filaRindeMensualRef : undefined}
                   key={`${fila.label}-${indiceFilaMensual}-${indice}`}
                   className={colorFilaBase}
                 >
