@@ -140,13 +140,14 @@ async function enviarPlantillaNotificacionWhatsApp(
 ) {
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const telefonoDestino = destino.replace(/\D/g, '');
   const templateName =
     process.env.WHATSAPP_NOTIFICATION_TEMPLATE_NAME ||
     'aviso_nuevo_mensaje_admin';
   const languageCode =
     process.env.WHATSAPP_NOTIFICATION_TEMPLATE_LANGUAGE || 'es_CL';
 
-  if (!token || !phoneNumberId || !templateName) {
+  if (!token || !phoneNumberId || !telefonoDestino || !templateName) {
     return 'No hay plantilla de notificacion configurada.';
   }
 
@@ -160,7 +161,7 @@ async function enviarPlantillaNotificacionWhatsApp(
       },
       body: JSON.stringify({
         messaging_product: 'whatsapp',
-        to: destino,
+        to: telefonoDestino,
         type: 'template',
         template: {
           name: templateName,
@@ -214,7 +215,10 @@ async function avisarAdministradoresInstagram(
 
   const resultados = await Promise.all(
     perfiles.map((perfil: any) =>
-      enviarMensajeWhatsApp(perfil.notificacion_whatsapp, texto).then((error) =>
+      enviarPlantillaNotificacionWhatsApp(
+        perfil.notificacion_whatsapp,
+        texto
+      ).then((error) =>
         error
           ? `WhatsApp ${perfil.nombre_visible || perfil.id}: ${error}`
           : null
