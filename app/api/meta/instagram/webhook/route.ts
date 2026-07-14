@@ -141,13 +141,24 @@ async function enviarPlantillaNotificacionWhatsApp(
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const telefonoDestino = destino.replace(/\D/g, '');
+  const mensajePlantilla = mensaje
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+    .slice(0, 900);
   const templateName =
     process.env.WHATSAPP_NOTIFICATION_TEMPLATE_NAME ||
     'aviso_nuevo_mensaje_admin';
   const languageCode =
     process.env.WHATSAPP_NOTIFICATION_TEMPLATE_LANGUAGE || 'es_CL';
 
-  if (!token || !phoneNumberId || !telefonoDestino || !templateName) {
+  if (
+    !token ||
+    !phoneNumberId ||
+    !telefonoDestino ||
+    !templateName ||
+    !mensajePlantilla
+  ) {
     return 'No hay plantilla de notificacion configurada.';
   }
 
@@ -172,7 +183,7 @@ async function enviarPlantillaNotificacionWhatsApp(
               parameters: [
                 {
                   type: 'text',
-                  text: mensaje.slice(0, 900),
+                  text: mensajePlantilla,
                 },
               ],
             },
