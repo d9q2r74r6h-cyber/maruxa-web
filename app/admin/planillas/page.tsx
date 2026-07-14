@@ -3198,7 +3198,7 @@ export default function AdminPlanillasPage() {
       ultimoDia,
       Math.max(1, ultimoDiaIngresado + 1)
     );
-    const primerDiaVisible = Math.max(1, proximoDia - 1);
+    const primerDiaVisible = Math.max(1, proximoDia - 3);
 
     window.requestAnimationFrame(() => {
       const contenedor = grillaMensualRef.current;
