@@ -4419,46 +4419,73 @@ export default function AdminPlanillasPage() {
                 })}
               </div>
 
-              <div className="grid gap-2 border-b border-[#4B2818]/10 px-4 py-3 lg:grid-cols-[1fr_1fr_auto]">
-                <select
-                  value={otroClienteSeleccionadoId}
-                  onChange={(event) =>
-                    setOtroClienteSeleccionadoId(event.target.value)
-                  }
-                  className="h-9 min-w-0 rounded-md border border-[#4B2818]/20 bg-white px-3 text-sm font-bold text-[#2A1710] outline-none focus:border-[#A51F2B]"
-                >
-                  <option value="">Cliente panaderia</option>
-                  {clientesPanaderia.map((cliente) => (
-                    <option key={cliente.id} value={cliente.id}>
-                      {cliente.sigla || cliente.razon_social}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={otroProductoSeleccionadoId}
-                  onChange={(event) =>
-                    setOtroProductoSeleccionadoId(event.target.value)
-                  }
-                  className="h-9 min-w-0 rounded-md border border-[#4B2818]/20 bg-white px-3 text-sm font-bold text-[#2A1710] outline-none focus:border-[#A51F2B]"
-                >
-                  <option value="">Producto familia pan</option>
-                  {productosFamiliaPan.map((producto) => (
-                    <option key={producto.id} value={producto.id}>
-                      {producto.nombre}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={agregarOtroTurno}
-                  disabled={
-                    !otroClienteSeleccionadoId || !otroProductoSeleccionadoId
-                  }
-                  className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[#2A1710] px-3 text-xs font-black text-white transition hover:bg-[#A51F2B] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Plus className="h-4 w-4" />
-                  Agregar
-                </button>
+              <div className="border-b border-[#4B2818]/10 px-4 py-3">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <p className="text-xs font-black uppercase tracking-wide text-[#4B2818]">
+                    Clientes del reparto Panadería
+                  </p>
+                  <span className="text-xs font-bold text-[#4B2818]/55">
+                    {clientesPanaderia.length} clientes
+                  </span>
+                </div>
+
+                {clientesPanaderia.length === 0 ? (
+                  <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">
+                    No hay clientes activos relacionados con el reparto Panadería.
+                  </p>
+                ) : (
+                  <div className="grid max-h-56 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {clientesPanaderia.map((cliente) => {
+                      const seleccionado =
+                        cliente.id === otroClienteSeleccionadoId;
+
+                      return (
+                        <button
+                          key={cliente.id}
+                          type="button"
+                          onClick={() =>
+                            setOtroClienteSeleccionadoId(cliente.id)
+                          }
+                          className={`rounded-md border px-3 py-2 text-left text-sm font-bold transition ${
+                            seleccionado
+                              ? 'border-[#A51F2B] bg-[#A51F2B] text-white shadow-sm'
+                              : 'border-[#4B2818]/15 bg-white text-[#2A1710] hover:border-[#A51F2B]/60 hover:bg-[#FFF3DF]'
+                          }`}
+                        >
+                          {cliente.sigla || cliente.razon_social}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="mt-3 grid gap-2 lg:grid-cols-[1fr_auto]">
+                  <select
+                    value={otroProductoSeleccionadoId}
+                    onChange={(event) =>
+                      setOtroProductoSeleccionadoId(event.target.value)
+                    }
+                    className="h-9 min-w-0 rounded-md border border-[#4B2818]/20 bg-white px-3 text-sm font-bold text-[#2A1710] outline-none focus:border-[#A51F2B]"
+                  >
+                    <option value="">Producto familia pan</option>
+                    {productosFamiliaPan.map((producto) => (
+                      <option key={producto.id} value={producto.id}>
+                        {producto.nombre}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={agregarOtroTurno}
+                    disabled={
+                      !otroClienteSeleccionadoId || !otroProductoSeleccionadoId
+                    }
+                    className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[#2A1710] px-3 text-xs font-black text-white transition hover:bg-[#A51F2B] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Agregar
+                  </button>
+                </div>
               </div>
 
               {otrosTurno.length === 0 ? (
