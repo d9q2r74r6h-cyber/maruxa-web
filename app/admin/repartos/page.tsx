@@ -68,6 +68,15 @@ function fechaDia(anio: number, mes: number, dia: number) {
   return `${anio}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
 }
 
+function letraDiaSemana(anio: number, mes: number, dia: number) {
+  const letras = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+  return letras[new Date(anio, mes - 1, dia).getDay()] || '';
+}
+
+function esDomingo(anio: number, mes: number, dia: number) {
+  return new Date(anio, mes - 1, dia).getDay() === 0;
+}
+
 function nombreMes(mes: number) {
   return new Intl.DateTimeFormat('es-CL', { month: 'long' }).format(
     new Date(2026, mes - 1, 1)
@@ -472,15 +481,6 @@ export default function RepartosPage() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={guardarPlanilla}
-          disabled={guardando || cargando}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#A51F2B] px-5 text-sm font-black text-white disabled:opacity-60"
-        >
-          {guardando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          Guardar
-        </button>
       </header>
 
       <nav className="flex overflow-x-auto rounded-lg border border-[#4B2818]/15 bg-white p-1">
@@ -603,26 +603,45 @@ export default function RepartosPage() {
                   <th className="sticky left-36 z-20 w-24 bg-[#2A1710] px-2 py-2 text-right">
                     Precio
                   </th>
-                  {dias.map((dia) => (
-                    <th key={dia} className="border-l border-white/10 px-2 py-2 text-center" colSpan={2}>
-                      {dia}
-                    </th>
-                  ))}
+                  {dias.map((dia) => {
+                    const domingo = esDomingo(anio, mes, dia);
+
+                    return (
+                      <th
+                        key={dia}
+                        className={`border-l px-2 py-1 text-center ${
+                          domingo
+                            ? 'border-amber-500 bg-amber-400 text-amber-950'
+                            : 'border-white/10'
+                        }`}
+                        colSpan={2}
+                      >
+                        <span className="block text-[10px] font-black">
+                          {letraDiaSemana(anio, mes, dia)}
+                        </span>
+                        <span className="block">{dia}</span>
+                      </th>
+                    );
+                  })}
                   <th className="border-l border-white/10 px-2 py-2 text-right">Total</th>
                 </tr>
                 <tr>
                   <th className="sticky left-0 z-20 bg-[#2A1710]" />
                   <th className="sticky left-36 z-20 bg-[#2A1710]" />
-                  {dias.map((dia) => (
+                  {dias.map((dia) => {
+                    const domingo = esDomingo(anio, mes, dia);
+
+                    return (
                     <>
-                      <th key={`${dia}-v`} className="border-l border-white/10 px-2 py-1 text-center">
+                      <th key={`${dia}-v`} className={`border-l px-2 py-1 text-center ${domingo ? 'border-amber-500 bg-amber-400 text-amber-950' : 'border-white/10'}`}>
                         V
                       </th>
-                      <th key={`${dia}-d`} className="px-2 py-1 text-center">
+                      <th key={`${dia}-d`} className={`px-2 py-1 text-center ${domingo ? 'bg-amber-400 text-amber-950' : ''}`}>
                         D
                       </th>
                     </>
-                  ))}
+                    );
+                  })}
                   <th />
                 </tr>
               </thead>
@@ -650,7 +669,7 @@ export default function RepartosPage() {
                       };
                       return (
                         <>
-                          <td key={`${fila.key}-${dia}-v`} className="border-l border-[#4B2818]/10 px-1 py-1">
+                          <td key={`${fila.key}-${dia}-v`} className={`border-l border-[#4B2818]/10 px-1 py-1 ${esDomingo(anio, mes, dia) ? 'bg-amber-100' : ''}`}>
                             <input
                               type="number"
                               data-columna={`${dia}-vendidos`}
@@ -662,7 +681,7 @@ export default function RepartosPage() {
                               className="sin-spinner h-8 w-14 rounded border border-[#4B2818]/15 px-1 text-right font-bold"
                             />
                           </td>
-                          <td key={`${fila.key}-${dia}-d`} className="px-1 py-1">
+                          <td key={`${fila.key}-${dia}-d`} className={`px-1 py-1 ${esDomingo(anio, mes, dia) ? 'bg-amber-100' : ''}`}>
                             <input
                               type="number"
                               data-columna={`${dia}-devueltos`}
@@ -702,10 +721,10 @@ export default function RepartosPage() {
                   <td className="sticky left-36 z-[5] bg-[#FFF3DF]" />
                   {dias.map((dia) => (
                     <>
-                      <td key={`${dia}-tv`} className="border-l border-[#4B2818]/10 px-2 py-2 text-right">
+                      <td key={`${dia}-tv`} className={`border-l border-[#4B2818]/10 px-2 py-2 text-right ${esDomingo(anio, mes, dia) ? 'bg-amber-200' : ''}`}>
                         {totalDia(dia, 'vendidos').toLocaleString('es-CL')}
                       </td>
-                      <td key={`${dia}-td`} className="px-2 py-2 text-right text-red-700">
+                      <td key={`${dia}-td`} className={`px-2 py-2 text-right text-red-700 ${esDomingo(anio, mes, dia) ? 'bg-amber-200' : ''}`}>
                         {totalDia(dia, 'devueltos').toLocaleString('es-CL')}
                       </td>
                     </>
@@ -718,10 +737,10 @@ export default function RepartosPage() {
                   <td className="sticky left-36 z-[5] bg-white" />
                   {dias.map((dia) => (
                     <>
-                      <td key={`${dia}-mv`} className="border-l border-[#4B2818]/10 px-2 py-2 text-right">
+                      <td key={`${dia}-mv`} className={`border-l border-[#4B2818]/10 px-2 py-2 text-right ${esDomingo(anio, mes, dia) ? 'bg-amber-100' : ''}`}>
                         {dinero(totalDia(dia, 'monto'))}
                       </td>
-                      <td key={`${dia}-md`} className="px-2 py-2 text-right text-red-700">
+                      <td key={`${dia}-md`} className={`px-2 py-2 text-right text-red-700 ${esDomingo(anio, mes, dia) ? 'bg-amber-100' : ''}`}>
                         {dinero(totalDia(dia, 'devolucion'))}
                       </td>
                     </>
@@ -734,7 +753,7 @@ export default function RepartosPage() {
                   <td className="sticky left-36 z-[5] bg-emerald-50" />
                   {dias.map((dia) => (
                     <>
-                      <td key={`${dia}-ab`} className="border-l border-[#4B2818]/10 px-1 py-1" colSpan={2}>
+                      <td key={`${dia}-ab`} className={`border-l border-[#4B2818]/10 px-1 py-1 ${esDomingo(anio, mes, dia) ? 'bg-amber-100' : ''}`} colSpan={2}>
                         <input
                           type="number"
                           value={abonos[dia] || ''}
@@ -756,6 +775,18 @@ export default function RepartosPage() {
           </div>
         )}
       </section>
+
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={guardarPlanilla}
+          disabled={guardando || cargando}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-[#A51F2B] px-6 text-sm font-black text-white disabled:opacity-60"
+        >
+          {guardando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          Guardar
+        </button>
+      </div>
     </div>
   );
 }
