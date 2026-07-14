@@ -223,7 +223,9 @@ async function enviarPlantillaNotificacionWhatsApp(
 ) {
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  const templateName = process.env.WHATSAPP_NOTIFICATION_TEMPLATE_NAME;
+  const templateName =
+    process.env.WHATSAPP_NOTIFICATION_TEMPLATE_NAME ||
+    'aviso_nuevo_mensaje_admin';
   const languageCode =
     process.env.WHATSAPP_NOTIFICATION_TEMPLATE_LANGUAGE || 'es_CL';
 
@@ -392,9 +394,10 @@ export async function GET(request: Request) {
       disponible: true,
       tokenConfigurado: Boolean(tokenConfigurado),
       appSecretConfigurado: Boolean(process.env.WHATSAPP_APP_SECRET),
-      plantillaNotificacionConfigurada: Boolean(
-        process.env.WHATSAPP_NOTIFICATION_TEMPLATE_NAME
-      ),
+      plantillaNotificacionConfigurada: true,
+      plantillaNotificacionNombre:
+        process.env.WHATSAPP_NOTIFICATION_TEMPLATE_NAME ||
+        'aviso_nuevo_mensaje_admin',
       idiomaPlantillaNotificacion:
         process.env.WHATSAPP_NOTIFICATION_TEMPLATE_LANGUAGE || 'es_CL',
       supabaseServidorConfigurado: Boolean(
