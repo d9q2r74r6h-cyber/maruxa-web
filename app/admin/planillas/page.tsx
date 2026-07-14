@@ -3198,11 +3198,12 @@ export default function AdminPlanillasPage() {
       ultimoDia,
       Math.max(1, ultimoDiaIngresado + 1)
     );
+    const primerDiaVisible = Math.max(1, proximoDia - 1);
 
     window.requestAnimationFrame(() => {
       const contenedor = grillaMensualRef.current;
       const columna = contenedor?.querySelector<HTMLElement>(
-        `[data-dia-columna="${proximoDia}"]`
+        `[data-dia-columna="${primerDiaVisible}"]`
       );
       if (!contenedor || !columna) return;
 
