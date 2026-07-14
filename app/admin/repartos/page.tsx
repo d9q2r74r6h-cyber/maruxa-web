@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
-import { CalendarDays, Loader2, Save, Truck } from 'lucide-react';
+import { Loader2, Save, Truck } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAdminSession } from '@/components/AdminSession';
 
@@ -148,6 +148,7 @@ export default function RepartosPage() {
     setPlanilla(null);
     setFilas([]);
     setAbonos({});
+    setSaldoInicial(0);
   }
 
   async function cargarBase() {
@@ -255,24 +256,36 @@ export default function RepartosPage() {
 
     setCargando(true);
 
-    const { data: planillaData, error: errorPlanilla } = await supabase
+    let { data: planillaData, error: errorPlanilla } = await supabase
       .from('reparto_planillas')
-      .upsert(
-        {
+      .select('*')
+      .eq('empresa_id', perfil.empresa_id)
+      .eq('anio', anio)
+      .eq('mes', mes)
+      .eq('repartidor_nombre', repartidor.trim())
+      .limit(1)
+      .maybeSingle();
+
+    if (!errorPlanilla && !planillaData) {
+      const resultadoCreacion = await supabase
+        .from('reparto_planillas')
+        .insert({
           empresa_id: perfil.empresa_id,
           anio,
           mes,
           repartidor_id: repartidorId,
           repartidor_nombre: repartidor.trim(),
-          saldo_inicial: saldoInicial,
-        },
-        { onConflict: 'empresa_id,anio,mes,repartidor_nombre' }
-      )
-      .select('*')
-      .single();
+          saldo_inicial: 0,
+        })
+        .select('*')
+        .single();
 
-    if (errorPlanilla) {
-      alert(errorPlanilla.message);
+      planillaData = resultadoCreacion.data;
+      errorPlanilla = resultadoCreacion.error;
+    }
+
+    if (errorPlanilla || !planillaData) {
+      alert(errorPlanilla?.message || 'No se pudo cargar la planilla.');
       setCargando(false);
       return;
     }
@@ -326,6 +339,11 @@ export default function RepartosPage() {
     setAbonos(abonosPorDia);
     setCargando(false);
   }
+
+  useEffect(() => {
+    if (!perfil || !repartidor.trim()) return;
+    void abrirPlanilla();
+  }, [perfil, anio, mes, repartidor, repartidorId, clientes]);
 
   function actualizarCelda(
     filaKey: string,
@@ -490,7 +508,7 @@ export default function RepartosPage() {
         })}
       </nav>
 
-      <section className="grid gap-3 rounded-lg border border-[#4B2818]/15 bg-white p-4 md:grid-cols-2 xl:grid-cols-[120px_minmax(260px,1fr)_180px_120px] xl:items-end">
+      <section className="grid gap-3 rounded-lg border border-[#4B2818]/15 bg-white p-4 md:grid-cols-2 xl:grid-cols-[120px_minmax(260px,1fr)_180px] xl:items-end">
         <label className="grid gap-1 text-xs font-black text-[#4B2818]">
           Año
           <select
@@ -519,8 +537,7 @@ export default function RepartosPage() {
               );
               setRepartidor(e.target.value);
               setRepartidorId(seleccionado?.id || null);
-              setPlanilla(null);
-              setFilas([]);
+              limpiarPlanillaAbierta();
             }}
             className="h-10 rounded-md border border-[#4B2818]/20 px-3 font-bold"
           >
@@ -543,15 +560,6 @@ export default function RepartosPage() {
           />
         </label>
 
-        <button
-          type="button"
-          onClick={abrirPlanilla}
-          disabled={cargando}
-          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-[#A51F2B]/25 px-4 text-sm font-black text-[#A51F2B] disabled:opacity-60"
-        >
-          {cargando ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarDays className="h-4 w-4" />}
-          Abrir
-        </button>
       </section>
 
       <section className="grid gap-3 md:grid-cols-4">
@@ -580,7 +588,9 @@ export default function RepartosPage() {
 
         {!planilla ? (
           <p className="p-8 text-center text-sm font-bold text-[#4B2818]/60">
-            Abre una planilla para comenzar a registrar ventas y devoluciones.
+            {cargando
+              ? 'Cargando planilla...'
+              : 'Selecciona un repartidor para registrar ventas y devoluciones.'}
           </p>
         ) : (
           <div className="max-h-[620px] overflow-auto">
