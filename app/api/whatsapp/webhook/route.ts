@@ -392,6 +392,11 @@ export async function GET(request: Request) {
       disponible: true,
       tokenConfigurado: Boolean(tokenConfigurado),
       appSecretConfigurado: Boolean(process.env.WHATSAPP_APP_SECRET),
+      plantillaNotificacionConfigurada: Boolean(
+        process.env.WHATSAPP_NOTIFICATION_TEMPLATE_NAME
+      ),
+      idiomaPlantillaNotificacion:
+        process.env.WHATSAPP_NOTIFICATION_TEMPLATE_LANGUAGE || 'es_CL',
       supabaseServidorConfigurado: Boolean(
         process.env.SUPABASE_SERVICE_ROLE_KEY
       ),
