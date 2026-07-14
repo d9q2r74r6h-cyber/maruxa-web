@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import {
   Bell,
   ChevronDown,
@@ -119,12 +120,12 @@ export function AdminMenu() {
   }, []);
 
   useEffect(() => {
-    async function cargarPendientes() {
-      if (!perfil?.empresa_id || !puedeVer('whatsapp')) {
-        setPendientes(0);
-        return;
-      }
+    if (!perfil?.empresa_id || !puedeVer('whatsapp')) {
+      setPendientes(0);
+      return;
+    }
 
+    async function cargarPendientes() {
       const { data } = await supabase
         .from('whatsapp_eventos')
         .select('id,tipo,estado,created_at,telefono')
@@ -160,29 +161,68 @@ export function AdminMenu() {
       const ultimoEventoClave = ultimoEvento
         ? `${ultimoEsInstagram ? 'instagram' : 'whatsapp'}-${ultimoEvento.id}`
         : null;
+      const claveUltimoAviso = `maruxa-ultimo-aviso-${perfil.empresa_id}`;
+      const ultimoEventoPersistido =
+        typeof window !== 'undefined'
+          ? window.localStorage.getItem(claveUltimoAviso)
+          : null;
+      const ultimoEventoAnterior =
+        ultimoEventoNotificadoRef.current || ultimoEventoPersistido;
+      const hayEventoNuevo = Boolean(
+        ultimoEventoClave && ultimoEventoClave !== ultimoEventoAnterior
+      );
 
       if (
-        ultimoEventoClave &&
-        ultimoEventoNotificadoRef.current &&
-        ultimoEventoClave !== ultimoEventoNotificadoRef.current &&
-        typeof window !== 'undefined' &&
-        'Notification' in window &&
-        Notification.permission === 'granted'
+        hayEventoNuevo &&
+        ultimoEvento &&
+        pathname !== '/admin/whatsapp'
       ) {
         const origen = ultimoEsInstagram ? 'Instagram' : 'WhatsApp';
         const remitente = ultimoEsInstagram
           ? ultimoInstagram?.sender_id || 'Instagram'
           : ultimoWhatsapp?.telefono || 'WhatsApp';
+        const cantidadNuevos =
+          pendientesPreviosRef.current === null
+            ? 1
+            : Math.max(1, totalPendientes - pendientesPreviosRef.current);
+        const titulo =
+          cantidadNuevos > 1
+            ? `${cantidadNuevos} mensajes nuevos pendientes`
+            : 'Nuevo mensaje pendiente';
 
-        new Notification('Nuevo mensaje pendiente', {
-          body: `${origen}: ${remitente}`,
-          icon: '/apple-touch-icon.png',
-          tag: `maruxa-mensajes-pendientes-${ultimoEventoClave}`,
+        toast.info(titulo, {
+          description: `${origen}: ${remitente}`,
+          duration: 10000,
+          action: {
+            label: 'Abrir',
+            onClick: () => {
+              window.location.href = '/admin/whatsapp';
+            },
+          },
         });
+
+        if (
+          typeof window !== 'undefined' &&
+          'Notification' in window &&
+          Notification.permission === 'granted'
+        ) {
+          const notificacion = new Notification(titulo, {
+            body: `${origen}: ${remitente}`,
+            icon: '/apple-touch-icon.png',
+            tag: `maruxa-mensajes-pendientes-${ultimoEventoClave}`,
+          });
+          notificacion.onclick = () => {
+            window.focus();
+            window.location.href = '/admin/whatsapp';
+          };
+        }
       }
 
       if (ultimoEventoClave) {
         ultimoEventoNotificadoRef.current = ultimoEventoClave;
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(claveUltimoAviso, ultimoEventoClave);
+        }
       }
       pendientesPreviosRef.current = totalPendientes;
       setPendientes(totalPendientes);
@@ -190,9 +230,35 @@ export function AdminMenu() {
 
     cargarPendientes();
     const intervalo = window.setInterval(cargarPendientes, 15000);
+    const canal = supabase
+      .channel(`avisos-admin-${perfil?.empresa_id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'whatsapp_eventos',
+          filter: `empresa_id=eq.${perfil?.empresa_id}`,
+        },
+        cargarPendientes
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'instagram_eventos',
+          filter: `empresa_id=eq.${perfil?.empresa_id}`,
+        },
+        cargarPendientes
+      )
+      .subscribe();
 
-    return () => window.clearInterval(intervalo);
-  }, [perfil?.empresa_id, puedeVer]);
+    return () => {
+      window.clearInterval(intervalo);
+      supabase.removeChannel(canal);
+    };
+  }, [pathname, perfil?.empresa_id, puedeVer]);
 
   async function activarNotificaciones() {
     if (typeof window === 'undefined' || !('Notification' in window)) {

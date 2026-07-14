@@ -336,8 +336,24 @@ export default function AdminWhatsappPage() {
     const intervalo = window.setInterval(() => {
       cargarMensajes(true);
     }, 30000);
+    const canal = supabase
+      .channel('mensajes-admin-whatsapp')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'whatsapp_eventos' },
+        () => cargarMensajes(true)
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'instagram_eventos' },
+        () => cargarMensajes(true)
+      )
+      .subscribe();
 
-    return () => window.clearInterval(intervalo);
+    return () => {
+      window.clearInterval(intervalo);
+      supabase.removeChannel(canal);
+    };
   }, []);
 
   async function activarNotificacionesWeb() {
