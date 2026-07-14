@@ -629,7 +629,7 @@ export default function RepartosPage() {
               <tbody>
                 {filas.map((fila) => (
                   <tr key={fila.key} className="border-b border-[#4B2818]/10 hover:bg-[#FFF3DF]/45">
-                    <td className="sticky left-0 z-[5] bg-white px-2 py-1 font-black text-[#2A1710]">
+                    <td className="sticky left-0 z-[5] bg-white px-2 py-1 font-black uppercase text-[#2A1710]">
                       <span title={fila.nombre}>{fila.sigla}</span>
                     </td>
                     <td className="sticky left-36 z-[5] bg-white px-2 py-1">
