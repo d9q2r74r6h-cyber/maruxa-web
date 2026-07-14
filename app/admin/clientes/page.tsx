@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
+  BadgeDollarSign,
   Edit3,
   Loader2,
   Save,
@@ -29,6 +30,13 @@ type Cliente = {
   plazo_pago: string | null;
   precio_base: number | null;
   activo: boolean;
+};
+
+type ProductoPrecio = {
+  id: number;
+  codigo: string | null;
+  nombre: string;
+  precio: number | null;
 };
 
 const inicial = {
@@ -94,6 +102,18 @@ export default function ClientesPage() {
   const [filtroEstado, setFiltroEstado] = useState('todos');
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
+  const [clientePrecios, setClientePrecios] = useState<Cliente | null>(null);
+  const [productosPrecios, setProductosPrecios] = useState<ProductoPrecio[]>([]);
+  const [preciosProducto, setPreciosProducto] = useState<Record<string, string>>(
+    {}
+  );
+  const [preciosOriginales, setPreciosOriginales] = useState<
+    Record<string, string>
+  >({});
+  const [busquedaProducto, setBusquedaProducto] = useState('');
+  const [cargandoPrecios, setCargandoPrecios] = useState(false);
+  const [guardandoPrecios, setGuardandoPrecios] = useState(false);
+  const [mensajePrecios, setMensajePrecios] = useState('');
   const [clienteCambiandoEstado, setClienteCambiandoEstado] = useState<string | null>(
     null
   );
@@ -145,6 +165,131 @@ export default function ClientesPage() {
       return coincideBusqueda && coincideRepartidor && coincideEstado;
     });
   }, [busqueda, clientes, filtroEstado, filtroRepartidor]);
+
+  const productosFiltradosPrecios = useMemo(() => {
+    const texto = normalizar(busquedaProducto);
+    if (!texto) return productosPrecios;
+    return productosPrecios.filter((producto) =>
+      normalizar(`${producto.codigo || ''} ${producto.nombre}`).includes(texto)
+    );
+  }, [busquedaProducto, productosPrecios]);
+
+  async function abrirPrecios(cliente: Cliente) {
+    if (!perfil) return;
+    setClientePrecios(cliente);
+    setCargandoPrecios(true);
+    setBusquedaProducto('');
+    setMensajePrecios('');
+    setProductosPrecios([]);
+    setPreciosProducto({});
+    setPreciosOriginales({});
+
+    const [resultadoProductos, resultadoPrecios] = await Promise.all([
+      supabase
+        .from('productos')
+        .select('id,codigo,nombre,precio')
+        .eq('empresa_id', perfil.empresa_id)
+        .eq('activo', true)
+        .eq('tipo_producto', 'producto')
+        .order('nombre'),
+      supabase
+        .from('cliente_producto_precios')
+        .select('producto_id,precio')
+        .eq('empresa_id', perfil.empresa_id)
+        .eq('cliente_id', cliente.id)
+        .eq('activo', true),
+    ]);
+
+    if (resultadoProductos.error || resultadoPrecios.error) {
+      alert(
+        resultadoProductos.error?.message ||
+          resultadoPrecios.error?.message ||
+          'No se pudieron cargar los precios del cliente.'
+      );
+      setClientePrecios(null);
+      setCargandoPrecios(false);
+      return;
+    }
+
+    const precios = Object.fromEntries(
+      (resultadoPrecios.data || []).map((item) => [
+        String(item.producto_id),
+        String(item.precio),
+      ])
+    );
+    setProductosPrecios((resultadoProductos.data || []) as ProductoPrecio[]);
+    setPreciosProducto(precios);
+    setPreciosOriginales(precios);
+    setCargandoPrecios(false);
+  }
+
+  function cerrarPrecios() {
+    if (guardandoPrecios) return;
+    setClientePrecios(null);
+    setMensajePrecios('');
+  }
+
+  async function guardarPreciosCliente(event: React.FormEvent) {
+    event.preventDefault();
+    if (!perfil || !clientePrecios) return;
+
+    const preciosIngresados = Object.entries(preciosProducto).filter(
+      ([, valor]) => valor.trim() !== ''
+    );
+    const precioInvalido = preciosIngresados.some(([, valor]) => {
+      const precio = Number(valor.replace(',', '.'));
+      return !Number.isFinite(precio) || precio < 0;
+    });
+    if (precioInvalido) {
+      alert('Revisa los precios ingresados. No pueden ser negativos.');
+      return;
+    }
+
+    setGuardandoPrecios(true);
+    setMensajePrecios('');
+
+    const filas = preciosIngresados.map(([productoId, valor]) => ({
+      empresa_id: perfil.empresa_id,
+      cliente_id: clientePrecios.id,
+      producto_id: Number(productoId),
+      precio: numero(valor),
+      activo: true,
+    }));
+
+    if (filas.length > 0) {
+      const { error } = await supabase
+        .from('cliente_producto_precios')
+        .upsert(filas, { onConflict: 'cliente_id,producto_id' });
+      if (error) {
+        alert(error.message);
+        setGuardandoPrecios(false);
+        return;
+      }
+    }
+
+    const productosEliminados = Object.keys(preciosOriginales)
+      .filter((productoId) => !preciosProducto[productoId]?.trim())
+      .map(Number);
+
+    if (productosEliminados.length > 0) {
+      const { error } = await supabase
+        .from('cliente_producto_precios')
+        .delete()
+        .eq('empresa_id', perfil.empresa_id)
+        .eq('cliente_id', clientePrecios.id)
+        .in('producto_id', productosEliminados);
+      if (error) {
+        alert(error.message);
+        setGuardandoPrecios(false);
+        return;
+      }
+    }
+
+    const siguientesOriginales = Object.fromEntries(preciosIngresados);
+    setPreciosOriginales(siguientesOriginales);
+    setMensajePrecios('Precios guardados correctamente.');
+    setGuardandoPrecios(false);
+  }
 
   function cancelarEdicion() {
     setClienteEditando(null);
@@ -421,7 +566,7 @@ export default function ClientesPage() {
               {clientesFiltrados.map((cliente) => (
                 <article
                   key={cliente.id}
-                  className={`grid gap-3 px-5 py-4 md:grid-cols-[140px_1fr_170px_120px] ${
+                  className={`grid gap-3 px-5 py-4 md:grid-cols-[140px_1fr_170px_165px] ${
                     cliente.activo ? 'bg-white' : 'bg-red-50/35'
                   }`}
                 >
@@ -475,6 +620,14 @@ export default function ClientesPage() {
                   <div className="flex items-center gap-2 md:justify-end">
                     <button
                       type="button"
+                      onClick={() => abrirPrecios(cliente)}
+                      className="grid h-9 w-9 place-items-center rounded-md border border-[#A51F2B]/25 text-[#A51F2B] hover:bg-red-50"
+                      title="Precios por producto"
+                    >
+                      <BadgeDollarSign className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => editar(cliente)}
                       className="grid h-9 w-9 place-items-center rounded-md border border-[#4B2818]/15 text-[#4B2818] hover:bg-[#FFF3DF]"
                       title="Editar cliente"
@@ -513,6 +666,130 @@ export default function ClientesPage() {
           )}
         </div>
       </section>
+
+      {clientePrecios && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2A1710]/55 p-3 sm:p-6">
+          <form
+            onSubmit={guardarPreciosCliente}
+            className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-[#4B2818]/15 bg-white shadow-2xl"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#4B2818]/10 bg-[#FFF3DF] px-5 py-4">
+              <div>
+                <div className="flex items-center gap-2 text-[#A51F2B]">
+                  <BadgeDollarSign className="h-5 w-5" />
+                  <h2 className="font-black text-[#2A1710]">
+                    Precios por producto
+                  </h2>
+                </div>
+                <p className="mt-1 text-xs font-bold text-[#4B2818]/60">
+                  {clientePrecios.sigla || clientePrecios.razon_social}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={cerrarPrecios}
+                disabled={guardandoPrecios}
+                className="grid h-9 w-9 place-items-center rounded-md border border-[#4B2818]/15 bg-white text-[#4B2818] disabled:opacity-50"
+                title="Cerrar"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="border-b border-[#4B2818]/10 px-5 py-3">
+              <label className="relative block">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#4B2818]/45" />
+                <input
+                  value={busquedaProducto}
+                  onChange={(event) => setBusquedaProducto(event.target.value)}
+                  placeholder="Buscar producto o codigo"
+                  className="h-9 w-full rounded-md border border-[#4B2818]/15 bg-white pl-9 pr-3 text-sm font-bold outline-none focus:border-[#A51F2B]"
+                />
+              </label>
+              <p className="mt-2 text-xs font-semibold text-[#4B2818]/55">
+                El precio general aparece como referencia. Deja vacío el precio
+                cliente para eliminar su precio especial.
+              </p>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {cargandoPrecios ? (
+                <div className="flex justify-center p-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-[#A51F2B]" />
+                </div>
+              ) : productosFiltradosPrecios.length === 0 ? (
+                <p className="p-10 text-center text-sm font-semibold text-[#4B2818]/55">
+                  No se encontraron productos.
+                </p>
+              ) : (
+                <div className="divide-y divide-[#4B2818]/10">
+                  <div className="sticky top-0 z-10 grid grid-cols-[1fr_120px_140px] gap-3 bg-[#2A1710] px-5 py-2 text-[11px] font-black uppercase text-white sm:grid-cols-[1fr_160px_180px]">
+                    <span>Producto</span>
+                    <span className="text-right">Precio general</span>
+                    <span className="text-right">Precio cliente</span>
+                  </div>
+                  {productosFiltradosPrecios.map((producto) => {
+                    const productoId = String(producto.id);
+                    return (
+                      <div
+                        key={producto.id}
+                        className="grid grid-cols-[1fr_120px_140px] items-center gap-3 px-5 py-3 sm:grid-cols-[1fr_160px_180px]"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-black text-[#2A1710]">
+                            {producto.nombre}
+                          </p>
+                          <p className="text-[11px] font-bold text-[#4B2818]/50">
+                            {producto.codigo || 'Sin codigo'}
+                          </p>
+                        </div>
+                        <p className="text-right text-sm font-bold text-[#4B2818]/65">
+                          {producto.precio != null
+                            ? `$${Number(producto.precio).toLocaleString('es-CL')}`
+                            : '-'}
+                        </p>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          aria-label={`Precio cliente ${producto.nombre}`}
+                          value={preciosProducto[productoId] || ''}
+                          onChange={(event) =>
+                            setPreciosProducto((actuales) => ({
+                              ...actuales,
+                              [productoId]: event.target.value,
+                            }))
+                          }
+                          placeholder="Sin especial"
+                          className="h-9 min-w-0 rounded-md border border-[#4B2818]/20 px-3 text-right font-black text-[#2A1710] outline-none focus:border-[#A51F2B]"
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#4B2818]/10 bg-[#FFFDF8] px-5 py-4">
+              <p className="text-xs font-bold text-emerald-700">
+                {mensajePrecios}
+              </p>
+              <button
+                type="submit"
+                disabled={cargandoPrecios || guardandoPrecios}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#A51F2B] px-5 text-sm font-black text-white disabled:opacity-60"
+              >
+                {guardandoPrecios ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                Guardar precios
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
