@@ -1586,7 +1586,7 @@ export default function AdminPlanillasPage() {
           .select('id,razon_social,sigla,repartidor_nombre,activo')
           .eq('empresa_id', empresa.id)
           .eq('activo', true)
-          .ilike('repartidor_nombre', '%panader%')
+          .eq('repartidor_nombre', 'PANADERIA')
           .order('razon_social', { ascending: true });
 
       if (!clientesPanaderiaError) {
