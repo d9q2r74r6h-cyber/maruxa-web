@@ -74,6 +74,21 @@ function nombreMes(mes: number) {
   );
 }
 
+const mesesDelAnio = [
+  'Enero',
+  'Febrero',
+  'Marzo',
+  'Abril',
+  'Mayo',
+  'Junio',
+  'Julio',
+  'Agosto',
+  'Septiembre',
+  'Octubre',
+  'Noviembre',
+  'Diciembre',
+];
+
 function moverVertical(event: KeyboardEvent<HTMLInputElement>) {
   if (event.key !== 'Enter') return;
 
@@ -123,6 +138,17 @@ export default function RepartosPage() {
   const [planilla, setPlanilla] = useState<Planilla | null>(null);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
+  const anioActual = hoy.getFullYear();
+  const aniosDisponibles = Array.from(
+    { length: Math.max(anioActual + 1, anio) - 2023 },
+    (_, indice) => Math.max(anioActual + 1, anio) - indice
+  );
+
+  function limpiarPlanillaAbierta() {
+    setPlanilla(null);
+    setFilas([]);
+    setAbonos({});
+  }
 
   async function cargarBase() {
     if (!perfil) return;
@@ -439,27 +465,45 @@ export default function RepartosPage() {
         </button>
       </header>
 
-      <section className="grid gap-3 rounded-lg border border-[#4B2818]/15 bg-white p-4 md:grid-cols-2 xl:grid-cols-[120px_170px_minmax(260px,1fr)_180px_120px] xl:items-end">
-        <label className="grid gap-1 text-xs font-black text-[#4B2818]">
-          Ano
-          <input
-            type="number"
-            value={anio}
-            onChange={(e) => setAnio(Number(e.target.value || 2026))}
-            className="sin-spinner h-10 rounded-md border border-[#4B2818]/20 px-3 font-bold"
-          />
-        </label>
+      <nav className="flex overflow-x-auto rounded-lg border border-[#4B2818]/15 bg-white p-1">
+        {mesesDelAnio.map((nombre, indice) => {
+          const numeroMes = indice + 1;
+          const activo = numeroMes === mes;
 
+          return (
+            <button
+              key={nombre}
+              type="button"
+              onClick={() => {
+                setMes(numeroMes);
+                limpiarPlanillaAbierta();
+              }}
+              className={`min-w-max flex-1 rounded-md px-3 py-2 text-xs font-black transition ${
+                activo
+                  ? 'bg-[#A51F2B] text-white'
+                  : 'text-[#4B2818] hover:bg-[#FFF3DF]'
+              }`}
+            >
+              {nombre}
+            </button>
+          );
+        })}
+      </nav>
+
+      <section className="grid gap-3 rounded-lg border border-[#4B2818]/15 bg-white p-4 md:grid-cols-2 xl:grid-cols-[120px_minmax(260px,1fr)_180px_120px] xl:items-end">
         <label className="grid gap-1 text-xs font-black text-[#4B2818]">
-          Mes
+          Año
           <select
-            value={mes}
-            onChange={(e) => setMes(Number(e.target.value))}
+            value={anio}
+            onChange={(e) => {
+              setAnio(Number(e.target.value));
+              limpiarPlanillaAbierta();
+            }}
             className="h-10 rounded-md border border-[#4B2818]/20 px-3 font-bold"
           >
-            {Array.from({ length: 12 }, (_, i) => i + 1).map((item) => (
+            {aniosDisponibles.map((item) => (
               <option key={item} value={item}>
-                {nombreMes(item)}
+                {item}
               </option>
             ))}
           </select>
