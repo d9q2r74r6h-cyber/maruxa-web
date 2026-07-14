@@ -3939,7 +3939,7 @@ export default function AdminPlanillasPage() {
                       key={`semana-${dia}`}
                       className={`min-w-[74px] border-b border-r border-[#4B2818]/10 px-2 py-1 text-center text-xs font-black ${
                         domingo
-                          ? 'bg-amber-200 text-amber-950'
+                          ? 'bg-amber-400 text-amber-950'
                           : fechaColumna === fecha
                             ? 'bg-[#A51F2B] text-white'
                             : 'bg-[#FFF3DF] text-[#4B2818]'
@@ -3965,7 +3965,7 @@ export default function AdminPlanillasPage() {
                       data-dia-columna={dia}
                       className={`min-w-[74px] border-b border-r border-[#4B2818]/10 px-2 py-2 text-center text-xs font-black ${
                         domingo
-                          ? 'bg-amber-200 text-amber-950'
+                          ? 'bg-amber-400 text-amber-950'
                           : fechaColumna === fecha
                             ? 'bg-[#A51F2B] text-white'
                             : 'bg-[#FFF3DF] text-[#4B2818]'
@@ -4109,7 +4109,7 @@ export default function AdminPlanillasPage() {
                       <td
                         key={`${fila.label}-${indiceFilaMensual}-${dia}`}
                         className={`border-b border-r border-[#4B2818]/10 p-0 text-right font-bold text-[#2A1710] ${colorFilaBase} ${
-                          domingo && !esFilaRinde ? '!bg-amber-50' : ''
+                          domingo && !esFilaRinde ? '!bg-amber-200' : ''
                         } ${esDiaActivo && !esFilaRinde ? '!bg-[#A51F2B]/10' : ''} ${
                           esFilaRinde ? colorCeldaRinde(valorCelda) : ''
                         }`}
