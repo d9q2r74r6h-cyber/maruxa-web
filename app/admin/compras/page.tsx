@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { obtenerEmpresaActual } from '@/lib/empresa';
@@ -21,13 +20,6 @@ type UltimaCompraProducto = {
   producto_id: number;
   fecha: string;
   precio: number;
-};
-
-type ProveedorCompra = {
-  id: string;
-  razon_social: string;
-  nombre_fantasia: string | null;
-  rut: string | null;
 };
 
 type FamiliaProducto = {
@@ -180,12 +172,7 @@ function calcularPrecioSugerido(costoUnidad: number, producto: any) {
 
 export default function AdminComprasPage() {
   const [productos, setProductos] = useState<Producto[]>([]);
-  const [proveedores, setProveedores] = useState<ProveedorCompra[]>([]);
   const [familias, setFamilias] = useState<FamiliaProducto[]>([]);
-  const [proveedor, setProveedor] = useState('');
-  const [mostrarProveedores, setMostrarProveedores] = useState(false);
-  const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
-  const [observacion, setObservacion] = useState('');
   const [items, setItems] = useState<ItemCompra[]>([]);
   const [resultadosBusqueda, setResultadosBusqueda] = useState<Record<number, Producto[]>>({});
   const [ultimasCompras, setUltimasCompras] = useState<Record<number, UltimaCompraProducto[]>>({});
@@ -263,20 +250,6 @@ export default function AdminComprasPage() {
     return codigo;
   }, [nuevoProducto.codigo, prefijoCodigoNuevoProducto, productos]);
 
-  const proveedoresFiltrados = useMemo(() => {
-    const termino = normalizarTexto(proveedor);
-
-    if (!termino) return proveedores.slice(0, 40);
-
-    return proveedores
-      .filter((item) =>
-        normalizarTexto(
-          `${item.razon_social} ${item.nombre_fantasia || ''} ${item.rut || ''}`
-        ).includes(termino)
-      )
-      .slice(0, 40);
-  }, [proveedor, proveedores]);
-
   function formatearFecha(valor: string) {
     if (!valor) return '-';
 
@@ -298,11 +271,7 @@ export default function AdminComprasPage() {
       return;
     }
 
-    const [
-      { data, error },
-      { data: proveedoresData },
-      { data: familiasData },
-    ] = await Promise.all([
+    const [{ data, error }, { data: familiasData }] = await Promise.all([
       supabase
       .from('productos')
       .select(`
@@ -321,12 +290,6 @@ export default function AdminComprasPage() {
       .eq('activo', true)
       .order('nombre', { ascending: true }),
       supabase
-        .from('proveedores')
-        .select('id, razon_social, nombre_fantasia, rut')
-        .eq('empresa_id', empresa.id)
-        .eq('activo', true)
-        .order('razon_social', { ascending: true }),
-      supabase
         .from('familias_productos')
         .select('id,nombre,activo,mostrar_catalogo')
         .eq('empresa_id', empresa.id)
@@ -341,7 +304,6 @@ export default function AdminComprasPage() {
     }
 
     setProductos((data as Producto[]) || []);
-    setProveedores((proveedoresData as ProveedorCompra[]) || []);
     setFamilias((familiasData as FamiliaProducto[]) || []);
     setLoading(false);
   }
@@ -1091,10 +1053,10 @@ export default function AdminComprasPage() {
       .from('compras')
       .insert({
         empresa_id: empresa.id,
-        proveedor,
+        proveedor: '',
         numero_documento: '',
-        fecha,
-        observacion,
+        fecha: new Date().toISOString().slice(0, 10),
+        observacion: '',
         subtotal_productos: subtotalProductos,
         valor_despacho: 0,
         impuesto_adicional: 0,
@@ -1179,7 +1141,7 @@ export default function AdminComprasPage() {
           cantidad,
           referencia_tipo: 'compra',
           referencia_id: compra.id,
-          observacion: `Compra ${proveedor || ''}`.trim(),
+          observacion: 'Ingreso manual de compra',
         });
 
       if (errorMovimiento) {
@@ -1202,7 +1164,7 @@ export default function AdminComprasPage() {
           stock_nuevo: stockNuevo,
           referencia_tipo: 'compra',
           referencia_id: compra.id,
-          observacion: `Compra ${proveedor || ''}`.trim(),
+          observacion: 'Ingreso manual de compra',
         });
 
       if (errorHistorialCosto) {
@@ -1212,8 +1174,6 @@ export default function AdminComprasPage() {
       }
     }
 
-    setProveedor('');
-    setObservacion('');
     setItems([]);
     setVariacionesCompra(variacionesRegistradas);
     setMostrarVariaciones(true);
@@ -1244,77 +1204,7 @@ export default function AdminComprasPage() {
           <p className="mt-6 font-black">Cargando productos...</p>
         ) : (
           <>
-            <div className="mt-6 grid gap-4 md:grid-cols-3">
-              <label className="relative grid gap-1">
-                <input
-                  value={proveedor}
-                  onFocus={() => setMostrarProveedores(true)}
-                  onBlur={() =>
-                    setTimeout(() => setMostrarProveedores(false), 150)
-                  }
-                  onChange={(e) => {
-                    setProveedor(e.target.value);
-                    setMostrarProveedores(true);
-                  }}
-                  placeholder="Proveedor"
-                  className="rounded-2xl border px-5 py-4 font-bold"
-                />
-
-                {mostrarProveedores && (
-                  <div className="absolute left-0 right-0 top-[58px] z-30 max-h-80 overflow-y-auto rounded-2xl border bg-white shadow-xl">
-                    {proveedoresFiltrados.length > 0 ? (
-                      proveedoresFiltrados.map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => {
-                            setProveedor(item.razon_social);
-                            setMostrarProveedores(false);
-                          }}
-                          className="flex w-full flex-col px-4 py-3 text-left hover:bg-maruxa-crema"
-                        >
-                          <span className="text-sm font-black text-maruxa-chocolate">
-                            {item.razon_social}
-                          </span>
-                          <span className="text-xs font-bold text-gray-500">
-                            {[item.nombre_fantasia, item.rut]
-                              .filter(Boolean)
-                              .join(' | ') || 'Proveedor registrado'}
-                          </span>
-                        </button>
-                      ))
-                    ) : (
-                      <div className="px-4 py-3 text-sm font-black text-gray-500">
-                        No hay proveedores con ese texto.
-                      </div>
-                    )}
-                  </div>
-                )}
-                <Link
-                  href="/admin/proveedores"
-                  className="text-xs font-black text-maruxa-rojo hover:underline"
-                >
-                  Administrar proveedores
-                </Link>
-              </label>
-
-              <input
-                type="date"
-                value={fecha}
-                onChange={(e) => setFecha(e.target.value)}
-                className="rounded-2xl border px-5 py-4 font-bold"
-              />
-
-              <input
-                value={observacion}
-                onChange={(e) => setObservacion(e.target.value)}
-                placeholder="Observación"
-                className="rounded-2xl border px-5 py-4 font-bold"
-              />
-            </div>
-
-            <div className="mt-8 rounded-[28px] bg-maruxa-crema p-5">
+            <div className="mt-6 rounded-[28px] bg-maruxa-crema p-5">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <h3 className="text-xl font-black text-maruxa-chocolate">
                   Detalle de compra
