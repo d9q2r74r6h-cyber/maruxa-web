@@ -13,6 +13,7 @@ type Producto = {
   unidad_base: string | null;
   stock_actual: number | null;
   costo_unitario: number | null;
+  precio: number | null;
   controla_stock: boolean | null;
 };
 
@@ -27,6 +28,9 @@ type FamiliaProducto = {
   nombre: string;
   activo: boolean;
   mostrar_catalogo: boolean | null;
+  tipo_margen: 'markup' | 'margen_comercial';
+  margen_porcentaje: number;
+  redondeo_precio: number;
 };
 
 type ItemCompra = {
@@ -35,6 +39,12 @@ type ItemCompra = {
   cantidad: string;
   costo_unitario: string;
   costo_total: string;
+  margen_porcentaje: string;
+  tipo_margen: 'markup' | 'margen_comercial';
+  precio_venta: string;
+  precio_listado: boolean;
+  texto_listado_1: string;
+  texto_listado_2: string;
 };
 
 type TipoProductoCompra = 'producto' | 'ingrediente' | 'envase';
@@ -83,6 +93,22 @@ type RecetaAfectada = {
   variacion_porcentaje: number;
 };
 
+function itemCompraVacio(): ItemCompra {
+  return {
+    producto_id: '',
+    busqueda_producto: '',
+    cantidad: '1',
+    costo_unitario: '',
+    costo_total: '',
+    margen_porcentaje: '',
+    tipo_margen: 'markup',
+    precio_venta: '',
+    precio_listado: false,
+    texto_listado_1: '',
+    texto_listado_2: '',
+  };
+}
+
 function numero(valor: string | number | null | undefined) {
   return Number(String(valor ?? 0).replace(',', '.')) || 0;
 }
@@ -113,6 +139,20 @@ function costoUnitarioEfectivo(item: ItemCompra) {
   if (cantidad <= 0) return 0;
 
   return entero(totalFinalItem(item) / cantidad);
+}
+
+function precioVentaDesdeMargen(
+  costo: number,
+  margen: number,
+  tipoMargen: 'markup' | 'margen_comercial',
+  redondeo = 1
+) {
+  const precio =
+    tipoMargen === 'margen_comercial' && margen < 100
+      ? costo / (1 - margen / 100)
+      : costo * (1 + margen / 100);
+
+  return redondeo > 0 ? Math.ceil(precio / redondeo) * redondeo : precio;
 }
 
 function normalizarTexto(texto: string) {
@@ -173,7 +213,7 @@ function calcularPrecioSugerido(costoUnidad: number, producto: any) {
 export default function AdminComprasPage() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [familias, setFamilias] = useState<FamiliaProducto[]>([]);
-  const [items, setItems] = useState<ItemCompra[]>([]);
+  const [items, setItems] = useState<ItemCompra[]>(() => [itemCompraVacio()]);
   const [resultadosBusqueda, setResultadosBusqueda] = useState<Record<number, Producto[]>>({});
   const [ultimasCompras, setUltimasCompras] = useState<Record<number, UltimaCompraProducto[]>>({});
   const [mostrarCrearProducto, setMostrarCrearProducto] = useState(false);
@@ -283,6 +323,7 @@ export default function AdminComprasPage() {
         unidad_base,
         stock_actual,
         costo_unitario,
+        precio,
         controla_stock
       `)
       .eq('empresa_id', empresa.id)
@@ -291,7 +332,7 @@ export default function AdminComprasPage() {
       .order('nombre', { ascending: true }),
       supabase
         .from('familias_productos')
-        .select('id,nombre,activo,mostrar_catalogo')
+        .select('id,nombre,activo,mostrar_catalogo,tipo_margen,margen_porcentaje,redondeo_precio')
         .eq('empresa_id', empresa.id)
         .eq('activo', true)
         .order('nombre', { ascending: true }),
@@ -442,16 +483,7 @@ export default function AdminComprasPage() {
   }, [mostrarCrearProducto, nuevoProducto.nombre]);
 
   function agregarItem() {
-    setItems([
-      ...items,
-      {
-        producto_id: '',
-        busqueda_producto: '',
-        cantidad: '',
-        costo_unitario: '',
-        costo_total: '',
-      },
-    ]);
+    setItems([...items, itemCompraVacio()]);
   }
 
   function eliminarItem(index: number) {
@@ -465,7 +497,16 @@ export default function AdminComprasPage() {
 
         if (campo === 'producto_id') {
           const producto = productos.find((p) => String(p.id) === String(valor));
+          const familia = familias.find((f) => f.id === producto?.familia_id);
           const costoUnitario = item.costo_unitario || String(producto?.costo_unitario || '');
+          const margen = numero(familia?.margen_porcentaje);
+          const tipoMargen = familia?.tipo_margen || 'markup';
+          const precioCalculado = precioVentaDesdeMargen(
+            numero(costoUnitario),
+            margen,
+            tipoMargen,
+            numero(familia?.redondeo_precio) || 1
+          );
           const totalLinea =
             numero(item.cantidad) > 0 && numero(costoUnitario) > 0
               ? String(numero(item.cantidad) * numero(costoUnitario))
@@ -479,6 +520,9 @@ export default function AdminComprasPage() {
               : item.busqueda_producto,
             costo_unitario: costoUnitario,
             costo_total: totalLinea,
+            margen_porcentaje: String(margen || ''),
+            tipo_margen: tipoMargen,
+            precio_venta: String(producto?.precio || precioCalculado || ''),
           };
         }
 
@@ -515,6 +559,27 @@ export default function AdminComprasPage() {
               cantidad > 0 && costoUnitario > 0
                 ? String(cantidad * costoUnitario)
                 : item.costo_total,
+            precio_venta: String(
+              precioVentaDesdeMargen(
+                costoUnitario,
+                numero(item.margen_porcentaje),
+                item.tipo_margen
+              ) || ''
+            ),
+          };
+        }
+
+        if (campo === 'margen_porcentaje') {
+          return {
+            ...item,
+            margen_porcentaje: valor,
+            precio_venta: String(
+              precioVentaDesdeMargen(
+                numero(item.costo_unitario),
+                numero(valor),
+                item.tipo_margen
+              ) || ''
+            ),
           };
         }
 
@@ -724,6 +789,7 @@ export default function AdminComprasPage() {
         unidad_base,
         stock_actual,
         costo_unitario,
+        precio,
         controla_stock
       `)
       .single();
@@ -743,9 +809,15 @@ export default function AdminComprasPage() {
     const itemProductoCreado = {
         producto_id: String(productoCreado.id),
         busqueda_producto: `${productoCreado.nombre} - ${productoCreado.tipo_producto}`,
-        cantidad: '',
+        cantidad: '1',
         costo_unitario: String(costo || productoCreado.costo_unitario || ''),
         costo_total: '',
+        margen_porcentaje: '',
+        tipo_margen: 'markup' as const,
+        precio_venta: String(productoCreado.precio || ''),
+        precio_listado: false,
+        texto_listado_1: '',
+        texto_listado_2: '',
       };
     setItems((actuales) =>
       indiceItemCreacion === null
@@ -1174,7 +1246,7 @@ export default function AdminComprasPage() {
       }
     }
 
-    setItems([]);
+    setItems([itemCompraVacio()]);
     setVariacionesCompra(variacionesRegistradas);
     setMostrarVariaciones(true);
     await cargarRecetasAfectadas(variacionesRegistradas);
@@ -1279,9 +1351,15 @@ export default function AdminComprasPage() {
                                   const itemExistente = {
                                       producto_id: String(producto.id),
                                       busqueda_producto: `${producto.nombre} - ${producto.tipo_producto}`,
-                                      cantidad: '',
+                                      cantidad: '1',
                                       costo_unitario: String(producto.costo_unitario || ''),
                                       costo_total: '',
+                                      margen_porcentaje: '',
+                                      tipo_margen: 'markup' as const,
+                                      precio_venta: String(producto.precio || ''),
+                                      precio_listado: false,
+                                      texto_listado_1: '',
+                                      texto_listado_2: '',
                                     };
                                   setItems((actuales) =>
                                     indiceItemCreacion === null
@@ -1455,20 +1533,20 @@ export default function AdminComprasPage() {
                 </div>
               )}
 
-              <div className="mt-3 hidden grid-cols-12 gap-1.5 px-3 text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60 md:grid">
-                <span className="col-span-5">Producto</span>
-                <span className="col-span-1 text-right">Cant.</span>
-                <span className="col-span-2 text-right">Precio</span>
-                <span className="col-span-2 text-right">Total linea</span>
-                <span className="col-span-2 text-right">Acciones</span>
+              <div className="mt-3 hidden grid-cols-[minmax(220px,2fr)_130px_100px_130px_150px_1fr_1fr_80px] gap-2 px-3 text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60 xl:grid">
+                <span>Producto</span>
+                <span className="text-right">Valor compra</span>
+                <span className="text-right">Margen</span>
+                <span className="text-right">Precio venta</span>
+                <span>Tipo precio</span>
+                <span>Texto listado 1</span>
+                <span>Texto listado 2</span>
+                <span />
               </div>
 
               <div className="mt-1 grid gap-1.5">
                 {items.map((item, index) => {
                   const producto = productos.find((p) => String(p.id) === String(item.producto_id));
-                  const totalLinea = numero(item.cantidad) * numero(item.costo_unitario);
-                  const totalLineaTexto =
-                    item.costo_total || (totalLinea > 0 ? String(totalLinea) : '');
                   const busquedaNormalizada = normalizarTexto(item.busqueda_producto);
                   const productosFiltrados =
                     busquedaNormalizada.length < 2
@@ -1484,9 +1562,9 @@ export default function AdminComprasPage() {
                   return (
                     <div
                       key={index}
-                      className="grid gap-1.5 rounded-xl bg-white px-3 py-2 md:grid-cols-12"
+                      className="grid gap-2 rounded-xl bg-white px-3 py-3 xl:grid-cols-[minmax(220px,2fr)_130px_100px_130px_150px_1fr_1fr_80px]"
                     >
-                      <div className="relative md:col-span-5">
+                      <div className="relative">
                         <input
                           value={item.busqueda_producto}
                           onChange={(e) =>
@@ -1558,50 +1636,80 @@ export default function AdminComprasPage() {
 
                       <input
                         type="number"
-                        value={item.cantidad}
-                        onChange={(e) => actualizarItem(index, 'cantidad', e.target.value)}
-                        placeholder="Cant."
-                        className="rounded-xl border px-3 py-2 text-right text-sm font-bold md:col-span-1"
-                      />
-
-                      <input
-                        type="number"
                         value={item.costo_unitario}
                         onChange={(e) => actualizarItem(index, 'costo_unitario', e.target.value)}
-                        placeholder="Precio"
-                        className="rounded-xl border px-3 py-2 text-right text-sm font-bold md:col-span-2"
+                        placeholder="Valor compra"
+                        title="El IVA se aplicará según la configuración del proveedor"
+                        className="rounded-xl border px-3 py-2 text-right text-sm font-bold"
                       />
 
                       <input
                         type="number"
-                        value={totalLineaTexto}
-                        onChange={(e) => actualizarItem(index, 'costo_total', e.target.value)}
-                        placeholder="Total"
-                        className="rounded-xl border px-3 py-2 text-right text-sm font-bold md:col-span-2"
+                        value={item.margen_porcentaje}
+                        onChange={(e) =>
+                          actualizarItem(index, 'margen_porcentaje', e.target.value)
+                        }
+                        placeholder="Margen %"
+                        className="rounded-xl border px-3 py-2 text-right text-sm font-bold"
                       />
 
-                      <div className="flex gap-1 md:col-span-2">
-                        {producto && (
-                          <button
-                            type="button"
-                            onClick={() => abrirEdicionProducto(producto)}
-                            className="flex-1 rounded-full border border-red-200 bg-white px-3 py-2 text-xs font-black text-red-700 hover:bg-red-50"
-                          >
-                            Editar
-                          </button>
-                        )}
+                      <input
+                        type="number"
+                        value={item.precio_venta}
+                        onChange={(e) =>
+                          actualizarItem(index, 'precio_venta', e.target.value)
+                        }
+                        placeholder="Precio venta"
+                        className="rounded-xl border px-3 py-2 text-right text-sm font-black text-maruxa-rojo"
+                      />
+
+                      <label className="flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black">
+                        <input
+                          type="checkbox"
+                          checked={item.precio_listado}
+                          onChange={(e) =>
+                            setItems((actuales) =>
+                              actuales.map((actual, indice) =>
+                                indice === index
+                                  ? { ...actual, precio_listado: e.target.checked }
+                                  : actual
+                              )
+                            )
+                          }
+                        />
+                        {item.precio_listado ? 'Precio listado' : 'Precio suelto'}
+                      </label>
+
+                      <input
+                        value={item.texto_listado_1}
+                        onChange={(e) =>
+                          actualizarItem(index, 'texto_listado_1', e.target.value)
+                        }
+                        disabled={!item.precio_listado}
+                        placeholder="Texto listado 1"
+                        className="rounded-xl border px-3 py-2 text-sm font-bold disabled:bg-gray-100 disabled:text-gray-400"
+                      />
+
+                      <input
+                        value={item.texto_listado_2}
+                        onChange={(e) =>
+                          actualizarItem(index, 'texto_listado_2', e.target.value)
+                        }
+                        disabled={!item.precio_listado}
+                        placeholder="Texto listado 2"
+                        className="rounded-xl border px-3 py-2 text-sm font-bold disabled:bg-gray-100 disabled:text-gray-400"
+                      />
 
                         <button
                           type="button"
                           onClick={() => eliminarItem(index)}
-                          className="flex-1 rounded-full border border-red-300 bg-red-50 px-3 py-2 text-xs font-black text-red-700"
+                          className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-xs font-black text-red-700"
                         >
                           Eliminar
                         </button>
-                      </div>
 
                       {producto && (
-                        <div className="md:col-span-12 text-[11px] font-bold leading-tight text-gray-500">
+                        <div className="text-[11px] font-bold leading-tight text-gray-500 xl:col-span-8">
                           {producto.codigo && <>Codigo: {producto.codigo} | </>}
                           Stock actual:{' '}
                           {numero(producto.stock_actual).toLocaleString('es-CL')}{' '}
@@ -1619,7 +1727,7 @@ export default function AdminComprasPage() {
                       )}
 
                       {producto && productoEditandoId === producto.id && (
-                        <div className="grid gap-4 rounded-2xl border border-red-100 bg-red-50/60 p-4 md:col-span-12">
+                        <div className="grid gap-4 rounded-2xl border border-red-100 bg-red-50/60 p-4 xl:col-span-8">
                           <div className="grid gap-3 md:grid-cols-12">
                             <label className="grid gap-1 md:col-span-2">
                               <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
