@@ -1,6 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type KeyboardEvent,
+  type WheelEvent,
+} from 'react';
 import { Loader2, Save, Truck } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAdminSession } from '@/components/AdminSession';
@@ -54,6 +60,10 @@ type Fila = {
 function numero(valor: unknown) {
   const n = Number(String(valor ?? '').replace(',', '.'));
   return Number.isFinite(n) ? n : 0;
+}
+
+function kilos(valor: unknown) {
+  return Math.max(0, numero(valor));
 }
 
 function dinero(valor: number) {
@@ -119,6 +129,14 @@ function moverVertical(event: KeyboardEvent<HTMLInputElement>) {
   event.preventDefault();
   siguiente.focus();
   siguiente.select();
+}
+
+function evitarCambioNumeroConRueda(event: WheelEvent<HTMLDivElement>) {
+  const objetivo = event.target;
+
+  if (objetivo instanceof HTMLInputElement && objetivo.type === 'number') {
+    objetivo.blur();
+  }
 }
 
 function filaDesdeCliente(cliente: Cliente): Fila {
@@ -315,10 +333,18 @@ export default function RepartosPage() {
 
     const baseFilas = clientesDelRepartidor().map(filaDesdeCliente);
     const mapa = new Map(baseFilas.map((fila) => [fila.sigla, fila]));
+    const filasPorClienteId = new Map(
+      baseFilas
+        .filter((fila) => fila.cliente_id)
+        .map((fila) => [fila.cliente_id as string, fila])
+    );
 
     ((detallesData || []) as Detalle[]).forEach((detalle) => {
       const dia = Number(String(detalle.fecha).slice(8, 10));
       const existente =
+        (detalle.cliente_id
+          ? filasPorClienteId.get(detalle.cliente_id)
+          : undefined) ||
         mapa.get(detalle.cliente_sigla) ||
         {
           key: detalle.cliente_sigla,
@@ -330,12 +356,22 @@ export default function RepartosPage() {
         };
 
       existente.precio = Number(detalle.precio_unitario || existente.precio || 0);
-      existente.dias[dia] = {
-        vendidos: Number(detalle.kilos_vendidos || 0),
-        devueltos: Number(detalle.kilos_devueltos || 0),
-        ajuste: Number(detalle.monto_ajuste || 0),
+      const celdaExistente = existente.dias[dia] || {
+        vendidos: 0,
+        devueltos: 0,
+        ajuste: 0,
       };
-      mapa.set(detalle.cliente_sigla, existente);
+      existente.dias[dia] = {
+        vendidos:
+          celdaExistente.vendidos + kilos(detalle.kilos_vendidos),
+        devueltos:
+          celdaExistente.devueltos + kilos(detalle.kilos_devueltos),
+        ajuste: celdaExistente.ajuste + Number(detalle.monto_ajuste || 0),
+      };
+      mapa.set(existente.sigla, existente);
+      if (existente.cliente_id) {
+        filasPorClienteId.set(existente.cliente_id, existente);
+      }
     });
 
     const abonosPorDia: Record<number, number> = {};
@@ -370,7 +406,7 @@ export default function RepartosPage() {
             ...fila.dias,
             [dia]: {
               ...celda,
-              [campo]: numero(valor),
+              [campo]: campo === 'ajuste' ? numero(valor) : kilos(valor),
             },
           },
         };
@@ -467,7 +503,7 @@ export default function RepartosPage() {
   }
 
   return (
-    <div className="space-y-5 pb-12">
+    <div className="space-y-5 pb-12" onWheel={evitarCambioNumeroConRueda}>
       <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs font-black uppercase tracking-wide text-[#A51F2B]">
@@ -594,13 +630,25 @@ export default function RepartosPage() {
           </p>
         ) : (
           <div className="max-h-[620px] overflow-auto">
-            <table className="min-w-[1600px] border-collapse text-xs">
+            <table
+              className="table-fixed border-collapse text-xs"
+              style={{ width: 144 + 96 + dias.length * 128 + 112 }}
+            >
+              <colgroup>
+                <col style={{ width: 144 }} />
+                <col style={{ width: 96 }} />
+                {dias.flatMap((dia) => [
+                  <col key={`${dia}-vendidos-col`} style={{ width: 64 }} />,
+                  <col key={`${dia}-devueltos-col`} style={{ width: 64 }} />,
+                ])}
+                <col style={{ width: 112 }} />
+              </colgroup>
               <thead className="sticky top-0 z-10 bg-[#2A1710] text-white">
                 <tr>
-                  <th className="sticky left-0 z-20 w-36 bg-[#2A1710] px-2 py-2 text-left">
+                  <th className="sticky left-0 z-20 w-36 min-w-36 max-w-36 bg-[#2A1710] px-2 py-2 text-left">
                     Cliente
                   </th>
-                  <th className="sticky left-36 z-20 w-24 bg-[#2A1710] px-2 py-2 text-right">
+                  <th className="sticky left-36 z-20 w-24 min-w-24 max-w-24 bg-[#2A1710] px-2 py-2 text-right">
                     Precio
                   </th>
                   {dias.map((dia) => {
@@ -648,10 +696,10 @@ export default function RepartosPage() {
               <tbody>
                 {filas.map((fila) => (
                   <tr key={fila.key} className="border-b border-[#4B2818]/10 hover:bg-[#FFF3DF]/45">
-                    <td className="sticky left-0 z-[5] bg-white px-2 py-1 font-black uppercase text-[#2A1710]">
-                      <span title={fila.nombre}>{fila.sigla}</span>
+                    <td className="sticky left-0 z-[5] w-36 min-w-36 max-w-36 overflow-hidden bg-white px-2 py-1 font-black uppercase text-[#2A1710]">
+                      <span className="block truncate" title={fila.nombre}>{fila.sigla}</span>
                     </td>
-                    <td className="sticky left-36 z-[5] bg-white px-2 py-1">
+                    <td className="sticky left-36 z-[5] w-24 min-w-24 max-w-24 bg-white px-2 py-1">
                       <input
                         type="number"
                         data-columna="precio"
@@ -672,6 +720,7 @@ export default function RepartosPage() {
                           <td key={`${fila.key}-${dia}-v`} className={`border-l border-[#4B2818]/10 px-1 py-1 ${esDomingo(anio, mes, dia) ? 'bg-amber-100' : ''}`}>
                             <input
                               type="number"
+                              min="0"
                               data-columna={`${dia}-vendidos`}
                               value={celda.vendidos || ''}
                               onChange={(e) =>
@@ -684,6 +733,7 @@ export default function RepartosPage() {
                           <td key={`${fila.key}-${dia}-d`} className={`px-1 py-1 ${esDomingo(anio, mes, dia) ? 'bg-amber-100' : ''}`}>
                             <input
                               type="number"
+                              min="0"
                               data-columna={`${dia}-devueltos`}
                               value={celda.devueltos || ''}
                               onChange={(e) =>

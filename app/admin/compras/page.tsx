@@ -43,9 +43,6 @@ type ItemCompra = {
   cantidad: string;
   costo_unitario: string;
   costo_total: string;
-  valor_despacho: string;
-  impuesto_adicional: string;
-  descuento: string;
 };
 
 type TipoProductoCompra = 'producto' | 'ingrediente' | 'envase';
@@ -115,12 +112,7 @@ function totalBaseItem(item: ItemCompra) {
 }
 
 function totalFinalItem(item: ItemCompra) {
-  return (
-    totalBaseItem(item) +
-    numero(item.valor_despacho) +
-    numero(item.impuesto_adicional) -
-    numero(item.descuento)
-  );
+  return totalBaseItem(item);
 }
 
 function costoUnitarioEfectivo(item: ItemCompra) {
@@ -192,17 +184,13 @@ export default function AdminComprasPage() {
   const [familias, setFamilias] = useState<FamiliaProducto[]>([]);
   const [proveedor, setProveedor] = useState('');
   const [mostrarProveedores, setMostrarProveedores] = useState(false);
-  const [numeroDocumento, setNumeroDocumento] = useState('');
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
-  const [totalDocumento, setTotalDocumento] = useState('');
-  const [valorDespacho, setValorDespacho] = useState('');
-  const [impuestoAdicionalCompra, setImpuestoAdicionalCompra] = useState('');
-  const [descuentoCompra, setDescuentoCompra] = useState('');
   const [observacion, setObservacion] = useState('');
   const [items, setItems] = useState<ItemCompra[]>([]);
   const [resultadosBusqueda, setResultadosBusqueda] = useState<Record<number, Producto[]>>({});
   const [ultimasCompras, setUltimasCompras] = useState<Record<number, UltimaCompraProducto[]>>({});
   const [mostrarCrearProducto, setMostrarCrearProducto] = useState(false);
+  const [indiceItemCreacion, setIndiceItemCreacion] = useState<number | null>(null);
   const [nuevoProducto, setNuevoProducto] = useState({
     codigo: '',
     nombre: '',
@@ -239,12 +227,7 @@ export default function AdminComprasPage() {
       return total + totalFinalItem(item);
     }, 0);
   }, [items]);
-  const totalCompra =
-    subtotalProductos +
-    numero(valorDespacho) +
-    numero(impuestoAdicionalCompra) -
-    numero(descuentoCompra);
-  const diferenciaDocumento = numero(totalDocumento) - totalCompra;
+  const totalCompra = subtotalProductos;
 
   const familiaNuevoProducto = familias.find(
     (familia) => familia.id === nuevoProducto.familia_id
@@ -505,9 +488,6 @@ export default function AdminComprasPage() {
         cantidad: '',
         costo_unitario: '',
         costo_total: '',
-        valor_despacho: '',
-        impuesto_adicional: '',
-        descuento: '',
       },
     ]);
   }
@@ -798,19 +778,20 @@ export default function AdminComprasPage() {
         a.nombre.localeCompare(b.nombre)
       )
     );
-    setItems([
-      ...items,
-      {
+    const itemProductoCreado = {
         producto_id: String(productoCreado.id),
         busqueda_producto: `${productoCreado.nombre} - ${productoCreado.tipo_producto}`,
         cantidad: '',
         costo_unitario: String(costo || productoCreado.costo_unitario || ''),
         costo_total: '',
-        valor_despacho: '',
-        impuesto_adicional: '',
-        descuento: '',
-      },
-    ]);
+      };
+    setItems((actuales) =>
+      indiceItemCreacion === null
+        ? [...actuales, itemProductoCreado]
+        : actuales.map((item, indice) =>
+            indice === indiceItemCreacion ? itemProductoCreado : item
+          )
+    );
     setNuevoProducto({
       codigo: '',
       nombre: '',
@@ -821,6 +802,7 @@ export default function AdminComprasPage() {
       stock_actual: '',
       controla_stock: true,
     });
+    setIndiceItemCreacion(null);
     setMostrarCrearProducto(false);
   }
 
@@ -1103,14 +1085,6 @@ export default function AdminComprasPage() {
       return;
     }
 
-    if (numero(totalDocumento) > 0 && Math.abs(diferenciaDocumento) >= 1) {
-      const confirmar = window.confirm(
-        `El total de la factura no cuadra. Diferencia: ${dinero(diferenciaDocumento)}. ¿Guardar de todas formas?`
-      );
-
-      if (!confirmar) return;
-    }
-
     setGuardando(true);
 
     const { data: compra, error: errorCompra } = await supabase
@@ -1118,13 +1092,13 @@ export default function AdminComprasPage() {
       .insert({
         empresa_id: empresa.id,
         proveedor,
-        numero_documento: numeroDocumento,
+        numero_documento: '',
         fecha,
         observacion,
         subtotal_productos: subtotalProductos,
-        valor_despacho: numero(valorDespacho),
-        impuesto_adicional: numero(impuestoAdicionalCompra),
-        descuento: numero(descuentoCompra),
+        valor_despacho: 0,
+        impuesto_adicional: 0,
+        descuento: 0,
         total: totalCompra,
       })
       .select('id')
@@ -1147,9 +1121,9 @@ export default function AdminComprasPage() {
         cantidad,
         costo_unitario: costoUnitarioFinal || costoUnitario,
         costo_total: totalFinalItem(item),
-        valor_despacho: numero(item.valor_despacho),
-        impuesto_adicional: numero(item.impuesto_adicional),
-        descuento: numero(item.descuento),
+        valor_despacho: 0,
+        impuesto_adicional: 0,
+        descuento: 0,
       };
     });
 
@@ -1205,7 +1179,7 @@ export default function AdminComprasPage() {
           cantidad,
           referencia_tipo: 'compra',
           referencia_id: compra.id,
-          observacion: `Compra ${numeroDocumento || ''} ${proveedor || ''}`,
+          observacion: `Compra ${proveedor || ''}`.trim(),
         });
 
       if (errorMovimiento) {
@@ -1228,7 +1202,7 @@ export default function AdminComprasPage() {
           stock_nuevo: stockNuevo,
           referencia_tipo: 'compra',
           referencia_id: compra.id,
-          observacion: `Compra ${numeroDocumento || ''} ${proveedor || ''}`.trim(),
+          observacion: `Compra ${proveedor || ''}`.trim(),
         });
 
       if (errorHistorialCosto) {
@@ -1239,11 +1213,6 @@ export default function AdminComprasPage() {
     }
 
     setProveedor('');
-    setNumeroDocumento('');
-    setTotalDocumento('');
-    setValorDespacho('');
-    setImpuestoAdicionalCompra('');
-    setDescuentoCompra('');
     setObservacion('');
     setItems([]);
     setVariacionesCompra(variacionesRegistradas);
@@ -1275,7 +1244,7 @@ export default function AdminComprasPage() {
           <p className="mt-6 font-black">Cargando productos...</p>
         ) : (
           <>
-            <div className="mt-6 grid gap-4 md:grid-cols-5">
+            <div className="mt-6 grid gap-4 md:grid-cols-3">
               <label className="relative grid gap-1">
                 <input
                   value={proveedor}
@@ -1331,49 +1300,10 @@ export default function AdminComprasPage() {
               </label>
 
               <input
-                value={numeroDocumento}
-                onChange={(e) => setNumeroDocumento(e.target.value)}
-                placeholder="Factura / documento"
-                className="rounded-2xl border px-5 py-4 font-bold"
-              />
-
-              <input
                 type="date"
                 value={fecha}
                 onChange={(e) => setFecha(e.target.value)}
                 className="rounded-2xl border px-5 py-4 font-bold"
-              />
-
-              <input
-                type="number"
-                value={totalDocumento}
-                onChange={(e) => setTotalDocumento(e.target.value)}
-                placeholder="Total factura"
-                className="rounded-2xl border px-5 py-4 text-right font-bold"
-              />
-
-              <input
-                type="number"
-                value={valorDespacho}
-                onChange={(e) => setValorDespacho(e.target.value)}
-                placeholder="Despacho"
-                className="rounded-2xl border px-5 py-4 text-right font-bold"
-              />
-
-              <input
-                type="number"
-                value={impuestoAdicionalCompra}
-                onChange={(e) => setImpuestoAdicionalCompra(e.target.value)}
-                placeholder="Imp. adicional"
-                className="rounded-2xl border px-5 py-4 text-right font-bold"
-              />
-
-              <input
-                type="number"
-                value={descuentoCompra}
-                onChange={(e) => setDescuentoCompra(e.target.value)}
-                placeholder="Descuento"
-                className="rounded-2xl border px-5 py-4 text-right font-bold"
               />
 
               <input
@@ -1391,14 +1321,6 @@ export default function AdminComprasPage() {
                 </h3>
 
                 <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setMostrarCrearProducto((valor) => !valor)}
-                    className="rounded-full border-2 border-red-700 bg-white px-6 py-3 text-sm font-black text-red-700 shadow-lg transition hover:bg-red-50"
-                  >
-                    + Crear producto
-                  </button>
-
                   <button
                     type="button"
                     onClick={agregarItem}
@@ -1464,19 +1386,23 @@ export default function AdminComprasPage() {
                                 key={producto.id}
                                 type="button"
                                 onClick={() => {
-                                  setItems([
-                                    ...items,
-                                    {
+                                  const itemExistente = {
                                       producto_id: String(producto.id),
                                       busqueda_producto: `${producto.nombre} - ${producto.tipo_producto}`,
                                       cantidad: '',
                                       costo_unitario: String(producto.costo_unitario || ''),
                                       costo_total: '',
-                                      valor_despacho: '',
-                                      impuesto_adicional: '',
-                                      descuento: '',
-                                    },
-                                  ]);
+                                    };
+                                  setItems((actuales) =>
+                                    indiceItemCreacion === null
+                                      ? [...actuales, itemExistente]
+                                      : actuales.map((item, indice) =>
+                                          indice === indiceItemCreacion
+                                            ? itemExistente
+                                            : item
+                                        )
+                                  );
+                                  setIndiceItemCreacion(null);
                                   setMostrarCrearProducto(false);
                                   setNuevoProducto({
                                     codigo: '',
@@ -1577,7 +1503,7 @@ export default function AdminComprasPage() {
 
                     <label className="grid gap-1 md:col-span-3">
                       <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
-                        Precio factura
+                        Costo unitario
                       </span>
                       <input
                         type="number"
@@ -1690,6 +1616,7 @@ export default function AdminComprasPage() {
                                     ...nuevoProducto,
                                     nombre: item.busqueda_producto,
                                   });
+                                  setIndiceItemCreacion(index);
                                   setMostrarCrearProducto(true);
                                 }}
                                 className="w-full px-3 py-2 text-left text-xs font-black text-red-700 hover:bg-red-50"
@@ -1781,42 +1708,6 @@ export default function AdminComprasPage() {
                         >
                           Eliminar
                         </button>
-                      </div>
-
-                      <div className="grid gap-1.5 md:col-span-12 md:grid-cols-[1fr_1fr_1fr_auto]">
-                        <input
-                          type="number"
-                          value={item.valor_despacho}
-                          onChange={(e) =>
-                            actualizarItem(index, 'valor_despacho', e.target.value)
-                          }
-                          placeholder="Despacho producto"
-                          className="rounded-xl border px-3 py-2 text-right text-xs font-bold"
-                        />
-
-                        <input
-                          type="number"
-                          value={item.impuesto_adicional}
-                          onChange={(e) =>
-                            actualizarItem(index, 'impuesto_adicional', e.target.value)
-                          }
-                          placeholder="Imp. adicional producto"
-                          className="rounded-xl border px-3 py-2 text-right text-xs font-bold"
-                        />
-
-                        <input
-                          type="number"
-                          value={item.descuento}
-                          onChange={(e) =>
-                            actualizarItem(index, 'descuento', e.target.value)
-                          }
-                          placeholder="Descuento producto"
-                          className="rounded-xl border px-3 py-2 text-right text-xs font-bold"
-                        />
-
-                        <div className="rounded-xl bg-maruxa-crema px-3 py-2 text-right text-xs font-black text-maruxa-chocolate">
-                          Final: {dinero(totalFinalItem(item))}
-                        </div>
                       </div>
 
                       {producto && (
@@ -2020,23 +1911,9 @@ export default function AdminComprasPage() {
                   Total compra: {dinero(totalCompra)}
                 </p>
                 <p className="mt-1 text-xs font-bold text-maruxa-cafe/70">
-                  Productos: {dinero(subtotalProductos)} | Despacho:{' '}
-                  {dinero(numero(valorDespacho))} | Imp. adicional:{' '}
-                  {dinero(numero(impuestoAdicionalCompra))} | Descuento:{' '}
-                  {dinero(numero(descuentoCompra))}
+                  Suma de los productos ingresados. La factura electrónica se
+                  incorporará desde su integración correspondiente.
                 </p>
-                {numero(totalDocumento) > 0 && (
-                  <p
-                    className={`mt-1 text-sm font-black ${
-                      Math.abs(diferenciaDocumento) < 1
-                        ? 'text-green-700'
-                        : 'text-red-700'
-                    }`}
-                  >
-                    Factura: {dinero(numero(totalDocumento))} | Diferencia:{' '}
-                    {dinero(diferenciaDocumento)}
-                  </p>
-                )}
               </div>
 
               <div className="flex flex-wrap gap-3">
