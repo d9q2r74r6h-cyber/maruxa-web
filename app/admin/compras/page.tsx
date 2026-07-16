@@ -1533,18 +1533,7 @@ export default function AdminComprasPage() {
                 </div>
               )}
 
-              <div className="mt-3 hidden grid-cols-[minmax(220px,2fr)_130px_100px_130px_150px_1fr_1fr_80px] gap-2 px-3 text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60 xl:grid">
-                <span>Producto</span>
-                <span className="text-right">Valor compra</span>
-                <span className="text-right">Margen</span>
-                <span className="text-right">Precio venta</span>
-                <span>Tipo precio</span>
-                <span>Texto listado 1</span>
-                <span>Texto listado 2</span>
-                <span />
-              </div>
-
-              <div className="mt-1 grid gap-1.5">
+              <div className="mt-4 grid gap-3">
                 {items.map((item, index) => {
                   const producto = productos.find((p) => String(p.id) === String(item.producto_id));
                   const busquedaNormalizada = normalizarTexto(item.busqueda_producto);
@@ -1562,9 +1551,9 @@ export default function AdminComprasPage() {
                   return (
                     <div
                       key={index}
-                      className="grid gap-2 rounded-xl bg-white px-3 py-3 xl:grid-cols-[minmax(220px,2fr)_130px_100px_130px_150px_1fr_1fr_80px]"
+                      className="relative grid gap-2 rounded-2xl border border-maruxa-cafe/10 bg-white p-3 shadow-sm md:grid-cols-2 xl:grid-cols-12"
                     >
-                      <div className="relative">
+                      <div className="relative z-20 xl:col-span-3">
                         <input
                           value={item.busqueda_producto}
                           onChange={(e) =>
@@ -1575,7 +1564,7 @@ export default function AdminComprasPage() {
                         />
 
                         {!item.producto_id && item.busqueda_producto && (
-                          <div className="mt-1 overflow-hidden rounded-xl border bg-white shadow-sm">
+                          <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-y-auto rounded-xl border bg-white shadow-xl">
                             {productosFiltrados.length === 0 ? (
                               <button
                                 type="button"
@@ -1640,7 +1629,7 @@ export default function AdminComprasPage() {
                         onChange={(e) => actualizarItem(index, 'costo_unitario', e.target.value)}
                         placeholder="Valor compra"
                         title="El IVA se aplicará según la configuración del proveedor"
-                        className="rounded-xl border px-3 py-2 text-right text-sm font-bold"
+                        className="rounded-xl border px-3 py-2 text-right text-sm font-bold xl:col-span-2"
                       />
 
                       <input
@@ -1650,7 +1639,7 @@ export default function AdminComprasPage() {
                           actualizarItem(index, 'margen_porcentaje', e.target.value)
                         }
                         placeholder="Margen %"
-                        className="rounded-xl border px-3 py-2 text-right text-sm font-bold"
+                        className="rounded-xl border px-3 py-2 text-right text-sm font-bold xl:col-span-1"
                       />
 
                       <input
@@ -1660,10 +1649,10 @@ export default function AdminComprasPage() {
                           actualizarItem(index, 'precio_venta', e.target.value)
                         }
                         placeholder="Precio venta"
-                        className="rounded-xl border px-3 py-2 text-right text-sm font-black text-maruxa-rojo"
+                        className="rounded-xl border px-3 py-2 text-right text-sm font-black text-maruxa-rojo xl:col-span-2"
                       />
 
-                      <label className="flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black">
+                      <label className="flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black xl:col-span-2">
                         <input
                           type="checkbox"
                           checked={item.precio_listado}
@@ -1685,9 +1674,9 @@ export default function AdminComprasPage() {
                         onChange={(e) =>
                           actualizarItem(index, 'texto_listado_1', e.target.value)
                         }
-                        disabled={!item.precio_listado}
-                        placeholder="Texto listado 1"
-                        className="rounded-xl border px-3 py-2 text-sm font-bold disabled:bg-gray-100 disabled:text-gray-400"
+                        disabled={item.precio_listado}
+                        placeholder="Texto precio suelto 1"
+                        className="rounded-xl border px-3 py-2 text-sm font-bold disabled:bg-gray-100 disabled:text-gray-400 xl:col-span-6"
                       />
 
                       <input
@@ -1695,39 +1684,21 @@ export default function AdminComprasPage() {
                         onChange={(e) =>
                           actualizarItem(index, 'texto_listado_2', e.target.value)
                         }
-                        disabled={!item.precio_listado}
-                        placeholder="Texto listado 2"
-                        className="rounded-xl border px-3 py-2 text-sm font-bold disabled:bg-gray-100 disabled:text-gray-400"
+                        disabled={item.precio_listado}
+                        placeholder="Texto precio suelto 2"
+                        className="rounded-xl border px-3 py-2 text-sm font-bold disabled:bg-gray-100 disabled:text-gray-400 xl:col-span-6"
                       />
 
                         <button
                           type="button"
                           onClick={() => eliminarItem(index)}
-                          className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-xs font-black text-red-700"
+                          className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-xs font-black text-red-700 xl:col-span-2 xl:col-start-11 xl:row-start-1"
                         >
                           Eliminar
                         </button>
 
-                      {producto && (
-                        <div className="text-[11px] font-bold leading-tight text-gray-500 xl:col-span-8">
-                          {producto.codigo && <>Codigo: {producto.codigo} | </>}
-                          Stock actual:{' '}
-                          {numero(producto.stock_actual).toLocaleString('es-CL')}{' '}
-                          {producto.unidad_base || ''} | Costo actual:{' '}
-                          {dinero(numero(producto.costo_unitario))} | Ultimas compras:{' '}
-                          {ultimasCompras[producto.id]?.length
-                            ? ultimasCompras[producto.id]
-                                .map(
-                                  (compra) =>
-                                    `${formatearFecha(compra.fecha)} ${dinero(compra.precio)}`
-                                )
-                                .join(' | ')
-                            : 'sin historial'}
-                        </div>
-                      )}
-
                       {producto && productoEditandoId === producto.id && (
-                        <div className="grid gap-4 rounded-2xl border border-red-100 bg-red-50/60 p-4 xl:col-span-8">
+                        <div className="grid gap-4 rounded-2xl border border-red-100 bg-red-50/60 p-4 xl:col-span-12">
                           <div className="grid gap-3 md:grid-cols-12">
                             <label className="grid gap-1 md:col-span-2">
                               <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
