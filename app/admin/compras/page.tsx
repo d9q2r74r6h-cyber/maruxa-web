@@ -117,6 +117,15 @@ function dinero(valor: number) {
   return `$${Math.round(Number(valor || 0)).toLocaleString('es-CL')}`;
 }
 
+function entradaPeso(valor: string | number | null | undefined) {
+  const monto = numero(valor);
+  return monto ? dinero(monto) : '';
+}
+
+function valorPesoEntrada(valor: string) {
+  return valor.replace(/\D/g, '');
+}
+
 function entero(valor: number) {
   return Math.round(Number(valor || 0));
 }
@@ -1474,15 +1483,16 @@ export default function AdminComprasPage() {
                         Costo unitario
                       </span>
                       <input
-                        type="number"
-                        value={nuevoProducto.costo_unitario}
+                        type="text"
+                        inputMode="numeric"
+                        value={entradaPeso(nuevoProducto.costo_unitario)}
                         onChange={(e) =>
                           setNuevoProducto({
                             ...nuevoProducto,
-                            costo_unitario: e.target.value,
+                            costo_unitario: valorPesoEntrada(e.target.value),
                           })
                         }
-                        placeholder="0"
+                        placeholder="$0"
                         className="rounded-2xl border px-4 py-3 text-right font-bold"
                       />
                     </label>
@@ -1624,10 +1634,17 @@ export default function AdminComprasPage() {
                       </div>
 
                       <input
-                        type="number"
-                        value={item.costo_unitario}
-                        onChange={(e) => actualizarItem(index, 'costo_unitario', e.target.value)}
-                        placeholder="Valor compra"
+                        type="text"
+                        inputMode="numeric"
+                        value={entradaPeso(item.costo_unitario)}
+                        onChange={(e) =>
+                          actualizarItem(
+                            index,
+                            'costo_unitario',
+                            valorPesoEntrada(e.target.value)
+                          )
+                        }
+                        placeholder="$ Valor compra"
                         title="El IVA se aplicará según la configuración del proveedor"
                         className="rounded-xl border px-3 py-2 text-right text-sm font-bold xl:col-span-2"
                       />
@@ -1643,12 +1660,17 @@ export default function AdminComprasPage() {
                       />
 
                       <input
-                        type="number"
-                        value={item.precio_venta}
+                        type="text"
+                        inputMode="numeric"
+                        value={entradaPeso(item.precio_venta)}
                         onChange={(e) =>
-                          actualizarItem(index, 'precio_venta', e.target.value)
+                          actualizarItem(
+                            index,
+                            'precio_venta',
+                            valorPesoEntrada(e.target.value)
+                          )
                         }
-                        placeholder="Precio venta"
+                        placeholder="$ Precio venta"
                         className="rounded-xl border px-3 py-2 text-right text-sm font-black text-maruxa-rojo xl:col-span-2"
                       />
 
@@ -1804,12 +1826,13 @@ export default function AdminComprasPage() {
                                 Costo
                               </span>
                               <input
-                                type="number"
-                                value={productoEditando.costo_unitario}
+                                type="text"
+                                inputMode="numeric"
+                                value={entradaPeso(productoEditando.costo_unitario)}
                                 onChange={(e) =>
                                   setProductoEditando({
                                     ...productoEditando,
-                                    costo_unitario: e.target.value,
+                                    costo_unitario: valorPesoEntrada(e.target.value),
                                   })
                                 }
                                 className="rounded-xl border px-3 py-2 text-right text-sm font-bold"
