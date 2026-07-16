@@ -1609,9 +1609,9 @@ export default function AdminComprasPage() {
                   return (
                     <div
                       key={index}
-                      className="relative grid gap-2 rounded-2xl border border-maruxa-cafe/10 bg-white p-3 shadow-sm md:grid-cols-2 xl:grid-cols-12"
+                      className="relative grid gap-4 rounded-2xl border border-maruxa-cafe/10 bg-white p-4 shadow-sm md:grid-cols-2 xl:grid-cols-5"
                     >
-                      <div className="relative z-20 grid gap-1 xl:col-span-3">
+                      <div className="relative z-20 grid min-w-0 gap-1">
                         <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                           Producto
                         </span>
@@ -1684,7 +1684,7 @@ export default function AdminComprasPage() {
                         )}
                       </div>
 
-                      <label className="grid gap-1 xl:col-span-2">
+                      <label className="grid min-w-0 gap-1">
                         <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                           Valor compra
                         </span>
@@ -1705,7 +1705,7 @@ export default function AdminComprasPage() {
                         />
                       </label>
 
-                      <label className="grid gap-1 xl:col-span-1">
+                      <label className="grid min-w-0 gap-1">
                         <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                           Margen
                         </span>
@@ -1725,7 +1725,7 @@ export default function AdminComprasPage() {
                         />
                       </label>
 
-                      <label className="grid gap-1 xl:col-span-2">
+                      <label className="grid min-w-0 gap-1">
                         <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                           Precio venta
                         </span>
@@ -1745,11 +1745,11 @@ export default function AdminComprasPage() {
                         />
                       </label>
 
-                      <fieldset className="grid gap-1 xl:col-span-2">
+                      <fieldset className="grid min-w-0 gap-1">
                         <legend className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                           Tipo de precio
                         </legend>
-                        <div className="flex h-full items-center gap-3 rounded-xl border px-3 py-2 text-xs font-black">
+                        <div className="flex h-full flex-wrap items-center gap-3 rounded-xl border px-3 py-2 text-xs font-black">
                           <label className="flex items-center gap-1.5">
                             <input
                               type="radio"
@@ -1788,8 +1788,8 @@ export default function AdminComprasPage() {
                       </fieldset>
 
                       {!item.precio_listado && (
-                        <>
-                          <label className="grid gap-1 xl:col-span-6">
+                        <div className="grid gap-4 md:col-span-2 md:grid-cols-2 xl:col-span-5">
+                          <label className="grid min-w-0 gap-1">
                             <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                               Texto precio suelto 1
                             </span>
@@ -1802,7 +1802,7 @@ export default function AdminComprasPage() {
                               className="rounded-xl border px-3 py-2 text-sm font-bold"
                             />
                           </label>
-                          <label className="grid gap-1 xl:col-span-6">
+                          <label className="grid min-w-0 gap-1">
                             <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                               Texto precio suelto 2
                             </span>
@@ -1815,19 +1815,19 @@ export default function AdminComprasPage() {
                               className="rounded-xl border px-3 py-2 text-sm font-bold"
                             />
                           </label>
-                        </>
+                        </div>
                       )}
 
                         <button
                           type="button"
                           onClick={() => eliminarItem(index)}
-                          className="self-end rounded-xl border border-red-300 bg-red-50 px-3 py-2.5 text-xs font-black text-red-700 xl:col-span-2 xl:col-start-11 xl:row-start-1"
+                          className="justify-self-end rounded-xl border border-red-300 bg-red-50 px-5 py-2.5 text-xs font-black text-red-700 md:col-span-2 xl:col-span-5"
                         >
                           Eliminar
                         </button>
 
                       {producto && productoEditandoId === producto.id && (
-                        <div className="grid gap-4 rounded-2xl border border-red-100 bg-red-50/60 p-4 xl:col-span-12">
+                        <div className="grid gap-4 rounded-2xl border border-red-100 bg-red-50/60 p-4 md:col-span-2 xl:col-span-5">
                           <div className="grid gap-3 md:grid-cols-12">
                             <label className="grid gap-1 md:col-span-2">
                               <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
