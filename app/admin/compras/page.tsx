@@ -239,6 +239,9 @@ export default function AdminComprasPage() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [proveedores, setProveedores] = useState<ProveedorCompra[]>([]);
   const [proveedorId, setProveedorId] = useState('');
+  const [proveedorTexto, setProveedorTexto] = useState('');
+  const [mostrarProveedores, setMostrarProveedores] = useState(false);
+  const [buscandoProveedores, setBuscandoProveedores] = useState(false);
   const [familias, setFamilias] = useState<FamiliaProducto[]>([]);
   const [items, setItems] = useState<ItemCompra[]>(() => [itemCompraVacio()]);
   const [resultadosBusqueda, setResultadosBusqueda] = useState<Record<number, Producto[]>>({});
@@ -338,11 +341,7 @@ export default function AdminComprasPage() {
       return;
     }
 
-    const [
-      { data, error },
-      { data: proveedoresData },
-      { data: familiasData },
-    ] = await Promise.all([
+    const [{ data, error }, { data: familiasData }] = await Promise.all([
       supabase
       .from('productos')
       .select(`
@@ -362,12 +361,6 @@ export default function AdminComprasPage() {
       .eq('activo', true)
       .order('nombre', { ascending: true }),
       supabase
-        .from('proveedores')
-        .select('id,razon_social')
-        .eq('empresa_id', empresa.id)
-        .eq('activo', true)
-        .order('razon_social', { ascending: true }),
-      supabase
         .from('familias_productos')
         .select('id,nombre,activo,mostrar_catalogo,tipo_margen,margen_porcentaje,redondeo_precio')
         .eq('empresa_id', empresa.id)
@@ -382,7 +375,6 @@ export default function AdminComprasPage() {
     }
 
     setProductos((data as Producto[]) || []);
-    setProveedores((proveedoresData as ProveedorCompra[]) || []);
     setFamilias((familiasData as FamiliaProducto[]) || []);
     setLoading(false);
   }
@@ -390,6 +382,35 @@ export default function AdminComprasPage() {
   useEffect(() => {
     cargarProductos();
   }, []);
+
+  useEffect(() => {
+    if (!mostrarProveedores) return;
+
+    const timer = setTimeout(async () => {
+      const empresa = await obtenerEmpresaActual();
+      if (!empresa) return;
+
+      setBuscandoProveedores(true);
+      let consulta = supabase
+        .from('proveedores')
+        .select('id,razon_social')
+        .eq('empresa_id', empresa.id)
+        .eq('activo', true)
+        .order('razon_social', { ascending: true })
+        .limit(20);
+
+      const termino = proveedorTexto.trim();
+      if (termino) {
+        consulta = consulta.ilike('razon_social', `%${termino}%`);
+      }
+
+      const { data, error } = await consulta;
+      setProveedores(error ? [] : ((data as ProveedorCompra[]) || []));
+      setBuscandoProveedores(false);
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [mostrarProveedores, proveedorTexto]);
 
   async function cargarUltimasCompras(productoIds: number[]) {
     const idsPendientes = [...new Set(productoIds)].filter(
@@ -1163,8 +1184,7 @@ export default function AdminComprasPage() {
       .from('compras')
       .insert({
         empresa_id: empresa.id,
-        proveedor:
-          proveedores.find((item) => item.id === proveedorId)?.razon_social || '',
+        proveedor: proveedorId ? proveedorTexto.trim() : '',
         numero_documento: '',
         fecha: new Date().toISOString().slice(0, 10),
         observacion: '',
@@ -1315,23 +1335,56 @@ export default function AdminComprasPage() {
           <p className="mt-6 font-black">Cargando productos...</p>
         ) : (
           <>
-            <label className="mt-6 grid max-w-xl gap-1.5">
+            <div className="relative mt-6 grid max-w-xl gap-1.5">
               <span className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
                 Proveedor
               </span>
-              <select
-                value={proveedorId}
-                onChange={(e) => setProveedorId(e.target.value)}
+              <input
+                value={proveedorTexto}
+                onFocus={() => setMostrarProveedores(true)}
+                onBlur={() =>
+                  setTimeout(() => setMostrarProveedores(false), 150)
+                }
+                onChange={(e) => {
+                  setProveedorTexto(e.target.value);
+                  setProveedorId('');
+                  setMostrarProveedores(true);
+                }}
+                placeholder="Buscar proveedor..."
+                autoComplete="off"
                 className="rounded-2xl border bg-white px-4 py-3 font-bold text-maruxa-chocolate"
-              >
-                <option value="">Seleccionar proveedor</option>
-                {proveedores.map((proveedor) => (
-                  <option key={proveedor.id} value={proveedor.id}>
-                    {proveedor.razon_social}
-                  </option>
-                ))}
-              </select>
-            </label>
+              />
+
+              {mostrarProveedores && (
+                <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-72 overflow-y-auto rounded-2xl border bg-white shadow-xl">
+                  {buscandoProveedores ? (
+                    <p className="px-4 py-3 text-sm font-bold text-gray-500">
+                      Buscando proveedores...
+                    </p>
+                  ) : proveedores.length > 0 ? (
+                    proveedores.map((proveedor) => (
+                      <button
+                        key={proveedor.id}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setProveedorId(proveedor.id);
+                          setProveedorTexto(proveedor.razon_social);
+                          setMostrarProveedores(false);
+                        }}
+                        className="block w-full px-4 py-3 text-left text-sm font-bold hover:bg-maruxa-crema"
+                      >
+                        {proveedor.razon_social}
+                      </button>
+                    ))
+                  ) : (
+                    <p className="px-4 py-3 text-sm font-bold text-gray-500">
+                      No se encontraron proveedores.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
 
             <div className="mt-6 rounded-[28px] bg-maruxa-crema p-5">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
