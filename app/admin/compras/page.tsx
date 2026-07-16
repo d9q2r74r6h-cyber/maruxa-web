@@ -23,6 +23,11 @@ type UltimaCompraProducto = {
   precio: number;
 };
 
+type ProveedorCompra = {
+  id: string;
+  razon_social: string;
+};
+
 type FamiliaProducto = {
   id: string;
   nombre: string;
@@ -103,7 +108,7 @@ function itemCompraVacio(): ItemCompra {
     margen_porcentaje: '',
     tipo_margen: 'markup',
     precio_venta: '',
-    precio_listado: false,
+    precio_listado: true,
     texto_listado_1: '',
     texto_listado_2: '',
   };
@@ -124,6 +129,17 @@ function entradaPeso(valor: string | number | null | undefined) {
 
 function valorPesoEntrada(valor: string) {
   return valor.replace(/\D/g, '');
+}
+
+function entradaPorcentaje(valor: string | number | null | undefined) {
+  const porcentaje = numero(valor);
+  return porcentaje
+    ? `${porcentaje.toLocaleString('es-CL', { maximumFractionDigits: 2 })}%`
+    : '';
+}
+
+function valorPorcentajeEntrada(valor: string) {
+  return valor.replace(/[^0-9,.]/g, '').replace(',', '.');
 }
 
 function entero(valor: number) {
@@ -221,6 +237,8 @@ function calcularPrecioSugerido(costoUnidad: number, producto: any) {
 
 export default function AdminComprasPage() {
   const [productos, setProductos] = useState<Producto[]>([]);
+  const [proveedores, setProveedores] = useState<ProveedorCompra[]>([]);
+  const [proveedorId, setProveedorId] = useState('');
   const [familias, setFamilias] = useState<FamiliaProducto[]>([]);
   const [items, setItems] = useState<ItemCompra[]>(() => [itemCompraVacio()]);
   const [resultadosBusqueda, setResultadosBusqueda] = useState<Record<number, Producto[]>>({});
@@ -320,7 +338,11 @@ export default function AdminComprasPage() {
       return;
     }
 
-    const [{ data, error }, { data: familiasData }] = await Promise.all([
+    const [
+      { data, error },
+      { data: proveedoresData },
+      { data: familiasData },
+    ] = await Promise.all([
       supabase
       .from('productos')
       .select(`
@@ -340,6 +362,12 @@ export default function AdminComprasPage() {
       .eq('activo', true)
       .order('nombre', { ascending: true }),
       supabase
+        .from('proveedores')
+        .select('id,razon_social')
+        .eq('empresa_id', empresa.id)
+        .eq('activo', true)
+        .order('razon_social', { ascending: true }),
+      supabase
         .from('familias_productos')
         .select('id,nombre,activo,mostrar_catalogo,tipo_margen,margen_porcentaje,redondeo_precio')
         .eq('empresa_id', empresa.id)
@@ -354,6 +382,7 @@ export default function AdminComprasPage() {
     }
 
     setProductos((data as Producto[]) || []);
+    setProveedores((proveedoresData as ProveedorCompra[]) || []);
     setFamilias((familiasData as FamiliaProducto[]) || []);
     setLoading(false);
   }
@@ -824,7 +853,7 @@ export default function AdminComprasPage() {
         margen_porcentaje: '',
         tipo_margen: 'markup' as const,
         precio_venta: String(productoCreado.precio || ''),
-        precio_listado: false,
+        precio_listado: true,
         texto_listado_1: '',
         texto_listado_2: '',
       };
@@ -1134,7 +1163,8 @@ export default function AdminComprasPage() {
       .from('compras')
       .insert({
         empresa_id: empresa.id,
-        proveedor: '',
+        proveedor:
+          proveedores.find((item) => item.id === proveedorId)?.razon_social || '',
         numero_documento: '',
         fecha: new Date().toISOString().slice(0, 10),
         observacion: '',
@@ -1285,6 +1315,24 @@ export default function AdminComprasPage() {
           <p className="mt-6 font-black">Cargando productos...</p>
         ) : (
           <>
+            <label className="mt-6 grid max-w-xl gap-1.5">
+              <span className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
+                Proveedor
+              </span>
+              <select
+                value={proveedorId}
+                onChange={(e) => setProveedorId(e.target.value)}
+                className="rounded-2xl border bg-white px-4 py-3 font-bold text-maruxa-chocolate"
+              >
+                <option value="">Seleccionar proveedor</option>
+                {proveedores.map((proveedor) => (
+                  <option key={proveedor.id} value={proveedor.id}>
+                    {proveedor.razon_social}
+                  </option>
+                ))}
+              </select>
+            </label>
+
             <div className="mt-6 rounded-[28px] bg-maruxa-crema p-5">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <h3 className="text-xl font-black text-maruxa-chocolate">
@@ -1366,7 +1414,7 @@ export default function AdminComprasPage() {
                                       margen_porcentaje: '',
                                       tipo_margen: 'markup' as const,
                                       precio_venta: String(producto.precio || ''),
-                                      precio_listado: false,
+                                      precio_listado: true,
                                       texto_listado_1: '',
                                       texto_listado_2: '',
                                     };
@@ -1563,7 +1611,10 @@ export default function AdminComprasPage() {
                       key={index}
                       className="relative grid gap-2 rounded-2xl border border-maruxa-cafe/10 bg-white p-3 shadow-sm md:grid-cols-2 xl:grid-cols-12"
                     >
-                      <div className="relative z-20 xl:col-span-3">
+                      <div className="relative z-20 grid gap-1 xl:col-span-3">
+                        <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
+                          Producto
+                        </span>
                         <input
                           value={item.busqueda_producto}
                           onChange={(e) =>
@@ -1633,88 +1684,144 @@ export default function AdminComprasPage() {
                         )}
                       </div>
 
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={entradaPeso(item.costo_unitario)}
-                        onChange={(e) =>
-                          actualizarItem(
-                            index,
-                            'costo_unitario',
-                            valorPesoEntrada(e.target.value)
-                          )
-                        }
-                        placeholder="$ Valor compra"
-                        title="El IVA se aplicará según la configuración del proveedor"
-                        className="rounded-xl border px-3 py-2 text-right text-sm font-bold xl:col-span-2"
-                      />
-
-                      <input
-                        type="number"
-                        value={item.margen_porcentaje}
-                        onChange={(e) =>
-                          actualizarItem(index, 'margen_porcentaje', e.target.value)
-                        }
-                        placeholder="Margen %"
-                        className="rounded-xl border px-3 py-2 text-right text-sm font-bold xl:col-span-1"
-                      />
-
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={entradaPeso(item.precio_venta)}
-                        onChange={(e) =>
-                          actualizarItem(
-                            index,
-                            'precio_venta',
-                            valorPesoEntrada(e.target.value)
-                          )
-                        }
-                        placeholder="$ Precio venta"
-                        className="rounded-xl border px-3 py-2 text-right text-sm font-black text-maruxa-rojo xl:col-span-2"
-                      />
-
-                      <label className="flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black xl:col-span-2">
+                      <label className="grid gap-1 xl:col-span-2">
+                        <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
+                          Valor compra
+                        </span>
                         <input
-                          type="checkbox"
-                          checked={item.precio_listado}
+                          type="text"
+                          inputMode="numeric"
+                          value={entradaPeso(item.costo_unitario)}
                           onChange={(e) =>
-                            setItems((actuales) =>
-                              actuales.map((actual, indice) =>
-                                indice === index
-                                  ? { ...actual, precio_listado: e.target.checked }
-                                  : actual
-                              )
+                            actualizarItem(
+                              index,
+                              'costo_unitario',
+                              valorPesoEntrada(e.target.value)
                             )
                           }
+                          placeholder="$0"
+                          title="El IVA se aplicará según la configuración del proveedor"
+                          className="rounded-xl border px-3 py-2 text-right text-sm font-bold"
                         />
-                        {item.precio_listado ? 'Precio listado' : 'Precio suelto'}
                       </label>
 
-                      <input
-                        value={item.texto_listado_1}
-                        onChange={(e) =>
-                          actualizarItem(index, 'texto_listado_1', e.target.value)
-                        }
-                        disabled={item.precio_listado}
-                        placeholder="Texto precio suelto 1"
-                        className="rounded-xl border px-3 py-2 text-sm font-bold disabled:bg-gray-100 disabled:text-gray-400 xl:col-span-6"
-                      />
+                      <label className="grid gap-1 xl:col-span-1">
+                        <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
+                          Margen
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={entradaPorcentaje(item.margen_porcentaje)}
+                          onChange={(e) =>
+                            actualizarItem(
+                              index,
+                              'margen_porcentaje',
+                              valorPorcentajeEntrada(e.target.value)
+                            )
+                          }
+                          placeholder="0%"
+                          className="rounded-xl border px-3 py-2 text-right text-sm font-bold"
+                        />
+                      </label>
 
-                      <input
-                        value={item.texto_listado_2}
-                        onChange={(e) =>
-                          actualizarItem(index, 'texto_listado_2', e.target.value)
-                        }
-                        disabled={item.precio_listado}
-                        placeholder="Texto precio suelto 2"
-                        className="rounded-xl border px-3 py-2 text-sm font-bold disabled:bg-gray-100 disabled:text-gray-400 xl:col-span-6"
-                      />
+                      <label className="grid gap-1 xl:col-span-2">
+                        <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
+                          Precio venta
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={entradaPeso(item.precio_venta)}
+                          onChange={(e) =>
+                            actualizarItem(
+                              index,
+                              'precio_venta',
+                              valorPesoEntrada(e.target.value)
+                            )
+                          }
+                          placeholder="$0"
+                          className="rounded-xl border px-3 py-2 text-right text-sm font-black text-maruxa-rojo"
+                        />
+                      </label>
+
+                      <fieldset className="grid gap-1 xl:col-span-2">
+                        <legend className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
+                          Tipo de precio
+                        </legend>
+                        <div className="flex h-full items-center gap-3 rounded-xl border px-3 py-2 text-xs font-black">
+                          <label className="flex items-center gap-1.5">
+                            <input
+                              type="radio"
+                              name={`tipo-precio-${index}`}
+                              checked={item.precio_listado}
+                              onChange={() =>
+                                setItems((actuales) =>
+                                  actuales.map((actual, indice) =>
+                                    indice === index
+                                      ? { ...actual, precio_listado: true }
+                                      : actual
+                                  )
+                                )
+                              }
+                            />
+                            Listado
+                          </label>
+                          <label className="flex items-center gap-1.5">
+                            <input
+                              type="radio"
+                              name={`tipo-precio-${index}`}
+                              checked={!item.precio_listado}
+                              onChange={() =>
+                                setItems((actuales) =>
+                                  actuales.map((actual, indice) =>
+                                    indice === index
+                                      ? { ...actual, precio_listado: false }
+                                      : actual
+                                  )
+                                )
+                              }
+                            />
+                            Suelto
+                          </label>
+                        </div>
+                      </fieldset>
+
+                      {!item.precio_listado && (
+                        <>
+                          <label className="grid gap-1 xl:col-span-6">
+                            <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
+                              Texto precio suelto 1
+                            </span>
+                            <input
+                              value={item.texto_listado_1}
+                              onChange={(e) =>
+                                actualizarItem(index, 'texto_listado_1', e.target.value)
+                              }
+                              placeholder="Escribe el primer texto"
+                              className="rounded-xl border px-3 py-2 text-sm font-bold"
+                            />
+                          </label>
+                          <label className="grid gap-1 xl:col-span-6">
+                            <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
+                              Texto precio suelto 2
+                            </span>
+                            <input
+                              value={item.texto_listado_2}
+                              onChange={(e) =>
+                                actualizarItem(index, 'texto_listado_2', e.target.value)
+                              }
+                              placeholder="Escribe el segundo texto"
+                              className="rounded-xl border px-3 py-2 text-sm font-bold"
+                            />
+                          </label>
+                        </>
+                      )}
 
                         <button
                           type="button"
                           onClick={() => eliminarItem(index)}
-                          className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-xs font-black text-red-700 xl:col-span-2 xl:col-start-11 xl:row-start-1"
+                          className="self-end rounded-xl border border-red-300 bg-red-50 px-3 py-2.5 text-xs font-black text-red-700 xl:col-span-2 xl:col-start-11 xl:row-start-1"
                         >
                           Eliminar
                         </button>
