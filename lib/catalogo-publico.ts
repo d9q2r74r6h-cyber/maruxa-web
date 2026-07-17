@@ -14,6 +14,15 @@ export type ProductoCatalogo = {
   precio_15?: number | null;
   precio_20?: number | null;
   precio_25?: number | null;
+  familia?: {
+    id: string;
+    nombre: string;
+    familia_padre_id: string | null;
+    familia_principal: {
+      id: string;
+      nombre: string;
+    } | null;
+  } | null;
 };
 
 type FiltrosCatalogo = {
@@ -21,6 +30,14 @@ type FiltrosCatalogo = {
   categoria?: string | null;
   excluirId?: number | null;
   limite?: number | null;
+};
+
+type ProductoCatalogoConsulta = Omit<ProductoCatalogo, 'familia'> & {
+  familias_productos: {
+    id: string;
+    nombre: string;
+    familia_padre_id: string | null;
+  } | null;
 };
 
 function crearAdmin() {
@@ -57,7 +74,9 @@ export async function obtenerProductosCatalogo(filtros: FiltrosCatalogo = {}) {
       precio_20,
       precio_25,
       familias_productos!inner (
-        id
+        id,
+        nombre,
+        familia_padre_id
       )
     `)
     .eq('activo', true)
@@ -87,8 +106,37 @@ export async function obtenerProductosCatalogo(filtros: FiltrosCatalogo = {}) {
 
   const { data, error } = await consulta;
 
+  if (error) {
+    return { data: [] as ProductoCatalogo[], error: error.message };
+  }
+
+  const productosConsulta = (data || []) as unknown as ProductoCatalogoConsulta[];
+
+  const idsFamiliasPrincipales = [
+    ...new Set(
+      productosConsulta
+        .map((producto) => producto.familias_productos?.familia_padre_id)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
+  const { data: familiasPrincipales, error: errorFamilias } =
+    idsFamiliasPrincipales.length > 0
+      ? await admin
+          .from('familias_productos')
+          .select('id,nombre')
+          .in('id', idsFamiliasPrincipales)
+      : { data: [], error: null };
+
+  if (errorFamilias) {
+    return { data: [] as ProductoCatalogo[], error: errorFamilias.message };
+  }
+
+  const familiasPrincipalesPorId = new Map(
+    (familiasPrincipales || []).map((familia) => [familia.id, familia])
+  );
+
   return {
-    data: ((data || []) as unknown as ProductoCatalogo[]).map((producto) => ({
+    data: productosConsulta.map((producto) => ({
       id: producto.id,
       nombre: producto.nombre,
       descripcion: producto.descripcion,
@@ -102,7 +150,19 @@ export async function obtenerProductosCatalogo(filtros: FiltrosCatalogo = {}) {
       precio_15: producto.precio_15,
       precio_20: producto.precio_20,
       precio_25: producto.precio_25,
+      familia: producto.familias_productos
+        ? {
+            id: producto.familias_productos.id,
+            nombre: producto.familias_productos.nombre,
+            familia_padre_id:
+              producto.familias_productos.familia_padre_id || null,
+            familia_principal:
+              familiasPrincipalesPorId.get(
+                producto.familias_productos.familia_padre_id || ''
+              ) || null,
+          }
+        : null,
     })),
-    error: error?.message || null,
+    error: null,
   };
 }

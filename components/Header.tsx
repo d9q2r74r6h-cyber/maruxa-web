@@ -28,7 +28,10 @@ export function Header() {
 
   const links = [
     { href: '/#catalogo', label: 'Catálogo' },
-    { href: '/?categoria=Tortas#catalogo', label: 'Tortas' },
+    {
+      href: '/?categoria=Pastelería&subfamilia=Tortas#catalogo',
+      label: 'Tortas',
+    },
     { href: '/#retiro', label: 'Retiro' },
   ];
 

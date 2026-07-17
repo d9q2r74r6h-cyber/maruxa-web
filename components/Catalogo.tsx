@@ -25,6 +25,15 @@ type Producto = {
   precio_15?: number | null;
   precio_20?: number | null;
   precio_25?: number | null;
+  familia?: {
+    id: string;
+    nombre: string;
+    familia_padre_id: string | null;
+    familia_principal: {
+      id: string;
+      nombre: string;
+    } | null;
+  } | null;
 };
 
 function normalizarTexto(texto: string) {
@@ -59,6 +68,9 @@ export default function Catalogo() {
   useState(
     searchParams.get('categoria') || 'Todas'
   );
+  const [subfamiliaActiva, setSubfamiliaActiva] = useState(
+    searchParams.get('subfamilia') || 'Todas'
+  );
 
   const [orden, setOrden] =
     useState('destacados');
@@ -66,13 +78,27 @@ export default function Catalogo() {
   const [tamanoSeleccionado, setTamanoSeleccionado] =
     useState<Record<number, string>>({});
 
-    useEffect(() => {
-      const categoria = searchParams.get('categoria');
-    
-      if (categoria) {
-        setCategoriaActiva(categoria);
-      }
-    }, [searchParams]);   
+  useEffect(() => {
+    const categoria = searchParams.get('categoria');
+    const subfamilia = searchParams.get('subfamilia');
+
+    if (!categoria) return;
+
+    const productoSubfamilia = productos.find(
+      (producto) =>
+        producto.familia?.familia_principal &&
+        producto.familia.nombre === categoria
+    );
+
+    if (productoSubfamilia?.familia?.familia_principal) {
+      setCategoriaActiva(productoSubfamilia.familia.familia_principal.nombre);
+      setSubfamiliaActiva(productoSubfamilia.familia.nombre);
+      return;
+    }
+
+    setCategoriaActiva(categoria);
+    setSubfamiliaActiva(subfamilia || 'Todas');
+  }, [productos, searchParams]);
 
   useEffect(() => {
     async function cargarProductos() {
@@ -98,9 +124,9 @@ export default function Catalogo() {
   }, [busqueda]);
 
   function esTorta(producto: Producto) {
-    return producto.categoria
-      .toLowerCase()
-      .includes('torta');
+    return normalizarTexto(
+      `${producto.categoria} ${producto.familia?.nombre || ''}`
+    ).includes('torta');
   }
 
   function precioConTamano(producto: Producto) {
@@ -137,14 +163,41 @@ export default function Catalogo() {
     );
   }
 
+  function categoriaPrincipal(producto: Producto) {
+    return producto.familia?.familia_principal?.nombre || producto.categoria;
+  }
+
+  function subfamiliaProducto(producto: Producto) {
+    return producto.familia?.familia_principal
+      ? producto.familia.nombre
+      : null;
+  }
+
+  function etiquetaFamilia(producto: Producto) {
+    const principal = categoriaPrincipal(producto);
+    const subfamilia = subfamiliaProducto(producto);
+    return subfamilia ? `${principal} › ${subfamilia}` : principal;
+  }
+
   const categorias = [
     'Todas',
     ...new Set(
-      productos.map(
-        (p) => p.categoria
-      )
+      productos.map(categoriaPrincipal)
     ),
   ];
+
+  const subfamilias = categoriaActiva === 'Todas'
+    ? []
+    : [
+        ...new Set(
+          productos
+            .filter(
+              (producto) => categoriaPrincipal(producto) === categoriaActiva
+            )
+            .map(subfamiliaProducto)
+            .filter((nombre): nombre is string => Boolean(nombre))
+        ),
+      ];
 
   const productosFiltrados = productos
     .filter((p) => {
@@ -152,6 +205,7 @@ export default function Catalogo() {
         ${p.nombre || ''}
         ${p.descripcion || ''}
         ${p.categoria || ''}
+        ${etiquetaFamilia(p)}
       `);
       
       const busquedaNormalizada = normalizarTexto(busquedaDebounced);
@@ -162,12 +216,15 @@ export default function Catalogo() {
 
       const coincideCategoria =
         categoriaActiva === 'Todas' ||
-        p.categoria ===
-          categoriaActiva;
+        categoriaPrincipal(p) === categoriaActiva;
+      const coincideSubfamilia =
+        subfamiliaActiva === 'Todas' ||
+        subfamiliaProducto(p) === subfamiliaActiva;
 
       return (
         coincideBusqueda &&
-        coincideCategoria
+        coincideCategoria &&
+        coincideSubfamilia
       );
     })
     .sort((a, b) => {
@@ -257,11 +314,10 @@ export default function Catalogo() {
               return (
                 <button
                   key={categoria}
-                  onClick={() =>
-                    setCategoriaActiva(
-                      categoria
-                    )
-                  }
+                  onClick={() => {
+                    setCategoriaActiva(categoria);
+                    setSubfamiliaActiva('Todas');
+                  }}
                   className={`rounded-full px-5 py-3 text-sm font-black transition ${
                     activa
                       ? 'bg-maruxa-rojo text-maruxa-crema'
@@ -274,6 +330,30 @@ export default function Catalogo() {
             }
           )}
         </div>
+
+        {subfamilias.length > 0 && (
+          <div className="-mt-7 mb-12 flex flex-wrap items-center gap-3 border-l-4 border-maruxa-rojo/20 pl-4">
+            <span className="mr-1 text-xs font-black uppercase tracking-widest text-maruxa-cafe/55">
+              Subfamilias
+            </span>
+            {['Todas', ...subfamilias].map((subfamilia) => {
+              const activa = subfamilia === subfamiliaActiva;
+              return (
+                <button
+                  key={subfamilia}
+                  onClick={() => setSubfamiliaActiva(subfamilia)}
+                  className={`rounded-full border px-4 py-2 text-sm font-black transition ${
+                    activa
+                      ? 'border-maruxa-rojo bg-maruxa-rojo/10 text-maruxa-rojo'
+                      : 'border-maruxa-cafe/15 bg-transparent text-maruxa-chocolate hover:border-maruxa-rojo/35'
+                  }`}
+                >
+                  {subfamilia === 'Todas' ? `Toda ${categoriaActiva}` : subfamilia}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         <div className="mb-10 max-w-xs">
           <select
@@ -372,7 +452,7 @@ export default function Catalogo() {
                   <div className="mb-3 flex items-center justify-between">
 
                     <span className="rounded-full bg-maruxa-rojo/10 px-3 py-1 text-xs font-black uppercase tracking-widest text-maruxa-rojo">
-                      {p.categoria}
+                      {etiquetaFamilia(p)}
                     </span>
 
                     <Link
