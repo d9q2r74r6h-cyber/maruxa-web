@@ -1731,26 +1731,19 @@ export default function AdminComprasPage() {
 
   return (
     <>
-      <p className="font-black uppercase tracking-[.24em] text-maruxa-rojo">
-        Inventario
-      </p>
-
-      <h1 className="mt-3 text-5xl font-black text-maruxa-chocolate">
-        Compras
+      <h1 className="text-2xl font-black text-maruxa-chocolate md:text-3xl">
+        Inventario <span className="text-maruxa-rojo">·</span> Compras{' '}
+        <span className="text-maruxa-rojo">·</span> Nueva compra
       </h1>
 
-      <section className="mt-10 rounded-[34px] bg-white p-6 shadow-premium">
-        <h2 className="text-2xl font-black text-maruxa-chocolate">
-          Nueva compra
-        </h2>
-
+      <section className="mt-4 rounded-[34px] bg-white p-6 shadow-premium [overflow-anchor:none]">
         {loading ? (
-          <p className="mt-6 font-black">Cargando productos...</p>
+          <p className="font-black">Cargando productos...</p>
         ) : (
           <>
-            <div className="relative mt-6 grid max-w-xl gap-1.5">
+            <div className="relative grid max-w-xl gap-1.5">
               <span className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
-                Proveedor
+                Proveedor (opcional)
               </span>
               <input
                 value={proveedorTexto}
@@ -1764,10 +1757,13 @@ export default function AdminComprasPage() {
                   setPrecioIvaIncluido(false);
                   setMostrarProveedores(true);
                 }}
-                placeholder="Buscar proveedor..."
+                placeholder="Buscar proveedor existente..."
                 autoComplete="off"
                 className="rounded-2xl border bg-white px-4 py-3 font-bold text-maruxa-chocolate"
               />
+              <span className="text-[11px] font-bold text-maruxa-cafe/60">
+                Define si el costo viene con IVA incluido o neto + IVA.
+              </span>
 
               {mostrarProveedores && (
                 <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-72 overflow-y-auto rounded-2xl border bg-white shadow-xl">
@@ -2145,7 +2141,7 @@ export default function AdminComprasPage() {
                             mostrarCrearProducto &&
                             indiceItemCreacion === index
                           ) && (
-                          <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-y-auto rounded-xl border bg-white shadow-xl">
+                          <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-y-auto overscroll-contain rounded-xl border bg-white shadow-xl [overflow-anchor:none]">
                             {productosFiltrados.length === 0 ? (
                               <button
                                 type="button"
