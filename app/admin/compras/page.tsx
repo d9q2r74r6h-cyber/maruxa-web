@@ -573,29 +573,13 @@ export default function AdminComprasPage() {
       return;
     }
 
-    let { data, error } = await supabase
+    const { data, error } = await supabase
       .from('producto_costos_historial')
-      .select('producto_id,created_at,costo_compra,observacion')
+      .select('producto_id,created_at,costo_nuevo')
       .eq('empresa_id', empresa.id)
       .in('producto_id', idsPendientes)
       .order('created_at', { ascending: false })
       .limit(idsPendientes.length * 6);
-
-    if (error) {
-      const respaldo = await supabase
-        .from('producto_costos_historial')
-        .select('producto_id,created_at,costo_compra')
-        .eq('empresa_id', empresa.id)
-        .in('producto_id', idsPendientes)
-        .order('created_at', { ascending: false })
-        .limit(idsPendientes.length * 6);
-
-      data = (respaldo.data || []).map((item) => ({
-        ...item,
-        observacion: null,
-      }));
-      error = respaldo.error;
-    }
 
     if (error) {
       setUltimasCompras((actuales) => {
@@ -616,16 +600,12 @@ export default function AdminComprasPage() {
 
       if (actuales.length >= 5) continue;
 
-      const observacion = String(item.observacion || '');
-      const precioVenta = observacion.match(/precio venta:\s*([0-9]+)/i);
-      const margen = observacion.match(/margen:\s*([0-9.,]+)/i);
-
       actuales.push({
         producto_id: productoId,
         fecha: item.created_at,
-        precio: numero(item.costo_compra),
-        precio_venta: precioVenta ? numero(precioVenta[1]) : null,
-        margen_porcentaje: margen ? numero(margen[1]) : null,
+        precio: numero(item.costo_nuevo),
+        precio_venta: null,
+        margen_porcentaje: null,
       });
       agrupadas.set(productoId, actuales);
     }
@@ -993,14 +973,9 @@ export default function AdminComprasPage() {
         empresa_id: empresa.id,
         producto_id: producto.id,
         costo_anterior: numero(producto.costo_unitario),
-        costo_compra: cambios.costo_unitario,
-        costo_nuevo_promedio: cambios.costo_unitario,
+        costo_nuevo: cambios.costo_unitario,
         variacion_porcentaje: 0,
-        stock_anterior: numero(producto.stock_actual),
-        cantidad_comprada: 0,
-        stock_nuevo: numero(producto.stock_actual),
         created_at: `${fechaRegistro}T12:00:00`,
-        observacion: `Ficha vigente editada | Precio venta: ${cambios.precio} | Margen: ${cambios.margen_personalizado}`,
       })
       .select('created_at')
       .single();
@@ -1575,15 +1550,10 @@ export default function AdminComprasPage() {
           empresa_id: empresa.id,
           producto_id: producto.id,
           costo_anterior: costoAnterior,
-          costo_compra: costoCompra,
-          costo_nuevo_promedio: costoPromedio,
+          costo_nuevo: costoPromedio || costoCompra,
           variacion_porcentaje: variacionPorcentaje,
-          stock_anterior: stockAnterior,
-          cantidad_comprada: cantidad,
-          stock_nuevo: stockNuevo,
           referencia_tipo: 'compra',
           referencia_id: compra.id,
-          observacion: `Ingreso manual de compra | Precio venta: ${precioVenta} | Margen: ${margenIngresado}`,
         });
 
       if (errorHistorialCosto) {
