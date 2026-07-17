@@ -1768,6 +1768,7 @@ export default function AdminComprasPage() {
     const variacionesPorProducto = new Map(
       variacionesRegistradas.map((item) => [item.producto_id, item])
     );
+    const historialesCreados: UltimaCompraProducto[] = [];
 
     for (const item of itemsConsolidados) {
       const producto = productos.find((p) => String(p.id) === String(item.producto_id));
@@ -1824,29 +1825,82 @@ export default function AdminComprasPage() {
         }
       }
 
-      const { error: errorHistorialCosto } = await supabase
+      const { data: historialCreado, error: errorHistorialCosto } = await supabase
         .from('producto_costos_historial')
         .insert({
           empresa_id: empresa.id,
           producto_id: producto.id,
           costo_anterior: costoAnterior,
-          costo_nuevo: costoPromedio || costoCompra,
+          costo_nuevo: costoCompra,
           variacion_porcentaje: variacionPorcentaje,
           margen_porcentaje: margenIngresado || null,
           precio_venta: precioVenta || null,
           referencia_tipo: 'compra',
           referencia_id: compra.id,
-        });
+        })
+        .select('id,producto_id,created_at,costo_nuevo,margen_porcentaje,precio_venta')
+        .single();
 
       if (errorHistorialCosto) {
         alert(errorHistorialCosto.message);
         setGuardando(false);
         return;
       }
+
+      historialesCreados.push({
+        id: historialCreado.id,
+        producto_id: Number(historialCreado.producto_id),
+        fecha: historialCreado.created_at,
+        precio: numero(historialCreado.costo_nuevo),
+        margen_porcentaje:
+          historialCreado.margen_porcentaje === null
+            ? null
+            : numero(historialCreado.margen_porcentaje),
+        precio_venta:
+          historialCreado.precio_venta === null
+            ? null
+            : numero(historialCreado.precio_venta),
+      });
     }
 
-    setItems([itemCompraVacio()]);
-    setUltimasCompras({});
+    const productosGuardados = new Set<string>();
+    setItems(
+      itemsConsolidados.flatMap((itemConsolidado) => {
+        const productoId = String(itemConsolidado.producto_id);
+        if (productosGuardados.has(productoId)) return [];
+        productosGuardados.add(productoId);
+
+        const itemOriginal = items.find(
+          (item) => String(item.producto_id) === productoId
+        );
+        const producto = productos.find((item) => String(item.id) === productoId);
+
+        return [
+          {
+            ...itemCompraVacio(),
+            producto_id: productoId,
+            busqueda_producto: producto
+              ? `${producto.nombre} - ${producto.tipo_producto}`
+              : itemOriginal?.busqueda_producto || '',
+            margen_porcentaje: itemOriginal?.margen_porcentaje || '',
+            tipo_margen: itemOriginal?.tipo_margen || 'markup',
+          },
+        ];
+      })
+    );
+    setUltimasCompras((actuales) => {
+      const siguientes = { ...actuales };
+
+      for (const historial of historialesCreados) {
+        const anteriores = siguientes[historial.producto_id] || [];
+        siguientes[historial.producto_id] = [
+          historial,
+          ...anteriores.filter((item) => item.id !== historial.id),
+        ].slice(0, 5);
+      }
+
+      return siguientes;
+    });
     setVariacionesCompra(variacionesRegistradas);
     setMostrarVariaciones(true);
     await cargarRecetasAfectadas(variacionesRegistradas);
