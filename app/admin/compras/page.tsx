@@ -380,14 +380,14 @@ export default function AdminComprasPage() {
     });
   }
 
-  async function cargarProductos() {
-    setLoading(true);
+  async function cargarProductos(mostrarCarga = true) {
+    if (mostrarCarga) setLoading(true);
 
     const empresa = await obtenerEmpresaActual();
 
     if (!empresa) {
       alert('No se pudo identificar la empresa.');
-      setLoading(false);
+      if (mostrarCarga) setLoading(false);
       return;
     }
 
@@ -425,13 +425,13 @@ export default function AdminComprasPage() {
 
     if (error) {
       alert(error.message);
-      setLoading(false);
+      if (mostrarCarga) setLoading(false);
       return;
     }
 
     setProductos((data as Producto[]) || []);
     setFamilias((familiasData as FamiliaProducto[]) || []);
-    setLoading(false);
+    if (mostrarCarga) setLoading(false);
   }
 
   useEffect(() => {
@@ -2029,10 +2029,9 @@ export default function AdminComprasPage() {
     setMostrarVariaciones(true);
     await cargarRecetasAfectadas(variacionesRegistradas);
 
-    await cargarProductos();
+    await cargarProductos(false);
 
     setGuardando(false);
-    alert('Compra registrada correctamente.');
   }
 
   return (
