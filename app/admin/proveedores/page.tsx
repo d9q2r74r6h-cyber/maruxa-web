@@ -114,11 +114,9 @@ export default function ProveedoresPage() {
           return {
             ...proveedor,
             precio_iva_incluido:
-              configuracionLocal === 'true' || configuracionLocal === 'false'
-                ? configuracionLocal === 'true'
-                : typeof proveedor.precio_iva_incluido === 'boolean'
-                  ? proveedor.precio_iva_incluido
-                  : true,
+              typeof proveedor.precio_iva_incluido === 'boolean'
+                ? proveedor.precio_iva_incluido
+                : configuracionLocal !== 'false',
           } as Proveedor;
         })
       );

@@ -453,11 +453,9 @@ export default function AdminComprasPage() {
                 id: item.id,
                 razon_social: item.razon_social,
                 precio_iva_incluido:
-                  guardadoLocal === 'true' || guardadoLocal === 'false'
-                    ? guardadoLocal === 'true'
-                    : typeof item.precio_iva_incluido === 'boolean'
-                      ? item.precio_iva_incluido
-                      : true,
+                  typeof item.precio_iva_incluido === 'boolean'
+                    ? item.precio_iva_incluido
+                    : guardadoLocal !== 'false',
               };
             })
       );
@@ -508,6 +506,39 @@ export default function AdminComprasPage() {
         )
       );
     }
+  }
+
+  async function seleccionarProveedor(proveedor: ProveedorCompra) {
+    setProveedorId(proveedor.id);
+    setProveedorTexto(proveedor.razon_social);
+    setMostrarProveedores(false);
+
+    const configuracionLocal = window.localStorage.getItem(
+      `proveedor-iva-incluido:${proveedor.id}`
+    );
+    let ivaIncluidoProveedor = proveedor.precio_iva_incluido ?? true;
+
+    const { data, error } = await supabase
+      .from('proveedores')
+      .select('precio_iva_incluido')
+      .eq('id', proveedor.id)
+      .single();
+
+    if (!error && typeof data?.precio_iva_incluido === 'boolean') {
+      ivaIncluidoProveedor = data.precio_iva_incluido;
+      window.localStorage.setItem(
+        `proveedor-iva-incluido:${proveedor.id}`,
+        String(ivaIncluidoProveedor)
+      );
+    } else if (
+      configuracionLocal === 'true' ||
+      configuracionLocal === 'false'
+    ) {
+      ivaIncluidoProveedor = configuracionLocal === 'true';
+    }
+
+    setPrecioIvaIncluido(ivaIncluidoProveedor);
+    recalcularPreciosPorIva(ivaIncluidoProveedor);
   }
 
   async function cargarUltimasCompras(productoIds: number[]) {
@@ -1611,15 +1642,7 @@ export default function AdminComprasPage() {
                         key={proveedor.id}
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => {
-                          setProveedorId(proveedor.id);
-                          setProveedorTexto(proveedor.razon_social);
-                          const ivaIncluidoProveedor =
-                            proveedor.precio_iva_incluido ?? true;
-                          setPrecioIvaIncluido(ivaIncluidoProveedor);
-                          recalcularPreciosPorIva(ivaIncluidoProveedor);
-                          setMostrarProveedores(false);
-                        }}
+                        onClick={() => void seleccionarProveedor(proveedor)}
                         className="block w-full px-4 py-3 text-left text-sm font-bold hover:bg-maruxa-crema"
                       >
                         {proveedor.razon_social}
