@@ -297,6 +297,8 @@ export default function AdminComprasPage() {
   const [fichaEditandoId, setFichaEditandoId] = useState<number | null>(null);
   const [fichaEditando, setFichaEditando] = useState({
     fecha: '',
+    nombre: '',
+    familiaId: '',
     costo: '',
     margen: '',
     precioVenta: '',
@@ -948,6 +950,8 @@ export default function AdminComprasPage() {
     setFichaEditandoId(producto.id);
     setFichaEditando({
       fecha: new Date().toISOString().slice(0, 10),
+      nombre: producto.nombre,
+      familiaId: producto.familia_id || '',
       costo: String(producto.costo_unitario || ''),
       margen: String(
         producto.usar_configuracion_familia === false
@@ -958,6 +962,27 @@ export default function AdminComprasPage() {
     });
   }
 
+  function cambiarFamiliaFicha(familiaId: string) {
+    const familia = familias.find((actual) => actual.id === familiaId);
+    const margen = numero(familia?.margen_porcentaje);
+    const costo = numero(fichaEditando.costo);
+    const precioVenta = costo
+      ? precioVentaDesdeMargen(
+          desgloseIva(costo, ivaPorcentaje, false).total,
+          margen,
+          familia?.tipo_margen || 'markup',
+          Math.max(1, numero(familia?.redondeo_precio))
+        )
+      : 0;
+
+    setFichaEditando((actual) => ({
+      ...actual,
+      familiaId,
+      margen: String(margen || ''),
+      precioVenta: String(precioVenta || ''),
+    }));
+  }
+
   async function guardarFichaVigente(producto: Producto) {
     setGuardandoFicha(true);
     const empresa = await obtenerEmpresaActual();
@@ -966,17 +991,26 @@ export default function AdminComprasPage() {
       alert('No se pudo identificar la empresa.');
       return;
     }
+    const familiaSeleccionada = familias.find(
+      (familia) => familia.id === fichaEditando.familiaId
+    );
     const cambios = {
+      nombre: fichaEditando.nombre.trim(),
+      familia_id: fichaEditando.familiaId || null,
       costo_unitario: numero(fichaEditando.costo),
       precio: numero(fichaEditando.precioVenta),
       usar_configuracion_familia: false,
       margen_personalizado: numero(fichaEditando.margen),
       tipo_margen_personalizado:
+        familiaSeleccionada?.tipo_margen ||
         producto.tipo_margen_personalizado ||
-        familias.find((familia) => familia.id === producto.familia_id)
-          ?.tipo_margen ||
         ('markup' as const),
     };
+    if (!cambios.nombre) {
+      setGuardandoFicha(false);
+      alert('El nombre del producto no puede quedar vacío.');
+      return;
+    }
     const { error } = await supabase
       .from('productos')
       .update(cambios)
@@ -989,8 +1023,20 @@ export default function AdminComprasPage() {
     }
 
     setProductos((actuales) =>
+      actuales
+        .map((item) =>
+          item.id === producto.id ? { ...item, ...cambios } : item
+        )
+        .sort((a, b) => a.nombre.localeCompare(b.nombre))
+    );
+    setItems((actuales) =>
       actuales.map((item) =>
-        item.id === producto.id ? { ...item, ...cambios } : item
+        String(item.producto_id) === String(producto.id)
+          ? {
+              ...item,
+              busqueda_producto: `${cambios.nombre} - ${producto.tipo_producto}`,
+            }
+          : item
       )
     );
 
@@ -2476,6 +2522,18 @@ export default function AdminComprasPage() {
                                             }
                                             className="w-48 rounded-lg border px-2 py-1 text-xs font-bold"
                                           />
+                                        ) : historial.origen === 'ficha_actual' &&
+                                          fichaEditandoId === producto.id ? (
+                                          <input
+                                            value={fichaEditando.nombre}
+                                            onChange={(e) =>
+                                              setFichaEditando((actual) => ({
+                                                ...actual,
+                                                nombre: e.target.value,
+                                              }))
+                                            }
+                                            className="w-48 rounded-lg border px-2 py-1 text-xs font-bold"
+                                          />
                                         ) : (
                                           producto.nombre
                                         )}
@@ -2487,6 +2545,25 @@ export default function AdminComprasPage() {
                                             value={historialEditando.familiaId}
                                             onChange={(e) =>
                                               cambiarFamiliaHistorial(e.target.value)
+                                            }
+                                            className="w-44 rounded-lg border bg-white px-2 py-1 text-xs font-bold"
+                                          >
+                                            <option value="">Sin familia</option>
+                                            {familias.map((familia) => (
+                                              <option
+                                                key={familia.id}
+                                                value={familia.id}
+                                              >
+                                                {familia.nombre}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        ) : historial.origen === 'ficha_actual' &&
+                                          fichaEditandoId === producto.id ? (
+                                          <select
+                                            value={fichaEditando.familiaId}
+                                            onChange={(e) =>
+                                              cambiarFamiliaFicha(e.target.value)
                                             }
                                             className="w-44 rounded-lg border bg-white px-2 py-1 text-xs font-bold"
                                           >
