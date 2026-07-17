@@ -478,7 +478,7 @@ export default function AdminComprasPage() {
           ? String(
               precioVentaDesdeMargen(
                 desgloseIva(numero(item.costo_unitario), ivaPorcentaje, incluido)
-                  .neto,
+                  .total,
                 numero(item.margen_porcentaje),
                 item.tipo_margen
               ) || ''
@@ -733,11 +733,11 @@ export default function AdminComprasPage() {
         if (campo === 'costo_unitario') {
           const cantidad = numero(item.cantidad);
           const costoUnitario = numero(valor);
-          const costoNeto = desgloseIva(
+          const costoTotal = desgloseIva(
             costoUnitario,
             ivaPorcentaje,
             precioIvaIncluido
-          ).neto;
+          ).total;
 
           return {
             ...item,
@@ -748,7 +748,7 @@ export default function AdminComprasPage() {
                 : item.costo_total,
             precio_venta: String(
               precioVentaDesdeMargen(
-                costoNeto,
+                costoTotal,
                 numero(item.margen_porcentaje),
                 item.tipo_margen
               ) || ''
@@ -762,7 +762,11 @@ export default function AdminComprasPage() {
             margen_porcentaje: valor,
             precio_venta: String(
               precioVentaDesdeMargen(
-                numero(item.costo_unitario),
+                desgloseIva(
+                  numero(item.costo_unitario),
+                  ivaPorcentaje,
+                  precioIvaIncluido
+                ).total,
                 numero(valor),
                 item.tipo_margen
               ) || ''
