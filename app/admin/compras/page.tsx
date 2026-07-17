@@ -2006,7 +2006,10 @@ export default function AdminComprasPage() {
 
                     <label className="grid gap-1 md:col-span-3">
                       <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
-                        Costo unitario
+                        Valor compra{' '}
+                        {precioIvaIncluido
+                          ? 'bruto (IVA incluido)'
+                          : 'neto + IVA'}
                       </span>
                       <input
                         type="text"
