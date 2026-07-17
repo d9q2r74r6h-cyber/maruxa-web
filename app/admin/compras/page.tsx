@@ -15,6 +15,9 @@ type Producto = {
   costo_unitario: number | null;
   precio: number | null;
   controla_stock: boolean | null;
+  usar_configuracion_familia?: boolean | null;
+  margen_personalizado?: number | null;
+  tipo_margen_personalizado?: 'markup' | 'margen_comercial' | null;
 };
 
 type UltimaCompraProducto = {
@@ -275,6 +278,13 @@ export default function AdminComprasPage() {
     controla_stock: true,
   });
   const [guardandoProductoEditado, setGuardandoProductoEditado] = useState(false);
+  const [fichaEditandoId, setFichaEditandoId] = useState<number | null>(null);
+  const [fichaEditando, setFichaEditando] = useState({
+    costo: '',
+    margen: '',
+    precioVenta: '',
+  });
+  const [guardandoFicha, setGuardandoFicha] = useState(false);
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [variacionesCompra, setVariacionesCompra] = useState<VariacionCosto[]>([]);
@@ -357,7 +367,10 @@ export default function AdminComprasPage() {
         stock_actual,
         costo_unitario,
         precio,
-        controla_stock
+        controla_stock,
+        usar_configuracion_familia,
+        margen_personalizado,
+        tipo_margen_personalizado
       `)
       .eq('empresa_id', empresa.id)
       .in('tipo_producto', ['producto', 'ingrediente', 'envase'])
@@ -785,6 +798,51 @@ export default function AdminComprasPage() {
     );
 
     cerrarEdicionProducto();
+  }
+
+  function editarFichaVigente(producto: Producto, margenFamilia: number) {
+    setFichaEditandoId(producto.id);
+    setFichaEditando({
+      costo: String(producto.costo_unitario || ''),
+      margen: String(
+        producto.usar_configuracion_familia === false
+          ? producto.margen_personalizado || ''
+          : margenFamilia || ''
+      ),
+      precioVenta: String(producto.precio || ''),
+    });
+  }
+
+  async function guardarFichaVigente(producto: Producto) {
+    setGuardandoFicha(true);
+    const cambios = {
+      costo_unitario: numero(fichaEditando.costo),
+      precio: numero(fichaEditando.precioVenta),
+      usar_configuracion_familia: false,
+      margen_personalizado: numero(fichaEditando.margen),
+      tipo_margen_personalizado:
+        producto.tipo_margen_personalizado ||
+        familias.find((familia) => familia.id === producto.familia_id)
+          ?.tipo_margen ||
+        ('markup' as const),
+    };
+    const { error } = await supabase
+      .from('productos')
+      .update(cambios)
+      .eq('id', producto.id);
+
+    setGuardandoFicha(false);
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setProductos((actuales) =>
+      actuales.map((item) =>
+        item.id === producto.id ? { ...item, ...cambios } : item
+      )
+    );
+    setFichaEditandoId(null);
   }
 
   async function generarCodigoProductoCompra(empresaId: string | number) {
@@ -1711,7 +1769,11 @@ export default function AdminComprasPage() {
                               precio: numero(producto.costo_unitario),
                               precio_venta: numero(producto.precio) || null,
                               margen_porcentaje:
-                                numero(familiaProducto?.margen_porcentaje) || null,
+                                numero(
+                                  producto.usar_configuracion_familia === false
+                                    ? producto.margen_personalizado
+                                    : familiaProducto?.margen_porcentaje
+                                ) || null,
                               origen: 'ficha_actual',
                             },
                           ]
@@ -1978,6 +2040,7 @@ export default function AdminComprasPage() {
                                     <th className="px-3 py-2 text-right">Valor compra</th>
                                     <th className="px-3 py-2 text-right">Margen</th>
                                     <th className="px-3 py-2 text-right">Precio venta</th>
+                                    <th className="px-3 py-2 text-right">Acciones</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -1995,17 +2058,97 @@ export default function AdminComprasPage() {
                                         )}
                                       </td>
                                       <td className="px-3 py-2 text-right font-black">
-                                        {dinero(historial.precio)}
+                                        {historial.origen === 'ficha_actual' &&
+                                        fichaEditandoId === producto.id ? (
+                                          <input
+                                            value={entradaPeso(fichaEditando.costo)}
+                                            onChange={(e) =>
+                                              setFichaEditando((actual) => ({
+                                                ...actual,
+                                                costo: valorPesoEntrada(e.target.value),
+                                              }))
+                                            }
+                                            inputMode="numeric"
+                                            className="w-24 rounded-lg border px-2 py-1 text-right text-xs font-black"
+                                          />
+                                        ) : (
+                                          dinero(historial.precio)
+                                        )}
                                       </td>
                                       <td className="px-3 py-2 text-right font-bold">
-                                        {historial.margen_porcentaje === null
-                                          ? 'No registrado'
-                                          : entradaPorcentaje(historial.margen_porcentaje)}
+                                        {historial.origen === 'ficha_actual' &&
+                                        fichaEditandoId === producto.id ? (
+                                          <input
+                                            value={entradaPorcentaje(fichaEditando.margen)}
+                                            onChange={(e) =>
+                                              setFichaEditando((actual) => ({
+                                                ...actual,
+                                                margen: valorPorcentajeEntrada(e.target.value),
+                                              }))
+                                            }
+                                            inputMode="decimal"
+                                            className="w-20 rounded-lg border px-2 py-1 text-right text-xs font-bold"
+                                          />
+                                        ) : historial.margen_porcentaje === null ? (
+                                          'No registrado'
+                                        ) : (
+                                          entradaPorcentaje(historial.margen_porcentaje)
+                                        )}
                                       </td>
                                       <td className="px-3 py-2 text-right font-black text-maruxa-rojo">
-                                        {historial.precio_venta === null
-                                          ? 'No registrado'
-                                          : dinero(historial.precio_venta)}
+                                        {historial.origen === 'ficha_actual' &&
+                                        fichaEditandoId === producto.id ? (
+                                          <input
+                                            value={entradaPeso(fichaEditando.precioVenta)}
+                                            onChange={(e) =>
+                                              setFichaEditando((actual) => ({
+                                                ...actual,
+                                                precioVenta: valorPesoEntrada(e.target.value),
+                                              }))
+                                            }
+                                            inputMode="numeric"
+                                            className="w-24 rounded-lg border px-2 py-1 text-right text-xs font-black text-maruxa-rojo"
+                                          />
+                                        ) : historial.precio_venta === null ? (
+                                          'No registrado'
+                                        ) : (
+                                          dinero(historial.precio_venta)
+                                        )}
+                                      </td>
+                                      <td className="px-3 py-2 text-right">
+                                        {historial.origen === 'ficha_actual' &&
+                                          (fichaEditandoId === producto.id ? (
+                                            <div className="flex justify-end gap-1">
+                                              <button
+                                                type="button"
+                                                onClick={() => setFichaEditandoId(null)}
+                                                className="rounded-lg border bg-white px-2 py-1 text-[11px] font-black"
+                                              >
+                                                Cancelar
+                                              </button>
+                                              <button
+                                                type="button"
+                                                disabled={guardandoFicha}
+                                                onClick={() => guardarFichaVigente(producto)}
+                                                className="rounded-lg bg-maruxa-rojo px-2 py-1 text-[11px] font-black text-white disabled:opacity-50"
+                                              >
+                                                {guardandoFicha ? 'Guardando...' : 'Guardar'}
+                                              </button>
+                                            </div>
+                                          ) : (
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                editarFichaVigente(
+                                                  producto,
+                                                  numero(familiaProducto?.margen_porcentaje)
+                                                )
+                                              }
+                                              className="rounded-lg border border-maruxa-rojo/30 bg-white px-3 py-1 text-[11px] font-black text-maruxa-rojo"
+                                            >
+                                              Modificar
+                                            </button>
+                                          ))}
                                       </td>
                                     </tr>
                                   ))}
