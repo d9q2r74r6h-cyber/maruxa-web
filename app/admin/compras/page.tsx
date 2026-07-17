@@ -1801,7 +1801,9 @@ export default function AdminComprasPage() {
                         className="w-full rounded-2xl border px-4 py-3 font-bold"
                       />
 
-                      {nuevoProducto.nombre.trim().length >= 2 && (
+                      {nuevoProducto.nombre.trim().length >= 2 &&
+                        (buscandoNuevoProducto ||
+                          coincidenciasNuevoProducto.length > 0) && (
                         <div className="absolute left-0 right-0 top-full z-30 mt-1 overflow-hidden rounded-2xl border bg-white shadow-xl">
                           {buscandoNuevoProducto ? (
                             <div className="px-4 py-3 text-sm font-black text-gray-500">
@@ -1860,11 +1862,7 @@ export default function AdminComprasPage() {
                                 </span>
                               </button>
                             ))
-                          ) : (
-                            <div className="px-4 py-3 text-sm font-black text-red-700">
-                              No existe. Puedes crearlo abajo.
-                            </div>
-                          )}
+                          ) : null}
                         </div>
                       )}
                     </label>
@@ -2066,7 +2064,12 @@ export default function AdminComprasPage() {
                           className="w-full rounded-xl border px-3 py-2 text-sm font-bold"
                         />
 
-                        {!item.producto_id && item.busqueda_producto && (
+                        {!item.producto_id &&
+                          item.busqueda_producto &&
+                          !(
+                            mostrarCrearProducto &&
+                            indiceItemCreacion === index
+                          ) && (
                           <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-y-auto rounded-xl border bg-white shadow-xl">
                             {productosFiltrados.length === 0 ? (
                               <button
