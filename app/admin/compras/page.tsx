@@ -1510,16 +1510,12 @@ export default function AdminComprasPage() {
 
         const stockAnterior = numero(producto.stock_actual);
         const costoAnterior = numero(producto.costo_unitario);
-        const stockNuevo = stockAnterior + item.cantidad;
-
-        const costoNuevoPromedio =
-          stockNuevo > 0
-            ? (stockAnterior * costoAnterior + item.cantidad * item.costo_unitario) / stockNuevo
-            : item.costo_unitario;
+        const stockNuevo = stockAnterior;
+        const costoNuevo = item.costo_unitario;
 
         const variacionPorcentaje =
           costoAnterior > 0
-            ? ((costoNuevoPromedio - costoAnterior) / costoAnterior) * 100
+            ? ((costoNuevo - costoAnterior) / costoAnterior) * 100
             : 0;
 
         return {
@@ -1528,7 +1524,7 @@ export default function AdminComprasPage() {
           unidad_base: producto.unidad_base,
           costo_anterior: costoAnterior,
           costo_compra: item.costo_unitario,
-          costo_nuevo: costoNuevoPromedio,
+          costo_nuevo: costoNuevo,
           variacion_porcentaje: variacionPorcentaje,
           cantidad: item.cantidad,
           stock_anterior: stockAnterior,
@@ -1721,16 +1717,10 @@ export default function AdminComprasPage() {
   }
 
   async function guardarCompra() {
-    const itemsValidos = items.filter(
-      (item) =>
-        item.producto_id &&
-        numero(item.cantidad) > 0 &&
-        numero(item.costo_unitario) > 0
-    );
     const itemsConsolidados = consolidarItemsValidos();
 
     if (itemsConsolidados.length === 0) {
-      alert('Agrega productos válidos a la compra.');
+      alert('Agrega productos y costos válidos.');
       return;
     }
 
@@ -1742,56 +1732,6 @@ export default function AdminComprasPage() {
     }
 
     setGuardando(true);
-
-    const { data: compra, error: errorCompra } = await supabase
-      .from('compras')
-      .insert({
-        empresa_id: empresa.id,
-        proveedor: proveedorId ? proveedorTexto.trim() : '',
-        fecha: new Date().toISOString().slice(0, 10),
-        total: totalCompra,
-      })
-      .select('id')
-      .single();
-
-    if (errorCompra) {
-      alert(errorCompra.message);
-      setGuardando(false);
-      return;
-    }
-
-    const detalle = itemsValidos.map((item) => {
-      const cantidad = numero(item.cantidad);
-      const costoUnitario = desgloseIva(
-        numero(item.costo_unitario),
-        ivaPorcentaje,
-        precioIvaIncluido
-      ).neto;
-      const costoUnitarioFinal = desgloseIva(
-        costoUnitarioEfectivo(item),
-        ivaPorcentaje,
-        precioIvaIncluido
-      ).neto;
-      const costoGuardado = costoUnitarioFinal || costoUnitario;
-
-      return {
-        compra_id: compra.id,
-        producto_id: Number(item.producto_id),
-        cantidad,
-        costo_unitario: costoGuardado,
-        subtotal: costoGuardado * cantidad,
-      };
-    });
-
-    const { error: errorDetalle } = await supabase
-      .from('compra_detalle')
-      .insert(detalle);
-
-    if (errorDetalle) {
-      alert(errorDetalle.message);
-      setGuardando(false);
-      return;
-    }
 
     const variacionesRegistradas = calcularVariaciones(itemsConsolidados);
     const variacionesPorProducto = new Map(
@@ -1830,12 +1770,8 @@ export default function AdminComprasPage() {
       const precioVenta = numero(itemIngresado?.precio_venta);
       const margenIngresado = numero(itemIngresado?.margen_porcentaje);
 
-      const cantidad = item.cantidad;
       const variacion = variacionesPorProducto.get(producto.id);
-      const stockAnterior = variacion?.stock_anterior ?? numero(producto.stock_actual);
-      const stockNuevo = variacion?.stock_nuevo ?? stockAnterior + cantidad;
       const costoAnterior = variacion?.costo_anterior ?? numero(producto.costo_unitario);
-      const costoPromedio = variacion?.costo_nuevo ?? numero(producto.costo_unitario);
       const costoCompra = variacion?.costo_compra ?? item.costo_unitario;
       const variacionPorcentaje = variacion?.variacion_porcentaje ?? 0;
       const familiaProducto = familias.find(
@@ -1900,8 +1836,7 @@ export default function AdminComprasPage() {
       const { error: errorProducto } = await supabase
         .from('productos')
         .update({
-          stock_actual: stockNuevo,
-          costo_unitario: costoPromedio,
+          costo_unitario: costoCompra,
           precio: precioVenta || numero(producto.precio),
           ...(margenIngresado > 0
             ? {
@@ -1923,26 +1858,6 @@ export default function AdminComprasPage() {
         return;
       }
 
-      if (producto.controla_stock) {
-        const { error: errorMovimiento } = await supabase
-          .from('movimientos_stock')
-          .insert({
-            empresa_id: empresa.id,
-            producto_id: producto.id,
-            tipo_movimiento: 'compra',
-            cantidad,
-            referencia_tipo: 'compra',
-            referencia_id: compra.id,
-            observacion: 'Ingreso manual de compra',
-          });
-
-        if (errorMovimiento) {
-          alert(errorMovimiento.message);
-          setGuardando(false);
-          return;
-        }
-      }
-
       const { data: historialCreado, error: errorHistorialCosto } = await supabase
         .from('producto_costos_historial')
         .insert({
@@ -1953,8 +1868,7 @@ export default function AdminComprasPage() {
           variacion_porcentaje: variacionPorcentaje,
           margen_porcentaje: margenIngresado || null,
           precio_venta: precioVenta || null,
-          referencia_tipo: 'compra',
-          referencia_id: compra.id,
+          referencia_tipo: 'actualizacion_costo',
           created_at: fechaCompra.toISOString(),
         })
         .select('id,producto_id,created_at,costo_anterior,costo_nuevo,margen_porcentaje,precio_venta')
@@ -2037,8 +1951,7 @@ export default function AdminComprasPage() {
   return (
     <>
       <h1 className="text-2xl font-black text-maruxa-chocolate md:text-3xl">
-        Inventario <span className="text-maruxa-rojo">·</span> Compras{' '}
-        <span className="text-maruxa-rojo">·</span> Nueva compra
+        Inventario <span className="text-maruxa-rojo">·</span> Costos y precios
       </h1>
 
       <section className="mt-4 rounded-[34px] bg-white p-6 shadow-premium [overflow-anchor:none]">
@@ -2117,7 +2030,7 @@ export default function AdminComprasPage() {
             <div className="mt-6 rounded-[28px] bg-maruxa-crema p-5">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <h3 className="text-xl font-black text-maruxa-chocolate">
-                  Detalle de compra
+                  Detalle de costos y precios
                 </h3>
 
                 {!mostrarCrearProducto && (
@@ -2136,7 +2049,7 @@ export default function AdminComprasPage() {
               {mostrarCrearProducto && (
                 <div className="mt-5 rounded-[24px] border border-red-700/20 bg-white p-4">
                   <h4 className="text-lg font-black text-maruxa-chocolate">
-                    Crear producto para esta compra
+                    Crear producto para registrar su costo
                   </h4>
 
                   <div className="mt-4 grid gap-4 md:grid-cols-12">
@@ -2311,7 +2224,7 @@ export default function AdminComprasPage() {
 
                     <label className="grid gap-1 md:col-span-3">
                       <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
-                        Valor compra{' '}
+                        Costo proveedor{' '}
                         {precioIvaIncluido
                           ? 'bruto (IVA incluido)'
                           : 'neto + IVA'}
@@ -2498,7 +2411,7 @@ export default function AdminComprasPage() {
                                     </span>
                                   </span>
                                   <span className="text-[11px] font-bold text-gray-500">
-                                    Ultimas compras:{' '}
+                                    Últimos registros:{' '}
                                     {ultimasCompras[productoItem.id]?.length
                                       ? ultimasCompras[productoItem.id]
                                           .map(
@@ -2517,7 +2430,7 @@ export default function AdminComprasPage() {
 
                       <label className="grid min-w-0 gap-1">
                         <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
-                          Valor compra
+                          Costo proveedor
                           {precioIvaIncluido ? ' bruto' : ' neto'}
                         </span>
                         <input
@@ -3149,11 +3062,10 @@ export default function AdminComprasPage() {
             <div className="mt-6 flex flex-col gap-4 rounded-[28px] bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-3xl font-black text-maruxa-chocolate">
-                  Total compra: {dinero(totalCompra)}
+                  Total de valores ingresados: {dinero(totalCompra)}
                 </p>
                 <p className="mt-1 text-xs font-bold text-maruxa-cafe/70">
-                  Suma de los productos ingresados. La factura electrónica se
-                  incorporará desde su integración correspondiente.
+                  Suma referencial de los costos ingresados en esta actualización.
                 </p>
               </div>
 
@@ -3172,7 +3084,7 @@ export default function AdminComprasPage() {
                   disabled={guardando}
                   className="rounded-full bg-red-700 px-8 py-4 font-black text-white shadow-lg disabled:opacity-50"
                 >
-                  {guardando ? 'Guardando...' : 'Guardar compra'}
+                  {guardando ? 'Guardando...' : 'Guardar nuevos precios'}
                 </button>
               </div>
             </div>
@@ -3189,7 +3101,7 @@ export default function AdminComprasPage() {
               </h2>
 
               <p className="mt-1 text-sm font-bold text-maruxa-cafe/70">
-                Muestra cómo cambiará el costo promedio ponderado de cada producto de la compra.
+                Compara el costo vigente con el nuevo costo ingresado para cada producto.
               </p>
             </div>
 
@@ -3214,7 +3126,7 @@ export default function AdminComprasPage() {
                     <th className="px-4 py-3 text-left">Producto</th>
                     <th className="px-4 py-3 text-right">Cantidad</th>
                     <th className="px-4 py-3 text-right">Promedio anterior</th>
-                    <th className="px-4 py-3 text-right">Costo compra</th>
+                    <th className="px-4 py-3 text-right">Costo nuevo</th>
                     <th className="px-4 py-3 text-right">Nuevo promedio</th>
                     <th className="px-4 py-3 text-right">Variación</th>
                   </tr>
@@ -3274,7 +3186,7 @@ export default function AdminComprasPage() {
                 </h3>
 
                 <p className="mt-1 text-sm font-bold text-maruxa-cafe/70">
-                  Estimación del impacto en recetas que usan los productos comprados.
+                  Estimación del impacto en recetas que usan los productos actualizados.
                 </p>
               </div>
 

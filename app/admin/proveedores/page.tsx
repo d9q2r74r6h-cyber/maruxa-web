@@ -347,7 +347,7 @@ export default function ProveedoresPage() {
               <span>
                 Precio IVA incluido
                 <small className="mt-0.5 block font-bold text-[#4B2818]/60">
-                  Marcado: Compras recibe precio bruto. Desmarcado: recibe precio neto más IVA.
+                  Marcado: Costos y precios recibe el valor bruto. Desmarcado: recibe el valor neto más IVA.
                 </small>
               </span>
             </label>
