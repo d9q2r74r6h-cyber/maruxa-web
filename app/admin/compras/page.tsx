@@ -1957,7 +1957,7 @@ export default function AdminComprasPage() {
                   return (
                     <div
                       key={index}
-                      className="relative grid gap-4 rounded-2xl border border-maruxa-cafe/10 bg-white p-4 shadow-sm md:grid-cols-2 xl:grid-cols-5"
+                      className="relative grid gap-3 rounded-2xl border border-maruxa-cafe/10 bg-white p-4 shadow-sm md:grid-cols-2 xl:grid-cols-[minmax(200px,2fr)_repeat(6,minmax(95px,1fr))_80px]"
                     >
                       <div className="relative z-20 grid min-w-0 gap-1">
                         <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
@@ -2054,6 +2054,33 @@ export default function AdminComprasPage() {
                         />
                       </label>
 
+                      <div className="grid min-w-0 gap-1">
+                        <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
+                          Neto
+                        </span>
+                        <div className="flex items-center justify-end rounded-xl border border-maruxa-cafe/10 bg-maruxa-crema/60 px-3 py-2 text-sm font-black text-maruxa-chocolate">
+                          {dinero(impuestosItem.neto)}
+                        </div>
+                      </div>
+
+                      <div className="grid min-w-0 gap-1">
+                        <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
+                          IVA
+                        </span>
+                        <div className="flex items-center justify-end rounded-xl border border-maruxa-cafe/10 bg-maruxa-crema/60 px-3 py-2 text-sm font-black text-maruxa-chocolate">
+                          {dinero(impuestosItem.iva)}
+                        </div>
+                      </div>
+
+                      <div className="grid min-w-0 gap-1">
+                        <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
+                          Total
+                        </span>
+                        <div className="flex items-center justify-end rounded-xl border border-maruxa-rojo/15 bg-red-50 px-3 py-2 text-sm font-black text-maruxa-rojo">
+                          {dinero(impuestosItem.total)}
+                        </div>
+                      </div>
+
                       <label className="grid min-w-0 gap-1">
                         <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                           Margen
@@ -2094,113 +2121,8 @@ export default function AdminComprasPage() {
                         />
                       </label>
 
-                      <fieldset className="grid min-w-0 gap-1">
-                        <legend className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
-                          Tipo de precio
-                        </legend>
-                        <div className="flex h-full flex-wrap items-center gap-3 rounded-xl border px-3 py-2 text-xs font-black">
-                          <label className="flex items-center gap-1.5">
-                            <input
-                              type="radio"
-                              name={`tipo-precio-${index}`}
-                              checked={item.precio_listado}
-                              onChange={() =>
-                                setItems((actuales) =>
-                                  actuales.map((actual, indice) =>
-                                    indice === index
-                                      ? {
-                                          ...actual,
-                                          precio_listado: true,
-                                          texto_listado_1: '',
-                                          texto_listado_2: '',
-                                        }
-                                      : actual
-                                  )
-                                )
-                              }
-                            />
-                            Listado
-                          </label>
-                          <label className="flex items-center gap-1.5">
-                            <input
-                              type="radio"
-                              name={`tipo-precio-${index}`}
-                              checked={!item.precio_listado}
-                              onChange={() =>
-                                setItems((actuales) =>
-                                  actuales.map((actual, indice) =>
-                                    indice === index
-                                      ? { ...actual, precio_listado: false }
-                                      : actual
-                                  )
-                                )
-                              }
-                            />
-                            Suelto
-                          </label>
-                        </div>
-                      </fieldset>
-
-                      <div className="grid gap-2 rounded-xl border border-maruxa-cafe/10 bg-maruxa-crema/60 p-3 md:col-span-2 md:grid-cols-3 xl:col-span-5">
-                        <div>
-                          <p className="text-[10px] font-black uppercase text-maruxa-cafe/55">
-                            Neto
-                          </p>
-                          <p className="font-black text-maruxa-chocolate">
-                            {dinero(impuestosItem.neto)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-black uppercase text-maruxa-cafe/55">
-                            IVA {entradaPorcentaje(ivaPorcentaje)}
-                          </p>
-                          <p className="font-black text-maruxa-chocolate">
-                            {dinero(impuestosItem.iva)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-black uppercase text-maruxa-cafe/55">
-                            Total
-                          </p>
-                          <p className="font-black text-maruxa-rojo">
-                            {dinero(impuestosItem.total)}
-                          </p>
-                        </div>
-                      </div>
-
-                      {!item.precio_listado && (
-                        <div className="grid gap-4 md:col-span-2 md:grid-cols-2 xl:col-span-5">
-                          <label className="grid min-w-0 gap-1">
-                            <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
-                              Texto precio suelto 1
-                            </span>
-                            <input
-                              value={item.texto_listado_1}
-                              onChange={(e) =>
-                                actualizarItem(index, 'texto_listado_1', e.target.value)
-                              }
-                              placeholder="Escribe el primer texto"
-                              className="rounded-xl border px-3 py-2 text-sm font-bold"
-                            />
-                          </label>
-                          <label className="grid min-w-0 gap-1">
-                            <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
-                              Texto precio suelto 2
-                            </span>
-                            <input
-                              value={item.texto_listado_2}
-                              onChange={(e) =>
-                                actualizarItem(index, 'texto_listado_2', e.target.value)
-                              }
-                              placeholder="Escribe el segundo texto"
-                              className="rounded-xl border px-3 py-2 text-sm font-bold"
-                            />
-                          </label>
-                        </div>
-                      )}
-
                       {producto && (
-                        <section className="rounded-2xl border-2 border-maruxa-rojo/20 bg-[#FFF8ED] p-4 md:col-span-2 xl:col-span-5">
+                        <section className="rounded-2xl border-2 border-maruxa-rojo/20 bg-[#FFF8ED] p-4 md:col-span-2 xl:col-span-8">
                           <div className="flex flex-wrap items-end justify-between gap-2 border-b border-maruxa-rojo/15 pb-3">
                             <div>
                               <p className="text-[11px] font-black uppercase tracking-[.2em] text-maruxa-rojo">
@@ -2369,13 +2291,13 @@ export default function AdminComprasPage() {
                         <button
                           type="button"
                           onClick={() => eliminarItem(index)}
-                          className="justify-self-end rounded-xl border border-red-300 bg-red-50 px-5 py-2.5 text-xs font-black text-red-700 md:col-span-2 xl:col-span-5"
+                          className="self-end justify-self-end rounded-xl border border-red-300 bg-red-50 px-3 py-2.5 text-xs font-black text-red-700 md:col-span-2 xl:col-span-1 xl:col-start-8 xl:row-start-1"
                         >
                           Eliminar
                         </button>
 
                       {producto && productoEditandoId === producto.id && (
-                        <div className="grid gap-4 rounded-2xl border border-red-100 bg-red-50/60 p-4 md:col-span-2 xl:col-span-5">
+                        <div className="grid gap-4 rounded-2xl border border-red-100 bg-red-50/60 p-4 md:col-span-2 xl:col-span-8">
                           <div className="grid gap-3 md:grid-cols-12">
                             <label className="grid gap-1 md:col-span-2">
                               <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
