@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { CheckSquare, Printer, Search, Square } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAdminSession } from '@/components/AdminSession';
@@ -489,6 +490,14 @@ export default function InformePreciosPage() {
                       >
                         <td className="border border-black px-2 py-1 font-bold uppercase">
                           {producto.nombre}
+                          {!producto.proveedor_id && (
+                            <Link
+                              href={`/admin/compras?producto=${producto.id}`}
+                              className="no-print ml-2 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black normal-case text-amber-900 underline"
+                            >
+                              Asignar proveedor
+                            </Link>
+                          )}
                         </td>
                         <td className="border border-black px-2 py-1 text-right font-bold">
                           {dinero(producto.precio)}

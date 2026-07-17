@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { obtenerEmpresaActual } from '@/lib/empresa';
 
@@ -14,6 +14,7 @@ type Producto = {
   stock_actual: number | null;
   costo_unitario: number | null;
   precio: number | null;
+  proveedor_id?: string | null;
   controla_stock: boolean | null;
   usar_configuracion_familia?: boolean | null;
   margen_personalizado?: number | null;
@@ -321,6 +322,7 @@ export default function AdminComprasPage() {
   const [guardandoHistorial, setGuardandoHistorial] = useState(false);
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
+  const productoEnlaceAplicado = useRef(false);
   const [variacionesCompra, setVariacionesCompra] = useState<VariacionCosto[]>([]);
   const [mostrarVariaciones, setMostrarVariaciones] = useState(false);
   const [recetasAfectadas, setRecetasAfectadas] = useState<RecetaAfectada[]>([]);
@@ -406,6 +408,7 @@ export default function AdminComprasPage() {
         stock_actual,
         costo_unitario,
         precio,
+        proveedor_id,
         controla_stock,
         usar_configuracion_familia,
         margen_personalizado,
@@ -437,6 +440,32 @@ export default function AdminComprasPage() {
   useEffect(() => {
     cargarProductos();
   }, []);
+
+  useEffect(() => {
+    if (loading || productoEnlaceAplicado.current || productos.length === 0) {
+      return;
+    }
+
+    const productoId = new URLSearchParams(window.location.search).get('producto');
+    if (!productoId) return;
+
+    const producto = productos.find(
+      (item) => String(item.id) === String(productoId)
+    );
+    if (!producto) return;
+
+    const { margen, tipoMargen } = configuracionMargenProducto(producto);
+    setItems([
+      {
+        ...itemCompraVacio(),
+        producto_id: String(producto.id),
+        busqueda_producto: `${producto.nombre} - ${producto.tipo_producto}`,
+        margen_porcentaje: String(margen || ''),
+        tipo_margen: tipoMargen,
+      },
+    ]);
+    productoEnlaceAplicado.current = true;
+  }, [loading, productos]);
 
   useEffect(() => {
     if (!mostrarProveedores) return;
@@ -1838,6 +1867,7 @@ export default function AdminComprasPage() {
         .update({
           costo_unitario: costoCompra,
           precio: precioVenta || numero(producto.precio),
+          proveedor_id: proveedorId || producto.proveedor_id || null,
           ...(margenIngresado > 0
             ? {
                 usar_configuracion_familia: !margenEsPersonalizado,
