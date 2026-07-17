@@ -6,6 +6,13 @@ import { obtenerEmpresaActual } from '@/lib/empresa';
 import { Search, X } from 'lucide-react';
 type TipoProducto = 'producto' | 'ingrediente' | 'envase' | 'mano_obra';
 
+type FamiliaProducto = {
+  id: string;
+  nombre: string;
+  mostrar_catalogo: boolean | null;
+  familia_padre_id: string | null;
+};
+
 type Producto = {
   id: number;
   codigo: string | null;
@@ -34,8 +41,10 @@ type Producto = {
   contabiliza_como_saco: boolean | null;
   mostrar_en_planilla_rinde: boolean | null;
   familias_productos?: {
+    id: string;
     nombre: string;
     mostrar_catalogo: boolean | null;
+    familia_padre_id: string | null;
   } | null;
   usar_configuracion_familia: boolean | null;
   margen_personalizado: number | null;
@@ -127,13 +136,7 @@ export default function AdminProductosPage() {
   const [productoEditando, setProductoEditando] =
     useState<Producto | null>(null);
 
-  const [familias, setFamilias] = useState<
-    {
-      id: string;
-      nombre: string;
-      mostrar_catalogo: boolean | null;
-    }[]
-  >([]);
+  const [familias, setFamilias] = useState<FamiliaProducto[]>([]);
   const [impuestosAdicionales, setImpuestosAdicionales] = useState<
     ImpuestoAdicional[]
   >([]);
@@ -180,6 +183,40 @@ export default function AdminProductosPage() {
   );
   const familiaFormSeleccionada = familias.find(
     (familia) => familia.id === form.familia_id
+  );
+  function obtenerRutaFamilia(familiaId: string | null | undefined) {
+    const ruta: FamiliaProducto[] = [];
+    const visitadas = new Set<string>();
+    let actual = familias.find((familia) => familia.id === familiaId);
+
+    while (actual && !visitadas.has(actual.id)) {
+      ruta.unshift(actual);
+      visitadas.add(actual.id);
+      actual = familias.find(
+        (familia) => familia.id === actual?.familia_padre_id
+      );
+    }
+
+    return ruta;
+  }
+  function nombreJerarquicoFamilia(familiaId: string | null | undefined) {
+    return obtenerRutaFamilia(familiaId)
+      .map((familia) => familia.nombre)
+      .join(' › ');
+  }
+  const rutaFamiliaForm = obtenerRutaFamilia(form.familia_id);
+  const categoriaFamiliaForm =
+    rutaFamiliaForm[0]?.nombre || form.categoria || 'Productos';
+  const esFamiliaTortas = rutaFamiliaForm.some((familia) =>
+    normalizarTexto(familia.nombre).includes('torta')
+  );
+  const esProductoTorta =
+    esFamiliaTortas || normalizarTexto(form.categoria).includes('torta');
+  const familiasOrdenadas = [...familias].sort((a, b) =>
+    nombreJerarquicoFamilia(a.id).localeCompare(
+      nombreJerarquicoFamilia(b.id),
+      'es'
+    )
   );
   const prefijoTipoProducto: Record<TipoProducto, string> = {
     producto: 'PRO',
@@ -231,8 +268,10 @@ export default function AdminProductosPage() {
       .select(`
         *,
         familias_productos (
+          id,
           nombre,
-          mostrar_catalogo
+          mostrar_catalogo,
+          familia_padre_id
         )
       `)
       .eq('empresa_id', empresa.id)
@@ -289,7 +328,7 @@ export default function AdminProductosPage() {
 
     const { data } = await supabase
       .from('familias_productos')
-      .select('id,nombre,mostrar_catalogo')
+      .select('id,nombre,mostrar_catalogo,familia_padre_id')
       .eq('empresa_id', empresa.id)
       .eq('activo', true)
       .order('nombre');
@@ -386,14 +425,9 @@ export default function AdminProductosPage() {
       return false;
     }
 
-    if (esProducto && !form.categoria) {
-      alert('Completa la categoría.');
-      return false;
-    }
-
     if (
       esProducto &&
-      form.categoria !== 'Tortas' &&
+      !esProductoTorta &&
       !form.precio
     ) {
       alert('Completa el precio de venta.');
@@ -402,7 +436,7 @@ export default function AdminProductosPage() {
 
     if (
       esProducto &&
-      form.categoria === 'Tortas' &&
+      esProductoTorta &&
       !form.precio_10 &&
       !form.precio_15 &&
       !form.precio_20 &&
@@ -460,13 +494,13 @@ export default function AdminProductosPage() {
       descripcion: form.descripcion,
       precio:
         form.tipo_producto === 'producto'
-          ? form.categoria === 'Tortas'
+          ? esProductoTorta
             ? Number(form.precio_10 || 0)
             : Number(form.precio || 0)
           : 0,
       categoria:
         form.tipo_producto === 'producto'
-          ? form.categoria
+          ? categoriaFamiliaForm
           : form.tipo_producto === 'ingrediente'
             ? 'Ingredientes'
             : form.tipo_producto === 'envase'
@@ -709,25 +743,38 @@ export default function AdminProductosPage() {
             </select>
 
             {esProducto && (
-              <select
-                value={form.categoria}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    categoria: e.target.value,
-                  })
-                }
-                className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
-              >
-                <option>Panadería</option>
-                <option>Pastelería</option>
-                <option>Tortas</option>
-                <option>Empanadas</option>
-                <option>Especiales</option>
-              </select>
+              <label className="space-y-2">
+                <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
+                  Familia / subfamilia
+                </span>
+                <select
+                  value={form.familia_id ?? ''}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      familia_id: e.target.value,
+                    })
+                  }
+                  className="h-14 w-full rounded-2xl border border-maruxa-rojo/10 px-5 font-bold outline-none"
+                >
+                  <option value="">Seleccionar familia</option>
+                  {familiasOrdenadas.map((familia) => (
+                    <option key={familia.id} value={familia.id}>
+                      {nombreJerarquicoFamilia(familia.id)}
+                      {familia.mostrar_catalogo ? ' - Catálogo' : ' - Interna'}
+                    </option>
+                  ))}
+                </select>
+                {familiaFormSeleccionada && (
+                  <span className="block text-xs font-semibold text-maruxa-cafe/60">
+                    Se guardará en {categoriaFamiliaForm} y usará la configuración de{' '}
+                    {nombreJerarquicoFamilia(familiaFormSeleccionada.id)}.
+                  </span>
+                )}
+              </label>
             )}
 
-            {esProducto && form.categoria !== 'Tortas' && (
+            {esProducto && !esProductoTorta && (
               <label className="space-y-2">
                 <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
                   Precio de venta final
@@ -902,41 +949,6 @@ export default function AdminProductosPage() {
               </>
 
             {esProducto && (
-              <label className="space-y-2">
-                <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
-                  Familia de costeo / margen
-                </span>
-                <select
-                  value={form.familia_id ?? ''}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      familia_id: e.target.value,
-                    })
-                  }
-                  className="h-14 w-full rounded-2xl border border-maruxa-rojo/10 px-5 font-bold outline-none"
-                >
-                  <option value="">Seleccionar familia</option>
-
-                  {familias.map((familia) => (
-                    <option key={familia.id} value={familia.id}>
-                      {familia.nombre}
-                      {familia.mostrar_catalogo ? ' - Catalogo' : ' - Interna'}
-                    </option>
-                  ))}
-                </select>
-                {familiaFormSeleccionada && (
-                  <span className="block text-xs font-semibold text-maruxa-cafe/60">
-                    Esta familia{' '}
-                    {familiaFormSeleccionada.mostrar_catalogo
-                      ? 'se muestra en el catalogo publico.'
-                      : 'queda solo para uso interno.'}
-                  </span>
-                )}
-              </label>
-            )}
-
-            {esProducto && (
               <label className="flex items-center gap-3 font-black text-maruxa-chocolate">
                 <input
                   type="checkbox"
@@ -952,7 +964,7 @@ export default function AdminProductosPage() {
               </label>
             )}
 
-            {esProducto && form.categoria === 'Tortas' && (
+            {esProducto && esProductoTorta && (
               <>
                 <label className="space-y-2">
                   <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
@@ -1299,6 +1311,13 @@ export default function AdminProductosPage() {
           {productosFiltrados.map((producto) => {
             const tipo = producto.tipo_producto || 'producto';
             const esInsumoLista = tipo !== 'producto';
+            const rutaFamiliaProducto = obtenerRutaFamilia(producto.familia_id);
+            const nombreFamiliaProducto =
+              nombreJerarquicoFamilia(producto.familia_id) || producto.categoria;
+            const esTortaLista =
+              rutaFamiliaProducto.some((familia) =>
+                normalizarTexto(familia.nombre).includes('torta')
+              ) || normalizarTexto(producto.categoria).includes('torta');
 
             return (
               <article
@@ -1325,7 +1344,7 @@ export default function AdminProductosPage() {
                     <div className="min-w-0">
                     <p className="text-xs font-black uppercase tracking-widest text-maruxa-rojo">
                       {tipo === 'producto'
-                        ? producto.categoria
+                        ? nombreFamiliaProducto
                         : tipo === 'ingrediente'
                           ? 'Ingrediente'
                           : tipo === 'envase'
@@ -1335,15 +1354,8 @@ export default function AdminProductosPage() {
 
                     {tipo === 'producto' &&
                       producto.familias_productos?.nombre && (
-                        <span className="mt-1 inline-flex rounded-full bg-purple-100 px-2 py-0.5 text-xs font-black text-purple-700">
-                          📂 {producto.familias_productos?.nombre}
-                        </span>
-                      )}
-
-                    {tipo === 'producto' &&
-                      producto.familias_productos?.nombre && (
                         <span
-                          className={`mt-1 ml-2 inline-flex rounded-full px-2 py-0.5 text-xs font-black ${
+                          className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-black ${
                             producto.familias_productos?.mostrar_catalogo
                               ? 'bg-blue-100 text-blue-700'
                               : 'bg-gray-200 text-gray-600'
@@ -1396,7 +1408,7 @@ export default function AdminProductosPage() {
                         ).toLocaleString('es-CL')}{' '}
                         / {producto.unidad_base || '-'}
                       </p>
-                    ) : producto.categoria === 'Tortas' ? (
+                    ) : esTortaLista ? (
                       <div className="mt-1 text-sm font-bold text-maruxa-cafe/70">
                         <p>
                           10p: $
