@@ -280,6 +280,7 @@ export default function AdminComprasPage() {
   const [guardandoProductoEditado, setGuardandoProductoEditado] = useState(false);
   const [fichaEditandoId, setFichaEditandoId] = useState<number | null>(null);
   const [fichaEditando, setFichaEditando] = useState({
+    fecha: '',
     costo: '',
     margen: '',
     precioVenta: '',
@@ -803,6 +804,7 @@ export default function AdminComprasPage() {
   function editarFichaVigente(producto: Producto, margenFamilia: number) {
     setFichaEditandoId(producto.id);
     setFichaEditando({
+      fecha: new Date().toISOString().slice(0, 10),
       costo: String(producto.costo_unitario || ''),
       margen: String(
         producto.usar_configuracion_familia === false
@@ -815,6 +817,12 @@ export default function AdminComprasPage() {
 
   async function guardarFichaVigente(producto: Producto) {
     setGuardandoFicha(true);
+    const empresa = await obtenerEmpresaActual();
+    if (!empresa) {
+      setGuardandoFicha(false);
+      alert('No se pudo identificar la empresa.');
+      return;
+    }
     const cambios = {
       costo_unitario: numero(fichaEditando.costo),
       precio: numero(fichaEditando.precioVenta),
@@ -831,8 +839,8 @@ export default function AdminComprasPage() {
       .update(cambios)
       .eq('id', producto.id);
 
-    setGuardandoFicha(false);
     if (error) {
+      setGuardandoFicha(false);
       alert(error.message);
       return;
     }
@@ -842,6 +850,46 @@ export default function AdminComprasPage() {
         item.id === producto.id ? { ...item, ...cambios } : item
       )
     );
+
+    const fechaRegistro = fichaEditando.fecha || new Date().toISOString().slice(0, 10);
+    const { data: historialCreado, error: errorHistorial } = await supabase
+      .from('producto_costos_historial')
+      .insert({
+        empresa_id: empresa.id,
+        producto_id: producto.id,
+        costo_anterior: numero(producto.costo_unitario),
+        costo_compra: cambios.costo_unitario,
+        costo_nuevo_promedio: cambios.costo_unitario,
+        variacion_porcentaje: 0,
+        stock_anterior: numero(producto.stock_actual),
+        cantidad_comprada: 0,
+        stock_nuevo: numero(producto.stock_actual),
+        created_at: `${fechaRegistro}T12:00:00`,
+        observacion: `Ficha vigente editada | Precio venta: ${cambios.precio} | Margen: ${cambios.margen_personalizado}`,
+      })
+      .select('created_at')
+      .single();
+
+    setGuardandoFicha(false);
+    if (errorHistorial) {
+      alert(`La ficha se actualizó, pero no se pudo guardar la fecha: ${errorHistorial.message}`);
+      setFichaEditandoId(null);
+      return;
+    }
+    setUltimasCompras((actuales) => ({
+      ...actuales,
+      [producto.id]: [
+        {
+          producto_id: producto.id,
+          fecha: historialCreado.created_at,
+          precio: cambios.costo_unitario,
+          precio_venta: cambios.precio || null,
+          margen_porcentaje: cambios.margen_personalizado || null,
+          origen: 'historial' as const,
+        },
+        ...(actuales[producto.id] || []),
+      ].slice(0, 5),
+    }));
     setFichaEditandoId(null);
   }
 
@@ -2050,7 +2098,22 @@ export default function AdminComprasPage() {
                                       className="border-t border-maruxa-cafe/10 bg-white/70"
                                     >
                                       <td className="px-3 py-2 font-bold">
-                                        {formatearFecha(historial.fecha)}
+                                        {historial.origen === 'ficha_actual' &&
+                                        fichaEditandoId === producto.id ? (
+                                          <input
+                                            type="date"
+                                            value={fichaEditando.fecha}
+                                            onChange={(e) =>
+                                              setFichaEditando((actual) => ({
+                                                ...actual,
+                                                fecha: e.target.value,
+                                              }))
+                                            }
+                                            className="w-36 rounded-lg border px-2 py-1 text-xs font-bold"
+                                          />
+                                        ) : (
+                                          formatearFecha(historial.fecha)
+                                        )}
                                         {historial.origen === 'ficha_actual' && (
                                           <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase text-amber-800">
                                             Ficha vigente
