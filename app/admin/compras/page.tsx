@@ -423,9 +423,18 @@ export default function AdminComprasPage() {
 
     const empresa = await obtenerEmpresaActual();
 
-    if (!empresa) return;
+    if (!empresa) {
+      setUltimasCompras((actuales) => {
+        const siguiente = { ...actuales };
+        idsPendientes.forEach((id) => {
+          siguiente[id] = [];
+        });
+        return siguiente;
+      });
+      return;
+    }
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('producto_costos_historial')
       .select('producto_id,created_at,costo_compra,observacion')
       .eq('empresa_id', empresa.id)
@@ -433,7 +442,32 @@ export default function AdminComprasPage() {
       .order('created_at', { ascending: false })
       .limit(idsPendientes.length * 6);
 
-    if (error) return;
+    if (error) {
+      const respaldo = await supabase
+        .from('producto_costos_historial')
+        .select('producto_id,created_at,costo_compra')
+        .eq('empresa_id', empresa.id)
+        .in('producto_id', idsPendientes)
+        .order('created_at', { ascending: false })
+        .limit(idsPendientes.length * 6);
+
+      data = (respaldo.data || []).map((item) => ({
+        ...item,
+        observacion: null,
+      }));
+      error = respaldo.error;
+    }
+
+    if (error) {
+      setUltimasCompras((actuales) => {
+        const siguiente = { ...actuales };
+        idsPendientes.forEach((id) => {
+          siguiente[id] = [];
+        });
+        return siguiente;
+      });
+      return;
+    }
 
     const agrupadas = new Map<number, UltimaCompraProducto[]>();
 
