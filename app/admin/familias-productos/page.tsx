@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { obtenerEmpresaActual } from '@/lib/empresa';
 
@@ -14,6 +14,7 @@ type FamiliaProducto = {
   redondeo_precio: number;
   activo: boolean;
   mostrar_catalogo: boolean;
+  familia_padre_id: string | null;
 };
 
 const formInicial = {
@@ -23,6 +24,7 @@ const formInicial = {
   redondeo_precio: '10',
   activo: true,
   mostrar_catalogo: true,
+  familia_padre_id: '',
 };
 
 export default function AdminFamiliasProductosPage() {
@@ -65,7 +67,7 @@ export default function AdminFamiliasProductosPage() {
 
     const { data, error } = await supabase
       .from('familias_productos')
-      .select('id,nombre,tipo_margen,margen_porcentaje,redondeo_precio,activo,mostrar_catalogo')
+      .select('id,nombre,tipo_margen,margen_porcentaje,redondeo_precio,activo,mostrar_catalogo,familia_padre_id')
       .eq('empresa_id', empresa.id)
       .order('nombre', { ascending: true });
 
@@ -97,6 +99,7 @@ export default function AdminFamiliasProductosPage() {
       redondeo_precio: String(familia.redondeo_precio || 10),
       activo: familia.activo ?? true,
       mostrar_catalogo: familia.mostrar_catalogo ?? true,
+      familia_padre_id: familia.familia_padre_id || '',
     });
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -125,6 +128,7 @@ export default function AdminFamiliasProductosPage() {
       redondeo_precio: Number(form.redondeo_precio || 10),
       activo: form.activo,
       mostrar_catalogo: form.mostrar_catalogo,
+      familia_padre_id: form.familia_padre_id || null,
     };
 
     const { error } = editando
@@ -160,6 +164,37 @@ export default function AdminFamiliasProductosPage() {
     cargarFamilias();
   }
 
+  const familiasPrincipales = useMemo(
+    () =>
+      familias.filter(
+        (familia) => !familia.familia_padre_id && familia.id !== editando?.id
+      ),
+    [editando?.id, familias]
+  );
+
+  const familiasOrdenadas = useMemo(() => {
+    const principales = familias.filter((familia) => !familia.familia_padre_id);
+    const resultado: FamiliaProducto[] = [];
+
+    principales.forEach((principal) => {
+      resultado.push(principal);
+      resultado.push(
+        ...familias.filter(
+          (familia) => familia.familia_padre_id === principal.id
+        )
+      );
+    });
+
+    resultado.push(
+      ...familias.filter(
+        (familia) =>
+          familia.familia_padre_id &&
+          !familias.some((padre) => padre.id === familia.familia_padre_id)
+      )
+    );
+    return resultado;
+  }, [familias]);
+
   return (
     <main className="min-h-screen bg-maruxa-crema px-5 py-12">
       <div className="mx-auto max-w-7xl">
@@ -190,6 +225,27 @@ export default function AdminFamiliasProductosPage() {
                 placeholder="Ej: Tortas, Pan corriente, Pastelería"
                 className="w-full bg-transparent text-lg font-black outline-none"
               />
+            </div>
+
+            <div className="rounded-2xl border bg-white p-4 md:col-span-2">
+              <label className="mb-2 block text-xs font-black uppercase tracking-wide text-gray-500">
+                Familia principal (opcional)
+              </label>
+
+              <select
+                value={form.familia_padre_id}
+                onChange={(e) =>
+                  setForm({ ...form, familia_padre_id: e.target.value })
+                }
+                className="w-full bg-transparent text-lg font-black outline-none"
+              >
+                <option value="">Ninguna · es familia principal</option>
+                {familiasPrincipales.map((familia) => (
+                  <option key={familia.id} value={familia.id}>
+                    {familia.nombre}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="rounded-2xl border bg-white p-4">
@@ -305,6 +361,7 @@ export default function AdminFamiliasProductosPage() {
                 <thead className="bg-red-700 text-white">
                   <tr>
                     <th className="px-4 py-3 text-left">Familia</th>
+                    <th className="px-4 py-3 text-left">Familia principal</th>
                     <th className="px-4 py-3 text-left">Método</th>
                     <th className="px-4 py-3 text-right">Margen</th>
                     <th className="px-4 py-3 text-right">Redondeo</th>
@@ -315,7 +372,11 @@ export default function AdminFamiliasProductosPage() {
                 </thead>
 
                 <tbody>
-                  {familias.map((familia) => (
+                  {familiasOrdenadas.map((familia) => {
+                    const familiaPrincipal = familias.find(
+                      (item) => item.id === familia.familia_padre_id
+                    );
+                    return (
                     <tr
                       key={familia.id}
                       className="border-b last:border-none hover:bg-maruxa-crema/40"
@@ -324,7 +385,12 @@ export default function AdminFamiliasProductosPage() {
                         onClick={() => editarFamilia(familia)}
                         className="cursor-pointer px-4 py-4 font-black text-maruxa-chocolate"
                       >
+                        {familia.familia_padre_id ? '↳ ' : ''}
                         {familia.nombre}
+                      </td>
+
+                      <td className="px-4 py-4 font-bold text-maruxa-cafe/70">
+                        {familiaPrincipal?.nombre || '—'}
                       </td>
 
                       <td className="px-4 py-4 font-bold">
@@ -396,12 +462,13 @@ export default function AdminFamiliasProductosPage() {
                       </div>
                     </td>
                     </tr>
-                  ))}
+                    );
+                  })}
 
                   {familias.length === 0 && (
                     <tr>
                       <td
-                        colSpan={7}
+                        colSpan={8}
                         className="px-4 py-8 text-center font-black text-gray-500"
                       >
                         Aún no hay familias registradas.

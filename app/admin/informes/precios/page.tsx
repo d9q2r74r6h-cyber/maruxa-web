@@ -9,6 +9,7 @@ import { useAdminSession } from '@/components/AdminSession';
 type Familia = {
   id: string;
   nombre: string;
+  familia_padre_id: string | null;
 };
 
 type ProductoPrecio = {
@@ -79,7 +80,7 @@ export default function InformePreciosPage() {
             .order('nombre', { ascending: true }),
           supabase
             .from('familias_productos')
-            .select('id,nombre')
+            .select('id,nombre,familia_padre_id')
             .eq('empresa_id', perfil.empresa_id)
             .eq('activo', true)
             .order('nombre', { ascending: true }),
@@ -326,7 +327,9 @@ export default function InformePreciosPage() {
             <option value="">Todas las familias</option>
             {familias.map((familia) => (
               <option key={familia.id} value={familia.id}>
-                {familia.nombre}
+                {familia.familia_padre_id
+                  ? `${familias.find((item) => item.id === familia.familia_padre_id)?.nombre || 'Familia'} › ${familia.nombre}`
+                  : familia.nombre}
               </option>
             ))}
           </select>
