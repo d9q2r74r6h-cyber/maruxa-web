@@ -1172,6 +1172,11 @@ export default function AdminComprasPage() {
       return;
     }
 
+    if (!proveedorId) {
+      alert('Selecciona un proveedor antes de crear el producto.');
+      return;
+    }
+
     const empresa = await obtenerEmpresaActual();
 
     if (!empresa) {
@@ -1220,6 +1225,7 @@ export default function AdminComprasPage() {
       .from('productos')
       .insert({
         empresa_id: empresa.id,
+        proveedor_id: proveedorId,
         codigo: codigoFinal,
         nombre: nuevoProducto.nombre.trim(),
         descripcion: '',
