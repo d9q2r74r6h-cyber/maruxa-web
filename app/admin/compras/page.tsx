@@ -1459,97 +1459,6 @@ export default function AdminComprasPage() {
 
     setGuardando(true);
 
-    const productosComprados = itemsValidos
-      .map((item) => ({
-        item,
-        producto: productos.find(
-          (producto) => String(producto.id) === String(item.producto_id)
-        ),
-      }))
-      .filter(
-        (registro): registro is { item: ItemCompra; producto: Producto } =>
-          Boolean(registro.producto)
-      );
-
-    const { data: ingredientesExistentes, error: errorIngredientes } =
-      await supabase
-        .from('ingredientes')
-        .select('id,nombre')
-        .eq('empresa_id', empresa.id);
-
-    if (errorIngredientes) {
-      alert(errorIngredientes.message);
-      setGuardando(false);
-      return;
-    }
-
-    const ingredienteIdPorNombre = new Map<string, string>(
-      (ingredientesExistentes || []).map((ingrediente) => [
-        normalizarTexto(ingrediente.nombre),
-        ingrediente.id,
-      ])
-    );
-    const productosSinIngrediente = Array.from(
-      new Map(
-        productosComprados
-          .filter(
-            ({ producto }) =>
-              !ingredienteIdPorNombre.has(normalizarTexto(producto.nombre))
-          )
-          .map((registro) => [
-            normalizarTexto(registro.producto.nombre),
-            registro,
-          ])
-      ).values()
-    );
-
-    if (productosSinIngrediente.length > 0) {
-      const ingredientesNuevos = productosSinIngrediente.map(
-        ({ item, producto }) => ({
-          empresa_id: empresa.id,
-          nombre: producto.nombre,
-          categoria: 'otro',
-          unidad_base: (producto.unidad_base || 'un').toLowerCase(),
-          costo_unitario: desgloseIva(
-            numero(item.costo_unitario),
-            ivaPorcentaje,
-            precioIvaIncluido
-          ).neto,
-          proveedor: proveedorId ? proveedorTexto.trim() : null,
-          activo: true,
-        })
-      );
-      const { data: ingredientesCreados, error: errorCrearIngredientes } =
-        await supabase
-          .from('ingredientes')
-          .insert(ingredientesNuevos)
-          .select('id,nombre');
-
-      if (errorCrearIngredientes) {
-        alert(errorCrearIngredientes.message);
-        setGuardando(false);
-        return;
-      }
-
-      for (const ingrediente of ingredientesCreados || []) {
-        ingredienteIdPorNombre.set(
-          normalizarTexto(ingrediente.nombre),
-          ingrediente.id
-        );
-      }
-    }
-
-    const faltaIngrediente = productosComprados.some(
-      ({ producto }) =>
-        !ingredienteIdPorNombre.has(normalizarTexto(producto.nombre))
-    );
-
-    if (productosComprados.length !== itemsValidos.length || faltaIngrediente) {
-      alert('No se pudo relacionar uno de los productos con su ingrediente.');
-      setGuardando(false);
-      return;
-    }
-
     const { data: compra, error: errorCompra } = await supabase
       .from('compras')
       .insert({
@@ -1583,14 +1492,7 @@ export default function AdminComprasPage() {
 
       return {
         compra_id: compra.id,
-        ingrediente_id:
-          ingredienteIdPorNombre.get(
-            normalizarTexto(
-              productos.find(
-                (producto) => String(producto.id) === String(item.producto_id)
-              )?.nombre || ''
-            )
-          ) || null,
+        producto_id: Number(item.producto_id),
         cantidad,
         costo_unitario: costoGuardado,
         subtotal: costoGuardado * cantidad,
