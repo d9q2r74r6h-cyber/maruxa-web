@@ -273,7 +273,7 @@ export default function AdminComprasPage() {
   const [nuevoProducto, setNuevoProducto] = useState({
     codigo: '',
     nombre: '',
-    tipo_producto: 'ingrediente' as TipoProductoCompra,
+    tipo_producto: 'producto' as TipoProductoCompra,
     familia_id: '',
     unidad_base: 'KG',
     costo_unitario: '',
@@ -1296,17 +1296,13 @@ export default function AdminComprasPage() {
     setNuevoProducto({
       codigo: '',
       nombre: '',
-      tipo_producto: 'ingrediente',
+      tipo_producto: 'producto',
       familia_id: '',
       unidad_base: 'KG',
       costo_unitario: '',
       stock_actual: '',
       controla_stock: true,
     });
-    setProveedorId('');
-    setProveedorTexto('');
-    setPrecioIvaIncluido(false);
-    setProveedores([]);
     setIndiceItemCreacion(null);
     setMostrarCrearProducto(false);
   }
@@ -1825,15 +1821,17 @@ export default function AdminComprasPage() {
                   Detalle de compra
                 </h3>
 
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={agregarItem}
-                    className="rounded-full bg-red-700 px-6 py-3 text-sm font-black text-white shadow-lg"
-                  >
-                    + Agregar producto
-                  </button>
-                </div>
+                {!mostrarCrearProducto && (
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={agregarItem}
+                      className="rounded-full bg-red-700 px-6 py-3 text-sm font-black text-white shadow-lg"
+                    >
+                      + Agregar producto
+                    </button>
+                  </div>
+                )}
               </div>
 
               {mostrarCrearProducto && (
@@ -1920,7 +1918,7 @@ export default function AdminComprasPage() {
                                   setNuevoProducto({
                                     codigo: '',
                                     nombre: '',
-                                    tipo_producto: 'ingrediente',
+                                    tipo_producto: 'producto',
                                     familia_id: '',
                                     unidad_base: 'KG',
                                     costo_unitario: '',
@@ -2080,6 +2078,12 @@ export default function AdminComprasPage() {
 
               <div className="mt-4 grid gap-3">
                 {items.map((item, index) => {
+                  if (
+                    mostrarCrearProducto &&
+                    indiceItemCreacion === index
+                  ) {
+                    return null;
+                  }
                   const producto = productos.find((p) => String(p.id) === String(item.producto_id));
                   const familiaProducto = familias.find(
                     (familia) => familia.id === producto?.familia_id
