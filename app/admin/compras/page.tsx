@@ -23,6 +23,7 @@ type UltimaCompraProducto = {
   precio: number;
   precio_venta: number | null;
   margen_porcentaje: number | null;
+  origen?: 'historial' | 'ficha_actual';
 };
 
 type ProveedorCompra = {
@@ -1690,6 +1691,31 @@ export default function AdminComprasPage() {
               <div className="mt-4 grid gap-3">
                 {items.map((item, index) => {
                   const producto = productos.find((p) => String(p.id) === String(item.producto_id));
+                  const familiaProducto = familias.find(
+                    (familia) => familia.id === producto?.familia_id
+                  );
+                  const historialCargado = producto
+                    ? ultimasCompras[producto.id]
+                    : undefined;
+                  const historialVisible: UltimaCompraProducto[] =
+                    historialCargado?.length
+                      ? historialCargado
+                      : historialCargado &&
+                          producto &&
+                          (numero(producto.costo_unitario) > 0 ||
+                            numero(producto.precio) > 0)
+                        ? [
+                            {
+                              producto_id: producto.id,
+                              fecha: new Date().toISOString(),
+                              precio: numero(producto.costo_unitario),
+                              precio_venta: numero(producto.precio) || null,
+                              margen_porcentaje:
+                                numero(familiaProducto?.margen_porcentaje) || null,
+                              origen: 'ficha_actual',
+                            },
+                          ]
+                        : [];
                   const busquedaNormalizada = normalizarTexto(item.busqueda_producto);
                   const productosFiltrados =
                     busquedaNormalizada.length < 2
@@ -1935,11 +1961,11 @@ export default function AdminComprasPage() {
                             </span>
                           </div>
 
-                          {ultimasCompras[producto.id] === undefined ? (
+                          {historialCargado === undefined ? (
                             <p className="py-4 text-sm font-bold text-maruxa-cafe/60">
                               Cargando historial...
                             </p>
-                          ) : ultimasCompras[producto.id].length === 0 ? (
+                          ) : historialVisible.length === 0 ? (
                             <p className="py-4 text-sm font-bold text-maruxa-cafe/60">
                               Este producto todavía no tiene valores anteriores registrados.
                             </p>
@@ -1955,13 +1981,18 @@ export default function AdminComprasPage() {
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {ultimasCompras[producto.id].map((historial, historialIndex) => (
+                                  {historialVisible.map((historial, historialIndex) => (
                                     <tr
                                       key={`${historial.fecha}-${historialIndex}`}
                                       className="border-t border-maruxa-cafe/10 bg-white/70"
                                     >
                                       <td className="px-3 py-2 font-bold">
                                         {formatearFecha(historial.fecha)}
+                                        {historial.origen === 'ficha_actual' && (
+                                          <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase text-amber-800">
+                                            Ficha vigente
+                                          </span>
+                                        )}
                                       </td>
                                       <td className="px-3 py-2 text-right font-black">
                                         {dinero(historial.precio)}
