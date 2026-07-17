@@ -30,6 +30,7 @@ type Proveedor = {
   condiciones_pago: string | null;
   dias_credito: number;
   observaciones: string | null;
+  precio_iva_incluido: boolean;
   activo: boolean;
 };
 
@@ -49,6 +50,7 @@ const inicial = {
   condiciones_pago: '',
   dias_credito: '0',
   observaciones: '',
+  precio_iva_incluido: true,
 };
 
 function limpiarTexto(valor: string) {
@@ -104,7 +106,20 @@ export default function ProveedoresPage() {
       setErrorCarga(error.message);
       setProveedores([]);
     } else {
-      setProveedores((data || []) as Proveedor[]);
+      setProveedores(
+        (data || []).map((proveedor) => {
+          const configuracionLocal = window.localStorage.getItem(
+            `proveedor-iva-incluido:${proveedor.id}`
+          );
+          return {
+            ...proveedor,
+            precio_iva_incluido:
+              typeof proveedor.precio_iva_incluido === 'boolean'
+                ? proveedor.precio_iva_incluido
+                : configuracionLocal !== 'false',
+          } as Proveedor;
+        })
+      );
     }
 
     setCargando(false);
@@ -137,6 +152,7 @@ export default function ProveedoresPage() {
       condiciones_pago: proveedor.condiciones_pago || '',
       dias_credito: String(proveedor.dias_credito || 0),
       observaciones: proveedor.observaciones || '',
+      precio_iva_incluido: proveedor.precio_iva_incluido ?? true,
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -158,6 +174,7 @@ export default function ProveedoresPage() {
       condiciones_pago: limpiarTexto(form.condiciones_pago),
       dias_credito: Number(form.dias_credito || 0),
       observaciones: limpiarTexto(form.observaciones),
+      precio_iva_incluido: form.precio_iva_incluido,
     };
   }
 
@@ -173,20 +190,57 @@ export default function ProveedoresPage() {
     setGuardando(true);
 
     const datos = datosProveedor();
-    const respuesta = editando
+    let respuesta: any = editando
       ? await supabase
           .from('proveedores')
           .update(datos)
           .eq('id', editando.id)
-      : await supabase.from('proveedores').insert({
-          ...datos,
-          empresa_id: perfil.empresa_id,
-          activo: true,
-        });
+          .select('id')
+          .single()
+      : await supabase
+          .from('proveedores')
+          .insert({
+            ...datos,
+            empresa_id: perfil.empresa_id,
+            activo: true,
+          })
+          .select('id')
+          .single();
+
+    if (
+      respuesta.error?.message
+        ?.toLowerCase()
+        .includes('precio_iva_incluido')
+    ) {
+      const { precio_iva_incluido: _precioIvaIncluido, ...datosCompatibles } = datos;
+      respuesta = editando
+        ? await supabase
+            .from('proveedores')
+            .update(datosCompatibles)
+            .eq('id', editando.id)
+            .select('id')
+            .single()
+        : await supabase
+            .from('proveedores')
+            .insert({
+              ...datosCompatibles,
+              empresa_id: perfil.empresa_id,
+              activo: true,
+            })
+            .select('id')
+            .single();
+    }
 
     if (respuesta.error) {
       setErrorCarga(respuesta.error.message);
     } else {
+      const proveedorGuardadoId = editando?.id || respuesta.data?.id;
+      if (proveedorGuardadoId) {
+        window.localStorage.setItem(
+          `proveedor-iva-incluido:${proveedorGuardadoId}`,
+          String(form.precio_iva_incluido)
+        );
+      }
       setErrorCarga('');
       limpiarFormulario();
       await cargar();
@@ -269,7 +323,7 @@ export default function ProveedoresPage() {
                 <input
                   required={campo === 'razon_social'}
                   type={campo === 'dias_credito' ? 'number' : 'text'}
-                  value={form[campo as keyof typeof form]}
+                  value={String(form[campo as keyof typeof form] ?? '')}
                   onChange={(event) =>
                     setForm({ ...form, [campo]: event.target.value })
                   }
@@ -277,6 +331,26 @@ export default function ProveedoresPage() {
                 />
               </label>
             ))}
+
+            <label className="flex items-center gap-3 rounded-md border border-[#A51F2B]/20 bg-[#FFF3DF] px-3 py-3 text-xs font-black text-[#4B2818] sm:col-span-2 xl:col-span-1">
+              <input
+                type="checkbox"
+                checked={form.precio_iva_incluido}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    precio_iva_incluido: event.target.checked,
+                  })
+                }
+                className="h-4 w-4 accent-[#A51F2B]"
+              />
+              <span>
+                Precio IVA incluido
+                <small className="mt-0.5 block font-bold text-[#4B2818]/60">
+                  Marcado: Compras recibe precio bruto. Desmarcado: recibe precio neto más IVA.
+                </small>
+              </span>
+            </label>
 
             <label className="grid gap-1 text-xs font-black text-[#4B2818] sm:col-span-2 xl:col-span-1">
               Observaciones
@@ -394,6 +468,11 @@ export default function ProveedoresPage() {
                       {[proveedor.comuna, proveedor.ciudad]
                         .filter(Boolean)
                         .join(', ') || 'Sin ubicacion'}
+                    </p>
+                    <p className="mt-2 inline-flex rounded-full bg-[#FFF3DF] px-2 py-0.5 text-[10px] font-black uppercase text-[#A51F2B]">
+                      {proveedor.precio_iva_incluido
+                        ? 'Precio IVA incluido'
+                        : 'Precio neto + IVA'}
                     </p>
                   </div>
 
