@@ -465,12 +465,7 @@ export default function AdminComprasPage() {
     return () => clearTimeout(timer);
   }, [mostrarProveedores, proveedorTexto]);
 
-  async function cambiarPrecioIvaProveedor(incluido: boolean) {
-    setPrecioIvaIncluido(incluido);
-    window.localStorage.setItem(
-      `proveedor-iva-incluido:${proveedorId}`,
-      String(incluido)
-    );
+  function recalcularPreciosPorIva(incluido: boolean) {
     setItems((actuales) =>
       actuales.map((item) => ({
         ...item,
@@ -485,6 +480,15 @@ export default function AdminComprasPage() {
             )
           : item.precio_venta,
       }))
+    );
+  }
+
+  async function cambiarPrecioIvaProveedor(incluido: boolean) {
+    setPrecioIvaIncluido(incluido);
+    recalcularPreciosPorIva(incluido);
+    window.localStorage.setItem(
+      `proveedor-iva-incluido:${proveedorId}`,
+      String(incluido)
     );
     if (!proveedorId) return;
 
@@ -1608,7 +1612,10 @@ export default function AdminComprasPage() {
                         onClick={() => {
                           setProveedorId(proveedor.id);
                           setProveedorTexto(proveedor.razon_social);
-                          setPrecioIvaIncluido(proveedor.precio_iva_incluido ?? true);
+                          const ivaIncluidoProveedor =
+                            proveedor.precio_iva_incluido ?? true;
+                          setPrecioIvaIncluido(ivaIncluidoProveedor);
+                          recalcularPreciosPorIva(ivaIncluidoProveedor);
                           setMostrarProveedores(false);
                         }}
                         className="block w-full px-4 py-3 text-left text-sm font-bold hover:bg-maruxa-crema"
