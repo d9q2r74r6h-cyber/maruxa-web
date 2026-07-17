@@ -765,26 +765,6 @@ export default function AdminComprasPage() {
         }
 
         if (campo === 'busqueda_producto') {
-          const textoNormalizado = normalizarTexto(valor);
-          const productoExacto = productos.find(
-            (producto) =>
-              normalizarTexto(producto.nombre) === textoNormalizado ||
-              normalizarTexto(producto.codigo || '') === textoNormalizado
-          );
-
-          if (productoExacto) {
-            const { margen, tipoMargen } =
-              configuracionMargenProducto(productoExacto);
-            return {
-              ...item,
-              producto_id: String(productoExacto.id),
-              busqueda_producto: `${productoExacto.nombre} - ${productoExacto.tipo_producto}`,
-              margen_porcentaje: String(margen || ''),
-              tipo_margen: tipoMargen,
-              precio_venta: '',
-            };
-          }
-
           return {
             ...item,
             producto_id: '',
