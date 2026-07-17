@@ -639,12 +639,33 @@ export default function AdminComprasPage() {
       const costoAnterior = numero(registros[0].costo_anterior);
       if (!costoAnterior || costoAnterior === numero(registros[0].precio)) continue;
 
+      const producto = productos.find((item) => item.id === productoId);
+      const familia = familias.find(
+        (item) => item.id === producto?.familia_id
+      );
+      const usaConfiguracionFamilia =
+        producto?.usar_configuracion_familia !== false;
+      const margenAnterior =
+        registros[0].margen_porcentaje ??
+        (usaConfiguracionFamilia
+          ? numero(familia?.margen_porcentaje)
+          : numero(producto?.margen_personalizado));
+      const tipoMargenAnterior = usaConfiguracionFamilia
+        ? familia?.tipo_margen || 'markup'
+        : producto?.tipo_margen_personalizado || 'markup';
+      const precioVentaAnterior = precioVentaDesdeMargen(
+        desgloseIva(costoAnterior, ivaPorcentaje, false).total,
+        margenAnterior,
+        tipoMargenAnterior,
+        Math.max(1, numero(familia?.redondeo_precio))
+      );
+
       registros.push({
         producto_id: productoId,
-        fecha: '',
+        fecha: registros[0].fecha,
         precio: costoAnterior,
-        precio_venta: null,
-        margen_porcentaje: null,
+        precio_venta: precioVentaAnterior || null,
+        margen_porcentaje: margenAnterior || null,
         origen: 'costo_anterior',
       });
     }
