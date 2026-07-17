@@ -21,6 +21,8 @@ type UltimaCompraProducto = {
   producto_id: number;
   fecha: string;
   precio: number;
+  precio_venta: number | null;
+  margen_porcentaje: number | null;
 };
 
 type ProveedorCompra = {
@@ -425,7 +427,7 @@ export default function AdminComprasPage() {
 
     const { data, error } = await supabase
       .from('producto_costos_historial')
-      .select('producto_id,created_at,costo_compra')
+      .select('producto_id,created_at,costo_compra,observacion')
       .eq('empresa_id', empresa.id)
       .in('producto_id', idsPendientes)
       .order('created_at', { ascending: false })
@@ -439,12 +441,18 @@ export default function AdminComprasPage() {
       const productoId = Number(item.producto_id);
       const actuales = agrupadas.get(productoId) || [];
 
-      if (actuales.length >= 2) continue;
+      if (actuales.length >= 5) continue;
+
+      const observacion = String(item.observacion || '');
+      const precioVenta = observacion.match(/precio venta:\s*([0-9]+)/i);
+      const margen = observacion.match(/margen:\s*([0-9.,]+)/i);
 
       actuales.push({
         producto_id: productoId,
         fecha: item.created_at,
         precio: numero(item.costo_compra),
+        precio_venta: precioVenta ? numero(precioVenta[1]) : null,
+        margen_porcentaje: margen ? numero(margen[1]) : null,
       });
       agrupadas.set(productoId, actuales);
     }
@@ -1238,7 +1246,13 @@ export default function AdminComprasPage() {
     for (const item of itemsConsolidados) {
       const producto = productos.find((p) => String(p.id) === String(item.producto_id));
 
-      if (!producto?.controla_stock) continue;
+      if (!producto) continue;
+
+      const itemIngresado = items.find(
+        (detalle) => String(detalle.producto_id) === String(producto.id)
+      );
+      const precioVenta = numero(itemIngresado?.precio_venta);
+      const margenIngresado = numero(itemIngresado?.margen_porcentaje);
 
       const cantidad = item.cantidad;
       const variacion = variacionesPorProducto.get(producto.id);
@@ -1254,6 +1268,7 @@ export default function AdminComprasPage() {
         .update({
           stock_actual: stockNuevo,
           costo_unitario: costoPromedio,
+          precio: precioVenta || numero(producto.precio),
         })
         .eq('id', producto.id);
 
@@ -1263,22 +1278,24 @@ export default function AdminComprasPage() {
         return;
       }
 
-      const { error: errorMovimiento } = await supabase
-        .from('movimientos_stock')
-        .insert({
-          empresa_id: empresa.id,
-          producto_id: producto.id,
-          tipo_movimiento: 'compra',
-          cantidad,
-          referencia_tipo: 'compra',
-          referencia_id: compra.id,
-          observacion: 'Ingreso manual de compra',
-        });
+      if (producto.controla_stock) {
+        const { error: errorMovimiento } = await supabase
+          .from('movimientos_stock')
+          .insert({
+            empresa_id: empresa.id,
+            producto_id: producto.id,
+            tipo_movimiento: 'compra',
+            cantidad,
+            referencia_tipo: 'compra',
+            referencia_id: compra.id,
+            observacion: 'Ingreso manual de compra',
+          });
 
-      if (errorMovimiento) {
-        alert(errorMovimiento.message);
-        setGuardando(false);
-        return;
+        if (errorMovimiento) {
+          alert(errorMovimiento.message);
+          setGuardando(false);
+          return;
+        }
       }
 
       const { error: errorHistorialCosto } = await supabase
@@ -1295,7 +1312,7 @@ export default function AdminComprasPage() {
           stock_nuevo: stockNuevo,
           referencia_tipo: 'compra',
           referencia_id: compra.id,
-          observacion: 'Ingreso manual de compra',
+          observacion: `Ingreso manual de compra | Precio venta: ${precioVenta} | Margen: ${margenIngresado}`,
         });
 
       if (errorHistorialCosto) {
@@ -1306,6 +1323,7 @@ export default function AdminComprasPage() {
     }
 
     setItems([itemCompraVacio()]);
+    setUltimasCompras({});
     setVariacionesCompra(variacionesRegistradas);
     setMostrarVariaciones(true);
     await cargarRecetasAfectadas(variacionesRegistradas);
@@ -1869,6 +1887,72 @@ export default function AdminComprasPage() {
                             />
                           </label>
                         </div>
+                      )}
+
+                      {producto && (
+                        <section className="rounded-2xl border-2 border-maruxa-rojo/20 bg-[#FFF8ED] p-4 md:col-span-2 xl:col-span-5">
+                          <div className="flex flex-wrap items-end justify-between gap-2 border-b border-maruxa-rojo/15 pb-3">
+                            <div>
+                              <p className="text-[11px] font-black uppercase tracking-[.2em] text-maruxa-rojo">
+                                Historial de precios
+                              </p>
+                              <h4 className="mt-1 font-black text-maruxa-chocolate">
+                                Últimos valores ingresados para {producto.nombre}
+                              </h4>
+                            </div>
+                            <span className="rounded-full bg-white px-3 py-1 text-[11px] font-black text-maruxa-cafe/60">
+                              Registro histórico
+                            </span>
+                          </div>
+
+                          {ultimasCompras[producto.id] === undefined ? (
+                            <p className="py-4 text-sm font-bold text-maruxa-cafe/60">
+                              Cargando historial...
+                            </p>
+                          ) : ultimasCompras[producto.id].length === 0 ? (
+                            <p className="py-4 text-sm font-bold text-maruxa-cafe/60">
+                              Este producto todavía no tiene valores anteriores registrados.
+                            </p>
+                          ) : (
+                            <div className="mt-3 overflow-x-auto">
+                              <table className="w-full min-w-[560px] text-sm">
+                                <thead>
+                                  <tr className="text-left text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
+                                    <th className="px-3 py-2">Fecha</th>
+                                    <th className="px-3 py-2 text-right">Valor compra</th>
+                                    <th className="px-3 py-2 text-right">Margen</th>
+                                    <th className="px-3 py-2 text-right">Precio venta</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {ultimasCompras[producto.id].map((historial, historialIndex) => (
+                                    <tr
+                                      key={`${historial.fecha}-${historialIndex}`}
+                                      className="border-t border-maruxa-cafe/10 bg-white/70"
+                                    >
+                                      <td className="px-3 py-2 font-bold">
+                                        {formatearFecha(historial.fecha)}
+                                      </td>
+                                      <td className="px-3 py-2 text-right font-black">
+                                        {dinero(historial.precio)}
+                                      </td>
+                                      <td className="px-3 py-2 text-right font-bold">
+                                        {historial.margen_porcentaje === null
+                                          ? 'No registrado'
+                                          : entradaPorcentaje(historial.margen_porcentaje)}
+                                      </td>
+                                      <td className="px-3 py-2 text-right font-black text-maruxa-rojo">
+                                        {historial.precio_venta === null
+                                          ? 'No registrado'
+                                          : dinero(historial.precio_venta)}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </section>
                       )}
 
                         <button
