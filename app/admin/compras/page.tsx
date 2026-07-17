@@ -25,9 +25,10 @@ type UltimaCompraProducto = {
   producto_id: number;
   fecha: string;
   precio: number;
+  costo_anterior?: number;
   precio_venta: number | null;
   margen_porcentaje: number | null;
-  origen?: 'historial' | 'ficha_actual';
+  origen?: 'historial' | 'ficha_actual' | 'costo_anterior';
 };
 
 type ProveedorCompra = {
@@ -591,7 +592,7 @@ export default function AdminComprasPage() {
 
     const { data, error } = await supabase
       .from('producto_costos_historial')
-      .select('id,producto_id,created_at,costo_nuevo,margen_porcentaje,precio_venta')
+      .select('id,producto_id,created_at,costo_anterior,costo_nuevo,margen_porcentaje,precio_venta')
       .eq('empresa_id', empresa.id)
       .in('producto_id', idsPendientes)
       .order('created_at', { ascending: false })
@@ -621,6 +622,7 @@ export default function AdminComprasPage() {
         producto_id: productoId,
         fecha: item.created_at,
         precio: numero(item.costo_nuevo),
+        costo_anterior: numero(item.costo_anterior),
         precio_venta:
           item.precio_venta === null ? null : numero(item.precio_venta),
         margen_porcentaje:
@@ -629,6 +631,22 @@ export default function AdminComprasPage() {
             : numero(item.margen_porcentaje),
       });
       agrupadas.set(productoId, actuales);
+    }
+
+    for (const [productoId, registros] of agrupadas) {
+      if (registros.length !== 1) continue;
+
+      const costoAnterior = numero(registros[0].costo_anterior);
+      if (!costoAnterior || costoAnterior === numero(registros[0].precio)) continue;
+
+      registros.push({
+        producto_id: productoId,
+        fecha: '',
+        precio: costoAnterior,
+        precio_venta: null,
+        margen_porcentaje: null,
+        origen: 'costo_anterior',
+      });
     }
 
     setUltimasCompras((actuales) => {
@@ -1841,7 +1859,7 @@ export default function AdminComprasPage() {
           referencia_tipo: 'compra',
           referencia_id: compra.id,
         })
-        .select('id,producto_id,created_at,costo_nuevo,margen_porcentaje,precio_venta')
+        .select('id,producto_id,created_at,costo_anterior,costo_nuevo,margen_porcentaje,precio_venta')
         .single();
 
       if (errorHistorialCosto) {
@@ -1855,6 +1873,7 @@ export default function AdminComprasPage() {
         producto_id: Number(historialCreado.producto_id),
         fecha: historialCreado.created_at,
         precio: numero(historialCreado.costo_nuevo),
+        costo_anterior: numero(historialCreado.costo_anterior),
         margen_porcentaje:
           historialCreado.margen_porcentaje === null
             ? null
@@ -2567,6 +2586,11 @@ export default function AdminComprasPage() {
                                         {historial.origen === 'ficha_actual' && (
                                           <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase text-amber-800">
                                             Ficha vigente
+                                          </span>
+                                        )}
+                                        {historial.origen === 'costo_anterior' && (
+                                          <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase text-amber-800">
+                                            Costo anterior
                                           </span>
                                         )}
                                       </td>
