@@ -259,7 +259,7 @@ export default function AdminComprasPage() {
   const [proveedores, setProveedores] = useState<ProveedorCompra[]>([]);
   const [proveedorId, setProveedorId] = useState('');
   const [proveedorTexto, setProveedorTexto] = useState('');
-  const [precioIvaIncluido, setPrecioIvaIncluido] = useState(true);
+  const [precioIvaIncluido, setPrecioIvaIncluido] = useState(false);
   const [ivaPorcentaje, setIvaPorcentaje] = useState(19);
   const [mostrarProveedores, setMostrarProveedores] = useState(false);
   const [buscandoProveedores, setBuscandoProveedores] = useState(false);
@@ -1622,7 +1622,7 @@ export default function AdminComprasPage() {
                 onChange={(e) => {
                   setProveedorTexto(e.target.value);
                   setProveedorId('');
-                  setPrecioIvaIncluido(true);
+                  setPrecioIvaIncluido(false);
                   setMostrarProveedores(true);
                 }}
                 placeholder="Buscar proveedor..."
