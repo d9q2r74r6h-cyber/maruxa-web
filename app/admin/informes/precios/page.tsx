@@ -46,6 +46,9 @@ export default function InformePreciosPage() {
   const [productos, setProductos] = useState<ProductoPrecio[]>([]);
   const [familias, setFamilias] = useState<Familia[]>([]);
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
+  const [productosConCambio, setProductosConCambio] = useState<
+    Record<number, boolean>
+  >({});
   const [cargando, setCargando] = useState(true);
   const [formato, setFormato] = useState<'listado' | 'suelto'>('listado');
   const [familiaId, setFamiliaId] = useState('');
@@ -99,6 +102,39 @@ export default function InformePreciosPage() {
         (producto) => Number(producto.precio || 0) > 0
       );
       const familiasActivas = (familiasData as Familia[]) || [];
+      const productoIds = productosConPrecio.map((producto) => producto.id);
+      const cambiosDetectados: Record<number, boolean> = {};
+
+      if (productoIds.length > 0) {
+        const { data: historialPrecios } = await supabase
+          .from('producto_costos_historial')
+          .select('producto_id,precio_venta,created_at')
+          .eq('empresa_id', perfil.empresa_id)
+          .in('producto_id', productoIds)
+          .not('precio_venta', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(Math.min(1000, Math.max(100, productoIds.length * 4)));
+        const preciosPorProducto = new Map<number, number[]>();
+
+        for (const registro of historialPrecios || []) {
+          const productoId = Number(registro.producto_id);
+          const precios = preciosPorProducto.get(productoId) || [];
+          if (precios.length >= 2) continue;
+          precios.push(Number(registro.precio_venta || 0));
+          preciosPorProducto.set(productoId, precios);
+        }
+
+        productosConPrecio.forEach((producto) => {
+          const precios = preciosPorProducto.get(producto.id) || [];
+          const precioVigente = Math.round(Number(producto.precio || 0));
+          const ultimoPrecio = Math.round(Number(precios[0] || 0));
+          const precioAnterior = Math.round(Number(precios[1] || 0));
+
+          cambiosDetectados[producto.id] =
+            (ultimoPrecio > 0 && precioVigente !== ultimoPrecio) ||
+            (precioAnterior > 0 && ultimoPrecio !== precioAnterior);
+        });
+      }
       const familiaCecinas = familiasActivas.find((familia) =>
         normalizar(familia.nombre).includes('cecina')
       );
@@ -113,6 +149,7 @@ export default function InformePreciosPage() {
       setProductos(productosConPrecio);
       setFamilias(familiasActivas);
       setProveedores((proveedoresData as Proveedor[]) || []);
+      setProductosConCambio(cambiosDetectados);
       setFamiliaId(familiaCecinas?.id || '');
       setSeleccionados(seleccionInicial);
       setCargando(false);
@@ -434,7 +471,12 @@ export default function InformePreciosPage() {
                       'kg'
                     );
                     return (
-                      <tr key={producto.id}>
+                      <tr
+                        key={producto.id}
+                        className={
+                          productosConCambio[producto.id] ? 'bg-yellow-300' : ''
+                        }
+                      >
                         <td className="border border-black px-2 py-1 font-bold uppercase">
                           {producto.nombre}
                         </td>
