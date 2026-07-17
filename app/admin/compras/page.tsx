@@ -453,9 +453,11 @@ export default function AdminComprasPage() {
                 id: item.id,
                 razon_social: item.razon_social,
                 precio_iva_incluido:
-                  typeof item.precio_iva_incluido === 'boolean'
-                    ? item.precio_iva_incluido
-                    : guardadoLocal !== 'false',
+                  guardadoLocal === 'true' || guardadoLocal === 'false'
+                    ? guardadoLocal === 'true'
+                    : typeof item.precio_iva_incluido === 'boolean'
+                      ? item.precio_iva_incluido
+                      : true,
               };
             })
       );
