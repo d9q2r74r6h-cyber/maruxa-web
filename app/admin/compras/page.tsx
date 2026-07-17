@@ -1494,7 +1494,6 @@ export default function AdminComprasPage() {
         producto_id: Number(item.producto_id),
         cantidad,
         costo_unitario: costoUnitarioFinal || costoUnitario,
-        costo_total: (costoUnitarioFinal || costoUnitario) * cantidad,
       };
     });
 
