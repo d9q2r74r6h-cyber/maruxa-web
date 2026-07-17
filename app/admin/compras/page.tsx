@@ -1957,9 +1957,9 @@ export default function AdminComprasPage() {
                   return (
                     <div
                       key={index}
-                      className="relative grid gap-3 rounded-2xl border border-maruxa-cafe/10 bg-white p-4 shadow-sm md:grid-cols-2 xl:grid-cols-[minmax(200px,2fr)_repeat(6,minmax(95px,1fr))_80px]"
+                      className="relative grid gap-3 rounded-2xl border border-maruxa-cafe/10 bg-white p-4 shadow-sm md:grid-cols-2 xl:grid-cols-9"
                     >
-                      <div className="relative z-20 grid min-w-0 gap-1">
+                      <div className="relative z-20 grid min-w-0 gap-1 xl:col-span-2">
                         <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                           Producto
                         </span>
@@ -2050,7 +2050,7 @@ export default function AdminComprasPage() {
                           }
                           placeholder="$0"
                           title="El IVA se aplicará según la configuración del proveedor"
-                          className="rounded-xl border px-3 py-2 text-right text-sm font-bold"
+                          className="w-full min-w-0 rounded-xl border px-3 py-2 text-right text-sm font-bold"
                         />
                       </label>
 
@@ -2097,7 +2097,7 @@ export default function AdminComprasPage() {
                             )
                           }
                           placeholder="0%"
-                          className="rounded-xl border px-3 py-2 text-right text-sm font-bold"
+                          className="w-full min-w-0 rounded-xl border px-3 py-2 text-right text-sm font-bold"
                         />
                       </label>
 
@@ -2117,12 +2117,12 @@ export default function AdminComprasPage() {
                             )
                           }
                           placeholder="$0"
-                          className="rounded-xl border px-3 py-2 text-right text-sm font-black text-maruxa-rojo"
+                          className="w-full min-w-0 rounded-xl border px-3 py-2 text-right text-sm font-black text-maruxa-rojo"
                         />
                       </label>
 
                       {producto && (
-                        <section className="rounded-2xl border-2 border-maruxa-rojo/20 bg-[#FFF8ED] p-4 md:col-span-2 xl:col-span-8">
+                        <section className="rounded-2xl border-2 border-maruxa-rojo/20 bg-[#FFF8ED] p-4 md:col-span-2 xl:col-span-9">
                           <div className="flex flex-wrap items-end justify-between gap-2 border-b border-maruxa-rojo/15 pb-3">
                             <div>
                               <p className="text-[11px] font-black uppercase tracking-[.2em] text-maruxa-rojo">
@@ -2291,13 +2291,13 @@ export default function AdminComprasPage() {
                         <button
                           type="button"
                           onClick={() => eliminarItem(index)}
-                          className="self-end justify-self-end rounded-xl border border-red-300 bg-red-50 px-3 py-2.5 text-xs font-black text-red-700 md:col-span-2 xl:col-span-1 xl:col-start-8 xl:row-start-1"
+                          className="self-end justify-self-stretch rounded-xl border border-red-300 bg-red-50 px-2 py-2.5 text-xs font-black text-red-700 md:col-span-2 xl:col-span-1 xl:col-start-9 xl:row-start-1"
                         >
                           Eliminar
                         </button>
 
                       {producto && productoEditandoId === producto.id && (
-                        <div className="grid gap-4 rounded-2xl border border-red-100 bg-red-50/60 p-4 md:col-span-2 xl:col-span-8">
+                        <div className="grid gap-4 rounded-2xl border border-red-100 bg-red-50/60 p-4 md:col-span-2 xl:col-span-9">
                           <div className="grid gap-3 md:grid-cols-12">
                             <label className="grid gap-1 md:col-span-2">
                               <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
