@@ -21,6 +21,7 @@ type Producto = {
 };
 
 type UltimaCompraProducto = {
+  id?: string;
   producto_id: number;
   fecha: string;
   precio: number;
@@ -301,6 +302,14 @@ export default function AdminComprasPage() {
     precioVenta: '',
   });
   const [guardandoFicha, setGuardandoFicha] = useState(false);
+  const [historialEditandoId, setHistorialEditandoId] = useState<string | null>(null);
+  const [historialEditando, setHistorialEditando] = useState({
+    fecha: '',
+    costo: '',
+    margen: '',
+    precioVenta: '',
+  });
+  const [guardandoHistorial, setGuardandoHistorial] = useState(false);
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [variacionesCompra, setVariacionesCompra] = useState<VariacionCosto[]>([]);
@@ -575,7 +584,7 @@ export default function AdminComprasPage() {
 
     const { data, error } = await supabase
       .from('producto_costos_historial')
-      .select('producto_id,created_at,costo_nuevo')
+      .select('id,producto_id,created_at,costo_nuevo,margen_porcentaje,precio_venta')
       .eq('empresa_id', empresa.id)
       .in('producto_id', idsPendientes)
       .order('created_at', { ascending: false })
@@ -601,11 +610,16 @@ export default function AdminComprasPage() {
       if (actuales.length >= 5) continue;
 
       actuales.push({
+        id: item.id,
         producto_id: productoId,
         fecha: item.created_at,
         precio: numero(item.costo_nuevo),
-        precio_venta: null,
-        margen_porcentaje: null,
+        precio_venta:
+          item.precio_venta === null ? null : numero(item.precio_venta),
+        margen_porcentaje:
+          item.margen_porcentaje === null
+            ? null
+            : numero(item.margen_porcentaje),
       });
       agrupadas.set(productoId, actuales);
     }
@@ -975,6 +989,8 @@ export default function AdminComprasPage() {
         costo_anterior: numero(producto.costo_unitario),
         costo_nuevo: cambios.costo_unitario,
         variacion_porcentaje: 0,
+        margen_porcentaje: cambios.margen_personalizado || null,
+        precio_venta: cambios.precio || null,
         created_at: `${fechaRegistro}T12:00:00`,
       })
       .select('created_at')
@@ -1001,6 +1017,54 @@ export default function AdminComprasPage() {
       ].slice(0, 5),
     }));
     setFichaEditandoId(null);
+  }
+
+  function editarRegistroHistorial(historial: UltimaCompraProducto) {
+    if (!historial.id) return;
+    setHistorialEditandoId(historial.id);
+    setHistorialEditando({
+      fecha: historial.fecha.slice(0, 10),
+      costo: String(historial.precio || ''),
+      margen: String(historial.margen_porcentaje || ''),
+      precioVenta: String(historial.precio_venta || ''),
+    });
+  }
+
+  async function guardarRegistroHistorial(productoId: number) {
+    if (!historialEditandoId) return;
+    setGuardandoHistorial(true);
+    const cambios = {
+      created_at: `${historialEditando.fecha}T12:00:00`,
+      costo_nuevo: numero(historialEditando.costo),
+      margen_porcentaje: numero(historialEditando.margen) || null,
+      precio_venta: numero(historialEditando.precioVenta) || null,
+    };
+    const { error } = await supabase
+      .from('producto_costos_historial')
+      .update(cambios)
+      .eq('id', historialEditandoId);
+
+    setGuardandoHistorial(false);
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setUltimasCompras((actuales) => ({
+      ...actuales,
+      [productoId]: (actuales[productoId] || []).map((registro) =>
+        registro.id === historialEditandoId
+          ? {
+              ...registro,
+              fecha: cambios.created_at,
+              precio: cambios.costo_nuevo,
+              margen_porcentaje: cambios.margen_porcentaje,
+              precio_venta: cambios.precio_venta,
+            }
+          : registro
+      ),
+    }));
+    setHistorialEditandoId(null);
   }
 
   async function generarCodigoProductoCompra(empresaId: string | number) {
@@ -1552,6 +1616,8 @@ export default function AdminComprasPage() {
           costo_anterior: costoAnterior,
           costo_nuevo: costoPromedio || costoCompra,
           variacion_porcentaje: variacionPorcentaje,
+          margen_porcentaje: margenIngresado || null,
+          precio_venta: precioVenta || null,
           referencia_tipo: 'compra',
           referencia_id: compra.id,
         });
@@ -2176,7 +2242,20 @@ export default function AdminComprasPage() {
                                       className="border-t border-maruxa-cafe/10 bg-white/70"
                                     >
                                       <td className="px-3 py-2 font-bold">
-                                        {historial.origen === 'ficha_actual' &&
+                                        {historial.id &&
+                                        historialEditandoId === historial.id ? (
+                                          <input
+                                            type="date"
+                                            value={historialEditando.fecha}
+                                            onChange={(e) =>
+                                              setHistorialEditando((actual) => ({
+                                                ...actual,
+                                                fecha: e.target.value,
+                                              }))
+                                            }
+                                            className="w-36 rounded-lg border px-2 py-1 text-xs font-bold"
+                                          />
+                                        ) : historial.origen === 'ficha_actual' &&
                                         fichaEditandoId === producto.id ? (
                                           <input
                                             type="date"
@@ -2199,7 +2278,20 @@ export default function AdminComprasPage() {
                                         )}
                                       </td>
                                       <td className="px-3 py-2 text-right font-black">
-                                        {historial.origen === 'ficha_actual' &&
+                                        {historial.id &&
+                                        historialEditandoId === historial.id ? (
+                                          <input
+                                            value={entradaPeso(historialEditando.costo)}
+                                            onChange={(e) =>
+                                              setHistorialEditando((actual) => ({
+                                                ...actual,
+                                                costo: valorPesoEntrada(e.target.value),
+                                              }))
+                                            }
+                                            inputMode="numeric"
+                                            className="w-24 rounded-lg border px-2 py-1 text-right text-xs font-black"
+                                          />
+                                        ) : historial.origen === 'ficha_actual' &&
                                         fichaEditandoId === producto.id ? (
                                           <input
                                             value={entradaPeso(fichaEditando.costo)}
@@ -2217,7 +2309,20 @@ export default function AdminComprasPage() {
                                         )}
                                       </td>
                                       <td className="px-3 py-2 text-right font-bold">
-                                        {historial.origen === 'ficha_actual' &&
+                                        {historial.id &&
+                                        historialEditandoId === historial.id ? (
+                                          <input
+                                            value={entradaPorcentaje(historialEditando.margen)}
+                                            onChange={(e) =>
+                                              setHistorialEditando((actual) => ({
+                                                ...actual,
+                                                margen: valorPorcentajeEntrada(e.target.value),
+                                              }))
+                                            }
+                                            inputMode="decimal"
+                                            className="w-20 rounded-lg border px-2 py-1 text-right text-xs font-bold"
+                                          />
+                                        ) : historial.origen === 'ficha_actual' &&
                                         fichaEditandoId === producto.id ? (
                                           <input
                                             value={entradaPorcentaje(fichaEditando.margen)}
@@ -2237,7 +2342,20 @@ export default function AdminComprasPage() {
                                         )}
                                       </td>
                                       <td className="px-3 py-2 text-right font-black text-maruxa-rojo">
-                                        {historial.origen === 'ficha_actual' &&
+                                        {historial.id &&
+                                        historialEditandoId === historial.id ? (
+                                          <input
+                                            value={entradaPeso(historialEditando.precioVenta)}
+                                            onChange={(e) =>
+                                              setHistorialEditando((actual) => ({
+                                                ...actual,
+                                                precioVenta: valorPesoEntrada(e.target.value),
+                                              }))
+                                            }
+                                            inputMode="numeric"
+                                            className="w-24 rounded-lg border px-2 py-1 text-right text-xs font-black text-maruxa-rojo"
+                                          />
+                                        ) : historial.origen === 'ficha_actual' &&
                                         fichaEditandoId === producto.id ? (
                                           <input
                                             value={entradaPeso(fichaEditando.precioVenta)}
@@ -2257,7 +2375,35 @@ export default function AdminComprasPage() {
                                         )}
                                       </td>
                                       <td className="px-3 py-2 text-right">
-                                        {historial.origen === 'ficha_actual' &&
+                                        {historial.id ? (
+                                          historialEditandoId === historial.id ? (
+                                            <div className="flex justify-end gap-1">
+                                              <button
+                                                type="button"
+                                                onClick={() => setHistorialEditandoId(null)}
+                                                className="rounded-lg border bg-white px-2 py-1 text-[11px] font-black"
+                                              >
+                                                Cancelar
+                                              </button>
+                                              <button
+                                                type="button"
+                                                disabled={guardandoHistorial}
+                                                onClick={() => guardarRegistroHistorial(producto.id)}
+                                                className="rounded-lg bg-maruxa-rojo px-2 py-1 text-[11px] font-black text-white disabled:opacity-50"
+                                              >
+                                                {guardandoHistorial ? 'Guardando...' : 'Guardar'}
+                                              </button>
+                                            </div>
+                                          ) : (
+                                            <button
+                                              type="button"
+                                              onClick={() => editarRegistroHistorial(historial)}
+                                              className="rounded-lg border border-maruxa-rojo/30 bg-white px-3 py-1 text-[11px] font-black text-maruxa-rojo"
+                                            >
+                                              Modificar
+                                            </button>
+                                          )
+                                        ) : historial.origen === 'ficha_actual' &&
                                           (fichaEditandoId === producto.id ? (
                                             <div className="flex justify-end gap-1">
                                               <button
