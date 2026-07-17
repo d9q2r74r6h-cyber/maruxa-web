@@ -1303,6 +1303,10 @@ export default function AdminComprasPage() {
       stock_actual: '',
       controla_stock: true,
     });
+    setProveedorId('');
+    setProveedorTexto('');
+    setPrecioIvaIncluido(false);
+    setProveedores([]);
     setIndiceItemCreacion(null);
     setMostrarCrearProducto(false);
   }
