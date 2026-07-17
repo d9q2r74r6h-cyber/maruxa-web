@@ -64,6 +64,7 @@ const grupos: {
     label: 'Informes',
     items: [
       { label: 'Rinde mensual', href: '/admin/informes/rinde', modulo: 'informe_rinde' },
+      { label: 'Listados de precios', href: '/admin/informes/precios', modulo: 'compras' },
       { label: 'Costos', future: true },
       { label: 'Rentabilidad', future: true },
       { label: 'Stock critico', future: true },

@@ -6,6 +6,7 @@ import { AdminMenu } from '@/components/AdminMenu';
 import { useAdminSession } from '@/components/AdminSession';
 
 const modulosPorRuta = [
+  ['/admin/informes/precios', 'compras'],
   ['/admin/informes/rinde', 'informe_rinde'],
   ['/admin/documentos', 'documentos'],
   ['/admin/clientes', 'clientes'],
