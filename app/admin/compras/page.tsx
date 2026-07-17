@@ -32,6 +32,7 @@ type UltimaCompraProducto = {
 type ProveedorCompra = {
   id: string;
   razon_social: string;
+  precio_iva_incluido: boolean;
 };
 
 type FamiliaProducto = {
@@ -186,6 +187,18 @@ function precioVentaDesdeMargen(
   return redondeo > 0 ? Math.ceil(precio / redondeo) * redondeo : precio;
 }
 
+function desgloseIva(valor: number, iva: number, ivaIncluido: boolean) {
+  if (valor <= 0) return { neto: 0, iva: 0, total: 0 };
+
+  if (ivaIncluido) {
+    const neto = valor / (1 + iva / 100);
+    return { neto, iva: valor - neto, total: valor };
+  }
+
+  const montoIva = valor * (iva / 100);
+  return { neto: valor, iva: montoIva, total: valor + montoIva };
+}
+
 function normalizarTexto(texto: string) {
   return texto
     .toLowerCase()
@@ -246,6 +259,8 @@ export default function AdminComprasPage() {
   const [proveedores, setProveedores] = useState<ProveedorCompra[]>([]);
   const [proveedorId, setProveedorId] = useState('');
   const [proveedorTexto, setProveedorTexto] = useState('');
+  const [precioIvaIncluido, setPrecioIvaIncluido] = useState(true);
+  const [ivaPorcentaje, setIvaPorcentaje] = useState(19);
   const [mostrarProveedores, setMostrarProveedores] = useState(false);
   const [buscandoProveedores, setBuscandoProveedores] = useState(false);
   const [familias, setFamilias] = useState<FamiliaProducto[]>([]);
@@ -295,9 +310,12 @@ export default function AdminComprasPage() {
 
   const subtotalProductos = useMemo(() => {
     return items.reduce((total, item) => {
-      return total + totalFinalItem(item);
+      return (
+        total +
+        desgloseIva(totalFinalItem(item), ivaPorcentaje, precioIvaIncluido).total
+      );
     }, 0);
-  }, [items]);
+  }, [items, ivaPorcentaje, precioIvaIncluido]);
   const totalCompra = subtotalProductos;
 
   const familiaNuevoProducto = familias.find(
@@ -355,6 +373,8 @@ export default function AdminComprasPage() {
       return;
     }
 
+    setIvaPorcentaje(numero(empresa.iva_porcentaje ?? 19) || 19);
+
     const [{ data, error }, { data: familiasData }] = await Promise.all([
       supabase
       .from('productos')
@@ -410,7 +430,7 @@ export default function AdminComprasPage() {
       setBuscandoProveedores(true);
       let consulta = supabase
         .from('proveedores')
-        .select('id,razon_social')
+        .select('*')
         .eq('empresa_id', empresa.id)
         .eq('activo', true)
         .order('razon_social', { ascending: true })
@@ -422,12 +442,67 @@ export default function AdminComprasPage() {
       }
 
       const { data, error } = await consulta;
-      setProveedores(error ? [] : ((data as ProveedorCompra[]) || []));
+      setProveedores(
+        error
+          ? []
+          : (data || []).map((item) => {
+              const guardadoLocal = window.localStorage.getItem(
+                `proveedor-iva-incluido:${item.id}`
+              );
+              return {
+                id: item.id,
+                razon_social: item.razon_social,
+                precio_iva_incluido:
+                  typeof item.precio_iva_incluido === 'boolean'
+                    ? item.precio_iva_incluido
+                    : guardadoLocal !== 'false',
+              };
+            })
+      );
       setBuscandoProveedores(false);
     }, 250);
 
     return () => clearTimeout(timer);
   }, [mostrarProveedores, proveedorTexto]);
+
+  async function cambiarPrecioIvaProveedor(incluido: boolean) {
+    setPrecioIvaIncluido(incluido);
+    window.localStorage.setItem(
+      `proveedor-iva-incluido:${proveedorId}`,
+      String(incluido)
+    );
+    setItems((actuales) =>
+      actuales.map((item) => ({
+        ...item,
+        precio_venta: item.costo_unitario
+          ? String(
+              precioVentaDesdeMargen(
+                desgloseIva(numero(item.costo_unitario), ivaPorcentaje, incluido)
+                  .neto,
+                numero(item.margen_porcentaje),
+                item.tipo_margen
+              ) || ''
+            )
+          : item.precio_venta,
+      }))
+    );
+    if (!proveedorId) return;
+
+    const { error } = await supabase
+      .from('proveedores')
+      .update({ precio_iva_incluido: incluido })
+      .eq('id', proveedorId);
+
+    if (!error) {
+      setProveedores((actuales) =>
+        actuales.map((proveedor) =>
+          proveedor.id === proveedorId
+            ? { ...proveedor, precio_iva_incluido: incluido }
+            : proveedor
+        )
+      );
+    }
+  }
 
   async function cargarUltimasCompras(productoIds: number[]) {
     const idsPendientes = [...new Set(productoIds)].filter(
@@ -658,6 +733,11 @@ export default function AdminComprasPage() {
         if (campo === 'costo_unitario') {
           const cantidad = numero(item.cantidad);
           const costoUnitario = numero(valor);
+          const costoNeto = desgloseIva(
+            costoUnitario,
+            ivaPorcentaje,
+            precioIvaIncluido
+          ).neto;
 
           return {
             ...item,
@@ -668,7 +748,7 @@ export default function AdminComprasPage() {
                 : item.costo_total,
             precio_venta: String(
               precioVentaDesdeMargen(
-                costoUnitario,
+                costoNeto,
                 numero(item.margen_porcentaje),
                 item.tipo_margen
               ) || ''
@@ -1052,7 +1132,11 @@ export default function AdminComprasPage() {
       }
 
       const cantidad = numero(item.cantidad);
-      const costoUnitario = costoUnitarioEfectivo(item);
+      const costoUnitario = desgloseIva(
+        costoUnitarioEfectivo(item),
+        ivaPorcentaje,
+        precioIvaIncluido
+      ).neto;
       const actual = agrupados.get(item.producto_id);
 
       if (!actual) {
@@ -1345,15 +1429,23 @@ export default function AdminComprasPage() {
 
     const detalle = itemsValidos.map((item) => {
       const cantidad = numero(item.cantidad);
-      const costoUnitario = numero(item.costo_unitario);
-      const costoUnitarioFinal = costoUnitarioEfectivo(item);
+      const costoUnitario = desgloseIva(
+        numero(item.costo_unitario),
+        ivaPorcentaje,
+        precioIvaIncluido
+      ).neto;
+      const costoUnitarioFinal = desgloseIva(
+        costoUnitarioEfectivo(item),
+        ivaPorcentaje,
+        precioIvaIncluido
+      ).neto;
 
       return {
         compra_id: compra.id,
         producto_id: Number(item.producto_id),
         cantidad,
         costo_unitario: costoUnitarioFinal || costoUnitario,
-        costo_total: totalFinalItem(item),
+        costo_total: (costoUnitarioFinal || costoUnitario) * cantidad,
         valor_despacho: 0,
         impuesto_adicional: 0,
         descuento: 0,
@@ -1498,6 +1590,7 @@ export default function AdminComprasPage() {
                 onChange={(e) => {
                   setProveedorTexto(e.target.value);
                   setProveedorId('');
+                  setPrecioIvaIncluido(true);
                   setMostrarProveedores(true);
                 }}
                 placeholder="Buscar proveedor..."
@@ -1520,6 +1613,7 @@ export default function AdminComprasPage() {
                         onClick={() => {
                           setProveedorId(proveedor.id);
                           setProveedorTexto(proveedor.razon_social);
+                          setPrecioIvaIncluido(proveedor.precio_iva_incluido ?? true);
                           setMostrarProveedores(false);
                         }}
                         className="block w-full px-4 py-3 text-left text-sm font-bold hover:bg-maruxa-crema"
@@ -1535,6 +1629,23 @@ export default function AdminComprasPage() {
                 </div>
               )}
             </div>
+
+            {proveedorId && (
+              <label className="mt-3 flex max-w-xl items-center gap-3 rounded-2xl border border-maruxa-rojo/15 bg-[#FFF8ED] px-4 py-3 text-sm font-black text-maruxa-chocolate">
+                <input
+                  type="checkbox"
+                  checked={precioIvaIncluido}
+                  onChange={(e) => cambiarPrecioIvaProveedor(e.target.checked)}
+                  className="h-4 w-4 accent-maruxa-rojo"
+                />
+                Precio IVA incluido
+                <span className="ml-auto text-xs font-bold text-maruxa-cafe/60">
+                  {precioIvaIncluido
+                    ? 'Ingresar valor bruto'
+                    : 'Ingresar valor neto + IVA'}
+                </span>
+              </label>
+            )}
 
             <div className="mt-6 rounded-[28px] bg-maruxa-crema p-5">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -1826,6 +1937,11 @@ export default function AdminComprasPage() {
                             },
                           ]
                         : [];
+                  const impuestosItem = desgloseIva(
+                    numero(item.costo_unitario),
+                    ivaPorcentaje,
+                    precioIvaIncluido
+                  );
                   const busquedaNormalizada = normalizarTexto(item.busqueda_producto);
                   const productosFiltrados =
                     busquedaNormalizada.length < 2
@@ -1919,6 +2035,7 @@ export default function AdminComprasPage() {
                       <label className="grid min-w-0 gap-1">
                         <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                           Valor compra
+                          {precioIvaIncluido ? ' bruto' : ' neto'}
                         </span>
                         <input
                           type="text"
@@ -2023,6 +2140,33 @@ export default function AdminComprasPage() {
                           </label>
                         </div>
                       </fieldset>
+
+                      <div className="grid gap-2 rounded-xl border border-maruxa-cafe/10 bg-maruxa-crema/60 p-3 md:col-span-2 md:grid-cols-3 xl:col-span-5">
+                        <div>
+                          <p className="text-[10px] font-black uppercase text-maruxa-cafe/55">
+                            Neto
+                          </p>
+                          <p className="font-black text-maruxa-chocolate">
+                            {dinero(impuestosItem.neto)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase text-maruxa-cafe/55">
+                            IVA {entradaPorcentaje(ivaPorcentaje)}
+                          </p>
+                          <p className="font-black text-maruxa-chocolate">
+                            {dinero(impuestosItem.iva)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase text-maruxa-cafe/55">
+                            Total
+                          </p>
+                          <p className="font-black text-maruxa-rojo">
+                            {dinero(impuestosItem.total)}
+                          </p>
+                        </div>
+                      </div>
 
                       {!item.precio_listado && (
                         <div className="grid gap-4 md:col-span-2 md:grid-cols-2 xl:col-span-5">
