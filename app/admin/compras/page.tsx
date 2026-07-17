@@ -1067,6 +1067,22 @@ export default function AdminComprasPage() {
     setHistorialEditandoId(null);
   }
 
+  function costoVisibleHistorial(
+    historial: UltimaCompraProducto,
+    productoId: number
+  ) {
+    if (historial.id && historialEditandoId === historial.id) {
+      return numero(historialEditando.costo);
+    }
+    if (
+      historial.origen === 'ficha_actual' &&
+      fichaEditandoId === productoId
+    ) {
+      return numero(fichaEditando.costo);
+    }
+    return numero(historial.precio);
+  }
+
   async function generarCodigoProductoCompra(empresaId: string | number) {
     const prefijo = prefijoCodigoNuevoProducto;
 
@@ -2225,11 +2241,13 @@ export default function AdminComprasPage() {
                             </p>
                           ) : (
                             <div className="mt-3 overflow-x-auto">
-                              <table className="w-full min-w-[560px] text-sm">
+                              <table className="w-full min-w-[760px] text-sm">
                                 <thead>
                                   <tr className="text-left text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                                     <th className="px-3 py-2">Fecha</th>
-                                    <th className="px-3 py-2 text-right">Valor compra</th>
+                                    <th className="px-3 py-2 text-right">Neto</th>
+                                    <th className="px-3 py-2 text-right">IVA</th>
+                                    <th className="px-3 py-2 text-right">Total</th>
                                     <th className="px-3 py-2 text-right">Margen</th>
                                     <th className="px-3 py-2 text-right">Precio venta</th>
                                     <th className="px-3 py-2 text-right">Acciones</th>
@@ -2306,6 +2324,24 @@ export default function AdminComprasPage() {
                                           />
                                         ) : (
                                           dinero(historial.precio)
+                                        )}
+                                      </td>
+                                      <td className="px-3 py-2 text-right font-bold">
+                                        {dinero(
+                                          costoVisibleHistorial(
+                                            historial,
+                                            producto.id
+                                          ) *
+                                            (ivaPorcentaje / 100)
+                                        )}
+                                      </td>
+                                      <td className="px-3 py-2 text-right font-black">
+                                        {dinero(
+                                          costoVisibleHistorial(
+                                            historial,
+                                            producto.id
+                                          ) *
+                                            (1 + ivaPorcentaje / 100)
                                         )}
                                       </td>
                                       <td className="px-3 py-2 text-right font-bold">
@@ -2389,7 +2425,7 @@ export default function AdminComprasPage() {
                                                 type="button"
                                                 disabled={guardandoHistorial}
                                                 onClick={() => guardarRegistroHistorial(producto.id)}
-                                                className="rounded-lg bg-maruxa-rojo px-2 py-1 text-[11px] font-black text-white disabled:opacity-50"
+                                                className="rounded-lg bg-red-700 px-2 py-1 text-[11px] font-black text-white shadow-sm disabled:opacity-50"
                                               >
                                                 {guardandoHistorial ? 'Guardando...' : 'Guardar'}
                                               </button>
@@ -2417,7 +2453,7 @@ export default function AdminComprasPage() {
                                                 type="button"
                                                 disabled={guardandoFicha}
                                                 onClick={() => guardarFichaVigente(producto)}
-                                                className="rounded-lg bg-maruxa-rojo px-2 py-1 text-[11px] font-black text-white disabled:opacity-50"
+                                                className="rounded-lg bg-red-700 px-2 py-1 text-[11px] font-black text-white shadow-sm disabled:opacity-50"
                                               >
                                                 {guardandoFicha ? 'Guardando...' : 'Guardar'}
                                               </button>
