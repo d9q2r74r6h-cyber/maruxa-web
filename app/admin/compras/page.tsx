@@ -306,6 +306,7 @@ export default function AdminComprasPage() {
   const [historialEditando, setHistorialEditando] = useState({
     fecha: '',
     nombre: '',
+    familiaId: '',
     costo: '',
     margen: '',
     precioVenta: '',
@@ -1061,12 +1062,34 @@ export default function AdminComprasPage() {
     setHistorialEditando({
       fecha: historial.fecha.slice(0, 10),
       nombre: producto.nombre,
+      familiaId: producto.familia_id || '',
       costo: String(historial.precio || ''),
       margen: String(margenAplicado || ''),
       precioVenta: String(
         (historial.precio_venta ?? precioCalculado) || producto.precio || ''
       ),
     });
+  }
+
+  function cambiarFamiliaHistorial(familiaId: string) {
+    const familia = familias.find((actual) => actual.id === familiaId);
+    const margen = numero(familia?.margen_porcentaje);
+    const costo = numero(historialEditando.costo);
+    const precioVenta = costo
+      ? precioVentaDesdeMargen(
+          desgloseIva(costo, ivaPorcentaje, false).total,
+          margen,
+          familia?.tipo_margen || 'markup',
+          Math.max(1, numero(familia?.redondeo_precio))
+        )
+      : 0;
+
+    setHistorialEditando((actual) => ({
+      ...actual,
+      familiaId,
+      margen: String(margen || ''),
+      precioVenta: String(precioVenta || ''),
+    }));
   }
 
   async function guardarRegistroHistorial(productoId: number) {
@@ -1088,7 +1111,10 @@ export default function AdminComprasPage() {
 
     const { error: errorProducto } = await supabase
       .from('productos')
-      .update({ nombre: nombreProducto })
+      .update({
+        nombre: nombreProducto,
+        familia_id: historialEditando.familiaId || null,
+      })
       .eq('id', productoId);
 
     if (errorProducto) {
@@ -1125,7 +1151,11 @@ export default function AdminComprasPage() {
     setProductos((actuales) =>
       actuales.map((producto) =>
         producto.id === productoId
-          ? { ...producto, nombre: nombreProducto }
+          ? {
+              ...producto,
+              nombre: nombreProducto,
+              familia_id: historialEditando.familiaId || null,
+            }
           : producto
       )
     );
@@ -2377,11 +2407,12 @@ export default function AdminComprasPage() {
                             </p>
                           ) : (
                             <div className="mt-3 overflow-x-auto">
-                              <table className="w-full min-w-[920px] text-sm">
+                              <table className="w-full min-w-[1080px] text-sm">
                                 <thead>
                                   <tr className="text-left text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                                     <th className="px-3 py-2">Fecha</th>
                                     <th className="px-3 py-2">Producto</th>
+                                    <th className="px-3 py-2">Familia</th>
                                     <th className="px-3 py-2 text-right">Neto</th>
                                     <th className="px-3 py-2 text-right">IVA</th>
                                     <th className="px-3 py-2 text-right">Total</th>
@@ -2447,6 +2478,30 @@ export default function AdminComprasPage() {
                                           />
                                         ) : (
                                           producto.nombre
+                                        )}
+                                      </td>
+                                      <td className="px-3 py-2 font-bold">
+                                        {historial.id &&
+                                        historialEditandoId === historial.id ? (
+                                          <select
+                                            value={historialEditando.familiaId}
+                                            onChange={(e) =>
+                                              cambiarFamiliaHistorial(e.target.value)
+                                            }
+                                            className="w-44 rounded-lg border bg-white px-2 py-1 text-xs font-bold"
+                                          >
+                                            <option value="">Sin familia</option>
+                                            {familias.map((familia) => (
+                                              <option
+                                                key={familia.id}
+                                                value={familia.id}
+                                              >
+                                                {familia.nombre}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        ) : (
+                                          familiaProducto?.nombre || 'Sin familia'
                                         )}
                                       </td>
                                       <td className="px-3 py-2 text-right font-black">
