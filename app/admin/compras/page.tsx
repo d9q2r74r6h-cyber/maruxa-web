@@ -28,7 +28,11 @@ type UltimaCompraProducto = {
   costo_anterior?: number;
   precio_venta: number | null;
   margen_porcentaje: number | null;
-  origen?: 'historial' | 'ficha_actual' | 'costo_anterior';
+  origen?:
+    | 'historial'
+    | 'ficha_actual'
+    | 'ficha_anterior'
+    | 'costo_anterior';
 };
 
 type ProveedorCompra = {
@@ -592,7 +596,7 @@ export default function AdminComprasPage() {
 
     const { data, error } = await supabase
       .from('producto_costos_historial')
-      .select('id,producto_id,created_at,costo_anterior,costo_nuevo,margen_porcentaje,precio_venta')
+      .select('id,producto_id,created_at,costo_anterior,costo_nuevo,margen_porcentaje,precio_venta,referencia_tipo')
       .eq('empresa_id', empresa.id)
       .in('producto_id', idsPendientes)
       .order('created_at', { ascending: false })
@@ -629,6 +633,10 @@ export default function AdminComprasPage() {
           item.margen_porcentaje === null
             ? null
             : numero(item.margen_porcentaje),
+        origen:
+          item.referencia_tipo === 'ficha_anterior'
+            ? 'ficha_anterior'
+            : 'historial',
       });
       agrupadas.set(productoId, actuales);
     }
@@ -639,33 +647,12 @@ export default function AdminComprasPage() {
       const costoAnterior = numero(registros[0].costo_anterior);
       if (!costoAnterior || costoAnterior === numero(registros[0].precio)) continue;
 
-      const producto = productos.find((item) => item.id === productoId);
-      const familia = familias.find(
-        (item) => item.id === producto?.familia_id
-      );
-      const usaConfiguracionFamilia =
-        producto?.usar_configuracion_familia !== false;
-      const margenAnterior =
-        registros[0].margen_porcentaje ??
-        (usaConfiguracionFamilia
-          ? numero(familia?.margen_porcentaje)
-          : numero(producto?.margen_personalizado));
-      const tipoMargenAnterior = usaConfiguracionFamilia
-        ? familia?.tipo_margen || 'markup'
-        : producto?.tipo_margen_personalizado || 'markup';
-      const precioVentaAnterior = precioVentaDesdeMargen(
-        desgloseIva(costoAnterior, ivaPorcentaje, false).total,
-        margenAnterior,
-        tipoMargenAnterior,
-        Math.max(1, numero(familia?.redondeo_precio))
-      );
-
       registros.push({
         producto_id: productoId,
         fecha: registros[0].fecha,
         precio: costoAnterior,
-        precio_venta: precioVentaAnterior || null,
-        margen_porcentaje: margenAnterior || null,
+        precio_venta: null,
+        margen_porcentaje: null,
         origen: 'costo_anterior',
       });
     }
@@ -1811,6 +1798,26 @@ export default function AdminComprasPage() {
       variacionesRegistradas.map((item) => [item.producto_id, item])
     );
     const historialesCreados: UltimaCompraProducto[] = [];
+    const productoIdsCompra = itemsConsolidados.map((item) =>
+      Number(item.producto_id)
+    );
+    const { data: historialExistente, error: errorHistorialExistente } =
+      await supabase
+        .from('producto_costos_historial')
+        .select('producto_id')
+        .eq('empresa_id', empresa.id)
+        .in('producto_id', productoIdsCompra);
+
+    if (errorHistorialExistente) {
+      alert(errorHistorialExistente.message);
+      setGuardando(false);
+      return;
+    }
+
+    const productosConHistorial = new Set(
+      (historialExistente || []).map((item) => Number(item.producto_id))
+    );
+    const fechaCompra = new Date();
 
     for (const item of itemsConsolidados) {
       const producto = productos.find((p) => String(p.id) === String(item.producto_id));
@@ -1831,6 +1838,64 @@ export default function AdminComprasPage() {
       const costoPromedio = variacion?.costo_nuevo ?? numero(producto.costo_unitario);
       const costoCompra = variacion?.costo_compra ?? item.costo_unitario;
       const variacionPorcentaje = variacion?.variacion_porcentaje ?? 0;
+      const familiaProducto = familias.find(
+        (familia) => familia.id === producto.familia_id
+      );
+      const margenFamilia = numero(familiaProducto?.margen_porcentaje);
+      const tipoMargenIngresado = itemIngresado?.tipo_margen || 'markup';
+      const margenEsPersonalizado =
+        margenIngresado > 0 &&
+        (producto.usar_configuracion_familia === false ||
+          margenIngresado !== margenFamilia ||
+          tipoMargenIngresado !== (familiaProducto?.tipo_margen || 'markup'));
+
+      if (
+        !productosConHistorial.has(producto.id) &&
+        costoAnterior > 0 &&
+        (costoAnterior !== costoCompra ||
+          numero(producto.precio) !== precioVenta)
+      ) {
+        const { margen: margenFichaAnterior } =
+          configuracionMargenProducto(producto);
+        const { data: fichaAnterior, error: errorFichaAnterior } = await supabase
+          .from('producto_costos_historial')
+          .insert({
+            empresa_id: empresa.id,
+            producto_id: producto.id,
+            costo_anterior: costoAnterior,
+            costo_nuevo: costoAnterior,
+            variacion_porcentaje: 0,
+            margen_porcentaje: margenFichaAnterior || null,
+            precio_venta: numero(producto.precio) || null,
+            referencia_tipo: 'ficha_anterior',
+            created_at: new Date(fechaCompra.getTime() - 1000).toISOString(),
+          })
+          .select('id,producto_id,created_at,costo_nuevo,margen_porcentaje,precio_venta')
+          .single();
+
+        if (errorFichaAnterior) {
+          alert(errorFichaAnterior.message);
+          setGuardando(false);
+          return;
+        }
+
+        historialesCreados.push({
+          id: fichaAnterior.id,
+          producto_id: Number(fichaAnterior.producto_id),
+          fecha: fichaAnterior.created_at,
+          precio: numero(fichaAnterior.costo_nuevo),
+          margen_porcentaje:
+            fichaAnterior.margen_porcentaje === null
+              ? null
+              : numero(fichaAnterior.margen_porcentaje),
+          precio_venta:
+            fichaAnterior.precio_venta === null
+              ? null
+              : numero(fichaAnterior.precio_venta),
+          origen: 'ficha_anterior',
+        });
+        productosConHistorial.add(producto.id);
+      }
 
       const { error: errorProducto } = await supabase
         .from('productos')
@@ -1838,6 +1903,17 @@ export default function AdminComprasPage() {
           stock_actual: stockNuevo,
           costo_unitario: costoPromedio,
           precio: precioVenta || numero(producto.precio),
+          ...(margenIngresado > 0
+            ? {
+                usar_configuracion_familia: !margenEsPersonalizado,
+                margen_personalizado: margenEsPersonalizado
+                  ? margenIngresado
+                  : producto.margen_personalizado,
+                tipo_margen_personalizado: margenEsPersonalizado
+                  ? tipoMargenIngresado
+                  : producto.tipo_margen_personalizado,
+              }
+            : {}),
         })
         .eq('id', producto.id);
 
@@ -1879,6 +1955,7 @@ export default function AdminComprasPage() {
           precio_venta: precioVenta || null,
           referencia_tipo: 'compra',
           referencia_id: compra.id,
+          created_at: fechaCompra.toISOString(),
         })
         .select('id,producto_id,created_at,costo_anterior,costo_nuevo,margen_porcentaje,precio_venta')
         .single();
@@ -2612,6 +2689,11 @@ export default function AdminComprasPage() {
                                         {historial.origen === 'costo_anterior' && (
                                           <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase text-amber-800">
                                             Costo anterior
+                                          </span>
+                                        )}
+                                        {historial.origen === 'ficha_anterior' && (
+                                          <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase text-amber-800">
+                                            Ficha anterior
                                           </span>
                                         )}
                                       </td>
