@@ -725,6 +725,20 @@ export default function AdminComprasPage() {
     setItems(items.filter((_, i) => i !== index));
   }
 
+  function configuracionMargenProducto(producto: Producto | undefined) {
+    const familia = familias.find((item) => item.id === producto?.familia_id);
+    const usaFamilia = producto?.usar_configuracion_familia !== false;
+
+    return {
+      margen: usaFamilia
+        ? numero(familia?.margen_porcentaje)
+        : numero(producto?.margen_personalizado),
+      tipoMargen: usaFamilia
+        ? familia?.tipo_margen || 'markup'
+        : producto?.tipo_margen_personalizado || 'markup',
+    } as const;
+  }
+
   function actualizarItem(index: number, campo: keyof ItemCompra, valor: string) {
     setItems(
       items.map((item, i) => {
@@ -732,9 +746,7 @@ export default function AdminComprasPage() {
 
         if (campo === 'producto_id') {
           const producto = productos.find((p) => String(p.id) === String(valor));
-          const familia = familias.find((f) => f.id === producto?.familia_id);
-          const margen = numero(familia?.margen_porcentaje);
-          const tipoMargen = familia?.tipo_margen || 'markup';
+          const { margen, tipoMargen } = configuracionMargenProducto(producto);
 
           return {
             ...item,
@@ -753,6 +765,26 @@ export default function AdminComprasPage() {
         }
 
         if (campo === 'busqueda_producto') {
+          const textoNormalizado = normalizarTexto(valor);
+          const productoExacto = productos.find(
+            (producto) =>
+              normalizarTexto(producto.nombre) === textoNormalizado ||
+              normalizarTexto(producto.codigo || '') === textoNormalizado
+          );
+
+          if (productoExacto) {
+            const { margen, tipoMargen } =
+              configuracionMargenProducto(productoExacto);
+            return {
+              ...item,
+              producto_id: String(productoExacto.id),
+              busqueda_producto: `${productoExacto.nombre} - ${productoExacto.tipo_producto}`,
+              margen_porcentaje: String(margen || ''),
+              tipo_margen: tipoMargen,
+              precio_venta: '',
+            };
+          }
+
           return {
             ...item,
             producto_id: '',
@@ -1174,6 +1206,40 @@ export default function AdminComprasPage() {
 
     if (!proveedorId) {
       alert('Selecciona un proveedor antes de crear el producto.');
+      return;
+    }
+
+    const productoExistente = productos.find(
+      (producto) =>
+        normalizarTexto(producto.nombre) ===
+        normalizarTexto(nuevoProducto.nombre)
+    );
+
+    if (productoExistente) {
+      const { margen, tipoMargen } =
+        configuracionMargenProducto(productoExistente);
+      const itemExistente: ItemCompra = {
+        producto_id: String(productoExistente.id),
+        busqueda_producto: `${productoExistente.nombre} - ${productoExistente.tipo_producto}`,
+        cantidad: '1',
+        costo_unitario: '',
+        costo_total: '',
+        margen_porcentaje: String(margen || ''),
+        tipo_margen: tipoMargen,
+        precio_venta: '',
+        precio_listado: true,
+        texto_listado_1: '',
+        texto_listado_2: '',
+      };
+      setItems((actuales) =>
+        indiceItemCreacion === null
+          ? [...actuales, itemExistente]
+          : actuales.map((item, indice) =>
+              indice === indiceItemCreacion ? itemExistente : item
+            )
+      );
+      setIndiceItemCreacion(null);
+      setMostrarCrearProducto(false);
       return;
     }
 
@@ -1891,14 +1957,16 @@ export default function AdminComprasPage() {
                                 key={producto.id}
                                 type="button"
                                 onClick={() => {
+                                  const { margen, tipoMargen } =
+                                    configuracionMargenProducto(producto);
                                   const itemExistente = {
                                       producto_id: String(producto.id),
                                       busqueda_producto: `${producto.nombre} - ${producto.tipo_producto}`,
                                       cantidad: '1',
                                       costo_unitario: '',
                                       costo_total: '',
-                                      margen_porcentaje: '',
-                                      tipo_margen: 'markup' as const,
+                                      margen_porcentaje: String(margen || ''),
+                                      tipo_margen: tipoMargen,
                                       precio_venta: '',
                                       precio_listado: true,
                                       texto_listado_1: '',
