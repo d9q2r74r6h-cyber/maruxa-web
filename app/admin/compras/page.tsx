@@ -465,6 +465,17 @@ export default function AdminComprasPage() {
     return () => clearTimeout(timer);
   }, [mostrarProveedores, proveedorTexto]);
 
+  function redondeoVentaItem(item: ItemCompra) {
+    const producto = productos.find(
+      (actual) => String(actual.id) === String(item.producto_id)
+    );
+    const familia = familias.find(
+      (actual) => actual.id === producto?.familia_id
+    );
+
+    return Math.max(1, numero(familia?.redondeo_precio));
+  }
+
   function recalcularPreciosPorIva(incluido: boolean) {
     setItems((actuales) =>
       actuales.map((item) => ({
@@ -475,7 +486,8 @@ export default function AdminComprasPage() {
                 desgloseIva(numero(item.costo_unitario), ivaPorcentaje, incluido)
                   .total,
                 numero(item.margen_porcentaje),
-                item.tipo_margen
+                item.tipo_margen,
+                redondeoVentaItem(item)
               ) || ''
             )
           : item.precio_venta,
@@ -787,7 +799,8 @@ export default function AdminComprasPage() {
               precioVentaDesdeMargen(
                 costoTotal,
                 numero(item.margen_porcentaje),
-                item.tipo_margen
+                item.tipo_margen,
+                redondeoVentaItem(item)
               ) || ''
             ),
           };
@@ -805,7 +818,8 @@ export default function AdminComprasPage() {
                   precioIvaIncluido
                 ).total,
                 numero(valor),
-                item.tipo_margen
+                item.tipo_margen,
+                redondeoVentaItem(item)
               ) || ''
             ),
           };
