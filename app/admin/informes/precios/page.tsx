@@ -15,7 +15,14 @@ type ProductoPrecio = {
   nombre: string;
   precio: number | null;
   familia_id: string | null;
+  proveedor_id: string | null;
   unidad_base: string | null;
+};
+
+type Proveedor = {
+  id: string;
+  razon_social: string;
+  nombre_fantasia: string | null;
 };
 
 type DescripcionSuelta = {
@@ -38,6 +45,7 @@ export default function InformePreciosPage() {
   const { perfil } = useAdminSession();
   const [productos, setProductos] = useState<ProductoPrecio[]>([]);
   const [familias, setFamilias] = useState<Familia[]>([]);
+  const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   const [cargando, setCargando] = useState(true);
   const [formato, setFormato] = useState<'listado' | 'suelto'>('listado');
   const [familiaId, setFamiliaId] = useState('');
@@ -52,11 +60,15 @@ export default function InformePreciosPage() {
       if (!perfil) return;
       setCargando(true);
 
-      const [{ data: productosData, error }, { data: familiasData }] =
+      const [
+        { data: productosData, error },
+        { data: familiasData },
+        { data: proveedoresData },
+      ] =
         await Promise.all([
           supabase
             .from('productos')
-            .select('id,nombre,precio,familia_id,unidad_base')
+            .select('id,nombre,precio,familia_id,proveedor_id,unidad_base')
             .eq('empresa_id', perfil.empresa_id)
             .eq('activo', true)
             .eq('tipo_producto', 'producto')
@@ -67,12 +79,18 @@ export default function InformePreciosPage() {
             .eq('empresa_id', perfil.empresa_id)
             .eq('activo', true)
             .order('nombre', { ascending: true }),
+          supabase
+            .from('proveedores')
+            .select('id,razon_social,nombre_fantasia')
+            .eq('empresa_id', perfil.empresa_id)
+            .order('nombre_fantasia', { ascending: true }),
         ]);
 
       if (error) {
         alert(error.message);
         setProductos([]);
         setFamilias([]);
+        setProveedores([]);
         setCargando(false);
         return;
       }
@@ -94,6 +112,7 @@ export default function InformePreciosPage() {
 
       setProductos(productosConPrecio);
       setFamilias(familiasActivas);
+      setProveedores((proveedoresData as Proveedor[]) || []);
       setFamiliaId(familiaCecinas?.id || '');
       setSeleccionados(seleccionInicial);
       setCargando(false);
@@ -120,9 +139,19 @@ export default function InformePreciosPage() {
 
     productosSeleccionados.forEach((producto) => {
       const familia = familias.find((item) => item.id === producto.familia_id);
-      const clave = familia?.id || 'sin-familia';
+      const esCecina = normalizar(familia?.nombre || '').includes('cecina');
+      const proveedor = esCecina
+        ? proveedores.find((item) => item.id === producto.proveedor_id)
+        : undefined;
+      const clave = esCecina
+        ? `proveedor:${proveedor?.id || 'sin-proveedor'}`
+        : `familia:${familia?.id || 'sin-familia'}`;
       const grupo = grupos.get(clave) || {
-        nombre: familia?.nombre || 'OTROS',
+        nombre: esCecina
+          ? proveedor?.nombre_fantasia?.trim() ||
+            proveedor?.razon_social ||
+            'SIN PROVEEDOR'
+          : familia?.nombre || 'OTROS',
         productos: [],
       };
       grupo.productos.push(producto);
@@ -130,7 +159,7 @@ export default function InformePreciosPage() {
     });
 
     return [...grupos.values()].sort((a, b) => a.nombre.localeCompare(b.nombre));
-  }, [familias, productosSeleccionados]);
+  }, [familias, productosSeleccionados, proveedores]);
 
   function seleccionarVisibles(valor: boolean) {
     setSeleccionados((actuales) => {
@@ -358,6 +387,27 @@ export default function InformePreciosPage() {
       </section>
 
       <section className="precios-print rounded-3xl bg-white p-5 shadow-sm">
+        <div className="no-print mb-5 flex flex-wrap items-center justify-between gap-3 border-b pb-4">
+          <div>
+            <p className="text-xs font-black uppercase tracking-wide text-maruxa-rojo">
+              Vista previa
+            </p>
+            <p className="font-black text-maruxa-chocolate">
+              {formato === 'listado' ? 'Precio listado' : 'Precio suelto'} ·{' '}
+              {productosSeleccionados.length} productos
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            disabled={productosSeleccionados.length === 0}
+            className="flex items-center justify-center gap-2 rounded-full bg-red-700 px-7 py-3 font-black text-white shadow-lg disabled:opacity-40"
+          >
+            <Printer className="h-5 w-5" />
+            Imprimir {formato === 'listado' ? 'listado' : 'precios'}
+          </button>
+        </div>
+
         {formato === 'listado' ? (
           <div className="columns-1 gap-4 md:columns-2 print:columns-2">
             {gruposListado.map((grupo) => (
