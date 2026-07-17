@@ -162,7 +162,7 @@ export default function InformePreciosPage() {
       <style jsx global>{`
         @media print {
           @page {
-            size: A4 portrait;
+            size: letter portrait;
             margin: 8mm;
           }
           body {
