@@ -1135,6 +1135,23 @@ export default function AdminComprasPage() {
           : 'Envases';
     const costo = numero(nuevoProducto.costo_unitario);
     const stockInicial = numero(nuevoProducto.stock_actual);
+    const familiaSeleccionada = familias.find(
+      (familia) => familia.id === nuevoProducto.familia_id
+    );
+    const margenFamilia = numero(familiaSeleccionada?.margen_porcentaje);
+    const tipoMargenFamilia = familiaSeleccionada?.tipo_margen || 'markup';
+    const redondeoFamilia = Math.max(
+      1,
+      numero(familiaSeleccionada?.redondeo_precio)
+    );
+    const precioVentaCalculado = costo
+      ? precioVentaDesdeMargen(
+          desgloseIva(costo, ivaPorcentaje, precioIvaIncluido).total,
+          margenFamilia,
+          tipoMargenFamilia,
+          redondeoFamilia
+        )
+      : 0;
     let codigoFinal = nuevoProducto.codigo.trim().toUpperCase();
 
     if (!codigoFinal) {
@@ -1153,7 +1170,7 @@ export default function AdminComprasPage() {
         codigo: codigoFinal,
         nombre: nuevoProducto.nombre.trim(),
         descripcion: '',
-        precio: 0,
+        precio: precioVentaCalculado,
         categoria,
         imagen: null,
         destacado: false,
@@ -1199,11 +1216,13 @@ export default function AdminComprasPage() {
         producto_id: String(productoCreado.id),
         busqueda_producto: `${productoCreado.nombre} - ${productoCreado.tipo_producto}`,
         cantidad: '1',
-        costo_unitario: '',
-        costo_total: '',
-        margen_porcentaje: '',
-        tipo_margen: 'markup' as const,
-        precio_venta: '',
+        costo_unitario: costo ? String(costo) : '',
+        costo_total: costo ? String(costo) : '',
+        margen_porcentaje: margenFamilia ? String(margenFamilia) : '',
+        tipo_margen: tipoMargenFamilia,
+        precio_venta: precioVentaCalculado
+          ? String(precioVentaCalculado)
+          : '',
         precio_listado: true,
         texto_listado_1: '',
         texto_listado_2: '',
