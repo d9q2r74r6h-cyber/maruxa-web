@@ -1488,12 +1488,14 @@ export default function AdminComprasPage() {
         ivaPorcentaje,
         precioIvaIncluido
       ).neto;
+      const costoGuardado = costoUnitarioFinal || costoUnitario;
 
       return {
         compra_id: compra.id,
-        producto_id: Number(item.producto_id),
+        ingrediente_id: Number(item.producto_id),
         cantidad,
-        costo_unitario: costoUnitarioFinal || costoUnitario,
+        costo_unitario: costoGuardado,
+        subtotal: costoGuardado * cantidad,
       };
     });
 
