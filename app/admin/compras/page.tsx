@@ -566,9 +566,12 @@ export default function AdminComprasPage() {
     recalcularPreciosPorIva(ivaIncluidoProveedor);
   }
 
-  async function cargarUltimasCompras(productoIds: number[]) {
+  async function cargarUltimasCompras(
+    productoIds: number[],
+    forzarRecarga = false
+  ) {
     const idsPendientes = [...new Set(productoIds)].filter(
-      (id) => id && !ultimasCompras[id]
+      (id) => id && (forzarRecarga || !ultimasCompras[id])
     );
 
     if (idsPendientes.length === 0) return;
@@ -598,7 +601,7 @@ export default function AdminComprasPage() {
       setUltimasCompras((actuales) => {
         const siguiente = { ...actuales };
         idsPendientes.forEach((id) => {
-          siguiente[id] = [];
+          if (siguiente[id] === undefined) siguiente[id] = [];
         });
         return siguiente;
       });
@@ -1901,6 +1904,10 @@ export default function AdminComprasPage() {
 
       return siguientes;
     });
+    await cargarUltimasCompras(
+      historialesCreados.map((historial) => historial.producto_id),
+      true
+    );
     setVariacionesCompra(variacionesRegistradas);
     setMostrarVariaciones(true);
     await cargarRecetasAfectadas(variacionesRegistradas);
