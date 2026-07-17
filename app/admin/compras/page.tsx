@@ -39,6 +39,7 @@ type UltimaCompraProducto = {
 type ProveedorCompra = {
   id: string;
   razon_social: string;
+  nombre_fantasia: string | null;
   precio_iva_incluido: boolean;
 };
 
@@ -487,7 +488,9 @@ export default function AdminComprasPage() {
 
       const termino = proveedorTexto.trim();
       if (termino) {
-        consulta = consulta.ilike('razon_social', `%${termino}%`);
+        consulta = consulta.or(
+          `razon_social.ilike.%${termino}%,nombre_fantasia.ilike.%${termino}%`
+        );
       }
 
       const { data, error } = await consulta;
@@ -501,6 +504,7 @@ export default function AdminComprasPage() {
               return {
                 id: item.id,
                 razon_social: item.razon_social,
+                nombre_fantasia: item.nombre_fantasia || null,
                 precio_iva_incluido:
                   typeof item.precio_iva_incluido === 'boolean'
                     ? item.precio_iva_incluido
@@ -571,7 +575,9 @@ export default function AdminComprasPage() {
 
   async function seleccionarProveedor(proveedor: ProveedorCompra) {
     setProveedorId(proveedor.id);
-    setProveedorTexto(proveedor.razon_social);
+    setProveedorTexto(
+      proveedor.nombre_fantasia?.trim() || proveedor.razon_social
+    );
     setMostrarProveedores(false);
 
     const configuracionLocal = window.localStorage.getItem(
@@ -2057,7 +2063,14 @@ export default function AdminComprasPage() {
                         onClick={() => void seleccionarProveedor(proveedor)}
                         className="block w-full px-4 py-3 text-left text-sm font-bold hover:bg-maruxa-crema"
                       >
-                        {proveedor.razon_social}
+                        <span className="block">
+                          {proveedor.nombre_fantasia || proveedor.razon_social}
+                        </span>
+                        {proveedor.nombre_fantasia && (
+                          <span className="mt-0.5 block text-[11px] font-bold text-maruxa-cafe/55">
+                            {proveedor.razon_social}
+                          </span>
+                        )}
                       </button>
                     ))
                   ) : (
