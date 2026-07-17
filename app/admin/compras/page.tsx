@@ -1022,23 +1022,38 @@ export default function AdminComprasPage() {
 
   function editarRegistroHistorial(
     historial: UltimaCompraProducto,
-    producto: Producto,
-    margenFamilia: number
+    producto: Producto
   ) {
     if (!historial.id) return;
+    const familia = familias.find(
+      (actual) => actual.id === producto.familia_id
+    );
+    const margenAplicado =
+      historial.margen_porcentaje ??
+      (producto.usar_configuracion_familia === false
+        ? numero(producto.margen_personalizado)
+        : numero(familia?.margen_porcentaje));
+    const tipoMargenAplicado =
+      producto.usar_configuracion_familia === false
+        ? producto.tipo_margen_personalizado || 'markup'
+        : familia?.tipo_margen || 'markup';
+    const precioCalculado = historial.precio
+      ? precioVentaDesdeMargen(
+          desgloseIva(historial.precio, ivaPorcentaje, false).total,
+          margenAplicado,
+          tipoMargenAplicado,
+          Math.max(1, numero(familia?.redondeo_precio))
+        )
+      : 0;
     setHistorialEditandoId(historial.id);
     setHistorialEditando({
       fecha: historial.fecha.slice(0, 10),
       nombre: producto.nombre,
       costo: String(historial.precio || ''),
-      margen: String(
-        historial.margen_porcentaje ??
-          (producto.usar_configuracion_familia === false
-            ? producto.margen_personalizado
-            : margenFamilia) ??
-          ''
+      margen: String(margenAplicado || ''),
+      precioVenta: String(
+        (historial.precio_venta ?? precioCalculado) || producto.precio || ''
       ),
-      precioVenta: String(historial.precio_venta ?? producto.precio ?? ''),
     });
   }
 
@@ -2514,10 +2529,7 @@ export default function AdminComprasPage() {
                                               onClick={() =>
                                                 editarRegistroHistorial(
                                                   historial,
-                                                  producto,
-                                                  numero(
-                                                    familiaProducto?.margen_porcentaje
-                                                  )
+                                                  producto
                                                 )
                                               }
                                               className="rounded-lg border border-maruxa-rojo/30 bg-white px-3 py-1 text-[11px] font-black text-maruxa-rojo"
