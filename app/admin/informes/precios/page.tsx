@@ -209,6 +209,19 @@ export default function InformePreciosPage() {
     });
   }
 
+  function cambiarFamilia(nuevaFamiliaId: string) {
+    setFamiliaId(nuevaFamiliaId);
+    setBusqueda('');
+
+    const nuevaSeleccion: Record<number, boolean> = {};
+    productos.forEach((producto) => {
+      if (!nuevaFamiliaId || producto.familia_id === nuevaFamiliaId) {
+        nuevaSeleccion[producto.id] = true;
+      }
+    });
+    setSeleccionados(nuevaSeleccion);
+  }
+
   function actualizarDescripcion(
     productoId: number,
     campo: keyof DescripcionSuelta,
@@ -307,7 +320,7 @@ export default function InformePreciosPage() {
           Familia
           <select
             value={familiaId}
-            onChange={(event) => setFamiliaId(event.target.value)}
+            onChange={(event) => cambiarFamilia(event.target.value)}
             className="h-11 rounded-xl border bg-white px-3 text-sm font-bold normal-case text-maruxa-chocolate"
           >
             <option value="">Todas las familias</option>
