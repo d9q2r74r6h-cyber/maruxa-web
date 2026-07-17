@@ -1409,13 +1409,7 @@ export default function AdminComprasPage() {
       .insert({
         empresa_id: empresa.id,
         proveedor: proveedorId ? proveedorTexto.trim() : '',
-        numero_documento: '',
         fecha: new Date().toISOString().slice(0, 10),
-        observacion: '',
-        subtotal_productos: subtotalProductos,
-        valor_despacho: 0,
-        impuesto_adicional: 0,
-        descuento: 0,
         total: totalCompra,
       })
       .select('id')
@@ -1446,9 +1440,6 @@ export default function AdminComprasPage() {
         cantidad,
         costo_unitario: costoUnitarioFinal || costoUnitario,
         costo_total: (costoUnitarioFinal || costoUnitario) * cantidad,
-        valor_despacho: 0,
-        impuesto_adicional: 0,
-        descuento: 0,
       };
     });
 
