@@ -240,6 +240,8 @@ export default function InformePreciosPage() {
           .precios-print,
           .precios-print * {
             visibility: visible !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           .precios-print {
             position: absolute !important;
@@ -252,6 +254,12 @@ export default function InformePreciosPage() {
           }
           .no-print {
             display: none !important;
+          }
+          .precio-encabezado {
+            background-color: #91d04f !important;
+          }
+          .precio-cambio {
+            background-color: #fde047 !important;
           }
         }
       `}</style>
@@ -453,7 +461,7 @@ export default function InformePreciosPage() {
                 className="mb-4 w-full break-inside-avoid border-collapse text-[11px]"
               >
                 <thead>
-                  <tr className="bg-[#91D04F] text-maruxa-chocolate">
+                  <tr className="precio-encabezado bg-[#91D04F] text-maruxa-chocolate">
                     <th className="border border-black px-2 py-1 text-left text-sm font-black uppercase">
                       {grupo.nombre}
                     </th>
@@ -474,7 +482,9 @@ export default function InformePreciosPage() {
                       <tr
                         key={producto.id}
                         className={
-                          productosConCambio[producto.id] ? 'bg-yellow-300' : ''
+                          productosConCambio[producto.id]
+                            ? 'precio-cambio bg-yellow-300'
+                            : ''
                         }
                       >
                         <td className="border border-black px-2 py-1 font-bold uppercase">
