@@ -322,6 +322,7 @@ export default function AdminComprasPage() {
   const [guardandoHistorial, setGuardandoHistorial] = useState(false);
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
+  const [productoDesdeInforme, setProductoDesdeInforme] = useState(false);
   const productoEnlaceAplicado = useRef(false);
   const [variacionesCompra, setVariacionesCompra] = useState<VariacionCosto[]>([]);
   const [mostrarVariaciones, setMostrarVariaciones] = useState(false);
@@ -448,6 +449,7 @@ export default function AdminComprasPage() {
 
     const productoId = new URLSearchParams(window.location.search).get('producto');
     if (!productoId) return;
+    setProductoDesdeInforme(true);
 
     const producto = productos.find(
       (item) => String(item.id) === String(productoId)
@@ -1749,6 +1751,30 @@ export default function AdminComprasPage() {
     const itemsConsolidados = consolidarItemsValidos();
 
     if (itemsConsolidados.length === 0) {
+      const productoId = items.find((item) => item.producto_id)?.producto_id;
+
+      if (productoDesdeInforme && productoId && proveedorId) {
+        setGuardando(true);
+        const { error } = await supabase
+          .from('productos')
+          .update({ proveedor_id: proveedorId })
+          .eq('id', Number(productoId));
+
+        setGuardando(false);
+        if (error) {
+          alert(error.message);
+          return;
+        }
+
+        window.location.assign('/admin/informes/precios');
+        return;
+      }
+
+      if (productoDesdeInforme && !proveedorId) {
+        alert('Selecciona un proveedor para este producto.');
+        return;
+      }
+
       alert('Agrega productos y costos válidos.');
       return;
     }
@@ -1976,6 +2002,9 @@ export default function AdminComprasPage() {
     await cargarProductos(false);
 
     setGuardando(false);
+    if (productoDesdeInforme) {
+      window.location.assign('/admin/informes/precios');
+    }
   }
 
   return (
@@ -3114,7 +3143,11 @@ export default function AdminComprasPage() {
                   disabled={guardando}
                   className="rounded-full bg-red-700 px-8 py-4 font-black text-white shadow-lg disabled:opacity-50"
                 >
-                  {guardando ? 'Guardando...' : 'Guardar nuevos precios'}
+                  {guardando
+                    ? 'Guardando...'
+                    : productoDesdeInforme && totalCompra === 0
+                      ? 'Guardar proveedor'
+                      : 'Guardar nuevos precios'}
                 </button>
               </div>
             </div>
