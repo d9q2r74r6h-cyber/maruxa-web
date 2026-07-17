@@ -305,6 +305,7 @@ export default function AdminComprasPage() {
   const [historialEditandoId, setHistorialEditandoId] = useState<string | null>(null);
   const [historialEditando, setHistorialEditando] = useState({
     fecha: '',
+    nombre: '',
     costo: '',
     margen: '',
     precioVenta: '',
@@ -1019,14 +1020,25 @@ export default function AdminComprasPage() {
     setFichaEditandoId(null);
   }
 
-  function editarRegistroHistorial(historial: UltimaCompraProducto) {
+  function editarRegistroHistorial(
+    historial: UltimaCompraProducto,
+    producto: Producto,
+    margenFamilia: number
+  ) {
     if (!historial.id) return;
     setHistorialEditandoId(historial.id);
     setHistorialEditando({
       fecha: historial.fecha.slice(0, 10),
+      nombre: producto.nombre,
       costo: String(historial.precio || ''),
-      margen: String(historial.margen_porcentaje || ''),
-      precioVenta: String(historial.precio_venta || ''),
+      margen: String(
+        historial.margen_porcentaje ??
+          (producto.usar_configuracion_familia === false
+            ? producto.margen_personalizado
+            : margenFamilia) ??
+          ''
+      ),
+      precioVenta: String(historial.precio_venta ?? producto.precio ?? ''),
     });
   }
 
@@ -1039,6 +1051,25 @@ export default function AdminComprasPage() {
       margen_porcentaje: numero(historialEditando.margen) || null,
       precio_venta: numero(historialEditando.precioVenta) || null,
     };
+    const nombreProducto = historialEditando.nombre.trim();
+
+    if (!nombreProducto) {
+      setGuardandoHistorial(false);
+      alert('El nombre del producto no puede quedar vacío.');
+      return;
+    }
+
+    const { error: errorProducto } = await supabase
+      .from('productos')
+      .update({ nombre: nombreProducto })
+      .eq('id', productoId);
+
+    if (errorProducto) {
+      setGuardandoHistorial(false);
+      alert(errorProducto.message);
+      return;
+    }
+
     const { error } = await supabase
       .from('producto_costos_historial')
       .update(cambios)
@@ -1064,6 +1095,13 @@ export default function AdminComprasPage() {
           : registro
       ),
     }));
+    setProductos((actuales) =>
+      actuales.map((producto) =>
+        producto.id === productoId
+          ? { ...producto, nombre: nombreProducto }
+          : producto
+      )
+    );
     setHistorialEditandoId(null);
   }
 
@@ -2263,10 +2301,11 @@ export default function AdminComprasPage() {
                             </p>
                           ) : (
                             <div className="mt-3 overflow-x-auto">
-                              <table className="w-full min-w-[760px] text-sm">
+                              <table className="w-full min-w-[920px] text-sm">
                                 <thead>
                                   <tr className="text-left text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                                     <th className="px-3 py-2">Fecha</th>
+                                    <th className="px-3 py-2">Producto</th>
                                     <th className="px-3 py-2 text-right">Neto</th>
                                     <th className="px-3 py-2 text-right">IVA</th>
                                     <th className="px-3 py-2 text-right">Total</th>
@@ -2315,6 +2354,23 @@ export default function AdminComprasPage() {
                                           <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase text-amber-800">
                                             Ficha vigente
                                           </span>
+                                        )}
+                                      </td>
+                                      <td className="px-3 py-2 font-bold">
+                                        {historial.id &&
+                                        historialEditandoId === historial.id ? (
+                                          <input
+                                            value={historialEditando.nombre}
+                                            onChange={(e) =>
+                                              setHistorialEditando((actual) => ({
+                                                ...actual,
+                                                nombre: e.target.value,
+                                              }))
+                                            }
+                                            className="w-48 rounded-lg border px-2 py-1 text-xs font-bold"
+                                          />
+                                        ) : (
+                                          producto.nombre
                                         )}
                                       </td>
                                       <td className="px-3 py-2 text-right font-black">
@@ -2455,7 +2511,15 @@ export default function AdminComprasPage() {
                                           ) : (
                                             <button
                                               type="button"
-                                              onClick={() => editarRegistroHistorial(historial)}
+                                              onClick={() =>
+                                                editarRegistroHistorial(
+                                                  historial,
+                                                  producto,
+                                                  numero(
+                                                    familiaProducto?.margen_porcentaje
+                                                  )
+                                                )
+                                              }
                                               className="rounded-lg border border-maruxa-rojo/30 bg-white px-3 py-1 text-[11px] font-black text-maruxa-rojo"
                                             >
                                               Modificar
