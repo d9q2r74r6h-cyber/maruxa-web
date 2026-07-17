@@ -599,19 +599,8 @@ export default function AdminComprasPage() {
         if (campo === 'producto_id') {
           const producto = productos.find((p) => String(p.id) === String(valor));
           const familia = familias.find((f) => f.id === producto?.familia_id);
-          const costoUnitario = item.costo_unitario || String(producto?.costo_unitario || '');
           const margen = numero(familia?.margen_porcentaje);
           const tipoMargen = familia?.tipo_margen || 'markup';
-          const precioCalculado = precioVentaDesdeMargen(
-            numero(costoUnitario),
-            margen,
-            tipoMargen,
-            numero(familia?.redondeo_precio) || 1
-          );
-          const totalLinea =
-            numero(item.cantidad) > 0 && numero(costoUnitario) > 0
-              ? String(numero(item.cantidad) * numero(costoUnitario))
-              : item.costo_total;
 
           return {
             ...item,
@@ -619,11 +608,13 @@ export default function AdminComprasPage() {
             busqueda_producto: producto
               ? `${producto.nombre} - ${producto.tipo_producto}`
               : item.busqueda_producto,
-            costo_unitario: costoUnitario,
-            costo_total: totalLinea,
+            costo_unitario: '',
+            costo_total: '',
             margen_porcentaje: String(margen || ''),
             tipo_margen: tipoMargen,
-            precio_venta: String(producto?.precio || precioCalculado || ''),
+            precio_venta: '',
+            texto_listado_1: '',
+            texto_listado_2: '',
           };
         }
 
@@ -911,11 +902,11 @@ export default function AdminComprasPage() {
         producto_id: String(productoCreado.id),
         busqueda_producto: `${productoCreado.nombre} - ${productoCreado.tipo_producto}`,
         cantidad: '1',
-        costo_unitario: String(costo || productoCreado.costo_unitario || ''),
+        costo_unitario: '',
         costo_total: '',
         margen_porcentaje: '',
         tipo_margen: 'markup' as const,
-        precio_venta: String(productoCreado.precio || ''),
+        precio_venta: '',
         precio_listado: true,
         texto_listado_1: '',
         texto_listado_2: '',
@@ -1514,11 +1505,11 @@ export default function AdminComprasPage() {
                                       producto_id: String(producto.id),
                                       busqueda_producto: `${producto.nombre} - ${producto.tipo_producto}`,
                                       cantidad: '1',
-                                      costo_unitario: String(producto.costo_unitario || ''),
+                                      costo_unitario: '',
                                       costo_total: '',
                                       margen_porcentaje: '',
                                       tipo_margen: 'markup' as const,
-                                      precio_venta: String(producto.precio || ''),
+                                      precio_venta: '',
                                       precio_listado: true,
                                       texto_listado_1: '',
                                       texto_listado_2: '',
@@ -1864,7 +1855,12 @@ export default function AdminComprasPage() {
                                 setItems((actuales) =>
                                   actuales.map((actual, indice) =>
                                     indice === index
-                                      ? { ...actual, precio_listado: true }
+                                      ? {
+                                          ...actual,
+                                          precio_listado: true,
+                                          texto_listado_1: '',
+                                          texto_listado_2: '',
+                                        }
                                       : actual
                                   )
                                 )
