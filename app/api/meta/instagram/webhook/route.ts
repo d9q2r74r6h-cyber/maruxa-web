@@ -12,27 +12,38 @@ function crearAdmin() {
   });
 }
 
-function secretoMeta() {
-  return process.env.INSTAGRAM_APP_SECRET || process.env.META_APP_SECRET || process.env.WHATSAPP_APP_SECRET;
+function secretosMeta() {
+  return [
+    process.env.FACEBOOK_APP_SECRET,
+    process.env.INSTAGRAM_APP_SECRET,
+    process.env.META_APP_SECRET,
+    process.env.WHATSAPP_APP_SECRET,
+  ].filter((secreto): secreto is string => Boolean(secreto));
 }
 
-function tokenVerificacion() {
-  return process.env.INSTAGRAM_VERIFY_TOKEN || process.env.META_VERIFY_TOKEN || process.env.WHATSAPP_VERIFY_TOKEN;
+function tokenVerificacion(canal: 'facebook' | 'instagram') {
+  return canal === 'facebook'
+    ? process.env.FACEBOOK_VERIFY_TOKEN ||
+        process.env.META_VERIFY_TOKEN ||
+        process.env.WHATSAPP_VERIFY_TOKEN
+    : process.env.INSTAGRAM_VERIFY_TOKEN ||
+        process.env.META_VERIFY_TOKEN ||
+        process.env.WHATSAPP_VERIFY_TOKEN;
 }
 
 function firmaValida(cuerpo: string, firma: string | null) {
-  const secreto = secretoMeta();
-  if (!secreto || !firma?.startsWith('sha256=')) return false;
-
-  const esperada = createHmac('sha256', secreto).update(cuerpo).digest('hex');
+  const secretos = secretosMeta();
+  if (secretos.length === 0 || !firma?.startsWith('sha256=')) return false;
   const recibida = firma.slice('sha256='.length);
 
-  if (esperada.length !== recibida.length) return false;
-
-  return timingSafeEqual(
-    Buffer.from(esperada, 'hex'),
-    Buffer.from(recibida, 'hex')
-  );
+  return secretos.some((secreto) => {
+    const esperada = createHmac('sha256', secreto).update(cuerpo).digest('hex');
+    if (esperada.length !== recibida.length) return false;
+    return timingSafeEqual(
+      Buffer.from(esperada, 'hex'),
+      Buffer.from(recibida, 'hex')
+    );
+  });
 }
 
 function tipoEvento(evento: any) {
@@ -199,12 +210,13 @@ async function enviarPlantillaNotificacionWhatsApp(
   return detalle || `Meta respondio ${respuesta.status}`;
 }
 
-async function avisarAdministradoresInstagram(
+async function avisarAdministradoresMeta(
   admin: NonNullable<ReturnType<typeof crearAdmin>>,
   empresaId: string,
   datos: {
     senderId: string;
     resumen: string;
+    origen: 'Facebook' | 'Instagram';
   }
 ) {
   const { data: perfiles } = await admin
@@ -218,7 +230,7 @@ async function avisarAdministradoresInstagram(
   if (!perfiles?.length) return [];
 
   const texto = [
-    'Nuevo mensaje Instagram',
+    `Nuevo mensaje ${datos.origen}`,
     `Cliente: ${datos.senderId}`,
     `Detalle: ${datos.resumen || 'Mensaje recibido.'}`,
     'Revisar en https://panaderiamaruxa.cl/admin/whatsapp',
@@ -242,10 +254,11 @@ async function avisarAdministradoresInstagram(
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
+  const canal = url.pathname.includes('/facebook/') ? 'facebook' : 'instagram';
   const modo = url.searchParams.get('hub.mode');
   const token = url.searchParams.get('hub.verify_token');
   const desafio = url.searchParams.get('hub.challenge');
-  const tokenConfigurado = tokenVerificacion()?.trim();
+  const tokenConfigurado = tokenVerificacion(canal)?.trim();
 
   if (!modo && !token && !desafio) {
     const admin = crearAdmin();
@@ -272,10 +285,10 @@ export async function GET(request: Request) {
       destinosWhatsappConfigurados = count || 0;
 
       return NextResponse.json({
-        webhook: 'instagram',
+        webhook: canal,
         disponible: true,
         tokenConfigurado: Boolean(tokenConfigurado),
-        appSecretConfigurado: Boolean(secretoMeta()),
+        appSecretConfigurado: secretosMeta().length > 0,
         supabaseServidorConfigurado: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
         baseDatosLista,
         baseDatosEstado,
@@ -286,10 +299,10 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({
-      webhook: 'instagram',
+      webhook: canal,
       disponible: true,
       tokenConfigurado: Boolean(tokenConfigurado),
-      appSecretConfigurado: Boolean(secretoMeta()),
+      appSecretConfigurado: secretosMeta().length > 0,
       supabaseServidorConfigurado: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
       baseDatosLista,
       baseDatosEstado,
@@ -336,7 +349,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'JSON invalido.' }, { status: 400 });
   }
 
-  let empresaId = process.env.INSTAGRAM_EMPRESA_ID || process.env.WHATSAPP_EMPRESA_ID;
+  let empresaId =
+    process.env.FACEBOOK_EMPRESA_ID ||
+    process.env.INSTAGRAM_EMPRESA_ID ||
+    process.env.WHATSAPP_EMPRESA_ID;
+  const origenMeta: 'Facebook' | 'Instagram' =
+    payload.object === 'page' ? 'Facebook' : 'Instagram';
 
   if (!empresaId) {
     const { data: empresa } = await admin
@@ -388,7 +406,7 @@ export async function POST(request: Request) {
 
     const tipo = tipoEvento(evento);
     const texto = textoEvento(evento);
-    const remitente = senderId(evento) || 'Instagram';
+    const remitente = senderId(evento) || origenMeta;
 
     const observacionEvento = payload.object
       ? `Origen Meta: ${payload.object} (${evento.formato || 'evento'})`
@@ -411,9 +429,10 @@ export async function POST(request: Request) {
       .single();
 
     if (!['read', 'delivery'].includes(tipo)) {
-      const erroresAviso = await avisarAdministradoresInstagram(admin, empresaId, {
+      const erroresAviso = await avisarAdministradoresMeta(admin, empresaId, {
         senderId: remitente,
-        resumen: texto || `Evento de Instagram: ${tipo}`,
+        resumen: texto || `Evento de ${origenMeta}: ${tipo}`,
+        origen: origenMeta,
       });
 
       if (eventoInsertado?.id && erroresAviso.length > 0) {
