@@ -256,9 +256,11 @@ function calcularPrecioSugerido(costoUnidad: number, producto: any) {
   const tipoMargen = usaFamilia
     ? familia?.tipo_margen || 'markup'
     : producto?.tipo_margen_personalizado || 'markup';
+  const redondeoFamilia = numero(familia?.redondeo_precio);
+  const redondeoPersonalizado = numero(producto?.redondeo_personalizado);
   const redondeo = usaFamilia
-    ? numero(familia?.redondeo_precio)
-    : numero(producto?.redondeo_personalizado);
+    ? redondeoFamilia
+    : redondeoPersonalizado || redondeoFamilia;
 
   let precio =
     tipoMargen === 'margen_comercial' && margen < 100

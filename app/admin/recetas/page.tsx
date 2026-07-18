@@ -280,9 +280,13 @@ export default function AdminRecetasPage() {
     ? familiaSeleccionada?.tipo_margen || 'markup'
     : productoSeleccionado?.tipo_margen_personalizado || 'markup';
 
+  const redondeoFamilia = numero(familiaSeleccionada?.redondeo_precio);
+  const redondeoPersonalizado = numero(
+    productoSeleccionado?.redondeo_personalizado
+  );
   const redondeoAplicado = usaConfiguracionFamilia
-    ? numero(familiaSeleccionada?.redondeo_precio)
-    : numero(productoSeleccionado?.redondeo_personalizado);
+    ? redondeoFamilia
+    : redondeoPersonalizado || redondeoFamilia;
   const ivaVenta = ivaEmpresa;
 
   useEffect(() => {
