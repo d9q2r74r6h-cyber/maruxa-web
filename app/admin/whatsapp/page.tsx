@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import {
   CheckCircle2,
   Clock,
+  Landmark,
   MessageCircle,
   RefreshCw,
   Search,
@@ -38,6 +39,29 @@ type Conversacion = {
 };
 
 type CanalActivo = 'whatsapp' | 'instagram' | 'todos';
+
+type CuentaBancaria = {
+  banco: string;
+  tipo_cuenta: string;
+  numero_cuenta: string;
+  titular: string;
+  rut_titular: string | null;
+  email_notificacion: string | null;
+};
+
+function textoCuentaBancaria(cuenta: CuentaBancaria) {
+  return [
+    'Datos para transferencia:',
+    `Banco: ${cuenta.banco}`,
+    `Tipo de cuenta: ${cuenta.tipo_cuenta}`,
+    `Numero de cuenta: ${cuenta.numero_cuenta}`,
+    `Titular: ${cuenta.titular}`,
+    cuenta.rut_titular ? `RUT: ${cuenta.rut_titular}` : null,
+    cuenta.email_notificacion ? `Correo: ${cuenta.email_notificacion}` : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
 
 function valoresPayload(evento: WhatsappEvento) {
   if (evento.origen === 'instagram') {
@@ -178,6 +202,7 @@ export default function AdminWhatsappPage() {
   const [telefonoActivo, setTelefonoActivo] = useState<string | null>(null);
   const [respuestas, setRespuestas] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState<string | null>(null);
+  const [cuentaPrincipal, setCuentaPrincipal] = useState<CuentaBancaria | null>(null);
   const [permisoNotificaciones, setPermisoNotificaciones] =
     useState<NotificationPermission | 'no-disponible'>('no-disponible');
   const finalMensajesRef = useRef<HTMLDivElement | null>(null);
@@ -228,6 +253,17 @@ export default function AdminWhatsappPage() {
       if (!silencioso) setLoading(false);
       return;
     }
+
+    const { data: cuentaData } = await supabase
+      .from('cuentas_bancarias')
+      .select('banco,tipo_cuenta,numero_cuenta,titular,rut_titular,email_notificacion')
+      .eq('empresa_id', empresa.id)
+      .eq('activo', true)
+      .eq('es_principal', true)
+      .limit(1)
+      .maybeSingle();
+
+    setCuentaPrincipal((cuentaData as CuentaBancaria | null) || null);
 
     const { data, error } = await supabase
       .from('whatsapp_eventos')
@@ -442,8 +478,11 @@ export default function AdminWhatsappPage() {
   ];
   const canalActual = canales.find((canal) => canal.id === canalActivo);
 
-  async function enviarRespuesta(conversacion: Conversacion) {
-    const mensaje = respuestas[conversacion.telefono]?.trim();
+  async function enviarRespuesta(
+    conversacion: Conversacion,
+    mensajeRapido?: string
+  ) {
+    const mensaje = mensajeRapido?.trim() || respuestas[conversacion.telefono]?.trim();
 
     if (!mensaje) {
       alert('Escribe una respuesta.');
@@ -616,13 +655,13 @@ export default function AdminWhatsappPage() {
                         : evento.telefono || 'Sin telefono'
                     )
                   }
-                  className="mb-1 grid w-full grid-cols-[82px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs font-bold text-maruxa-chocolate hover:bg-maruxa-crema"
+                  className="mb-1 grid w-full grid-cols-[52px_minmax(0,1fr)] items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs font-bold text-maruxa-chocolate hover:bg-maruxa-crema sm:grid-cols-[82px_minmax(0,1fr)_auto] sm:px-3"
                 >
                   <span className="text-[10px] font-black text-maruxa-cafe/55">
                     {horaChile(evento.created_at)}
                   </span>
                   <span className="truncate">{textoMensaje(evento)}</span>
-                  <span className="truncate text-[10px] font-black text-maruxa-rojo">
+                  <span className="col-span-2 truncate text-[10px] font-black text-maruxa-rojo sm:col-span-1">
                     {evento.origen === 'instagram' ? 'Instagram' : evento.telefono || 'Sin telefono'}
                   </span>
                 </button>
@@ -632,7 +671,7 @@ export default function AdminWhatsappPage() {
         </section>
 
         <section className="mt-4 overflow-hidden rounded-xl bg-white shadow-premium">
-          <div className="grid h-[460px] min-h-0 lg:grid-cols-[280px_minmax(0,1fr)]">
+          <div className="grid min-h-0 lg:h-[460px] lg:grid-cols-[280px_minmax(0,1fr)]">
             <aside className="border-b border-maruxa-rojo/10 bg-white lg:border-b-0 lg:border-r">
               <div className="border-b border-maruxa-rojo/10 p-2">
                 <label className="relative block">
@@ -646,7 +685,7 @@ export default function AdminWhatsappPage() {
                 </label>
               </div>
 
-              <div className="h-[410px] overflow-y-auto p-1.5">
+              <div className="h-48 overflow-y-auto p-1.5 lg:h-[410px]">
                 {loading ? (
                   <p className="p-5 font-black text-maruxa-chocolate">
                     Cargando mensajes...
@@ -722,7 +761,7 @@ export default function AdminWhatsappPage() {
               </div>
             </aside>
 
-            <section className="flex min-h-0 min-w-0 flex-col bg-[#F6EADC]">
+            <section className="flex h-[460px] min-h-0 min-w-0 flex-col bg-[#F6EADC] lg:h-auto">
               {conversacionActiva ? (
                 <>
                   <header className="flex items-center justify-between gap-3 border-b border-maruxa-rojo/10 bg-white px-4 py-3">
@@ -840,6 +879,37 @@ export default function AdminWhatsappPage() {
                   </div>
 
                   <footer className="border-t border-maruxa-rojo/10 bg-white p-3">
+                    {!conversacionActiva.telefono.startsWith('instagram:') && (
+                      <div className="mb-2 flex flex-wrap items-center gap-2">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-maruxa-cafe/55">
+                          Respuestas rapidas
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            cuentaPrincipal &&
+                            enviarRespuesta(
+                              conversacionActiva,
+                              textoCuentaBancaria(cuentaPrincipal)
+                            )
+                          }
+                          disabled={
+                            !cuentaPrincipal || enviando === conversacionActiva.telefono
+                          }
+                          className="inline-flex min-h-9 items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-black text-emerald-800 transition hover:bg-emerald-100 disabled:border-zinc-200 disabled:bg-zinc-100 disabled:text-zinc-500"
+                          title={
+                            cuentaPrincipal
+                              ? 'Enviar la cuenta bancaria principal'
+                              : 'Configura una cuenta principal en Empresa'
+                          }
+                        >
+                          <Landmark className="h-3.5 w-3.5" />
+                          {cuentaPrincipal
+                            ? 'Enviar cuenta bancaria'
+                            : 'Falta cuenta principal'}
+                        </button>
+                      </div>
+                    )}
                     <div className="grid min-w-0 gap-2 lg:grid-cols-[minmax(0,1fr)_150px] lg:items-end">
                       <textarea
                         value={respuestas[conversacionActiva.telefono] || ''}

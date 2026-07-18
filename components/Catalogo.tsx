@@ -258,22 +258,22 @@ export default function Catalogo() {
   return (
     <section
       id="catalogo"
-      className="bg-maruxa-crema py-24"
+      className="bg-maruxa-crema py-14 sm:py-20 lg:py-24"
     >
       <div className="contenedor">
 
-        <div className="mb-12 flex flex-col justify-between gap-5 md:flex-row md:items-end">
+        <div className="mb-8 flex flex-col justify-between gap-5 sm:mb-12 md:flex-row md:items-end">
 
           <div>
             <p className="font-black uppercase tracking-[.24em] text-maruxa-rojo">
               Catálogo Maruxa
             </p>
 
-            <h2 className="mt-3 text-5xl font-black tracking-[-.04em] text-maruxa-chocolate">
+            <h2 className="mt-3 text-3xl font-black tracking-[-.04em] text-maruxa-chocolate sm:text-5xl">
               Favoritos del horno
             </h2>
 
-            <p className="mt-5 max-w-2xl text-lg leading-8 text-maruxa-cafe/75">
+            <p className="mt-4 max-w-2xl text-base leading-7 text-maruxa-cafe/75 sm:mt-5 sm:text-lg sm:leading-8">
               Panes, pastelería y tortas
               con opciones de tamaño
               para pedidos especiales.
@@ -303,7 +303,7 @@ export default function Catalogo() {
           </div>
         </div>
 
-        <div className="mb-12 flex flex-wrap gap-3">
+        <div className="mb-10 flex gap-2 overflow-x-auto pb-2 sm:flex-wrap sm:gap-3 sm:overflow-visible sm:pb-0">
 
           {categorias.map(
             (categoria) => {
@@ -318,7 +318,7 @@ export default function Catalogo() {
                     setCategoriaActiva(categoria);
                     setSubfamiliaActiva('Todas');
                   }}
-                  className={`rounded-full px-5 py-3 text-sm font-black transition ${
+                  className={`shrink-0 rounded-full px-5 py-3 text-sm font-black transition ${
                     activa
                       ? 'bg-maruxa-rojo text-maruxa-crema'
                       : 'bg-white text-maruxa-chocolate hover:bg-maruxa-rojo/10'

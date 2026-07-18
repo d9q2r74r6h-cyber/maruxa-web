@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import {
@@ -26,6 +26,23 @@ export function Header() {
 
   const cantidad = items.reduce((acc, item) => acc + item.cantidad, 0);
 
+  useEffect(() => {
+    if (!open) return;
+
+    const overflowAnterior = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    function cerrarConEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false);
+    }
+
+    window.addEventListener('keydown', cerrarConEscape);
+    return () => {
+      document.body.style.overflow = overflowAnterior;
+      window.removeEventListener('keydown', cerrarConEscape);
+    };
+  }, [open]);
+
   const links = [
     { href: '/#catalogo', label: 'Catálogo' },
     {
@@ -38,19 +55,15 @@ export function Header() {
   return (
     <>
       <header className="sticky top-0 z-50 border-b border-maruxa-cafe/10 bg-maruxa-crema/85 backdrop-blur-2xl">
-      <div className="contenedor flex min-h-24 items-center justify-between py-2">
+      <div className="contenedor flex min-h-20 items-center justify-between py-2 sm:min-h-24">
           <Link href="/" className="flex items-center gap-4">
             <Image
               src="/logo-maruxa.png"
               alt="Panadería Maruxa"
               width={170}
               height={70}
-              className="object-contain"
+              className="h-auto w-[128px] object-contain sm:w-[170px]"
               priority
-              style={{
-                width: 'auto',
-                height: 'auto',
-              }}
             />
           </Link>
 
@@ -119,6 +132,8 @@ export function Header() {
 
           <button
             onClick={() => setOpen(true)}
+            aria-label="Abrir menu"
+            aria-expanded={open}
             className="relative grid h-12 w-12 place-items-center rounded-full border border-maruxa-rojo/10 bg-white text-maruxa-chocolate lg:hidden"
           >
             <Menu />
@@ -139,11 +154,11 @@ export function Header() {
         <div onClick={() => setOpen(false)} className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
 
         <div
-          className={`absolute right-0 top-0 h-full w-[88%] max-w-[420px] bg-maruxa-crema shadow-2xl transition duration-300 ${
+          className={`absolute right-0 top-0 h-[100dvh] w-[92%] max-w-[420px] overflow-y-auto overscroll-contain bg-maruxa-crema shadow-2xl transition duration-300 sm:w-[88%] ${
             open ? 'translate-x-0' : 'translate-x-full'
           }`}
         >
-          <div className="flex h-20 items-center justify-between border-b border-maruxa-rojo/10 px-6">
+          <div className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-maruxa-rojo/10 bg-maruxa-crema/95 px-4 backdrop-blur sm:h-20 sm:px-6">
             <Image src="/logo-maruxa.png" alt="Maruxa" width={140} height={60} className="object-contain" 
                style={{
                 width: 'auto',
@@ -152,19 +167,20 @@ export function Header() {
 
             <button
               onClick={() => setOpen(false)}
+              aria-label="Cerrar menu"
               className="grid h-11 w-11 place-items-center rounded-full border border-maruxa-rojo/10 bg-white"
             >
               <X />
             </button>
           </div>
 
-          <div className="flex flex-col gap-3 p-6">
+          <div className="flex flex-col gap-2 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:gap-3 sm:p-6">
             {links.map((l) => (
               <Link
                 key={l.href}
                 href={l.href}
                 onClick={() => setOpen(false)}
-                className="flex items-center justify-between rounded-[24px] border border-maruxa-rojo/10 bg-white px-5 py-5 text-lg font-black text-maruxa-chocolate transition hover:border-maruxa-rojo/30"
+                className="flex items-center justify-between rounded-[20px] border border-maruxa-rojo/10 bg-white px-4 py-4 text-base font-black text-maruxa-chocolate transition hover:border-maruxa-rojo/30 sm:rounded-[24px] sm:px-5 sm:py-5 sm:text-lg"
               >
                 {l.label}
                 <ChevronRight size={20} />
@@ -174,7 +190,7 @@ export function Header() {
             <Link
               href="/admin/login"
               onClick={() => setOpen(false)}
-              className="flex items-center justify-between rounded-[24px] border border-maruxa-rojo/10 bg-white px-5 py-5 text-lg font-black text-maruxa-chocolate transition hover:border-maruxa-rojo/30"
+              className="flex items-center justify-between rounded-[20px] border border-maruxa-rojo/10 bg-white px-4 py-4 text-base font-black text-maruxa-chocolate transition hover:border-maruxa-rojo/30 sm:rounded-[24px] sm:px-5 sm:py-5 sm:text-lg"
             >
               <span className="flex items-center gap-3">
                 <LogIn size={20} />
@@ -209,7 +225,7 @@ export function Header() {
               </a>
             </div>
 
-            <div className="mt-6 rounded-[30px] bg-white p-6">
+            <div className="mt-3 rounded-[24px] bg-white p-4 sm:mt-6 sm:rounded-[30px] sm:p-6">
               <p className="text-xs font-black uppercase tracking-widest text-maruxa-rojo">
                 Información
               </p>

@@ -29,7 +29,7 @@ export function Home() {
         
         <div className="absolute right-[-80px] top-16 h-80 w-80 rounded-full bg-maruxa-rojo/20 blur-3xl" />
 
-        <div className="contenedor grid min-h-[720px] items-center gap-10 py-20 lg:grid-cols-[1.04fr_.96fr]">
+        <div className="contenedor grid items-center gap-8 py-12 sm:py-16 lg:min-h-[720px] lg:grid-cols-[1.04fr_.96fr] lg:gap-10 lg:py-20">
 
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -40,11 +40,11 @@ export function Home() {
               Panadería artesanal chilena
             </p>
 
-            <h1 className="text-balance text-6xl font-black leading-[.92] tracking-[-.06em] text-maruxa-chocolate md:text-8xl">
+            <h1 className="text-balance text-4xl font-black leading-[.96] tracking-[-.045em] text-maruxa-chocolate sm:text-6xl md:text-8xl md:leading-[.92] md:tracking-[-.06em]">
               El sabor de barrio, elevado a experiencia premium.
             </h1>
 
-            <p className="mt-7 max-w-2xl text-xl leading-8 text-maruxa-cafe/85">
+            <p className="mt-5 max-w-2xl text-base leading-7 text-maruxa-cafe/85 sm:mt-7 sm:text-xl sm:leading-8">
               Panes, pastelería y tortas Maruxa con retiro en local.
               Pedidos especiales con mínimo 24 horas de anticipación.
             </p>
@@ -97,13 +97,13 @@ export function Home() {
             initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.7, delay: 0.1 }}
-            className="card-premium relative rounded-[48px] p-6"
+            className="card-premium relative rounded-[32px] p-3 sm:rounded-[48px] sm:p-6"
           >
-            <div className="rounded-[38px] bg-maruxa-vino p-8 text-maruxa-crema">
+            <div className="rounded-[26px] bg-maruxa-vino p-5 text-maruxa-crema sm:rounded-[38px] sm:p-8">
               
-              <div className="text-[10rem] leading-none">🥐</div>
+              <div className="text-[6rem] leading-none sm:text-[10rem]">🥐</div>
 
-              <h2 className="mt-6 text-4xl font-black">
+              <h2 className="mt-5 text-3xl font-black sm:mt-6 sm:text-4xl">
                 Horneado diario
               </h2>
 

@@ -40,7 +40,7 @@ export function AdminLayoutShell({
   const autorizado = !moduloActual || puedeVer(moduloActual);
 
   return (
-    <main className="min-h-screen bg-maruxa-crema px-5 py-8">
+    <main className="min-h-screen overflow-x-hidden bg-maruxa-crema px-2 py-3 sm:px-3 md:px-5 md:py-8">
       <div className="mx-auto max-w-7xl">
         <AdminMenu />
         {autorizado ? (

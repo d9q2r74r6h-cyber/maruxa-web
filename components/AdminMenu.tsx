@@ -8,9 +8,11 @@ import {
   Bell,
   ChevronDown,
   LogOut,
+  Menu,
   MessageCircle,
   ShieldCheck,
   UserCircle,
+  X,
 } from 'lucide-react';
 import { useAdminSession } from '@/components/AdminSession';
 import { supabase } from '@/lib/supabase';
@@ -88,6 +90,7 @@ export function AdminMenu() {
   const pathname = usePathname();
   const { perfil, puedeVer, cerrarSesion } = useAdminSession();
   const [open, setOpen] = useState<string | null>(null);
+  const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
   const [pendientes, setPendientes] = useState(0);
   const [permisoNotificaciones, setPermisoNotificaciones] =
     useState<NotificationPermission | 'no-soportado'>('default');
@@ -111,6 +114,11 @@ export function AdminMenu() {
       document.removeEventListener('mousedown', cerrarSiClickAfuera);
     };
   }, []);
+
+  useEffect(() => {
+    setMenuMovilAbierto(false);
+    setOpen(null);
+  }, [pathname]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -291,7 +299,111 @@ export function AdminMenu() {
       ref={menuRef}
       className="relative z-40 mb-8 rounded-2xl border border-[#A51F2B]/10 bg-white/95 px-3 py-2 shadow-sm backdrop-blur"
     >
-      <div className="flex flex-wrap items-center gap-1.5 text-sm font-black text-[#2A1710]">
+      <div className="flex items-center justify-between gap-2 md:hidden">
+        <Link
+          href="/admin"
+          className="rounded-xl bg-[#2A1710] px-3.5 py-2 text-sm font-black text-white"
+        >
+          Maruxa ERP
+        </Link>
+
+        <div className="flex items-center gap-1">
+          {puedeVer('whatsapp') && (
+            <Link
+              href="/admin/whatsapp"
+              title="WhatsApp Business"
+              className={`relative grid h-10 w-10 place-items-center rounded-xl ${
+                pendientes > 0
+                  ? 'bg-amber-100 text-amber-800'
+                  : 'bg-[#FFF3DF] text-[#A51F2B]'
+              }`}
+            >
+              <MessageCircle className="h-4 w-4" />
+              {pendientes > 0 && (
+                <span className="absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full bg-[#A51F2B] px-1 text-[10px] font-black text-white ring-2 ring-white">
+                  {pendientes > 99 ? '99+' : pendientes}
+                </span>
+              )}
+            </Link>
+          )}
+          <button
+            type="button"
+            onClick={() => setMenuMovilAbierto((abierto) => !abierto)}
+            aria-expanded={menuMovilAbierto}
+            aria-label={menuMovilAbierto ? 'Cerrar menu' : 'Abrir menu'}
+            className="grid h-10 w-10 place-items-center rounded-xl bg-[#A51F2B] text-white"
+          >
+            {menuMovilAbierto ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
+      </div>
+
+      {menuMovilAbierto && (
+        <div className="mt-3 max-h-[calc(100dvh-8rem)] space-y-3 overflow-y-auto border-t border-[#A51F2B]/10 pt-3 md:hidden">
+          {grupos.map((grupo) => {
+            const itemsVisibles = grupo.items.filter(
+              (item) => item.future || !item.modulo || puedeVer(item.modulo)
+            );
+
+            if (itemsVisibles.length === 0) return null;
+
+            return (
+              <section key={grupo.id} className="rounded-xl bg-[#FFF8EC] p-2">
+                <p className="px-2 py-1 text-[10px] font-black uppercase tracking-widest text-[#A51F2B]">
+                  {grupo.label}
+                </p>
+                <div className="grid gap-1">
+                  {itemsVisibles.map((item) =>
+                    item.future ? (
+                      <div
+                        key={item.label}
+                        className="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-bold text-gray-400"
+                      >
+                        {item.label}
+                        <span className="text-[9px] uppercase">Proximo</span>
+                      </div>
+                    ) : (
+                      <Link
+                        key={item.href}
+                        href={item.href || '#'}
+                        className={`rounded-lg px-3 py-2.5 text-sm font-black ${
+                          esActivo(item.href)
+                            ? 'bg-[#A51F2B] text-white'
+                            : 'bg-white text-[#4B2818]'
+                        }`}
+                      >
+                        {item.label}
+                      </Link>
+                    )
+                  )}
+                </div>
+              </section>
+            );
+          })}
+
+          <div className="grid grid-cols-[1fr_auto] gap-2 border-t border-[#A51F2B]/10 pt-3">
+            <Link
+              href="/admin/perfil"
+              className="flex min-w-0 items-center gap-2 rounded-xl bg-[#FFF3DF] px-3 py-2"
+            >
+              <UserCircle className="h-5 w-5 shrink-0 text-[#A51F2B]" />
+              <span className="truncate text-xs font-black text-[#2A1710]">
+                {perfil?.funcionarios?.nombre_completo || perfil?.nombre_visible}
+              </span>
+            </Link>
+            <button
+              type="button"
+              onClick={cerrarSesion}
+              className="grid h-10 w-10 place-items-center rounded-xl bg-red-50 text-red-700"
+              aria-label="Cerrar sesion"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="hidden flex-wrap items-center gap-1.5 text-sm font-black text-[#2A1710] md:flex">
         <Link
           href="/admin"
           className={`rounded-xl px-3.5 py-2 transition ${

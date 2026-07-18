@@ -25,10 +25,10 @@ export function MobileCartBar() {
   if (items.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 left-1/2 z-[95] w-[92%] max-w-md -translate-x-1/2 lg:hidden">
+    <div className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-[95] w-[calc(100%_-_1.5rem)] max-w-md -translate-x-1/2 lg:hidden">
       <a
         href="/checkout"
-        className="flex items-center justify-between rounded-full bg-maruxa-rojo px-6 py-4 text-white shadow-2xl backdrop-blur-xl"
+        className="flex items-center justify-between gap-3 rounded-full bg-maruxa-rojo px-4 py-3 text-white shadow-2xl backdrop-blur-xl sm:px-6 sm:py-4"
       >
         <div className="flex items-center gap-3">
           <div className="grid h-11 w-11 place-items-center rounded-full bg-white/20">
@@ -47,7 +47,7 @@ export function MobileCartBar() {
           </div>
         </div>
 
-        <p className="text-xl font-black">
+        <p className="shrink-0 text-lg font-black sm:text-xl">
           ${total.toLocaleString('es-CL')}
         </p>
       </a>

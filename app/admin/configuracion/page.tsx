@@ -61,6 +61,7 @@ export default function ConfiguracionPage() {
   const [turnos, setTurnos] = useState<Turno[]>([]);
   const [impuestos, setImpuestos] = useState<ImpuestoAdicional[]>([]);
   const [cuentasBancarias, setCuentasBancarias] = useState<CuentaBancaria[]>([]);
+  const [cuentaEditando, setCuentaEditando] = useState<CuentaBancaria | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [nuevoTurno, setNuevoTurno] = useState({
@@ -348,6 +349,56 @@ export default function ConfiguracionPage() {
       return;
     }
 
+    cargarDatos();
+  }
+
+  async function guardarCuentaEditada() {
+    if (!empresa || !cuentaEditando) return;
+
+    if (!cuentaEditando.banco.trim() || !cuentaEditando.numero_cuenta.trim()) {
+      alert('Completa el banco y el numero de cuenta.');
+      return;
+    }
+
+    if (!cuentaEditando.titular.trim()) {
+      alert('Ingresa el titular de la cuenta.');
+      return;
+    }
+
+    if (cuentaEditando.es_principal) {
+      const { error: errorReset } = await supabase
+        .from('cuentas_bancarias')
+        .update({ es_principal: false })
+        .eq('empresa_id', empresa.id)
+        .neq('id', cuentaEditando.id);
+
+      if (errorReset) {
+        alert(errorReset.message);
+        return;
+      }
+    }
+
+    const { error } = await supabase
+      .from('cuentas_bancarias')
+      .update({
+        banco: cuentaEditando.banco.trim(),
+        tipo_cuenta: cuentaEditando.tipo_cuenta,
+        numero_cuenta: cuentaEditando.numero_cuenta.trim(),
+        titular: cuentaEditando.titular.trim(),
+        rut_titular: cuentaEditando.rut_titular?.trim() || null,
+        email_notificacion: cuentaEditando.email_notificacion?.trim() || null,
+        alias: cuentaEditando.alias?.trim() || null,
+        es_principal: cuentaEditando.es_principal,
+        activo: cuentaEditando.activo,
+      })
+      .eq('id', cuentaEditando.id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setCuentaEditando(null);
     cargarDatos();
   }
 
@@ -805,6 +856,96 @@ export default function ConfiguracionPage() {
                     cuenta.activo ? 'bg-maruxa-crema' : 'bg-zinc-100 opacity-70'
                   }`}
                 >
+                  {cuentaEditando?.id === cuenta.id ? (
+                    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                      <input
+                        value={cuentaEditando.banco}
+                        onChange={(e) =>
+                          setCuentaEditando({ ...cuentaEditando, banco: e.target.value })
+                        }
+                        placeholder="Banco"
+                        className="min-w-0 rounded-xl border bg-white px-4 py-3 font-bold"
+                      />
+                      <select
+                        value={cuentaEditando.tipo_cuenta}
+                        onChange={(e) =>
+                          setCuentaEditando({ ...cuentaEditando, tipo_cuenta: e.target.value })
+                        }
+                        className="min-w-0 rounded-xl border bg-white px-4 py-3 font-bold"
+                      >
+                        <option>Cuenta corriente</option>
+                        <option>Cuenta vista</option>
+                        <option>Cuenta de ahorro</option>
+                        <option>Cuenta RUT</option>
+                      </select>
+                      <input
+                        value={cuentaEditando.numero_cuenta}
+                        onChange={(e) =>
+                          setCuentaEditando({ ...cuentaEditando, numero_cuenta: e.target.value })
+                        }
+                        placeholder="Numero de cuenta"
+                        className="min-w-0 rounded-xl border bg-white px-4 py-3 font-bold"
+                      />
+                      <input
+                        value={cuentaEditando.titular}
+                        onChange={(e) =>
+                          setCuentaEditando({ ...cuentaEditando, titular: e.target.value })
+                        }
+                        placeholder="Titular"
+                        className="min-w-0 rounded-xl border bg-white px-4 py-3 font-bold"
+                      />
+                      <input
+                        value={cuentaEditando.rut_titular || ''}
+                        onChange={(e) =>
+                          setCuentaEditando({ ...cuentaEditando, rut_titular: e.target.value })
+                        }
+                        placeholder="RUT titular"
+                        className="min-w-0 rounded-xl border bg-white px-4 py-3 font-bold"
+                      />
+                      <input
+                        value={cuentaEditando.email_notificacion || ''}
+                        onChange={(e) =>
+                          setCuentaEditando({ ...cuentaEditando, email_notificacion: e.target.value })
+                        }
+                        placeholder="Email notificacion"
+                        className="min-w-0 rounded-xl border bg-white px-4 py-3 font-bold"
+                      />
+                      <input
+                        value={cuentaEditando.alias || ''}
+                        onChange={(e) =>
+                          setCuentaEditando({ ...cuentaEditando, alias: e.target.value })
+                        }
+                        placeholder="Alias visible"
+                        className="min-w-0 rounded-xl border bg-white px-4 py-3 font-bold"
+                      />
+                      <label className="flex items-center gap-3 rounded-xl bg-white px-4 py-3 font-black">
+                        <input
+                          type="checkbox"
+                          checked={cuentaEditando.es_principal}
+                          onChange={(e) =>
+                            setCuentaEditando({ ...cuentaEditando, es_principal: e.target.checked })
+                          }
+                        />
+                        Cuenta principal
+                      </label>
+                      <div className="flex flex-wrap gap-2 md:col-span-2 lg:col-span-4">
+                        <button
+                          type="button"
+                          onClick={guardarCuentaEditada}
+                          className="rounded-full bg-maruxa-rojo px-5 py-3 text-sm font-black text-white"
+                        >
+                          Guardar cambios
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCuentaEditando(null)}
+                          className="rounded-full bg-white px-5 py-3 text-sm font-black"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -835,6 +976,13 @@ export default function ConfiguracionPage() {
                     </div>
 
                     <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCuentaEditando({ ...cuenta })}
+                        className="rounded-full bg-white px-5 py-3 text-sm font-black"
+                      >
+                        Editar cuenta
+                      </button>
                       {!cuenta.es_principal && (
                         <button
                           type="button"
@@ -854,6 +1002,7 @@ export default function ConfiguracionPage() {
                       </button>
                     </div>
                   </div>
+                  )}
                 </div>
               ))
             )}

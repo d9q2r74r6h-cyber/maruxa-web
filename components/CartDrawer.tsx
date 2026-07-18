@@ -56,7 +56,8 @@ export function CartDrawer() {
     <>
       <button
   onClick={() => setOpen(true)}
-  className={`fixed bottom-5 right-5 z-[90] flex items-center gap-3 rounded-full bg-[#8f2028] px-6 py-5 text-base font-black text-white shadow-[0_18px_45px_rgba(143,32,40,0.45)] ring-4 ring-white transition hover:scale-105 active:scale-95 lg:bottom-8 lg:right-8 ${
+  aria-label="Abrir carrito"
+  className={`fixed bottom-5 right-5 z-[90] hidden items-center gap-3 rounded-full bg-[#8f2028] px-6 py-5 text-base font-black text-white shadow-[0_18px_45px_rgba(143,32,40,0.45)] ring-4 ring-white transition hover:scale-105 active:scale-95 lg:bottom-8 lg:right-8 lg:flex ${
     cantidadTotal > 0 ? 'animate-pulse' : ''
   }`}>
 <ShoppingBag
@@ -107,6 +108,7 @@ export function CartDrawer() {
 
             <button
               onClick={() => setOpen(false)}
+              aria-label="Cerrar carrito"
               className="grid h-11 w-11 place-items-center rounded-full border border-maruxa-rojo/10 bg-white"
             >
               <X />
