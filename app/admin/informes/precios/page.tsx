@@ -53,6 +53,7 @@ export default function InformePreciosPage() {
   >({});
   const [cargando, setCargando] = useState(true);
   const [formato, setFormato] = useState<'listado' | 'suelto'>('listado');
+  const [mostrarCuarto, setMostrarCuarto] = useState(true);
   const [familiaId, setFamiliaId] = useState('');
   const [busqueda, setBusqueda] = useState('');
   const [seleccionados, setSeleccionados] = useState<Record<number, boolean>>({});
@@ -303,7 +304,7 @@ export default function InformePreciosPage() {
         </button>
       </header>
 
-      <section className="no-print grid gap-4 rounded-3xl bg-white p-5 shadow-sm lg:grid-cols-[220px_1fr_1fr]">
+      <section className="no-print grid gap-4 rounded-3xl bg-white p-5 shadow-sm md:grid-cols-2 lg:grid-cols-4">
         <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
           Formato
           <select
@@ -315,6 +316,20 @@ export default function InformePreciosPage() {
           >
             <option value="listado">Precio listado</option>
             <option value="suelto">Precio suelto</option>
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
+          Valor 1/4
+          <select
+            value={mostrarCuarto ? 'mostrar' : 'ocultar'}
+            onChange={(event) =>
+              setMostrarCuarto(event.target.value === 'mostrar')
+            }
+            disabled={formato !== 'listado'}
+            className="h-11 rounded-xl border bg-white px-3 text-sm font-bold normal-case text-maruxa-chocolate disabled:bg-gray-100 disabled:text-gray-400"
+          >
+            <option value="mostrar">Mostrar 1/4</option>
+            <option value="ocultar">Ocultar 1/4</option>
           </select>
         </label>
         <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
@@ -416,7 +431,9 @@ export default function InformePreciosPage() {
                   {formato === 'suelto' && activo && (
                     <div className="mt-3 grid gap-2 border-t pt-3">
                       <input
-                        value={descripciones[producto.id]?.linea1 || ''}
+                        value={
+                          descripciones[producto.id]?.linea1 ?? producto.nombre
+                        }
                         onChange={(event) =>
                           actualizarDescripcion(
                             producto.id,
@@ -424,7 +441,7 @@ export default function InformePreciosPage() {
                             event.target.value
                           )
                         }
-                        placeholder="Descripción o formato, línea 1"
+                        placeholder="Título"
                         className="rounded-lg border bg-white px-3 py-2 text-xs font-bold"
                       />
                       <input
@@ -436,7 +453,7 @@ export default function InformePreciosPage() {
                             event.target.value
                           )
                         }
-                        placeholder="Descripción opcional, línea 2"
+                        placeholder="Descripción opcional"
                         className="rounded-lg border bg-white px-3 py-2 text-xs font-bold"
                       />
                     </div>
@@ -485,9 +502,11 @@ export default function InformePreciosPage() {
                     <th className="w-20 border border-black px-2 py-1 text-center font-black uppercase">
                       Kilo
                     </th>
-                    <th className="w-16 border border-black px-2 py-1 text-center font-black uppercase">
-                      1/4
-                    </th>
+                    {mostrarCuarto && (
+                      <th className="w-16 border border-black px-2 py-1 text-center font-black uppercase">
+                        1/4
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -518,9 +537,11 @@ export default function InformePreciosPage() {
                         <td className="border border-black px-2 py-1 text-right font-bold">
                           {dinero(producto.precio)}
                         </td>
-                        <td className="border border-black px-2 py-1 text-right font-bold">
-                          {esKilo ? dinero(Number(producto.precio || 0) / 4) : ''}
-                        </td>
+                        {mostrarCuarto && (
+                          <td className="border border-black px-2 py-1 text-right font-bold">
+                            {esKilo ? dinero(Number(producto.precio || 0) / 4) : ''}
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
@@ -538,13 +559,8 @@ export default function InformePreciosPage() {
                   className="flex min-h-[175px] break-inside-avoid flex-col items-center justify-center border-2 border-black px-4 py-3 text-center"
                 >
                   <h2 className="text-2xl font-black uppercase leading-tight">
-                    {producto.nombre}
+                    {descripcion?.linea1 || producto.nombre}
                   </h2>
-                  {descripcion?.linea1 && (
-                    <p className="mt-1 text-xl font-black uppercase leading-tight">
-                      {descripcion.linea1}
-                    </p>
-                  )}
                   {descripcion?.linea2 && (
                     <p className="text-lg font-bold uppercase leading-tight">
                       {descripcion.linea2}
