@@ -231,12 +231,12 @@ export default function ProductosPorProveedorPage() {
       </header>
 
       <section className="no-print grid gap-4 rounded-3xl bg-white p-5 shadow-sm md:grid-cols-3">
-        <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
+        <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
           Proveedor
           <select
             value={proveedorId}
             onChange={(event) => setProveedorId(event.target.value)}
-            className="h-11 rounded-xl border bg-white px-3 text-sm font-bold normal-case text-maruxa-chocolate"
+            className="h-11 w-full min-w-0 rounded-xl border bg-white px-3 text-sm font-bold normal-case text-maruxa-chocolate"
           >
             <option value="todos">Todos los proveedores</option>
             <option value="sin-proveedor">Sin proveedor</option>
@@ -248,23 +248,23 @@ export default function ProductosPorProveedorPage() {
           </select>
         </label>
 
-        <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
+        <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
           Valor 1/4
           <select
             value={mostrarCuarto ? 'mostrar' : 'ocultar'}
             onChange={(event) =>
               setMostrarCuarto(event.target.value === 'mostrar')
             }
-            className="h-11 rounded-xl border bg-white px-3 text-sm font-bold normal-case text-maruxa-chocolate"
+            className="h-11 w-full min-w-0 rounded-xl border bg-white px-3 text-sm font-bold normal-case text-maruxa-chocolate"
           >
             <option value="mostrar">Mostrar 1/4</option>
             <option value="ocultar">Ocultar 1/4</option>
           </select>
         </label>
 
-        <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
+        <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
           Buscar producto
-          <span className="flex h-11 items-center gap-2 rounded-xl border px-3">
+          <span className="flex h-11 min-w-0 items-center gap-2 rounded-xl border px-3">
             <Search className="h-4 w-4 text-maruxa-cafe/45" />
             <input
               value={busqueda}
