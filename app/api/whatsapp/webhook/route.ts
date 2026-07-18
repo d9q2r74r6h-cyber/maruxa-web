@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
+import { obtenerCanalWhatsapp } from '@/lib/whatsapp-canales';
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
@@ -147,19 +148,22 @@ async function enviarCorreoPedidoWhatsApp(pedido: any) {
   return error?.message || null;
 }
 
-async function responderPedidoWhatsApp(telefono: string, pedidoId: string | number) {
-  const token = process.env.WHATSAPP_ACCESS_TOKEN;
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+async function responderPedidoWhatsApp(
+  telefono: string,
+  pedidoId: string | number,
+  phoneNumberId?: string | null
+) {
+  const canal = obtenerCanalWhatsapp(phoneNumberId);
   const destino = telefono.replace(/\D/g, '');
 
-  if (!token || !phoneNumberId || !destino) return null;
+  if (!canal || !destino) return 'El numero receptor no esta configurado para responder.';
 
   const respuesta = await fetch(
-    `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
+    `https://graph.facebook.com/v20.0/${canal.phoneNumberId}/messages`,
     {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${canal.accessToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -548,6 +552,8 @@ export async function POST(request: Request) {
           payload: {
             direccion: 'saliente',
             origen: 'aviso_administrador',
+            canal_phone_number_id: valor.metadata?.phone_number_id || null,
+            canal_telefono: valor.metadata?.display_phone_number || null,
             estado_meta: estado,
           },
         })
@@ -734,7 +740,11 @@ export async function POST(request: Request) {
           : null;
       const errorRespuesta =
         pedido && !errorPedido
-          ? await responderPedidoWhatsApp(telefonoCliente, pedido.id)
+          ? await responderPedidoWhatsApp(
+              telefonoCliente,
+              pedido.id,
+              valor.metadata?.phone_number_id
+            )
           : null;
 
       const { data: eventoPedido } = await admin.from('whatsapp_eventos').insert({

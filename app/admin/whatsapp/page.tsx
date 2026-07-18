@@ -31,8 +31,12 @@ type WhatsappEvento = {
 };
 
 type Conversacion = {
+  clave: string;
   telefono: string;
   nombre: string;
+  canalPhoneNumberId: string | null;
+  canalTelefono: string | null;
+  canalEtiqueta: string;
   eventos: WhatsappEvento[];
   pendientes: number;
   ultimoEvento: WhatsappEvento;
@@ -93,6 +97,43 @@ function valoresPayload(evento: WhatsappEvento) {
     mensaje: null,
     contacto: cambios[0]?.contacts?.[0] || null,
   };
+}
+
+function datosCanalWhatsapp(evento: WhatsappEvento) {
+  if (evento.origen === 'instagram') {
+    return {
+      phoneNumberId: null,
+      telefono: null,
+      etiqueta: 'Instagram',
+    };
+  }
+
+  const cambios =
+    evento.payload?.entry?.flatMap((entrada: any) =>
+      (entrada.changes || []).map((cambio: any) => cambio.value)
+    ) || [];
+  const valorMensaje = cambios.find((valor: any) =>
+    (valor.messages || []).some((mensaje: any) => mensaje.id === evento.message_id)
+  );
+  const metadata = valorMensaje?.metadata || cambios[0]?.metadata;
+
+  return {
+    phoneNumberId:
+      evento.payload?.canal_phone_number_id || metadata?.phone_number_id || null,
+    telefono:
+      evento.payload?.canal_telefono || metadata?.display_phone_number || null,
+    etiqueta: evento.payload?.canal_etiqueta || 'WhatsApp',
+  };
+}
+
+function claveBaseEvento(evento: WhatsappEvento) {
+  if (evento.origen === 'instagram') {
+    return `instagram:${evento.sender_id || evento.telefono || evento.id}`;
+  }
+
+  const telefono = evento.telefono || 'Sin telefono';
+  const canal = datosCanalWhatsapp(evento).phoneNumberId || 'principal';
+  return `whatsapp:${canal}:${telefono}`;
 }
 
 function nombreContacto(evento: WhatsappEvento) {
@@ -199,7 +240,7 @@ export default function AdminWhatsappPage() {
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState('');
   const [canalActivo, setCanalActivo] = useState<CanalActivo>('whatsapp');
-  const [telefonoActivo, setTelefonoActivo] = useState<string | null>(null);
+  const [conversacionActivaId, setConversacionActivaId] = useState<string | null>(null);
   const [respuestas, setRespuestas] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState<string | null>(null);
   const [cuentaPrincipal, setCuentaPrincipal] = useState<CuentaBancaria | null>(null);
@@ -234,11 +275,7 @@ export default function AdminWhatsappPage() {
       });
       notificacion.onclick = () => {
         window.focus();
-        setTelefonoActivo(
-          evento.origen === 'instagram'
-            ? `instagram:${evento.sender_id || evento.telefono || evento.id}`
-            : evento.telefono || 'Sin telefono'
-        );
+        setConversacionActivaId(claveBaseEvento(evento));
       };
     }
   }
@@ -327,26 +364,48 @@ export default function AdminWhatsappPage() {
 
   const conversaciones = useMemo(() => {
     const grupos = new Map<string, WhatsappEvento[]>();
+    const canalConocidoPorTelefono = new Map<string, string>();
 
     eventosVisibles.forEach((evento) => {
-      const telefono =
+      if (evento.origen === 'instagram' || !evento.telefono) return;
+      const phoneNumberId = datosCanalWhatsapp(evento).phoneNumberId;
+      if (phoneNumberId && !canalConocidoPorTelefono.has(evento.telefono)) {
+        canalConocidoPorTelefono.set(evento.telefono, phoneNumberId);
+      }
+    });
+
+    eventosVisibles.forEach((evento) => {
+      const telefono = evento.telefono || 'Sin telefono';
+      const clave =
         evento.origen === 'instagram'
           ? `instagram:${evento.sender_id || evento.telefono || evento.id}`
-          : evento.telefono || 'Sin telefono';
-      grupos.set(telefono, [...(grupos.get(telefono) || []), evento]);
+          : `whatsapp:${
+              datosCanalWhatsapp(evento).phoneNumberId ||
+              canalConocidoPorTelefono.get(telefono) ||
+              'principal'
+            }:${telefono}`;
+      grupos.set(clave, [...(grupos.get(clave) || []), evento]);
     });
 
     return Array.from(grupos.entries())
-      .map(([telefono, lista]) => {
+      .map(([clave, lista]) => {
         const ordenados = [...lista].sort(
           (a, b) =>
             new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
         );
         const ultimoEvento = ordenados[ordenados.length - 1];
+        const eventoConCanal = [...ordenados]
+          .reverse()
+          .find((evento) => datosCanalWhatsapp(evento).phoneNumberId);
+        const canal = datosCanalWhatsapp(eventoConCanal || ultimoEvento);
 
         return {
-          telefono,
+          clave,
+          telefono: ultimoEvento.telefono || 'Sin telefono',
           nombre: nombreContacto(ultimoEvento),
+          canalPhoneNumberId: canal.phoneNumberId,
+          canalTelefono: canal.telefono,
+          canalEtiqueta: canal.etiqueta,
           eventos: ordenados,
           pendientes: ordenados.filter(estaPendiente).length,
           ultimoEvento,
@@ -410,22 +469,22 @@ export default function AdminWhatsappPage() {
   }
 
   useEffect(() => {
-    const telefonoValido = conversaciones.some(
-      (conversacion) => conversacion.telefono === telefonoActivo
+    const conversacionValida = conversaciones.some(
+      (conversacion) => conversacion.clave === conversacionActivaId
     );
 
     if (conversaciones.length === 0) {
-      setTelefonoActivo(null);
+      setConversacionActivaId(null);
       return;
     }
 
-    if (!telefonoActivo || !telefonoValido) {
-      setTelefonoActivo(conversaciones[0].telefono);
+    if (!conversacionActivaId || !conversacionValida) {
+      setConversacionActivaId(conversaciones[0].clave);
     }
-  }, [conversaciones, telefonoActivo]);
+  }, [conversaciones, conversacionActivaId]);
 
   const conversacionesFiltradas = conversaciones.filter((conversacion) => {
-    const texto = `${conversacion.nombre} ${conversacion.telefono} ${textoMensaje(
+    const texto = `${conversacion.nombre} ${conversacion.telefono} ${conversacion.canalTelefono || ''} ${textoMensaje(
       conversacion.ultimoEvento
     )}`.toLowerCase();
 
@@ -433,13 +492,13 @@ export default function AdminWhatsappPage() {
   });
 
   const conversacionActiva =
-    conversaciones.find((conversacion) => conversacion.telefono === telefonoActivo) ||
+    conversaciones.find((conversacion) => conversacion.clave === conversacionActivaId) ||
     conversacionesFiltradas[0] ||
     null;
 
   useEffect(() => {
     finalMensajesRef.current?.scrollIntoView({ block: 'end' });
-  }, [conversacionActiva?.telefono, conversacionActiva?.eventos.length]);
+  }, [conversacionActiva?.clave, conversacionActiva?.eventos.length]);
 
   const resumen = {
     conversaciones: conversaciones.length,
@@ -482,14 +541,14 @@ export default function AdminWhatsappPage() {
     conversacion: Conversacion,
     mensajeRapido?: string
   ) {
-    const mensaje = mensajeRapido?.trim() || respuestas[conversacion.telefono]?.trim();
+    const mensaje = mensajeRapido?.trim() || respuestas[conversacion.clave]?.trim();
 
     if (!mensaje) {
       alert('Escribe una respuesta.');
       return;
     }
 
-    if (conversacion.telefono.startsWith('instagram:')) {
+    if (conversacion.ultimoEvento.origen === 'instagram') {
       alert('La respuesta a Instagram requiere configurar el envio por Instagram Messaging. Por ahora este chat recibe y muestra mensajes.');
       return;
     }
@@ -508,7 +567,7 @@ export default function AdminWhatsappPage() {
       return;
     }
 
-    setEnviando(conversacion.telefono);
+    setEnviando(conversacion.clave);
 
     const idsPendientes = conversacion.eventos
       .filter(estaPendiente)
@@ -524,6 +583,7 @@ export default function AdminWhatsappPage() {
         telefono: conversacion.telefono,
         mensaje,
         idsPendientes,
+        phoneNumberId: conversacion.canalPhoneNumberId,
       }),
     });
 
@@ -534,7 +594,7 @@ export default function AdminWhatsappPage() {
       return;
     }
 
-    setRespuestas((actual) => ({ ...actual, [conversacion.telefono]: '' }));
+    setRespuestas((actual) => ({ ...actual, [conversacion.clave]: '' }));
     setEnviando(null);
     cargarMensajes();
   }
@@ -648,13 +708,12 @@ export default function AdminWhatsappPage() {
                 <button
                   key={evento.id}
                   type="button"
-                  onClick={() =>
-                    setTelefonoActivo(
-                      evento.origen === 'instagram'
-                        ? `instagram:${evento.sender_id || evento.telefono || evento.id}`
-                        : evento.telefono || 'Sin telefono'
-                    )
-                  }
+                  onClick={() => {
+                    const conversacion = conversaciones.find((item) =>
+                      item.eventos.some((eventoConversacion) => eventoConversacion.id === evento.id)
+                    );
+                    setConversacionActivaId(conversacion?.clave || claveBaseEvento(evento));
+                  }}
                   className="mb-1 grid w-full grid-cols-[52px_minmax(0,1fr)] items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs font-bold text-maruxa-chocolate hover:bg-maruxa-crema sm:grid-cols-[82px_minmax(0,1fr)_auto] sm:px-3"
                 >
                   <span className="text-[10px] font-black text-maruxa-cafe/55">
@@ -696,15 +755,15 @@ export default function AdminWhatsappPage() {
                   </p>
                 ) : (
                   conversacionesFiltradas.map((conversacion) => {
-                    const activo = conversacion.telefono === conversacionActiva?.telefono;
+                    const activo = conversacion.clave === conversacionActiva?.clave;
                     const esPedido = conversacion.ultimoEvento.tipo === 'order';
                     const esInstagram = conversacion.ultimoEvento.origen === 'instagram';
 
                     return (
                       <button
-                        key={conversacion.telefono}
+                        key={conversacion.clave}
                         type="button"
-                        onClick={() => setTelefonoActivo(conversacion.telefono)}
+                        onClick={() => setConversacionActivaId(conversacion.clave)}
                         className={`mb-1 grid w-full grid-cols-[32px_minmax(0,1fr)_auto] gap-2 rounded-lg p-2 text-left transition ${
                           activo
                             ? 'bg-[#A51F2B] text-white'
@@ -770,10 +829,15 @@ export default function AdminWhatsappPage() {
                         {conversacionActiva.nombre}
                       </h2>
                       <p className="text-xs font-bold text-maruxa-cafe/65">
-                        {conversacionActiva.telefono.startsWith('instagram:')
+                        {conversacionActiva.ultimoEvento.origen === 'instagram'
                           ? 'Instagram'
                           : conversacionActiva.telefono}
                       </p>
+                      {conversacionActiva.ultimoEvento.origen !== 'instagram' && (
+                        <p className="mt-0.5 text-[10px] font-black uppercase tracking-wide text-maruxa-rojo">
+                          Recibido en {conversacionActiva.canalTelefono || conversacionActiva.canalEtiqueta}
+                        </p>
+                      )}
                     </div>
 
                     {conversacionActiva.pendientes > 0 ? (
@@ -879,7 +943,7 @@ export default function AdminWhatsappPage() {
                   </div>
 
                   <footer className="border-t border-maruxa-rojo/10 bg-white p-3">
-                    {!conversacionActiva.telefono.startsWith('instagram:') && (
+                    {conversacionActiva.ultimoEvento.origen !== 'instagram' && (
                       <div className="mb-2 flex flex-wrap items-center gap-2">
                         <span className="text-[10px] font-black uppercase tracking-wider text-maruxa-cafe/55">
                           Respuestas rapidas
@@ -894,7 +958,7 @@ export default function AdminWhatsappPage() {
                             )
                           }
                           disabled={
-                            !cuentaPrincipal || enviando === conversacionActiva.telefono
+                            !cuentaPrincipal || enviando === conversacionActiva.clave
                           }
                           className="inline-flex min-h-9 items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-black text-emerald-800 transition hover:bg-emerald-100 disabled:border-zinc-200 disabled:bg-zinc-100 disabled:text-zinc-500"
                           title={
@@ -912,15 +976,15 @@ export default function AdminWhatsappPage() {
                     )}
                     <div className="grid min-w-0 gap-2 lg:grid-cols-[minmax(0,1fr)_150px] lg:items-end">
                       <textarea
-                        value={respuestas[conversacionActiva.telefono] || ''}
+                        value={respuestas[conversacionActiva.clave] || ''}
                         onChange={(e) =>
                           setRespuestas((actual) => ({
                             ...actual,
-                            [conversacionActiva.telefono]: e.target.value,
+                            [conversacionActiva.clave]: e.target.value,
                           }))
                         }
                         placeholder="Escribe un mensaje"
-                        disabled={conversacionActiva.telefono.startsWith('instagram:')}
+                        disabled={conversacionActiva.ultimoEvento.origen === 'instagram'}
                         className="min-h-10 w-full min-w-0 resize-y rounded-lg border border-maruxa-rojo/10 bg-maruxa-crema p-2.5 text-xs font-bold leading-5 text-maruxa-chocolate outline-none"
                       />
 
@@ -928,15 +992,15 @@ export default function AdminWhatsappPage() {
                         type="button"
                         onClick={() => enviarRespuesta(conversacionActiva)}
                         disabled={
-                          enviando === conversacionActiva.telefono ||
-                          conversacionActiva.telefono.startsWith('instagram:')
+                          enviando === conversacionActiva.clave ||
+                          conversacionActiva.ultimoEvento.origen === 'instagram'
                         }
                         className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-full border-2 border-[#7A111B] bg-[#A51F2B] px-4 py-2 text-center text-xs font-black leading-5 text-white shadow-[0_10px_24px_rgba(165,31,43,0.28)] transition hover:bg-[#7A111B] disabled:border-zinc-300 disabled:bg-zinc-300 disabled:text-zinc-600 disabled:shadow-none"
                       >
                         <Send className="h-4 w-4 shrink-0" />
-                        {conversacionActiva.telefono.startsWith('instagram:')
+                        {conversacionActiva.ultimoEvento.origen === 'instagram'
                           ? 'Solo lectura'
-                          : enviando === conversacionActiva.telefono
+                          : enviando === conversacionActiva.clave
                           ? 'Enviando...'
                           : 'Enviar'}
                       </button>

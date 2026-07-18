@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { obtenerCanalWhatsapp } from '@/lib/whatsapp-canales';
 
 function crearAdmin() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -49,14 +50,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Acceso denegado.' }, { status: 403 });
   }
 
-  const { telefono, mensaje, idsPendientes } = await request.json();
+  const { telefono, mensaje, idsPendientes, phoneNumberId } = await request.json();
   const destino = normalizarDestino(telefono);
-  const token = process.env.WHATSAPP_ACCESS_TOKEN;
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const canal = obtenerCanalWhatsapp(phoneNumberId);
 
-  if (!token || !phoneNumberId) {
+  if (!canal) {
     return NextResponse.json(
-      { error: 'Variables de WhatsApp incompletas.' },
+      { error: 'El numero de WhatsApp seleccionado no esta configurado.' },
       { status: 503 }
     );
   }
@@ -69,11 +69,11 @@ export async function POST(request: Request) {
   }
 
   const respuesta = await fetch(
-    `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
+    `https://graph.facebook.com/v20.0/${canal.phoneNumberId}/messages`,
     {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${canal.accessToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -123,6 +123,9 @@ export async function POST(request: Request) {
       mensaje,
       origen: 'admin',
       enviado_por: perfil.nombre_visible || autenticacion.user.email || null,
+      canal_phone_number_id: canal.phoneNumberId,
+      canal_telefono: canal.telefonoVisible,
+      canal_etiqueta: canal.etiqueta,
       meta: dataMeta,
     },
   });
@@ -137,5 +140,9 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json({ ok: true, message_id: messageId });
+  return NextResponse.json({
+    ok: true,
+    message_id: messageId,
+    phone_number_id: canal.phoneNumberId,
+  });
 }
