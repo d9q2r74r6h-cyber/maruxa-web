@@ -179,19 +179,21 @@ export default function InformePreciosPage() {
 
     productosSeleccionados.forEach((producto) => {
       const familia = familias.find((item) => item.id === producto.familia_id);
-      const esCecina = normalizar(familia?.nombre || '').includes('cecina');
-      const proveedor = esCecina
-        ? proveedores.find((item) => item.id === producto.proveedor_id)
-        : undefined;
-      const clave = esCecina
-        ? `proveedor:${proveedor?.id || 'sin-proveedor'}`
-        : `familia:${familia?.id || 'sin-familia'}`;
+      const proveedor = proveedores.find(
+        (item) => item.id === producto.proveedor_id
+      );
+      const nombreFamilia = familia?.nombre || 'OTROS';
+      const nombreProveedor =
+        proveedor?.nombre_fantasia?.trim() ||
+        proveedor?.razon_social ||
+        'SIN PROVEEDOR';
+      const clave = `familia:${familia?.id || 'sin-familia'}:proveedor:${
+        proveedor?.id || 'sin-proveedor'
+      }`;
       const grupo = grupos.get(clave) || {
-        nombre: esCecina
-          ? proveedor?.nombre_fantasia?.trim() ||
-            proveedor?.razon_social ||
-            'SIN PROVEEDOR'
-          : familia?.nombre || 'OTROS',
+        nombre: familiaId
+          ? nombreProveedor
+          : `${nombreFamilia} · ${nombreProveedor}`,
         productos: [],
       };
       grupo.productos.push(producto);
@@ -199,7 +201,7 @@ export default function InformePreciosPage() {
     });
 
     return [...grupos.values()].sort((a, b) => a.nombre.localeCompare(b.nombre));
-  }, [familias, productosSeleccionados, proveedores]);
+  }, [familiaId, familias, productosSeleccionados, proveedores]);
 
   function seleccionarVisibles(valor: boolean) {
     setSeleccionados((actuales) => {
