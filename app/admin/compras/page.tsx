@@ -65,6 +65,8 @@ type ItemCompra = {
   precio_listado: boolean;
   texto_listado_1: string;
   texto_listado_2: string;
+  nuevo_producto?: boolean;
+  familia_id_nueva?: string;
 };
 
 type TipoProductoCompra = 'producto' | 'ingrediente' | 'envase';
@@ -272,6 +274,11 @@ export default function AdminComprasPage() {
   const [mostrarProveedores, setMostrarProveedores] = useState(false);
   const [buscandoProveedores, setBuscandoProveedores] = useState(false);
   const [familias, setFamilias] = useState<FamiliaProducto[]>([]);
+  const [familiaGeneralId, setFamiliaGeneralId] = useState('');
+  const [margenGeneral, setMargenGeneral] = useState('');
+  const [tipoMargenGeneral, setTipoMargenGeneral] = useState<
+    'markup' | 'margen_comercial'
+  >('markup');
   const [items, setItems] = useState<ItemCompra[]>([]);
   const [resultadosBusqueda, setResultadosBusqueda] = useState<Record<number, Producto[]>>({});
   const [ultimasCompras, setUltimasCompras] = useState<Record<number, UltimaCompraProducto[]>>({});
@@ -794,6 +801,13 @@ export default function AdminComprasPage() {
     );
   }
 
+  function seleccionarFamiliaGeneral(familiaId: string) {
+    const familia = familias.find((item) => item.id === familiaId);
+    setFamiliaGeneralId(familiaId);
+    setMargenGeneral(familia ? String(numero(familia.margen_porcentaje) || '') : '');
+    setTipoMargenGeneral(familia?.tipo_margen || 'markup');
+  }
+
   function eliminarItem(index: number) {
     setItems(items.filter((_, i) => i !== index));
   }
@@ -842,6 +856,8 @@ export default function AdminComprasPage() {
             ...item,
             producto_id: '',
             busqueda_producto: valor,
+            nuevo_producto: false,
+            familia_id_nueva: '',
           };
         }
 
@@ -1295,8 +1311,16 @@ export default function AdminComprasPage() {
     return numero(historial.precio);
   }
 
-  async function generarCodigoProductoCompra(empresaId: string | number) {
-    const prefijo = prefijoCodigoNuevoProducto;
+  async function generarCodigoProductoCompra(
+    empresaId: string | number,
+    nombre = nuevoProducto.nombre,
+    familiaId = nuevoProducto.familia_id,
+    tipoProducto: TipoProductoCompra = nuevoProducto.tipo_producto
+  ) {
+    const familia = familias.find((item) => item.id === familiaId);
+    const prefijo = `${prefijoTipoProducto[tipoProducto]}-${
+      normalizarCodigo(familia?.nombre || nombre || 'GEN') || 'GEN'
+    }`;
 
     const { data, error } = await supabase
       .from('productos')
@@ -1500,10 +1524,10 @@ export default function AdminComprasPage() {
     setMostrarCrearProducto(false);
   }
 
-  function consolidarItemsValidos() {
+  function consolidarItemsValidos(itemsFuente: ItemCompra[] = items) {
     const agrupados = new Map<string, ItemCompraConsolidado>();
 
-    for (const item of items) {
+    for (const item of itemsFuente) {
       if (
         !item.producto_id ||
         numero(item.cantidad) <= 0 ||
@@ -1543,10 +1567,13 @@ export default function AdminComprasPage() {
     return [...agrupados.values()];
   }
 
-  function calcularVariaciones(itemsConsolidados: ItemCompraConsolidado[]) {
+  function calcularVariaciones(
+    itemsConsolidados: ItemCompraConsolidado[],
+    productosFuente: Producto[] = productos
+  ) {
     return itemsConsolidados
       .map((item) => {
-        const producto = productos.find((p) => String(p.id) === String(item.producto_id));
+        const producto = productosFuente.find((p) => String(p.id) === String(item.producto_id));
 
         if (!producto) return null;
 
@@ -1759,10 +1786,127 @@ export default function AdminComprasPage() {
   }
 
   async function guardarCompra() {
-    const itemsConsolidados = consolidarItemsValidos();
+    const empresa = await obtenerEmpresaActual();
+
+    if (!empresa) {
+      alert('No se pudo identificar la empresa.');
+      return;
+    }
+
+    let itemsTrabajo = [...items];
+    let productosTrabajo = [...productos];
+    const nuevosPendientes = itemsTrabajo.filter((item) => item.nuevo_producto);
+
+    if (nuevosPendientes.length > 0) {
+      if (!proveedorId) {
+        alert('Selecciona el proveedor en la parte superior.');
+        return;
+      }
+
+      setGuardando(true);
+
+      for (const itemNuevo of nuevosPendientes) {
+        const nombre = itemNuevo.busqueda_producto.trim();
+        const familiaId = itemNuevo.familia_id_nueva || familiaGeneralId;
+        const familia = familias.find((item) => item.id === familiaId);
+        const costoNeto = desgloseIva(
+          numero(itemNuevo.costo_unitario),
+          ivaPorcentaje,
+          precioIvaIncluido
+        ).neto;
+
+        if (!nombre || !familiaId || costoNeto <= 0) {
+          setGuardando(false);
+          alert('Completa el nombre, la familia y el costo del producto nuevo.');
+          return;
+        }
+
+        let codigo = '';
+        try {
+          codigo = await generarCodigoProductoCompra(
+            empresa.id,
+            nombre,
+            familiaId,
+            'producto'
+          );
+        } catch (error) {
+          setGuardando(false);
+          alert(error instanceof Error ? error.message : 'No se pudo generar el codigo.');
+          return;
+        }
+
+        const margenIngresado = numero(itemNuevo.margen_porcentaje);
+        const usaMargenFamilia =
+          margenIngresado === numero(familia?.margen_porcentaje) &&
+          itemNuevo.tipo_margen === (familia?.tipo_margen || 'markup');
+
+        const { data: productoCreado, error: errorProductoNuevo } = await supabase
+          .from('productos')
+          .insert({
+            empresa_id: empresa.id,
+            proveedor_id: proveedorId,
+            codigo,
+            nombre,
+            descripcion: '',
+            precio: numero(itemNuevo.precio_venta),
+            categoria: 'Productos',
+            imagen: null,
+            destacado: false,
+            slug: crearSlug(nombre),
+            tipo_producto: 'producto',
+            familia_id: familiaId,
+            unidad_base: 'KG',
+            costo_unitario: costoNeto,
+            iva_porcentaje: Number(empresa.iva_porcentaje ?? 19),
+            impuesto_adicional_porcentaje: 0,
+            stock_actual: 0,
+            stock_minimo: 0,
+            activo: true,
+            controla_stock: true,
+            usar_configuracion_familia: usaMargenFamilia,
+            margen_personalizado: usaMargenFamilia ? null : margenIngresado || null,
+            tipo_margen_personalizado: usaMargenFamilia
+              ? null
+              : itemNuevo.tipo_margen,
+          })
+          .select(`
+            id,codigo,nombre,tipo_producto,familia_id,unidad_base,stock_actual,
+            costo_unitario,precio,proveedor_id,controla_stock,
+            usar_configuracion_familia,margen_personalizado,tipo_margen_personalizado
+          `)
+          .single();
+
+        if (errorProductoNuevo || !productoCreado) {
+          setGuardando(false);
+          alert(errorProductoNuevo?.message || 'No se pudo crear el producto.');
+          return;
+        }
+
+        const productoNormalizado = productoCreado as Producto;
+        productosTrabajo.push(productoNormalizado);
+        itemsTrabajo = itemsTrabajo.map((item) =>
+          item === itemNuevo
+            ? {
+                ...item,
+                producto_id: String(productoNormalizado.id),
+                busqueda_producto: `${productoNormalizado.nombre} - producto`,
+                nuevo_producto: false,
+                familia_id_nueva: '',
+              }
+            : item
+        );
+      }
+
+      setProductos(
+        [...productosTrabajo].sort((a, b) => a.nombre.localeCompare(b.nombre))
+      );
+      setItems(itemsTrabajo);
+    }
+
+    const itemsConsolidados = consolidarItemsValidos(itemsTrabajo);
 
     if (itemsConsolidados.length === 0) {
-      const productoId = items.find((item) => item.producto_id)?.producto_id;
+      const productoId = itemsTrabajo.find((item) => item.producto_id)?.producto_id;
 
       if (productoDesdeInforme && productoId && proveedorId) {
         setGuardando(true);
@@ -1790,16 +1934,12 @@ export default function AdminComprasPage() {
       return;
     }
 
-    const empresa = await obtenerEmpresaActual();
-
-    if (!empresa) {
-      alert('No se pudo identificar la empresa.');
-      return;
-    }
-
     setGuardando(true);
 
-    const variacionesRegistradas = calcularVariaciones(itemsConsolidados);
+    const variacionesRegistradas = calcularVariaciones(
+      itemsConsolidados,
+      productosTrabajo
+    );
     const variacionesPorProducto = new Map(
       variacionesRegistradas.map((item) => [item.producto_id, item])
     );
@@ -1826,11 +1966,11 @@ export default function AdminComprasPage() {
     const fechaCompra = new Date();
 
     for (const item of itemsConsolidados) {
-      const producto = productos.find((p) => String(p.id) === String(item.producto_id));
+      const producto = productosTrabajo.find((p) => String(p.id) === String(item.producto_id));
 
       if (!producto) continue;
 
-      const itemIngresado = items.find(
+      const itemIngresado = itemsTrabajo.find(
         (detalle) => String(detalle.producto_id) === String(producto.id)
       );
       const precioVenta = numero(itemIngresado?.precio_venta);
@@ -1971,10 +2111,10 @@ export default function AdminComprasPage() {
         if (productosGuardados.has(productoId)) return [];
         productosGuardados.add(productoId);
 
-        const itemOriginal = items.find(
+        const itemOriginal = itemsTrabajo.find(
           (item) => String(item.producto_id) === productoId
         );
-        const producto = productos.find((item) => String(item.id) === productoId);
+        const producto = productosTrabajo.find((item) => String(item.id) === productoId);
 
         return [
           {
@@ -2103,6 +2243,42 @@ export default function AdminComprasPage() {
                 </span>
               </label>
             )}
+
+            <div className="mt-3 grid max-w-3xl gap-3 sm:grid-cols-[minmax(0,1fr)_180px]">
+              <label className="grid gap-1">
+                <span className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
+                  Familia para productos nuevos
+                </span>
+                <select
+                  value={familiaGeneralId}
+                  onChange={(e) => seleccionarFamiliaGeneral(e.target.value)}
+                  className="rounded-2xl border bg-white px-4 py-3 font-bold text-maruxa-chocolate"
+                >
+                  <option value="">Seleccionar familia</option>
+                  {familias.map((familia) => (
+                    <option key={familia.id} value={familia.id}>
+                      {familia.nombre}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="grid gap-1">
+                <span className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
+                  Margen
+                </span>
+                <input
+                  value={entradaPorcentaje(margenGeneral)}
+                  onChange={(e) => setMargenGeneral(valorPorcentajeEntrada(e.target.value))}
+                  inputMode="decimal"
+                  placeholder="0%"
+                  className="rounded-2xl border bg-white px-4 py-3 text-right font-black text-maruxa-chocolate"
+                />
+                <span className="text-[10px] font-bold text-maruxa-cafe/55">
+                  {tipoMargenGeneral === 'markup' ? 'Markup' : 'Margen comercial'}
+                </span>
+              </label>
+            </div>
 
             <div className="mt-6 rounded-[28px] bg-maruxa-crema p-5">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -2397,8 +2573,12 @@ export default function AdminComprasPage() {
                     return null;
                   }
                   const producto = productos.find((p) => String(p.id) === String(item.producto_id));
+                  const esProductoNuevo = item.nuevo_producto === true;
+                  const mostrarDetalle = Boolean(producto || esProductoNuevo);
                   const familiaProducto = familias.find(
-                    (familia) => familia.id === producto?.familia_id
+                    (familia) =>
+                      familia.id ===
+                      (producto?.familia_id || item.familia_id_nueva)
                   );
                   const historialCargado = producto
                     ? ultimasCompras[producto.id]
@@ -2448,12 +2628,12 @@ export default function AdminComprasPage() {
                       key={index}
                       style={{ order: index }}
                       className={`relative grid gap-3 rounded-2xl border border-maruxa-cafe/10 bg-white p-4 shadow-sm ${
-                        producto
+                        mostrarDetalle
                           ? 'md:grid-cols-2 xl:grid-cols-9'
                           : 'grid-cols-[minmax(0,1fr)_auto] items-end'
                       }`}
                     >
-                      <div className={`relative z-20 grid min-w-0 gap-1 ${producto ? 'xl:col-span-2' : ''}`}>
+                      <div className={`relative z-20 grid min-w-0 gap-1 ${mostrarDetalle ? 'xl:col-span-2' : ''}`}>
                         <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                           Producto
                         </span>
@@ -2465,6 +2645,11 @@ export default function AdminComprasPage() {
                           placeholder="Buscar producto..."
                           className="w-full rounded-xl border px-3 py-2 text-sm font-bold"
                         />
+                        {esProductoNuevo && (
+                          <span className="w-fit rounded-full bg-amber-100 px-2 py-1 text-[10px] font-black uppercase text-amber-800">
+                            Nuevo producto · {familiaProducto?.nombre || 'Sin familia'}
+                          </span>
+                        )}
                         {!item.producto_id && !item.busqueda_producto && (
                           <span className="text-[11px] font-bold text-maruxa-cafe/55">
                             Digita el nombre completo y selecciona una coincidencia.
@@ -2482,16 +2667,33 @@ export default function AdminComprasPage() {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  setNuevoProducto({
-                                    ...nuevoProducto,
-                                    nombre: item.busqueda_producto,
-                                  });
-                                  setIndiceItemCreacion(index);
-                                  setMostrarCrearProducto(true);
+                                  if (!proveedorId) {
+                                    alert('Selecciona el proveedor en la parte superior.');
+                                    return;
+                                  }
+                                  if (!familiaGeneralId) {
+                                    alert('Selecciona la familia en la parte superior.');
+                                    return;
+                                  }
+                                  setItems((actuales) =>
+                                    actuales.map((actual, indice) =>
+                                      indice === index
+                                        ? {
+                                            ...actual,
+                                            producto_id: `nuevo-${index}`,
+                                            nuevo_producto: true,
+                                            familia_id_nueva: familiaGeneralId,
+                                            margen_porcentaje: margenGeneral,
+                                            tipo_margen: tipoMargenGeneral,
+                                            precio_venta: '',
+                                          }
+                                        : actual
+                                    )
+                                  );
                                 }}
                                 className="w-full px-3 py-2 text-left text-xs font-black text-red-700 hover:bg-red-50"
                               >
-                                No existe. Crear "{item.busqueda_producto}"
+                                Usar "{item.busqueda_producto}" como producto nuevo
                               </button>
                             ) : (
                               productosFiltrados.map((productoItem) => (
@@ -2536,7 +2738,7 @@ export default function AdminComprasPage() {
                         )}
                       </div>
 
-                      <label className={producto ? 'grid min-w-0 gap-1' : 'hidden'}>
+                      <label className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
                         <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                           Costo proveedor
                           {precioIvaIncluido ? ' bruto' : ' neto'}
@@ -2558,7 +2760,7 @@ export default function AdminComprasPage() {
                         />
                       </label>
 
-                      <div className={producto ? 'grid min-w-0 gap-1' : 'hidden'}>
+                      <div className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
                         <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                           Neto
                         </span>
@@ -2567,7 +2769,7 @@ export default function AdminComprasPage() {
                         </div>
                       </div>
 
-                      <div className={producto ? 'grid min-w-0 gap-1' : 'hidden'}>
+                      <div className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
                         <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                           IVA
                         </span>
@@ -2576,7 +2778,7 @@ export default function AdminComprasPage() {
                         </div>
                       </div>
 
-                      <div className={producto ? 'grid min-w-0 gap-1' : 'hidden'}>
+                      <div className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
                         <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                           Total
                         </span>
@@ -2585,7 +2787,7 @@ export default function AdminComprasPage() {
                         </div>
                       </div>
 
-                      <label className={producto ? 'grid min-w-0 gap-1' : 'hidden'}>
+                      <label className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
                         <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                           Margen
                         </span>
@@ -2605,7 +2807,7 @@ export default function AdminComprasPage() {
                         />
                       </label>
 
-                      <label className={producto ? 'grid min-w-0 gap-1' : 'hidden'}>
+                      <label className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
                         <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                           Precio venta
                         </span>
@@ -2988,7 +3190,7 @@ export default function AdminComprasPage() {
                           type="button"
                           onClick={() => eliminarItem(index)}
                           className={`self-end justify-self-stretch rounded-xl border border-red-300 bg-red-50 px-3 py-2.5 text-xs font-black text-red-700 ${
-                            producto
+                            mostrarDetalle
                               ? 'md:col-span-2 xl:col-span-1 xl:col-start-9 xl:row-start-1'
                               : ''
                           }`}
