@@ -43,6 +43,9 @@ export default function ProductosPorProveedorPage() {
   const { perfil } = useAdminSession();
   const [productos, setProductos] = useState<ProductoProveedor[]>([]);
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
+  const [productosPropiosIds, setProductosPropiosIds] = useState<Set<number>>(
+    new Set()
+  );
   const [productosConCambio, setProductosConCambio] = useState<
     Record<number, boolean>
   >({});
@@ -56,7 +59,11 @@ export default function ProductosPorProveedorPage() {
       if (!perfil) return;
       setCargando(true);
 
-      const [{ data: productosData, error }, { data: proveedoresData }] =
+      const [
+        { data: productosData, error },
+        { data: proveedoresData },
+        { data: recetasData, error: errorRecetas },
+      ] =
         await Promise.all([
           supabase
             .from('productos')
@@ -71,12 +78,18 @@ export default function ProductosPorProveedorPage() {
             .eq('empresa_id', perfil.empresa_id)
             .eq('activo', true)
             .order('nombre_fantasia', { ascending: true }),
+          supabase
+            .from('recetas')
+            .select('producto_id')
+            .eq('empresa_id', perfil.empresa_id)
+            .not('producto_id', 'is', null),
         ]);
 
-      if (error) {
-        alert(error.message);
+      if (error || errorRecetas) {
+        alert(error?.message || errorRecetas?.message);
         setProductos([]);
         setProveedores([]);
+        setProductosPropiosIds(new Set());
         setCargando(false);
         return;
       }
@@ -118,6 +131,13 @@ export default function ProductosPorProveedorPage() {
 
       setProductos(productosConPrecio);
       setProveedores((proveedoresData as Proveedor[]) || []);
+      setProductosPropiosIds(
+        new Set(
+          (recetasData || [])
+            .map((receta) => Number(receta.producto_id))
+            .filter(Boolean)
+        )
+      );
       setProductosConCambio(cambios);
       setCargando(false);
     }
@@ -129,18 +149,27 @@ export default function ProductosPorProveedorPage() {
     const termino = normalizar(busqueda.trim());
 
     return productos.filter((producto) => {
-      if (proveedorId === 'sin-proveedor' && producto.proveedor_id) return false;
+      const esPropio = productosPropiosIds.has(producto.id);
+
+      if (proveedorId === 'productos-propios' && !esPropio) return false;
+      if (
+        proveedorId === 'sin-proveedor' &&
+        (esPropio || producto.proveedor_id)
+      ) {
+        return false;
+      }
       if (
         proveedorId !== 'todos' &&
+        proveedorId !== 'productos-propios' &&
         proveedorId !== 'sin-proveedor' &&
-        producto.proveedor_id !== proveedorId
+        (esPropio || producto.proveedor_id !== proveedorId)
       ) {
         return false;
       }
 
       return !termino || normalizar(producto.nombre).includes(termino);
     });
-  }, [busqueda, productos, proveedorId]);
+  }, [busqueda, productos, productosPropiosIds, proveedorId]);
 
   const grupos = useMemo(() => {
     const agrupados = new Map<
@@ -149,12 +178,15 @@ export default function ProductosPorProveedorPage() {
     >();
 
     productosFiltrados.forEach((producto) => {
+      const esPropio = productosPropiosIds.has(producto.id);
       const proveedor = proveedores.find(
         (actual) => actual.id === producto.proveedor_id
       );
-      const clave = producto.proveedor_id || 'sin-proveedor';
+      const clave = esPropio
+        ? 'productos-propios'
+        : producto.proveedor_id || 'sin-proveedor';
       const grupo = agrupados.get(clave) || {
-        nombre: nombreProveedor(proveedor),
+        nombre: esPropio ? 'PRODUCTOS PROPIOS' : nombreProveedor(proveedor),
         productos: [],
       };
       grupo.productos.push(producto);
@@ -164,7 +196,7 @@ export default function ProductosPorProveedorPage() {
     return [...agrupados.values()].sort((a, b) =>
       a.nombre.localeCompare(b.nombre)
     );
-  }, [productosFiltrados, proveedores]);
+  }, [productosFiltrados, productosPropiosIds, proveedores]);
 
   return (
     <div className="space-y-6 pb-12">
@@ -216,7 +248,7 @@ export default function ProductosPorProveedorPage() {
             Productos por proveedor
           </h1>
           <p className="mt-2 text-sm font-bold text-maruxa-cafe/65">
-            Consulta e imprime el listado de precios separado por proveedor.
+            Consulta e imprime productos propios y productos separados por proveedor.
           </p>
         </div>
         <button
@@ -232,13 +264,14 @@ export default function ProductosPorProveedorPage() {
 
       <section className="no-print grid gap-4 rounded-3xl bg-white p-5 shadow-sm md:grid-cols-3">
         <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
-          Proveedor
+          Origen / proveedor
           <select
             value={proveedorId}
             onChange={(event) => setProveedorId(event.target.value)}
             className="h-11 w-full min-w-0 rounded-xl border bg-white px-3 text-sm font-bold normal-case text-maruxa-chocolate"
           >
-            <option value="todos">Todos los proveedores</option>
+            <option value="todos">Todos</option>
+            <option value="productos-propios">Productos propios</option>
             <option value="sin-proveedor">Sin proveedor</option>
             {proveedores.map((proveedor) => (
               <option key={proveedor.id} value={proveedor.id}>
@@ -283,7 +316,7 @@ export default function ProductosPorProveedorPage() {
               Vista previa
             </p>
             <p className="font-black text-maruxa-chocolate">
-              {productosFiltrados.length} productos · {grupos.length} proveedores
+              {productosFiltrados.length} productos · {grupos.length} grupos
             </p>
           </div>
         </div>
@@ -294,7 +327,7 @@ export default function ProductosPorProveedorPage() {
           </p>
         ) : grupos.length === 0 ? (
           <p className="py-16 text-center font-black text-maruxa-cafe/50">
-            No hay productos con precio para este proveedor.
+            No hay productos con precio para este filtro.
           </p>
         ) : (
           <div className="columns-1 gap-4 md:columns-2 print:columns-2">
@@ -320,6 +353,7 @@ export default function ProductosPorProveedorPage() {
                 </thead>
                 <tbody>
                   {grupo.productos.map((producto) => {
+                    const esPropio = productosPropiosIds.has(producto.id);
                     const esKilo = normalizar(
                       producto.unidad_base || ''
                     ).includes('kg');
@@ -335,7 +369,7 @@ export default function ProductosPorProveedorPage() {
                       >
                         <td className="border border-black px-2 py-1 font-bold uppercase">
                           {producto.nombre}
-                          {!producto.proveedor_id && (
+                          {!esPropio && !producto.proveedor_id && (
                             <Link
                               href={`/admin/compras?producto=${producto.id}`}
                               className="no-print ml-2 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black normal-case text-amber-900 underline"
