@@ -1,6 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type KeyboardEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { supabase } from '@/lib/supabase';
 import { obtenerEmpresaActual } from '@/lib/empresa';
 
@@ -68,6 +74,8 @@ type ItemCompra = {
   nuevo_producto?: boolean;
   familia_id_nueva?: string;
 };
+
+type CampoFocoItem = 'producto' | 'costo' | 'margen' | 'precio';
 
 type TipoProductoCompra = 'producto' | 'ingrediente' | 'envase';
 
@@ -280,6 +288,15 @@ export default function AdminComprasPage() {
     'markup' | 'margen_comercial'
   >('markup');
   const [items, setItems] = useState<ItemCompra[]>([]);
+  const [focoPendiente, setFocoPendiente] = useState<{
+    index: number;
+    campo: CampoFocoItem;
+  } | null>(null);
+  const inputsProducto = useRef<Record<number, HTMLInputElement | null>>({});
+  const inputsCosto = useRef<Record<number, HTMLInputElement | null>>({});
+  const inputsMargen = useRef<Record<number, HTMLInputElement | null>>({});
+  const inputsPrecio = useRef<Record<number, HTMLInputElement | null>>({});
+  const botonAgregarProducto = useRef<HTMLButtonElement | null>(null);
   const [resultadosBusqueda, setResultadosBusqueda] = useState<Record<number, Producto[]>>({});
   const [ultimasCompras, setUltimasCompras] = useState<Record<number, UltimaCompraProducto[]>>({});
   const [mostrarCrearProducto, setMostrarCrearProducto] = useState(false);
@@ -451,6 +468,24 @@ export default function AdminComprasPage() {
   }, []);
 
   useEffect(() => {
+    if (!focoPendiente) return;
+
+    const referencias: Record<CampoFocoItem, Record<number, HTMLInputElement | null>> = {
+      producto: inputsProducto.current,
+      costo: inputsCosto.current,
+      margen: inputsMargen.current,
+      precio: inputsPrecio.current,
+    };
+    const input = referencias[focoPendiente.campo][focoPendiente.index];
+
+    if (!input) return;
+
+    input.focus();
+    input.select();
+    setFocoPendiente(null);
+  }, [focoPendiente, items]);
+
+  useEffect(() => {
     if (loading || productoEnlaceAplicado.current || productos.length === 0) {
       return;
     }
@@ -530,10 +565,11 @@ export default function AdminComprasPage() {
       (actual) => String(actual.id) === String(item.producto_id)
     );
     const familia = familias.find(
-      (actual) => actual.id === producto?.familia_id
+      (actual) =>
+        actual.id === (producto?.familia_id || item.familia_id_nueva)
     );
 
-    return Math.max(1, numero(familia?.redondeo_precio));
+    return Math.max(1, numero(familia?.redondeo_precio) || 10);
   }
 
   function recalcularPreciosPorIva(incluido: boolean) {
@@ -794,11 +830,100 @@ export default function AdminComprasPage() {
   }, [mostrarCrearProducto, nuevoProducto.nombre]);
 
   function agregarItem() {
+    const indicePendiente = items.findIndex((item) => !item.producto_id);
+
+    if (indicePendiente >= 0) {
+      setFocoPendiente({ index: indicePendiente, campo: 'producto' });
+      return;
+    }
+
+    const nuevoIndice = items.length;
+    setItems((actuales) => [...actuales, itemCompraVacio()]);
+    setFocoPendiente({ index: nuevoIndice, campo: 'producto' });
+  }
+
+  function seleccionarProductoItem(index: number, producto: Producto) {
+    actualizarItem(index, 'producto_id', String(producto.id));
+    setFocoPendiente({ index, campo: 'costo' });
+  }
+
+  function usarProductoNuevo(index: number) {
+    const nombre = items[index]?.busqueda_producto.trim();
+    if (!nombre) return;
+
+    if (!proveedorId) {
+      alert('Selecciona el proveedor en la parte superior.');
+      return;
+    }
+    if (!familiaGeneralId) {
+      alert('Selecciona la familia en la parte superior.');
+      return;
+    }
+
     setItems((actuales) =>
-      actuales.some((item) => !item.producto_id)
-        ? actuales
-        : [...actuales, itemCompraVacio()]
+      actuales.map((actual, indice) =>
+        indice === index
+          ? {
+              ...actual,
+              producto_id: `nuevo-${index}`,
+              nuevo_producto: true,
+              familia_id_nueva: familiaGeneralId,
+              margen_porcentaje: margenGeneral,
+              tipo_margen: tipoMargenGeneral,
+              precio_venta: '',
+            }
+          : actual
+      )
     );
+    setFocoPendiente({ index, campo: 'costo' });
+  }
+
+  function confirmarProductoConEnter(
+    event: KeyboardEvent<HTMLInputElement>,
+    index: number,
+    coincidencias: Producto[]
+  ) {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+
+    const item = items[index];
+    if (item?.producto_id) {
+      setFocoPendiente({ index, campo: 'costo' });
+      return;
+    }
+
+    const termino = normalizarTexto(item?.busqueda_producto || '');
+    if (!termino) return;
+
+    const coincidenciaExacta = coincidencias.find(
+      (producto) =>
+        normalizarTexto(producto.nombre) === termino ||
+        normalizarTexto(producto.codigo || '') === termino
+    );
+    const producto = coincidenciaExacta || coincidencias[0];
+
+    if (producto) {
+      seleccionarProductoItem(index, producto);
+      return;
+    }
+
+    usarProductoNuevo(index);
+  }
+
+  function avanzarConEnter(
+    event: KeyboardEvent<HTMLInputElement>,
+    index: number,
+    siguiente: CampoFocoItem | 'agregar'
+  ) {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+
+    if (siguiente === 'agregar') {
+      botonAgregarProducto.current?.focus();
+      return;
+    }
+
+    setFocoPendiente({ index, campo: siguiente });
   }
 
   function seleccionarFamiliaGeneral(familiaId: string) {
@@ -2285,18 +2410,6 @@ export default function AdminComprasPage() {
                 <h3 className="text-xl font-black text-maruxa-chocolate">
                   Detalle de costos y precios
                 </h3>
-
-                {!mostrarCrearProducto && (
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={agregarItem}
-                      className="rounded-full bg-red-700 px-6 py-3 text-sm font-black text-white shadow-lg"
-                    >
-                      + Agregar producto
-                    </button>
-                  </div>
-                )}
               </div>
 
               <div className="mt-4 grid gap-3">
@@ -2638,9 +2751,19 @@ export default function AdminComprasPage() {
                           Producto
                         </span>
                         <input
+                          ref={(elemento) => {
+                            inputsProducto.current[index] = elemento;
+                          }}
                           value={item.busqueda_producto}
                           onChange={(e) =>
                             actualizarItem(index, 'busqueda_producto', e.target.value)
+                          }
+                          onKeyDown={(event) =>
+                            confirmarProductoConEnter(
+                              event,
+                              index,
+                              productosFiltrados
+                            )
                           }
                           placeholder="Buscar producto..."
                           className="w-full rounded-xl border px-3 py-2 text-sm font-bold"
@@ -2666,31 +2789,7 @@ export default function AdminComprasPage() {
                             {productosFiltrados.length === 0 ? (
                               <button
                                 type="button"
-                                onClick={() => {
-                                  if (!proveedorId) {
-                                    alert('Selecciona el proveedor en la parte superior.');
-                                    return;
-                                  }
-                                  if (!familiaGeneralId) {
-                                    alert('Selecciona la familia en la parte superior.');
-                                    return;
-                                  }
-                                  setItems((actuales) =>
-                                    actuales.map((actual, indice) =>
-                                      indice === index
-                                        ? {
-                                            ...actual,
-                                            producto_id: `nuevo-${index}`,
-                                            nuevo_producto: true,
-                                            familia_id_nueva: familiaGeneralId,
-                                            margen_porcentaje: margenGeneral,
-                                            tipo_margen: tipoMargenGeneral,
-                                            precio_venta: '',
-                                          }
-                                        : actual
-                                    )
-                                  );
-                                }}
+                                onClick={() => usarProductoNuevo(index)}
                                 className="w-full px-3 py-2 text-left text-xs font-black text-red-700 hover:bg-red-50"
                               >
                                 Usar "{item.busqueda_producto}" como producto nuevo
@@ -2701,11 +2800,7 @@ export default function AdminComprasPage() {
                                   key={productoItem.id}
                                   type="button"
                                   onClick={() =>
-                                    actualizarItem(
-                                      index,
-                                      'producto_id',
-                                      String(productoItem.id)
-                                    )
+                                    seleccionarProductoItem(index, productoItem)
                                   }
                                   className="flex w-full flex-col gap-1 px-3 py-2 text-left text-xs font-bold hover:bg-maruxa-crema"
                                 >
@@ -2744,6 +2839,9 @@ export default function AdminComprasPage() {
                           {precioIvaIncluido ? ' bruto' : ' neto'}
                         </span>
                         <input
+                          ref={(elemento) => {
+                            inputsCosto.current[index] = elemento;
+                          }}
                           type="text"
                           inputMode="numeric"
                           value={entradaPeso(item.costo_unitario)}
@@ -2753,6 +2851,9 @@ export default function AdminComprasPage() {
                               'costo_unitario',
                               valorPesoEntrada(e.target.value)
                             )
+                          }
+                          onKeyDown={(event) =>
+                            avanzarConEnter(event, index, 'margen')
                           }
                           placeholder="$0"
                           title="El IVA se aplicará según la configuración del proveedor"
@@ -2792,6 +2893,9 @@ export default function AdminComprasPage() {
                           Margen
                         </span>
                         <input
+                          ref={(elemento) => {
+                            inputsMargen.current[index] = elemento;
+                          }}
                           type="text"
                           inputMode="decimal"
                           value={entradaPorcentaje(item.margen_porcentaje)}
@@ -2801,6 +2905,9 @@ export default function AdminComprasPage() {
                               'margen_porcentaje',
                               valorPorcentajeEntrada(e.target.value)
                             )
+                          }
+                          onKeyDown={(event) =>
+                            avanzarConEnter(event, index, 'precio')
                           }
                           placeholder="0%"
                           className="w-full min-w-0 rounded-xl border px-3 py-2 text-right text-sm font-bold"
@@ -2812,6 +2919,9 @@ export default function AdminComprasPage() {
                           Precio venta
                         </span>
                         <input
+                          ref={(elemento) => {
+                            inputsPrecio.current[index] = elemento;
+                          }}
                           type="text"
                           inputMode="numeric"
                           value={entradaPeso(item.precio_venta)}
@@ -2821,6 +2931,9 @@ export default function AdminComprasPage() {
                               'precio_venta',
                               valorPesoEntrada(e.target.value)
                             )
+                          }
+                          onKeyDown={(event) =>
+                            avanzarConEnter(event, index, 'agregar')
                           }
                           placeholder="$0"
                           className="w-full min-w-0 rounded-xl border px-3 py-2 text-right text-sm font-black text-maruxa-rojo"
@@ -3373,6 +3486,19 @@ export default function AdminComprasPage() {
                     </div>
                   );
                 })}
+
+                {!mostrarCrearProducto && (
+                  <div className="flex justify-end pt-1">
+                    <button
+                      ref={botonAgregarProducto}
+                      type="button"
+                      onClick={agregarItem}
+                      className="rounded-full bg-red-700 px-6 py-3 text-sm font-black text-white shadow-lg"
+                    >
+                      + Agregar producto
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
