@@ -1119,7 +1119,7 @@ export default function AdminComprasPage() {
         precio_venta: cambios.precio || null,
         created_at: `${fechaRegistro}T12:00:00`,
       })
-      .select('created_at')
+      .select('id,created_at')
       .single();
 
     setGuardandoFicha(false);
@@ -1132,6 +1132,7 @@ export default function AdminComprasPage() {
       ...actuales,
       [producto.id]: [
         {
+          id: historialCreado.id,
           producto_id: producto.id,
           fecha: historialCreado.created_at,
           precio: cambios.costo_unitario,
@@ -2632,7 +2633,10 @@ export default function AdminComprasPage() {
                                 <tbody>
                                   {historialVisible.map((historial, historialIndex) => (
                                     <tr
-                                      key={`${historial.fecha}-${historialIndex}`}
+                                      key={
+                                        historial.id ||
+                                        `${historial.origen || 'registro'}-${historial.producto_id}-${historialIndex}`
+                                      }
                                       className="border-t border-maruxa-cafe/10 bg-white/70"
                                     >
                                       <td className="px-3 py-2 font-bold">
