@@ -233,6 +233,7 @@ export default function AdminWhatsappPage() {
       .from('whatsapp_eventos')
       .select('id,created_at,telefono,tipo,estado,observacion,pedido_id,message_id,payload')
       .eq('empresa_id', empresa.id)
+      .neq('tipo', 'aviso_administrador')
       .order('created_at', { ascending: false })
       .limit(1000);
 

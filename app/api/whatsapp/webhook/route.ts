@@ -25,6 +25,12 @@ type MensajeWhatsApp = {
   };
 };
 
+type ResultadoEnvioWhatsApp = {
+  error: string | null;
+  messageId: string | null;
+  respuesta: any;
+};
+
 function firmaValida(cuerpo: string, firma: string | null) {
   const secreto = process.env.WHATSAPP_APP_SECRET;
   if (!secreto || !firma?.startsWith('sha256=')) return false;
@@ -174,53 +180,10 @@ async function responderPedidoWhatsApp(telefono: string, pedidoId: string | numb
   return detalle || `Meta respondio ${respuesta.status}`;
 }
 
-async function enviarMensajeWhatsApp(telefono: string, mensaje: string) {
-  const token = process.env.WHATSAPP_ACCESS_TOKEN;
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  const destino = telefono.replace(/\D/g, '');
-
-  if (!token || !phoneNumberId || !destino) {
-    return 'Falta token, phone number id o telefono destino.';
-  }
-
-  const respuesta = await fetch(
-    `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        messaging_product: 'whatsapp',
-        to: destino,
-        type: 'text',
-        text: {
-          preview_url: false,
-          body: mensaje,
-        },
-      }),
-    }
-  );
-
-  if (respuesta.ok) return null;
-
-  const detalle = await respuesta.text();
-  const errorTexto = detalle || `Meta respondio ${respuesta.status}`;
-  const errorPlantilla = await enviarPlantillaNotificacionWhatsApp(
-    destino,
-    mensaje
-  );
-
-  return errorPlantilla
-    ? `${errorTexto}. Fallback plantilla: ${errorPlantilla}`
-    : null;
-}
-
 async function enviarPlantillaNotificacionWhatsApp(
   destino: string,
   mensaje: string
-) {
+): Promise<ResultadoEnvioWhatsApp> {
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const telefonoDestino = destino.replace(/\D/g, '');
@@ -242,7 +205,11 @@ async function enviarPlantillaNotificacionWhatsApp(
     !templateName ||
     !mensajePlantilla
   ) {
-    return 'No hay plantilla de notificacion configurada.';
+    return {
+      error: 'No hay plantilla de notificacion configurada.',
+      messageId: null,
+      respuesta: null,
+    };
   }
 
   const respuesta = await fetch(
@@ -276,10 +243,27 @@ async function enviarPlantillaNotificacionWhatsApp(
     }
   );
 
-  if (respuesta.ok) return null;
-
   const detalle = await respuesta.text();
-  return detalle || `Meta respondio ${respuesta.status}`;
+  let respuestaMeta: any = null;
+  try {
+    respuestaMeta = detalle ? JSON.parse(detalle) : null;
+  } catch {
+    respuestaMeta = detalle;
+  }
+
+  if (respuesta.ok) {
+    return {
+      error: null,
+      messageId: respuestaMeta?.messages?.[0]?.id || null,
+      respuesta: respuestaMeta,
+    };
+  }
+
+  return {
+    error: detalle || `Meta respondio ${respuesta.status}`,
+    messageId: null,
+    respuesta: respuestaMeta,
+  };
 }
 
 function resumenMensajeEntrante(mensaje: MensajeWhatsApp) {
@@ -334,11 +318,36 @@ async function avisarAdministradores(
           enviarPlantillaNotificacionWhatsApp(
             perfil.notificacion_whatsapp,
             texto
-          ).then((error) =>
-            error
-              ? `WhatsApp ${perfil.nombre_visible || perfil.id}: ${error}`
-              : null
-          )
+          ).then(async (resultado) => {
+            if (resultado.messageId) {
+              const { error: errorRegistro } = await admin
+                .from('whatsapp_eventos')
+                .insert({
+                  empresa_id: empresaId,
+                  message_id: resultado.messageId,
+                  telefono: formatearTelefonoWhatsApp(
+                    perfil.notificacion_whatsapp
+                  ),
+                  tipo: 'aviso_administrador',
+                  estado: 'aceptado',
+                  observacion: 'Aviso aceptado por Meta; esperando estado de entrega.',
+                  payload: {
+                    direccion: 'saliente',
+                    origen: 'aviso_administrador',
+                    perfil_id: perfil.id,
+                    meta: resultado.respuesta,
+                  },
+                });
+
+              if (errorRegistro) {
+                return `Registro aviso ${perfil.nombre_visible || perfil.id}: ${errorRegistro.message}`;
+              }
+            }
+
+            return resultado.error
+              ? `WhatsApp ${perfil.nombre_visible || perfil.id}: ${resultado.error}`
+              : null;
+          })
         );
       }
 
@@ -389,6 +398,12 @@ export async function GET(request: Request) {
         .from('whatsapp_eventos')
         .select('id')
         .limit(1);
+      const { data: ultimosAvisos } = await admin
+        .from('whatsapp_eventos')
+        .select('created_at,telefono,estado,observacion,message_id')
+        .eq('tipo', 'aviso_administrador')
+        .order('created_at', { ascending: false })
+        .limit(5);
       const { count } = await admin
         .from('perfiles_usuario')
         .select('id', { count: 'exact', head: true })
@@ -401,6 +416,27 @@ export async function GET(request: Request) {
         ? JSON.stringify(resultado.error)
         : null;
       destinosWhatsappConfigurados = count || 0;
+
+      return NextResponse.json({
+        webhook: 'whatsapp',
+        disponible: true,
+        tokenConfigurado: Boolean(tokenConfigurado),
+        appSecretConfigurado: Boolean(process.env.WHATSAPP_APP_SECRET),
+        plantillaNotificacionConfigurada: true,
+        plantillaNotificacionNombre:
+          process.env.WHATSAPP_NOTIFICATION_TEMPLATE_NAME ||
+          'aviso_nuevo_mensaje_admin',
+        idiomaPlantillaNotificacion:
+          process.env.WHATSAPP_NOTIFICATION_TEMPLATE_LANGUAGE || 'es_CL',
+        supabaseServidorConfigurado: Boolean(
+          process.env.SUPABASE_SERVICE_ROLE_KEY
+        ),
+        baseDatosLista,
+        baseDatosEstado,
+        baseDatosError,
+        destinosWhatsappConfigurados,
+        ultimosAvisos: ultimosAvisos || [],
+      });
     }
 
     return NextResponse.json({
@@ -488,6 +524,37 @@ export async function POST(request: Request) {
   );
 
   for (const valor of cambios) {
+    const estados = valor.statuses || [];
+
+    for (const estado of estados) {
+      if (!estado.id) continue;
+
+      const errores = (estado.errors || [])
+        .map((error: any) =>
+          [error.code, error.title, error.message, error.error_data?.details]
+            .filter(Boolean)
+            .join(' - ')
+        )
+        .filter(Boolean);
+      const observacion = errores.length
+        ? `Meta marco el aviso como ${estado.status}: ${errores.join(' | ')}`
+        : `Meta marco el aviso como ${estado.status}.`;
+
+      await admin
+        .from('whatsapp_eventos')
+        .update({
+          estado: estado.status || 'actualizado',
+          observacion,
+          payload: {
+            direccion: 'saliente',
+            origen: 'aviso_administrador',
+            estado_meta: estado,
+          },
+        })
+        .eq('message_id', estado.id)
+        .eq('tipo', 'aviso_administrador');
+    }
+
     const contacto = valor.contacts?.[0];
     const mensajes = (valor.messages || []) as MensajeWhatsApp[];
 

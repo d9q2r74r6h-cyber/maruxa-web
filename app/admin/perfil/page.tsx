@@ -12,6 +12,8 @@ export default function PerfilPage() {
   const [whatsappDestino, setWhatsappDestino] = useState('');
   const [emailDestino, setEmailDestino] = useState('');
   const [guardando, setGuardando] = useState(false);
+  const [probandoWhatsapp, setProbandoWhatsapp] = useState(false);
+  const [resultadoPrueba, setResultadoPrueba] = useState('');
 
   useEffect(() => {
     if (!perfil) return;
@@ -56,6 +58,30 @@ export default function PerfilPage() {
 
     await recargar();
     alert('Preferencias de notificacion guardadas.');
+  }
+
+  async function probarAvisoWhatsapp() {
+    setProbandoWhatsapp(true);
+    setResultadoPrueba('');
+
+    const { data: sesion } = await supabase.auth.getSession();
+    const respuesta = await fetch('/api/whatsapp/probar-aviso', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${sesion.session?.access_token || ''}`,
+      },
+    });
+    const resultado = await respuesta.json();
+
+    setProbandoWhatsapp(false);
+    if (!respuesta.ok) {
+      setResultadoPrueba(resultado.error || 'No se pudo enviar la prueba.');
+      return;
+    }
+
+    setResultadoPrueba(
+      `Meta acepto la prueba para ${resultado.destino}. Esperando confirmacion de entrega.`
+    );
   }
 
   return (
@@ -144,6 +170,23 @@ export default function PerfilPage() {
             >
               {guardando ? 'Guardando...' : 'Guardar avisos'}
             </button>
+
+            {notificarWhatsapp && (
+              <button
+                type="button"
+                onClick={probarAvisoWhatsapp}
+                disabled={probandoWhatsapp || guardando}
+                className="h-11 w-fit rounded-md border border-[#A51F2B] px-5 font-black text-[#A51F2B] disabled:opacity-50"
+              >
+                {probandoWhatsapp ? 'Enviando prueba...' : 'Probar aviso WhatsApp'}
+              </button>
+            )}
+
+            {resultadoPrueba && (
+              <p className="rounded-md bg-[#FFF3DF] p-3 text-sm font-bold text-[#4B2818]">
+                {resultadoPrueba}
+              </p>
+            )}
 
             <p className="text-xs font-semibold text-[#4B2818]/60">
               Estos avisos se envian cuando entra un mensaje o pedido desde WhatsApp o Instagram.
