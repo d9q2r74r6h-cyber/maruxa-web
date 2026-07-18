@@ -272,7 +272,7 @@ export default function AdminComprasPage() {
   const [mostrarProveedores, setMostrarProveedores] = useState(false);
   const [buscandoProveedores, setBuscandoProveedores] = useState(false);
   const [familias, setFamilias] = useState<FamiliaProducto[]>([]);
-  const [items, setItems] = useState<ItemCompra[]>(() => [itemCompraVacio()]);
+  const [items, setItems] = useState<ItemCompra[]>([]);
   const [resultadosBusqueda, setResultadosBusqueda] = useState<Record<number, Producto[]>>({});
   const [ultimasCompras, setUltimasCompras] = useState<Record<number, UltimaCompraProducto[]>>({});
   const [mostrarCrearProducto, setMostrarCrearProducto] = useState(false);
@@ -787,7 +787,11 @@ export default function AdminComprasPage() {
   }, [mostrarCrearProducto, nuevoProducto.nombre]);
 
   function agregarItem() {
-    setItems([...items, itemCompraVacio()]);
+    setItems((actuales) =>
+      actuales.some((item) => !item.producto_id)
+        ? actuales
+        : [...actuales, itemCompraVacio()]
+    );
   }
 
   function eliminarItem(index: number) {
@@ -2119,11 +2123,28 @@ export default function AdminComprasPage() {
                 )}
               </div>
 
+              <div className="mt-4 grid gap-3">
+              {items.length === 0 && !mostrarCrearProducto && (
+                <div className="rounded-2xl border border-dashed border-maruxa-rojo/25 bg-white px-5 py-8 text-center">
+                  <p className="font-black text-maruxa-chocolate">
+                    Presiona Agregar producto para comenzar.
+                  </p>
+                  <p className="mt-1 text-xs font-bold text-maruxa-cafe/60">
+                    Primero buscarás el producto; sus precios aparecerán solo después de seleccionarlo.
+                  </p>
+                </div>
+              )}
               {mostrarCrearProducto && (
-                <div className="mt-5 rounded-[24px] border border-red-700/20 bg-white p-4">
+                <div
+                  style={{ order: indiceItemCreacion ?? items.length }}
+                  className="rounded-[24px] border-2 border-red-700/20 bg-white p-4 shadow-sm"
+                >
                   <h4 className="text-lg font-black text-maruxa-chocolate">
-                    Crear producto para registrar su costo
+                    Este producto no existe: créalo aquí
                   </h4>
+                  <p className="mt-1 text-xs font-bold text-maruxa-cafe/65">
+                    Se asociará al proveedor {proveedorTexto || 'seleccionado arriba'} y tomará el margen de la familia elegida.
+                  </p>
 
                   <div className="mt-4 grid gap-4 md:grid-cols-12">
                     <label className="grid gap-1 md:col-span-2">
@@ -2271,6 +2292,11 @@ export default function AdminComprasPage() {
                           </option>
                         ))}
                       </select>
+                      {familiaNuevoProducto && (
+                        <span className="text-[11px] font-black text-maruxa-rojo">
+                          Margen de familia: {entradaPorcentaje(familiaNuevoProducto.margen_porcentaje)} · {familiaNuevoProducto.tipo_margen === 'markup' ? 'Markup' : 'Margen comercial'}
+                        </span>
+                      )}
                     </label>
 
                     <label className="grid gap-1 md:col-span-2">
@@ -2363,7 +2389,6 @@ export default function AdminComprasPage() {
                 </div>
               )}
 
-              <div className="mt-4 grid gap-3">
                 {items.map((item, index) => {
                   if (
                     mostrarCrearProducto &&
@@ -2421,9 +2446,14 @@ export default function AdminComprasPage() {
                   return (
                     <div
                       key={index}
-                      className="relative grid gap-3 rounded-2xl border border-maruxa-cafe/10 bg-white p-4 shadow-sm md:grid-cols-2 xl:grid-cols-9"
+                      style={{ order: index }}
+                      className={`relative grid gap-3 rounded-2xl border border-maruxa-cafe/10 bg-white p-4 shadow-sm ${
+                        producto
+                          ? 'md:grid-cols-2 xl:grid-cols-9'
+                          : 'grid-cols-[minmax(0,1fr)_auto] items-end'
+                      }`}
                     >
-                      <div className="relative z-20 grid min-w-0 gap-1 xl:col-span-2">
+                      <div className={`relative z-20 grid min-w-0 gap-1 ${producto ? 'xl:col-span-2' : ''}`}>
                         <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                           Producto
                         </span>
@@ -2435,6 +2465,11 @@ export default function AdminComprasPage() {
                           placeholder="Buscar producto..."
                           className="w-full rounded-xl border px-3 py-2 text-sm font-bold"
                         />
+                        {!item.producto_id && !item.busqueda_producto && (
+                          <span className="text-[11px] font-bold text-maruxa-cafe/55">
+                            Digita el nombre completo y selecciona una coincidencia.
+                          </span>
+                        )}
 
                         {!item.producto_id &&
                           item.busqueda_producto &&
@@ -2501,7 +2536,7 @@ export default function AdminComprasPage() {
                         )}
                       </div>
 
-                      <label className="grid min-w-0 gap-1">
+                      <label className={producto ? 'grid min-w-0 gap-1' : 'hidden'}>
                         <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                           Costo proveedor
                           {precioIvaIncluido ? ' bruto' : ' neto'}
@@ -2523,7 +2558,7 @@ export default function AdminComprasPage() {
                         />
                       </label>
 
-                      <div className="grid min-w-0 gap-1">
+                      <div className={producto ? 'grid min-w-0 gap-1' : 'hidden'}>
                         <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                           Neto
                         </span>
@@ -2532,7 +2567,7 @@ export default function AdminComprasPage() {
                         </div>
                       </div>
 
-                      <div className="grid min-w-0 gap-1">
+                      <div className={producto ? 'grid min-w-0 gap-1' : 'hidden'}>
                         <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                           IVA
                         </span>
@@ -2541,7 +2576,7 @@ export default function AdminComprasPage() {
                         </div>
                       </div>
 
-                      <div className="grid min-w-0 gap-1">
+                      <div className={producto ? 'grid min-w-0 gap-1' : 'hidden'}>
                         <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                           Total
                         </span>
@@ -2550,7 +2585,7 @@ export default function AdminComprasPage() {
                         </div>
                       </div>
 
-                      <label className="grid min-w-0 gap-1">
+                      <label className={producto ? 'grid min-w-0 gap-1' : 'hidden'}>
                         <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                           Margen
                         </span>
@@ -2570,7 +2605,7 @@ export default function AdminComprasPage() {
                         />
                       </label>
 
-                      <label className="grid min-w-0 gap-1">
+                      <label className={producto ? 'grid min-w-0 gap-1' : 'hidden'}>
                         <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                           Precio venta
                         </span>
@@ -2952,7 +2987,11 @@ export default function AdminComprasPage() {
                         <button
                           type="button"
                           onClick={() => eliminarItem(index)}
-                          className="self-end justify-self-stretch rounded-xl border border-red-300 bg-red-50 px-2 py-2.5 text-xs font-black text-red-700 md:col-span-2 xl:col-span-1 xl:col-start-9 xl:row-start-1"
+                          className={`self-end justify-self-stretch rounded-xl border border-red-300 bg-red-50 px-3 py-2.5 text-xs font-black text-red-700 ${
+                            producto
+                              ? 'md:col-span-2 xl:col-span-1 xl:col-start-9 xl:row-start-1'
+                              : ''
+                          }`}
                         >
                           Eliminar
                         </button>
@@ -3135,6 +3174,7 @@ export default function AdminComprasPage() {
               </div>
             </div>
 
+            {(items.some((item) => Boolean(item.producto_id)) || productoDesdeInforme) && (
             <div className="mt-6 flex flex-col gap-4 rounded-[28px] bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-3xl font-black text-maruxa-chocolate">
@@ -3168,6 +3208,7 @@ export default function AdminComprasPage() {
                 </button>
               </div>
             </div>
+            )}
           </>
         )}
       </section>
