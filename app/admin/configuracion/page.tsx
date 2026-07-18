@@ -56,6 +56,10 @@ type CuentaBancaria = {
   activo: boolean;
 };
 
+function normalizarDatoCuenta(valor: string | null | undefined) {
+  return (valor || '').trim().toLocaleLowerCase('es-CL').replace(/\s+/g, ' ');
+}
+
 export default function ConfiguracionPage() {
   const [empresa, setEmpresa] = useState<EmpresaConfig | null>(null);
   const [turnos, setTurnos] = useState<Turno[]>([]);
@@ -307,6 +311,19 @@ export default function ConfiguracionPage() {
       return;
     }
 
+    const cuentaExistente = cuentasBancarias.find(
+      (cuenta) =>
+        normalizarDatoCuenta(cuenta.banco) === normalizarDatoCuenta(nuevaCuenta.banco) &&
+        normalizarDatoCuenta(cuenta.numero_cuenta) ===
+          normalizarDatoCuenta(nuevaCuenta.numero_cuenta)
+    );
+
+    if (cuentaExistente) {
+      setCuentaEditando({ ...cuentaExistente });
+      alert('Esta cuenta ya existe. Se abrio el registro para que puedas modificarlo.');
+      return;
+    }
+
     const { error } = await supabase.from('cuentas_bancarias').insert({
       empresa_id: empresa.id,
       banco: nuevaCuenta.banco.trim(),
@@ -321,7 +338,11 @@ export default function ConfiguracionPage() {
     });
 
     if (error) {
-      alert(error.message);
+      alert(
+        error.code === '23505'
+          ? 'Esta cuenta bancaria ya esta registrada. Usa el boton Editar cuenta.'
+          : error.message
+      );
       return;
     }
 
@@ -365,6 +386,20 @@ export default function ConfiguracionPage() {
       return;
     }
 
+    const cuentaDuplicada = cuentasBancarias.find(
+      (cuenta) =>
+        cuenta.id !== cuentaEditando.id &&
+        normalizarDatoCuenta(cuenta.banco) ===
+          normalizarDatoCuenta(cuentaEditando.banco) &&
+        normalizarDatoCuenta(cuenta.numero_cuenta) ===
+          normalizarDatoCuenta(cuentaEditando.numero_cuenta)
+    );
+
+    if (cuentaDuplicada) {
+      alert('Ya existe otra cuenta con el mismo banco y numero de cuenta.');
+      return;
+    }
+
     if (cuentaEditando.es_principal) {
       const { error: errorReset } = await supabase
         .from('cuentas_bancarias')
@@ -394,7 +429,11 @@ export default function ConfiguracionPage() {
       .eq('id', cuentaEditando.id);
 
     if (error) {
-      alert(error.message);
+      alert(
+        error.code === '23505'
+          ? 'Ya existe otra cuenta con el mismo banco y numero de cuenta.'
+          : error.message
+      );
       return;
     }
 
@@ -731,6 +770,9 @@ export default function ConfiguracionPage() {
               <p className="mt-2 text-sm font-bold text-maruxa-cafe/70">
                 Registra una o varias cuentas para pagos, documentos y datos comerciales.
               </p>
+              <p className="mt-1 text-xs font-semibold text-maruxa-cafe/55">
+                Para cambiar una cuenta existente, usa Editar cuenta en su registro.
+              </p>
             </div>
 
             {cuentasBancarias.some((cuenta) => cuenta.es_principal) && (
@@ -838,9 +880,9 @@ export default function ConfiguracionPage() {
           <button
             type="button"
             onClick={agregarCuentaBancaria}
-            className="mt-5 rounded-full bg-maruxa-rojo px-8 py-4 font-black text-white"
+            className="mt-5 rounded-full border-2 border-[#7A111B] bg-[#A51F2B] px-8 py-4 font-black text-white shadow-lg"
           >
-            Agregar cuenta
+            Agregar nueva cuenta
           </button>
 
           <div className="mt-6 grid gap-3">
@@ -932,7 +974,7 @@ export default function ConfiguracionPage() {
                         <button
                           type="button"
                           onClick={guardarCuentaEditada}
-                          className="rounded-full bg-maruxa-rojo px-5 py-3 text-sm font-black text-white"
+                          className="rounded-full border-2 border-[#7A111B] bg-[#A51F2B] px-5 py-3 text-sm font-black text-white shadow-lg"
                         >
                           Guardar cambios
                         </button>
@@ -1046,7 +1088,7 @@ export default function ConfiguracionPage() {
           <button
             type="button"
             onClick={agregarTurno}
-            className="mt-5 rounded-full bg-maruxa-rojo px-8 py-4 font-black text-white"
+            className="mt-5 rounded-full border-2 border-[#7A111B] bg-[#A51F2B] px-8 py-4 font-black text-white shadow-lg"
           >
             Agregar turno
           </button>
@@ -1081,7 +1123,7 @@ export default function ConfiguracionPage() {
         <button
           type="button"
           onClick={guardarEmpresa}
-          className="mt-8 w-full rounded-full bg-maruxa-rojo px-8 py-5 text-xl font-black text-white shadow-premium"
+          className="mt-8 w-full rounded-full border-2 border-[#7A111B] bg-[#A51F2B] px-8 py-5 text-xl font-black text-white shadow-premium transition hover:bg-[#7A111B]"
         >
           Guardar configuración
         </button>
