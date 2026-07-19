@@ -63,7 +63,7 @@ export default function AdminLoginPage() {
     setCargando(true);
     const { error: errorRecuperacion } =
       await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}/admin/login`,
+        redirectTo: `${window.location.origin}/admin/crear-contrasena`,
       });
 
     if (errorRecuperacion) {

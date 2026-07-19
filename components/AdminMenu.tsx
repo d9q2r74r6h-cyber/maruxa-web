@@ -146,6 +146,8 @@ export function AdminMenu() {
         .select('id,tipo,estado,created_at,telefono')
         .eq('empresa_id', perfil.empresa_id)
         .neq('tipo', 'order')
+        .neq('tipo', 'aviso_administrador')
+        .neq('tipo', 'respuesta')
         .order('created_at', { ascending: false })
         .limit(100);
 
@@ -157,11 +159,16 @@ export function AdminMenu() {
         .limit(100);
 
       const pendientesWhatsapp = (data || []).filter(
-        (evento) => evento.estado !== 'respondido'
+        (evento) =>
+          evento.estado !== 'respondido' &&
+          evento.estado !== 'leido' &&
+          evento.estado !== 'informativo'
       );
       const pendientesInstagram = (instagramData || []).filter(
         (evento) =>
-          evento.estado !== 'respondido' && evento.estado !== 'informativo'
+          evento.estado !== 'respondido' &&
+          evento.estado !== 'leido' &&
+          evento.estado !== 'informativo'
       );
       const totalPendientes =
         pendientesWhatsapp.length + pendientesInstagram.length;
@@ -260,7 +267,27 @@ export function AdminMenu() {
       .on(
         'postgres_changes',
         {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'whatsapp_eventos',
+          filter: `empresa_id=eq.${perfil?.empresa_id}`,
+        },
+        cargarPendientes
+      )
+      .on(
+        'postgres_changes',
+        {
           event: 'INSERT',
+          schema: 'public',
+          table: 'instagram_eventos',
+          filter: `empresa_id=eq.${perfil?.empresa_id}`,
+        },
+        cargarPendientes
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
           schema: 'public',
           table: 'instagram_eventos',
           filter: `empresa_id=eq.${perfil?.empresa_id}`,

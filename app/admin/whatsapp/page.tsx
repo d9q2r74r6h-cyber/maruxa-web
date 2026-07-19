@@ -227,6 +227,7 @@ function estaPendiente(evento: WhatsappEvento) {
     evento.tipo !== 'order' &&
     !esMensajePropio(evento) &&
     evento.estado !== 'respondido' &&
+    evento.estado !== 'leido' &&
     evento.estado !== 'informativo'
   );
 }
@@ -495,6 +496,52 @@ export default function AdminWhatsappPage() {
     conversaciones.find((conversacion) => conversacion.clave === conversacionActivaId) ||
     conversacionesFiltradas[0] ||
     null;
+
+  useEffect(() => {
+    if (!conversacionActiva) return;
+
+    const pendientes = conversacionActiva.eventos.filter(estaPendiente);
+    if (pendientes.length === 0) return;
+
+    let cancelado = false;
+
+    async function marcarComoLeidos() {
+      const { data: sesion } = await supabase.auth.getSession();
+      const token = sesion.session?.access_token;
+      if (!token) return;
+
+      const whatsappIds = pendientes
+        .filter((evento) => evento.origen === 'whatsapp')
+        .map((evento) => evento.id);
+      const instagramIds = pendientes
+        .filter((evento) => evento.origen === 'instagram')
+        .map((evento) => evento.id);
+
+      const respuesta = await fetch('/api/whatsapp/marcar-leidos', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ whatsappIds, instagramIds }),
+      });
+
+      if (!respuesta.ok || cancelado) return;
+
+      const ids = new Set([...whatsappIds, ...instagramIds]);
+      setEventos((actuales) =>
+        actuales.map((evento) =>
+          ids.has(evento.id) ? { ...evento, estado: 'leido' } : evento
+        )
+      );
+    }
+
+    marcarComoLeidos();
+
+    return () => {
+      cancelado = true;
+    };
+  }, [conversacionActiva?.clave]);
 
   useEffect(() => {
     finalMensajesRef.current?.scrollIntoView({ block: 'end' });
