@@ -51,7 +51,7 @@ export async function POST(request: Request) {
 
   const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
     data: { nombre_visible: nombre },
-    redirectTo: `${new URL(request.url).origin}/admin/login`,
+    redirectTo: `${new URL(request.url).origin}/admin/crear-contrasena`,
   });
 
   if (error) {

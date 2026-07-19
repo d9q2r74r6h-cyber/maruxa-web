@@ -35,7 +35,12 @@ export function AdminLayoutShell({
   const pathname = usePathname();
   const { puedeVer } = useAdminSession();
 
-  if (pathname === '/admin/login') return children;
+  if (
+    pathname === '/admin/login' ||
+    pathname === '/admin/crear-contrasena'
+  ) {
+    return children;
+  }
 
   const moduloActual = modulosPorRuta.find(([ruta]) =>
     pathname.startsWith(ruta)
