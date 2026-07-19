@@ -56,6 +56,15 @@ type CuentaBancaria = {
   activo: boolean;
 };
 
+type PoliticaAlertaVehiculo = {
+  id: string;
+  codigo: string;
+  nombre: string;
+  dias_anticipacion: number;
+  km_anticipacion: number;
+  activo: boolean;
+};
+
 function normalizarDatoCuenta(valor: string | null | undefined) {
   return (valor || '').trim().toLocaleLowerCase('es-CL').replace(/\s+/g, ' ');
 }
@@ -65,6 +74,7 @@ export default function ConfiguracionPage() {
   const [turnos, setTurnos] = useState<Turno[]>([]);
   const [impuestos, setImpuestos] = useState<ImpuestoAdicional[]>([]);
   const [cuentasBancarias, setCuentasBancarias] = useState<CuentaBancaria[]>([]);
+  const [politicasVehiculos, setPoliticasVehiculos] = useState<PoliticaAlertaVehiculo[]>([]);
   const [cuentaEditando, setCuentaEditando] = useState<CuentaBancaria | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -159,12 +169,32 @@ export default function ConfiguracionPage() {
       setCuentasBancarias((cuentasData as CuentaBancaria[]) || []);
     }
 
+    const { data: politicasData } = await supabase
+      .from('vehiculo_alerta_politicas')
+      .select('id,codigo,nombre,dias_anticipacion,km_anticipacion,activo')
+      .eq('empresa_id', empresaActual.id)
+      .order('nombre');
+    setPoliticasVehiculos((politicasData as PoliticaAlertaVehiculo[]) || []);
+
     setLoading(false);
   }
 
   useEffect(() => {
     cargarDatos();
   }, []);
+
+  async function guardarPoliticaVehiculo(politica: PoliticaAlertaVehiculo) {
+    const { error } = await supabase
+      .from('vehiculo_alerta_politicas')
+      .update({
+        dias_anticipacion: Number(politica.dias_anticipacion || 0),
+        km_anticipacion: Number(politica.km_anticipacion || 0),
+        activo: politica.activo,
+      })
+      .eq('id', politica.id);
+    if (error) return alert(error.message);
+    alert(`Política “${politica.nombre}” guardada.`);
+  }
 
   async function guardarEmpresa() {
     if (!empresa) return;
@@ -664,6 +694,40 @@ export default function ConfiguracionPage() {
               placeholder="Rinde aceptable"
               className="rounded-2xl border px-5 py-4 font-bold"
             />
+          </div>
+        </section>
+
+        <section className="mt-8 rounded-[34px] bg-white p-6 shadow-premium">
+          <h2 className="text-2xl font-black text-maruxa-chocolate">
+            Alertas de vehículos
+          </h2>
+          <p className="mt-2 text-sm font-bold text-maruxa-cafe/65">
+            Define con cuánta anticipación debe avisar la empresa antes de una fecha o kilometraje.
+          </p>
+          <div className="mt-6 grid gap-3">
+            {politicasVehiculos.length === 0 && (
+              <p className="rounded-2xl bg-maruxa-crema p-4 text-sm font-bold text-maruxa-cafe/65">
+                Las políticas estarán disponibles después de ejecutar la migración del módulo Vehículos.
+              </p>
+            )}
+            {politicasVehiculos.map((politica) => (
+              <div key={politica.id} className="grid gap-3 rounded-2xl bg-maruxa-crema p-4 md:grid-cols-[1fr_170px_170px_auto] md:items-end">
+                <div>
+                  <p className="font-black text-maruxa-chocolate">{politica.nombre}</p>
+                  <label className="mt-2 flex items-center gap-2 text-xs font-black uppercase text-maruxa-cafe/60">
+                    <input type="checkbox" checked={politica.activo} onChange={(e) => setPoliticasVehiculos((actuales) => actuales.map((item) => item.id === politica.id ? { ...item, activo: e.target.checked } : item))} />
+                    Política activa
+                  </label>
+                </div>
+                <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Días antes
+                  <input type="number" min="0" value={politica.dias_anticipacion} onChange={(e) => setPoliticasVehiculos((actuales) => actuales.map((item) => item.id === politica.id ? { ...item, dias_anticipacion: Number(e.target.value) } : item))} className="h-11 rounded-xl border bg-white px-3 text-right text-sm font-bold normal-case" />
+                </label>
+                <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Km antes
+                  <input type="number" min="0" value={politica.km_anticipacion} onChange={(e) => setPoliticasVehiculos((actuales) => actuales.map((item) => item.id === politica.id ? { ...item, km_anticipacion: Number(e.target.value) } : item))} className="h-11 rounded-xl border bg-white px-3 text-right text-sm font-bold normal-case" />
+                </label>
+                <button type="button" onClick={() => guardarPoliticaVehiculo(politica)} className="h-11 rounded-xl bg-[#3b2116] px-5 font-black text-white">Guardar</button>
+              </div>
+            ))}
           </div>
         </section>
 

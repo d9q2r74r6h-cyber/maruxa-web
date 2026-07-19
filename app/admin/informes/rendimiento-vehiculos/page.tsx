@@ -11,6 +11,7 @@ type Vehiculo = {
   nombre: string;
   patente: string | null;
   repartidor_id: string | null;
+  kilometraje_actual: number;
   activo: boolean;
 };
 
@@ -186,7 +187,7 @@ export default function RendimientoVehiculosPage() {
     const [vehiculosResp, cargasResp, funcionariosResp] = await Promise.all([
       supabase
         .from('vehiculos_reparto')
-        .select('id,codigo,nombre,patente,repartidor_id,activo')
+        .select('id,codigo,nombre,patente,repartidor_id,kilometraje_actual,activo')
         .eq('empresa_id', perfil.empresa_id)
         .eq('activo', true)
         .order('nombre'),
@@ -385,6 +386,13 @@ export default function RendimientoVehiculosPage() {
     });
     setGuardando(false);
     if (error) return alert(error.message);
+    const vehiculoActual = vehiculos.find((item) => item.id === form.vehiculo_id);
+    if (kilometraje !== null && kilometraje > numero(vehiculoActual?.kilometraje_actual)) {
+      await supabase
+        .from('vehiculos_reparto')
+        .update({ kilometraje_actual: kilometraje })
+        .eq('id', form.vehiculo_id);
+    }
     setForm((actual) => ({
       ...actual,
       numero_guia: '',

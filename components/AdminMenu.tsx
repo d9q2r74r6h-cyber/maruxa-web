@@ -47,6 +47,7 @@ const grupos: {
       { label: 'Productos', href: '/admin/productos', modulo: 'productos' },
       { label: 'Proveedores', href: '/admin/proveedores' },
       { label: 'Costos y precios', href: '/admin/compras', modulo: 'compras' },
+      { label: 'Vehículos', href: '/admin/vehiculos', modulo: 'vehiculos' },
       { label: 'Kardex / movimientos', future: true },
       { label: 'Historial de costos', future: true },
     ],
