@@ -114,7 +114,7 @@ from (
 where datos.vehiculo_id = v.id
   and datos.kilometraje > v.kilometraje_actual;
 
-insert into public.modulos_sistema (codigo, nombre, grupo, ruta, orden, activo)
+insert into public.modulos_erp (codigo, nombre, grupo, ruta, orden, activo)
 values ('vehiculos', 'Vehículos', 'Inventario', '/admin/vehiculos', 35, true)
 on conflict (codigo) do update set
   nombre = excluded.nombre,
