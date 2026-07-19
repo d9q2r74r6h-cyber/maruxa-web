@@ -68,6 +68,7 @@ const grupos: {
       { label: 'Rinde mensual', href: '/admin/informes/rinde', modulo: 'informe_rinde' },
       { label: 'Listados de precios', href: '/admin/informes/precios', modulo: 'compras' },
       { label: 'Productos por proveedor', href: '/admin/informes/productos-proveedor', modulo: 'compras' },
+      { label: 'Rendimiento de vehículos', href: '/admin/informes/rendimiento-vehiculos', modulo: 'rendimiento_vehiculos' },
       { label: 'Costos', future: true },
       { label: 'Rentabilidad', future: true },
       { label: 'Stock critico', future: true },
