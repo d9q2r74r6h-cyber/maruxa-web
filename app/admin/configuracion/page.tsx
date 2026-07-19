@@ -733,17 +733,17 @@ export default function ConfiguracionPage() {
           <p className="mt-2 text-sm font-bold text-maruxa-cafe/65">
             Define con cuánta anticipación debe avisar la empresa antes de una fecha o kilometraje.
           </p>
-          <div className="mt-5 grid gap-3 rounded-2xl border-2 border-red-100 bg-red-50/50 p-4 md:grid-cols-[1fr_150px_150px_auto] md:items-end">
-            <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Nueva alerta
-              <input value={nuevaPoliticaVehiculo.nombre} onChange={(e) => setNuevaPoliticaVehiculo({ ...nuevaPoliticaVehiculo, nombre: e.target.value })} placeholder="Ej: Cambio de neumáticos" className="h-11 rounded-xl border bg-white px-3 text-sm font-bold normal-case" />
+          <div className="mt-5 grid min-w-0 gap-3 rounded-2xl border-2 border-red-100 bg-red-50/50 p-4 md:grid-cols-2 xl:grid-cols-[minmax(260px,1fr)_130px_130px_150px] xl:items-end">
+            <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Nueva alerta
+              <input value={nuevaPoliticaVehiculo.nombre} onChange={(e) => setNuevaPoliticaVehiculo({ ...nuevaPoliticaVehiculo, nombre: e.target.value })} placeholder="Ej: Cambio de neumáticos" className="h-11 w-full min-w-0 rounded-xl border bg-white px-3 text-sm font-bold normal-case" />
             </label>
-            <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Días antes
-              <input type="number" min="0" value={nuevaPoliticaVehiculo.dias_anticipacion} onChange={(e) => setNuevaPoliticaVehiculo({ ...nuevaPoliticaVehiculo, dias_anticipacion: e.target.value })} className="h-11 rounded-xl border bg-white px-3 text-right text-sm font-bold normal-case" />
+            <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Días antes
+              <input type="number" min="0" value={nuevaPoliticaVehiculo.dias_anticipacion} onChange={(e) => setNuevaPoliticaVehiculo({ ...nuevaPoliticaVehiculo, dias_anticipacion: e.target.value })} className="h-11 w-full min-w-0 rounded-xl border bg-white px-3 text-right text-sm font-bold normal-case" />
             </label>
-            <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Km antes
-              <input type="number" min="0" value={nuevaPoliticaVehiculo.km_anticipacion} onChange={(e) => setNuevaPoliticaVehiculo({ ...nuevaPoliticaVehiculo, km_anticipacion: e.target.value })} className="h-11 rounded-xl border bg-white px-3 text-right text-sm font-bold normal-case" />
+            <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Km antes
+              <input type="number" min="0" value={nuevaPoliticaVehiculo.km_anticipacion} onChange={(e) => setNuevaPoliticaVehiculo({ ...nuevaPoliticaVehiculo, km_anticipacion: e.target.value })} className="h-11 w-full min-w-0 rounded-xl border bg-white px-3 text-right text-sm font-bold normal-case" />
             </label>
-            <button type="button" onClick={crearPoliticaVehiculo} className="h-11 rounded-xl bg-red-700 px-5 font-black text-white shadow-lg">Crear alerta</button>
+            <button type="button" onClick={crearPoliticaVehiculo} className="h-11 w-full rounded-xl bg-red-700 px-4 font-black text-white shadow-lg">Crear alerta</button>
           </div>
           <div className="mt-6 grid gap-3">
             {politicasVehiculos.length === 0 && (
@@ -752,21 +752,21 @@ export default function ConfiguracionPage() {
               </p>
             )}
             {politicasVehiculos.map((politica) => (
-              <div key={politica.id} className="grid gap-3 rounded-2xl bg-maruxa-crema p-4 md:grid-cols-[1fr_170px_170px_auto] md:items-end">
-                <div>
+              <div key={politica.id} className="grid min-w-0 gap-3 rounded-2xl border border-[#4B2818]/10 bg-[#FFF8EC] p-4 md:grid-cols-2 xl:grid-cols-[minmax(260px,1fr)_130px_130px_110px] xl:items-end">
+                <div className="min-w-0">
                   <p className="font-black text-maruxa-chocolate">{politica.nombre}</p>
                   <label className="mt-2 flex items-center gap-2 text-xs font-black uppercase text-maruxa-cafe/60">
                     <input type="checkbox" checked={politica.activo} onChange={(e) => setPoliticasVehiculos((actuales) => actuales.map((item) => item.id === politica.id ? { ...item, activo: e.target.checked } : item))} />
                     Política activa
                   </label>
                 </div>
-                <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Días antes
-                  <input type="number" min="0" value={politica.dias_anticipacion} onChange={(e) => setPoliticasVehiculos((actuales) => actuales.map((item) => item.id === politica.id ? { ...item, dias_anticipacion: Number(e.target.value) } : item))} className="h-11 rounded-xl border bg-white px-3 text-right text-sm font-bold normal-case" />
+                <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Días antes
+                  <input type="number" min="0" value={politica.dias_anticipacion} onChange={(e) => setPoliticasVehiculos((actuales) => actuales.map((item) => item.id === politica.id ? { ...item, dias_anticipacion: Number(e.target.value) } : item))} className="h-11 w-full min-w-0 rounded-xl border bg-white px-3 text-right text-sm font-bold normal-case" />
                 </label>
-                <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Km antes
-                  <input type="number" min="0" value={politica.km_anticipacion} onChange={(e) => setPoliticasVehiculos((actuales) => actuales.map((item) => item.id === politica.id ? { ...item, km_anticipacion: Number(e.target.value) } : item))} className="h-11 rounded-xl border bg-white px-3 text-right text-sm font-bold normal-case" />
+                <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Km antes
+                  <input type="number" min="0" value={politica.km_anticipacion} onChange={(e) => setPoliticasVehiculos((actuales) => actuales.map((item) => item.id === politica.id ? { ...item, km_anticipacion: Number(e.target.value) } : item))} className="h-11 w-full min-w-0 rounded-xl border bg-white px-3 text-right text-sm font-bold normal-case" />
                 </label>
-                <button type="button" onClick={() => guardarPoliticaVehiculo(politica)} className="h-11 rounded-xl bg-[#3b2116] px-5 font-black text-white">Guardar</button>
+                <button type="button" onClick={() => guardarPoliticaVehiculo(politica)} className="h-11 w-full rounded-xl bg-[#3b2116] px-4 font-black text-white">Guardar</button>
               </div>
             ))}
           </div>
