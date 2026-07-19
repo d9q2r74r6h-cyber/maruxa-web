@@ -98,6 +98,11 @@ export default function ConfiguracionPage() {
     alias: '',
     es_principal: false,
   });
+  const [nuevaPoliticaVehiculo, setNuevaPoliticaVehiculo] = useState({
+    nombre: '',
+    dias_anticipacion: '30',
+    km_anticipacion: '500',
+  });
 
   async function cargarDatos() {
     setLoading(true);
@@ -194,6 +199,30 @@ export default function ConfiguracionPage() {
       .eq('id', politica.id);
     if (error) return alert(error.message);
     alert(`Política “${politica.nombre}” guardada.`);
+  }
+
+  async function crearPoliticaVehiculo() {
+    if (!empresa || !nuevaPoliticaVehiculo.nombre.trim()) {
+      alert('Ingresa el nombre de la alerta.');
+      return;
+    }
+    const codigo = nuevaPoliticaVehiculo.nombre
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_|_$/g, '');
+    const { error } = await supabase.from('vehiculo_alerta_politicas').insert({
+      empresa_id: empresa.id,
+      codigo,
+      nombre: nuevaPoliticaVehiculo.nombre.trim(),
+      dias_anticipacion: Number(nuevaPoliticaVehiculo.dias_anticipacion || 0),
+      km_anticipacion: Number(nuevaPoliticaVehiculo.km_anticipacion || 0),
+      activo: true,
+    });
+    if (error) return alert(error.code === '23505' ? 'Ya existe una alerta con ese nombre.' : error.message);
+    setNuevaPoliticaVehiculo({ nombre: '', dias_anticipacion: '30', km_anticipacion: '500' });
+    await cargarDatos();
   }
 
   async function guardarEmpresa() {
@@ -704,6 +733,18 @@ export default function ConfiguracionPage() {
           <p className="mt-2 text-sm font-bold text-maruxa-cafe/65">
             Define con cuánta anticipación debe avisar la empresa antes de una fecha o kilometraje.
           </p>
+          <div className="mt-5 grid gap-3 rounded-2xl border-2 border-red-100 bg-red-50/50 p-4 md:grid-cols-[1fr_150px_150px_auto] md:items-end">
+            <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Nueva alerta
+              <input value={nuevaPoliticaVehiculo.nombre} onChange={(e) => setNuevaPoliticaVehiculo({ ...nuevaPoliticaVehiculo, nombre: e.target.value })} placeholder="Ej: Cambio de neumáticos" className="h-11 rounded-xl border bg-white px-3 text-sm font-bold normal-case" />
+            </label>
+            <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Días antes
+              <input type="number" min="0" value={nuevaPoliticaVehiculo.dias_anticipacion} onChange={(e) => setNuevaPoliticaVehiculo({ ...nuevaPoliticaVehiculo, dias_anticipacion: e.target.value })} className="h-11 rounded-xl border bg-white px-3 text-right text-sm font-bold normal-case" />
+            </label>
+            <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Km antes
+              <input type="number" min="0" value={nuevaPoliticaVehiculo.km_anticipacion} onChange={(e) => setNuevaPoliticaVehiculo({ ...nuevaPoliticaVehiculo, km_anticipacion: e.target.value })} className="h-11 rounded-xl border bg-white px-3 text-right text-sm font-bold normal-case" />
+            </label>
+            <button type="button" onClick={crearPoliticaVehiculo} className="h-11 rounded-xl bg-red-700 px-5 font-black text-white shadow-lg">Crear alerta</button>
+          </div>
           <div className="mt-6 grid gap-3">
             {politicasVehiculos.length === 0 && (
               <p className="rounded-2xl bg-maruxa-crema p-4 text-sm font-bold text-maruxa-cafe/65">

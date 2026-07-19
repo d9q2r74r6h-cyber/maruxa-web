@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
+  AlertTriangle,
   Bell,
   ChevronDown,
   LogOut,
@@ -95,11 +96,13 @@ export function AdminMenu() {
   const [open, setOpen] = useState<string | null>(null);
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
   const [pendientes, setPendientes] = useState(0);
+  const [alertasVehiculos, setAlertasVehiculos] = useState(0);
   const [permisoNotificaciones, setPermisoNotificaciones] =
     useState<NotificationPermission | 'no-soportado'>('default');
   const menuRef = useRef<HTMLElement | null>(null);
   const pendientesPreviosRef = useRef<number | null>(null);
   const ultimoEventoNotificadoRef = useRef<string | null>(null);
+  const ultimaAlertaVehiculoRef = useRef<string | null>(null);
 
   useEffect(() => {
     function cerrarSiClickAfuera(event: MouseEvent) {
@@ -272,6 +275,115 @@ export function AdminMenu() {
     };
   }, [pathname, perfil?.empresa_id, puedeVer]);
 
+  useEffect(() => {
+    if (!perfil?.empresa_id || !puedeVer('vehiculos')) {
+      setAlertasVehiculos(0);
+      return;
+    }
+
+    async function cargarAlertasVehiculos() {
+      const [vehiculosResp, politicasResp, registrosResp] = await Promise.all([
+        supabase
+          .from('vehiculos_reparto')
+          .select('id,nombre,kilometraje_actual,revision_tecnica_vence,permiso_circulacion_vence,seguro_vence')
+          .eq('empresa_id', perfil!.empresa_id)
+          .eq('activo', true),
+        supabase
+          .from('vehiculo_alerta_politicas')
+          .select('id,codigo,dias_anticipacion,km_anticipacion')
+          .eq('empresa_id', perfil!.empresa_id)
+          .eq('activo', true),
+        supabase
+          .from('vehiculo_registros')
+          .select('id,vehiculo_id,politica_id,titulo,proxima_fecha,proximo_kilometraje')
+          .eq('empresa_id', perfil!.empresa_id),
+      ]);
+      if (vehiculosResp.error || politicasResp.error || registrosResp.error) return;
+
+      const politicas = politicasResp.data || [];
+      const registros = registrosResp.data || [];
+      const hoy = new Date();
+      hoy.setHours(12, 0, 0, 0);
+      const avisos: Array<{ clave: string; texto: string }> = [];
+      const diasHasta = (valor: string) => Math.ceil(
+        (new Date(`${valor}T12:00:00`).getTime() - hoy.getTime()) / 86400000
+      );
+
+      (vehiculosResp.data || []).forEach((vehiculo) => {
+        const documentos = [
+          ['revision_tecnica', 'Revisión técnica', vehiculo.revision_tecnica_vence],
+          ['permiso_circulacion', 'Permiso de circulación', vehiculo.permiso_circulacion_vence],
+          ['seguro', 'Seguro obligatorio', vehiculo.seguro_vence],
+        ] as const;
+        documentos.forEach(([codigo, nombre, vencimiento]) => {
+          if (!vencimiento) return;
+          const dias = diasHasta(vencimiento);
+          const politica = politicas.find((item) => item.codigo === codigo);
+          if (dias <= (politica?.dias_anticipacion ?? 30)) {
+            avisos.push({
+              clave: `${vehiculo.id}-${codigo}-${vencimiento}`,
+              texto: dias < 0
+                ? `${vehiculo.nombre}: ${nombre.toLowerCase()} vencida`
+                : `${vehiculo.nombre}: ${nombre.toLowerCase()} vence en ${dias} días`,
+            });
+          }
+        });
+        registros.filter((registro) => registro.vehiculo_id === vehiculo.id).forEach((registro) => {
+          const politica = politicas.find((item) => item.id === registro.politica_id);
+          if (registro.proxima_fecha) {
+            const dias = diasHasta(registro.proxima_fecha);
+            if (dias <= (politica?.dias_anticipacion ?? 30)) avisos.push({
+              clave: `${registro.id}-fecha-${registro.proxima_fecha}`,
+              texto: dias < 0
+                ? `${vehiculo.nombre}: ${registro.titulo} vencida`
+                : `${vehiculo.nombre}: ${registro.titulo} en ${dias} días`,
+            });
+          }
+          if (registro.proximo_kilometraje) {
+            const faltan = Number(registro.proximo_kilometraje) - Number(vehiculo.kilometraje_actual || 0);
+            if (faltan <= (politica?.km_anticipacion ?? 500)) avisos.push({
+              clave: `${registro.id}-km-${registro.proximo_kilometraje}`,
+              texto: faltan <= 0
+                ? `${vehiculo.nombre}: ${registro.titulo} por kilometraje`
+                : `${vehiculo.nombre}: ${registro.titulo} en ${faltan.toLocaleString('es-CL')} km`,
+            });
+          }
+        });
+      });
+
+      setAlertasVehiculos(avisos.length);
+      if (!avisos.length || pathname === '/admin/vehiculos') return;
+      const firma = avisos.map((aviso) => aviso.clave).sort().join('|');
+      const claveLocal = `maruxa-alertas-vehiculos-${perfil!.empresa_id}`;
+      const firmaAnterior = ultimaAlertaVehiculoRef.current || window.localStorage.getItem(claveLocal);
+      if (firma !== firmaAnterior) {
+        const titulo = avisos.length === 1 ? 'Alerta de vehículo' : `${avisos.length} alertas de vehículos`;
+        toast.warning(titulo, {
+          description: avisos[0].texto,
+          duration: 12000,
+          action: { label: 'Abrir', onClick: () => { window.location.href = '/admin/vehiculos'; } },
+        });
+        if ('Notification' in window && Notification.permission === 'granted') {
+          const notificacion = new Notification(titulo, {
+            body: avisos[0].texto,
+            icon: '/apple-touch-icon.png',
+            tag: `maruxa-alertas-vehiculos-${firma}`,
+          });
+          notificacion.onclick = () => {
+            window.focus();
+            window.location.href = '/admin/vehiculos';
+          };
+        }
+        ultimaAlertaVehiculoRef.current = firma;
+        window.localStorage.setItem(claveLocal, firma);
+      }
+    }
+
+    void cargarAlertasVehiculos();
+    const intervalo = window.setInterval(cargarAlertasVehiculos, 60000);
+    return () => window.clearInterval(intervalo);
+  }, [pathname, perfil?.empresa_id, puedeVer]);
+
   async function activarNotificaciones() {
     if (typeof window === 'undefined' || !('Notification' in window)) {
       setPermisoNotificaciones('no-soportado');
@@ -284,7 +396,7 @@ export function AdminMenu() {
 
     if (permiso === 'granted') {
       new Notification('Notificaciones activadas', {
-        body: 'Te avisaremos cuando lleguen mensajes pendientes.',
+        body: 'Te avisaremos sobre mensajes pendientes y alertas de vehículos.',
         icon: '/apple-touch-icon.png',
         tag: 'maruxa-notificaciones-activadas',
       });
@@ -311,6 +423,16 @@ export function AdminMenu() {
         </Link>
 
         <div className="flex items-center gap-1">
+          {puedeVer('vehiculos') && (
+            <Link
+              href="/admin/vehiculos"
+              title={alertasVehiculos ? `${alertasVehiculos} alertas de vehículos` : 'Sin alertas de vehículos'}
+              className={`relative grid h-10 w-10 place-items-center rounded-xl ${alertasVehiculos ? 'bg-red-100 text-red-800' : 'bg-[#FFF3DF] text-[#A51F2B]'}`}
+            >
+              <AlertTriangle className="h-4 w-4" />
+              {alertasVehiculos > 0 && <span className="absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full bg-red-700 px-1 text-[10px] font-black text-white ring-2 ring-white">{alertasVehiculos > 99 ? '99+' : alertasVehiculos}</span>}
+            </Link>
+          )}
           {puedeVer('whatsapp') && (
             <Link
               href="/admin/whatsapp"
@@ -490,7 +612,7 @@ export function AdminMenu() {
         })}
 
         <div className="ml-auto flex items-center gap-1 border-l border-[#4B2818]/10 pl-2">
-          {puedeVer('whatsapp') && permisoNotificaciones === 'default' && (
+          {(puedeVer('whatsapp') || puedeVer('vehiculos')) && permisoNotificaciones === 'default' && (
             <button
               type="button"
               onClick={activarNotificaciones}
@@ -525,6 +647,17 @@ export function AdminMenu() {
                   {pendientes > 99 ? '99+' : pendientes}
                 </span>
               )}
+            </Link>
+          )}
+
+          {puedeVer('vehiculos') && (
+            <Link
+              href="/admin/vehiculos"
+              title={alertasVehiculos ? `${alertasVehiculos} alerta${alertasVehiculos === 1 ? '' : 's'} de vehículos` : 'Sin alertas de vehículos'}
+              className={`relative grid h-9 w-9 place-items-center rounded-lg transition ${alertasVehiculos ? 'bg-red-100 text-red-800 hover:bg-red-200' : 'text-[#4B2818]/60 hover:bg-[#FFF3DF] hover:text-[#A51F2B]'}`}
+            >
+              <AlertTriangle className="h-4 w-4" />
+              {alertasVehiculos > 0 && <span className="absolute -right-1.5 -top-1.5 grid min-h-5 min-w-5 place-items-center rounded-full bg-red-700 px-1 text-[10px] font-black text-white ring-2 ring-white">{alertasVehiculos > 99 ? '99+' : alertasVehiculos}</span>}
             </Link>
           )}
 
