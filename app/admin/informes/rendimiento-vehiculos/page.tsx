@@ -376,7 +376,7 @@ export default function RendimientoVehiculosPage() {
           <button type="button" onClick={() => setMostrarVehiculo(!mostrarVehiculo)} className="rounded-full border-2 border-red-700 bg-white px-5 py-3 text-sm font-black text-red-700">
             <Car className="mr-2 inline h-4 w-4" />Nuevo vehículo
           </button>
-          <button type="button" onClick={() => window.print()} className="rounded-full bg-maruxa-chocolate px-5 py-3 text-sm font-black text-white">
+          <button type="button" onClick={() => window.print()} className="rounded-full bg-[#3b2116] px-5 py-3 text-sm font-black text-white shadow-lg transition-colors hover:bg-[#2a1710]">
             <Printer className="mr-2 inline h-4 w-4" />Imprimir
           </button>
         </div>
