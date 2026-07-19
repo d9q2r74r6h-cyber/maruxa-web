@@ -62,6 +62,19 @@ function fechaLocal(valor: string) {
   return new Date(`${valor}T12:00:00`).toLocaleDateString('es-CL');
 }
 
+function documentoTexto(valor: string | null | undefined) {
+  if (!valor) return '—';
+  const [tipo, numeroDocumento] = valor.includes('|')
+    ? valor.split('|', 2)
+    : ['guia', valor];
+  const etiquetas: Record<string, string> = {
+    guia: 'Guía',
+    boleta: 'Boleta',
+    factura: 'Factura',
+  };
+  return `${etiquetas[tipo] || 'Documento'} ${numeroDocumento}`.trim();
+}
+
 function diasEntre(desde: string, hasta: string) {
   return Math.round(
     (new Date(`${hasta}T12:00:00`).getTime() -
@@ -150,6 +163,7 @@ export default function RendimientoVehiculosPage() {
     vehiculo_id: '',
     fecha: new Date().toISOString().slice(0, 10),
     conductor_nombre: '',
+    tipo_documento: 'guia',
     numero_guia: '',
     precio_litro: '',
     monto_guia: '',
@@ -177,7 +191,7 @@ export default function RendimientoVehiculosPage() {
         .order('fecha', { ascending: true }),
       supabase
         .from('funcionarios')
-        .select('nombre_completo')
+        .select('nombre_completo,cargo')
         .eq('empresa_id', perfil.empresa_id)
         .eq('activo', true)
         .order('nombre_completo'),
@@ -197,7 +211,9 @@ export default function RendimientoVehiculosPage() {
     setVehiculos(vehiculosData);
     setCargas(cargasData);
     setConductores(
-      (funcionariosResp.data || []).map((item) => item.nombre_completo)
+      (funcionariosResp.data || [])
+        .filter((item) => String(item.cargo || '').toLowerCase() === 'repartidor')
+        .map((item) => item.nombre_completo)
     );
     const anios = cargasData.map((carga) => Number(carga.fecha.slice(0, 4)));
     if (anios.length && !anios.includes(anio)) setAnio(Math.max(...anios));
@@ -295,8 +311,8 @@ export default function RendimientoVehiculosPage() {
   }
 
   async function guardarCarga() {
-    if (!perfil || !form.vehiculo_id || !form.fecha || numero(form.litros) <= 0) {
-      alert('Completa vehículo, fecha y litros.');
+    if (!perfil || !form.vehiculo_id || !form.fecha || !form.conductor_nombre || numero(form.litros) <= 0) {
+      alert('Completa vehículo, fecha, repartidor y litros.');
       return;
     }
 
@@ -325,7 +341,9 @@ export default function RendimientoVehiculosPage() {
       vehiculo_id: form.vehiculo_id,
       fecha: form.fecha,
       conductor_nombre: form.conductor_nombre.trim() || null,
-      numero_guia: form.numero_guia.trim() || null,
+      numero_guia: form.numero_guia.trim()
+        ? `${form.tipo_documento}|${form.numero_guia.trim()}`
+        : null,
       precio_litro: numero(form.precio_litro),
       monto_guia: numero(form.monto_guia) || montoCalculado,
       litros: numero(form.litros),
@@ -451,19 +469,18 @@ export default function RendimientoVehiculosPage() {
             </div>
           ) : cargando ? <p className="py-10 text-center font-bold">Cargando...</p> : (
             <div className="mt-4 overflow-x-auto">
-              <datalist id="conductores-vehiculos">{conductores.map((nombre) => <option key={nombre} value={nombre} />)}</datalist>
               <table className="w-full min-w-[1450px] text-xs">
-                <thead className="bg-maruxa-chocolate text-white"><tr><th className="px-2 py-2 text-left">Fecha</th><th className="px-2 py-2 text-left">Vehículo</th><th className="px-2 py-2 text-left">Conductor</th><th className="px-2 py-2 text-right">Guía</th><th className="px-2 py-2 text-right">$/litro</th><th className="px-2 py-2 text-right">Litros</th><th className="px-2 py-2 text-right">Gasto</th><th className="px-2 py-2 text-right">Kilometraje</th><th className="px-2 py-2 text-right">Km recorridos</th><th className="px-2 py-2 text-right">Km/l</th><th className="px-2 py-2 text-right">Litros/día</th><th className="px-2 py-2 text-right">$/día</th><th className="no-print px-2 py-2"></th></tr></thead>
+                <thead className="bg-maruxa-chocolate text-white"><tr><th className="px-2 py-2 text-left">Fecha</th><th className="px-2 py-2 text-left">Vehículo</th><th className="px-2 py-2 text-left">Repartidor</th><th className="px-2 py-2 text-right">Documento</th><th className="px-2 py-2 text-right">$/litro</th><th className="px-2 py-2 text-right">Litros</th><th className="px-2 py-2 text-right">Gasto</th><th className="px-2 py-2 text-right">Kilometraje</th><th className="px-2 py-2 text-right">Km recorridos</th><th className="px-2 py-2 text-right">Km/l</th><th className="px-2 py-2 text-right">Litros/día</th><th className="px-2 py-2 text-right">$/día</th><th className="no-print px-2 py-2"></th></tr></thead>
                 <tbody>
                   {[...cargasFiltradas].reverse().map((carga) => {
                     const vehiculo = vehiculos.find((item) => item.id === carga.vehiculo_id);
-                    return <tr key={carga.id} className={`border-b ${carga.alerta ? 'bg-red-50' : carga.origen.startsWith('excel_2024') ? 'bg-blue-50/40' : ''}`}><td className="px-2 py-2 font-bold">{fechaLocal(carga.fecha)}</td><td className="px-2 py-2 font-black">{vehiculo?.nombre || '—'}</td><td className="px-2 py-2">{carga.conductor_nombre || '—'}</td><td className="px-2 py-2 text-right">{carga.numero_guia || '—'}</td><td className="px-2 py-2 text-right">{dinero(carga.precio_litro)}</td><td className="px-2 py-2 text-right">{decimal(carga.litros, 3)}</td><td className="px-2 py-2 text-right">{dinero(carga.monto_guia)}</td><td className="px-2 py-2 text-right">{carga.kilometraje === null ? 'Pendiente' : numero(carga.kilometraje).toLocaleString('es-CL')}</td><td className="px-2 py-2 text-right">{carga.km_recorridos === null ? '—' : numero(carga.km_recorridos).toLocaleString('es-CL')}</td><td className="px-2 py-2 text-right font-black">{decimal(carga.rendimiento)}</td><td className="px-2 py-2 text-right">{decimal(carga.litros_diarios)}</td><td className="px-2 py-2 text-right">{carga.gasto_diario === null ? '—' : dinero(carga.gasto_diario)}</td><td className="no-print px-2 py-2 text-right"><button type="button" onClick={() => eliminarCarga(carga.id)} className="rounded-lg p-2 text-red-700 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button></td></tr>;
+                    return <tr key={carga.id} className={`border-b ${carga.alerta ? 'bg-red-50' : carga.origen.startsWith('excel_2024') ? 'bg-blue-50/40' : ''}`}><td className="px-2 py-2 font-bold">{fechaLocal(carga.fecha)}</td><td className="px-2 py-2 font-black">{vehiculo?.nombre || '—'}</td><td className="px-2 py-2">{carga.conductor_nombre || '—'}</td><td className="px-2 py-2 text-right">{documentoTexto(carga.numero_guia)}</td><td className="px-2 py-2 text-right">{dinero(carga.precio_litro)}</td><td className="px-2 py-2 text-right">{decimal(carga.litros, 3)}</td><td className="px-2 py-2 text-right">{dinero(carga.monto_guia)}</td><td className="px-2 py-2 text-right">{carga.kilometraje === null ? 'Pendiente' : numero(carga.kilometraje).toLocaleString('es-CL')}</td><td className="px-2 py-2 text-right">{carga.km_recorridos === null ? '—' : numero(carga.km_recorridos).toLocaleString('es-CL')}</td><td className="px-2 py-2 text-right font-black">{decimal(carga.rendimiento)}</td><td className="px-2 py-2 text-right">{decimal(carga.litros_diarios)}</td><td className="px-2 py-2 text-right">{carga.gasto_diario === null ? '—' : dinero(carga.gasto_diario)}</td><td className="no-print px-2 py-2 text-right"><button type="button" onClick={() => eliminarCarga(carga.id)} className="rounded-lg p-2 text-red-700 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button></td></tr>;
                   })}
                   <tr className="no-print border-t-2 border-red-700 bg-red-50/60 align-top">
                     <td className="p-1"><input aria-label="Fecha nueva carga" type="date" value={form.fecha} onChange={(e) => setForm({ ...form, fecha: e.target.value })} className="h-10 w-[135px] rounded-lg border bg-white px-2 font-bold" /></td>
                     <td className="p-1"><div className="flex h-10 w-[190px] items-center rounded-lg border bg-red-100 px-2 font-black">{vehiculos.find((vehiculo) => vehiculo.id === vehiculoFiltro)?.nombre}</div></td>
-                    <td className="p-1"><input aria-label="Conductor nueva carga" list="conductores-vehiculos" value={form.conductor_nombre} onChange={(e) => setForm({ ...form, conductor_nombre: e.target.value })} placeholder="Conductor" className="h-10 w-[155px] rounded-lg border bg-white px-2 font-bold" /></td>
-                    <td className="p-1"><input aria-label="Guía nueva carga" value={form.numero_guia} onChange={(e) => setForm({ ...form, numero_guia: e.target.value })} placeholder="N° guía" className="h-10 w-[90px] rounded-lg border bg-white px-2 text-right font-bold" /></td>
+                    <td className="p-1"><select aria-label="Repartidor nueva carga" value={form.conductor_nombre} onChange={(e) => setForm({ ...form, conductor_nombre: e.target.value })} className="h-10 w-[155px] rounded-lg border bg-white px-2 font-bold"><option value="">Elegir repartidor</option>{conductores.map((nombre) => <option key={nombre} value={nombre}>{nombre}</option>)}</select></td>
+                    <td className="p-1"><div className="flex w-[170px] gap-1"><select aria-label="Tipo documento" value={form.tipo_documento} onChange={(e) => setForm({ ...form, tipo_documento: e.target.value })} className="h-10 w-[82px] rounded-lg border bg-white px-1 font-bold"><option value="guia">Guía</option><option value="boleta">Boleta</option><option value="factura">Factura</option></select><input aria-label="Número documento" value={form.numero_guia} onChange={(e) => setForm({ ...form, numero_guia: e.target.value })} placeholder="Número" className="h-10 w-[85px] rounded-lg border bg-white px-2 text-right font-bold" /></div></td>
                     <td className="p-1"><input aria-label="Precio litro nueva carga" inputMode="numeric" value={form.precio_litro} onChange={(e) => setForm({ ...form, precio_litro: e.target.value.replace(/\D/g, '') })} placeholder="$0" className="h-10 w-[90px] rounded-lg border bg-white px-2 text-right font-bold" /></td>
                     <td className="p-1"><input aria-label="Litros nueva carga" inputMode="decimal" value={form.litros} onChange={(e) => setForm({ ...form, litros: e.target.value })} placeholder="0,000" className="h-10 w-[90px] rounded-lg border bg-white px-2 text-right font-bold" /></td>
                     <td className="p-1"><input aria-label="Gasto nueva carga" inputMode="numeric" value={form.monto_guia} onChange={(e) => setForm({ ...form, monto_guia: e.target.value.replace(/\D/g, '') })} placeholder={dinero(numero(form.precio_litro) * numero(form.litros))} className="h-10 w-[105px] rounded-lg border bg-white px-2 text-right font-bold" /></td>
