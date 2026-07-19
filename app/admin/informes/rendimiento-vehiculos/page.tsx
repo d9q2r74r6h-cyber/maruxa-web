@@ -143,7 +143,7 @@ export default function RendimientoVehiculosPage() {
   const [guardando, setGuardando] = useState(false);
   const [errorModulo, setErrorModulo] = useState('');
   const [anio, setAnio] = useState(new Date().getFullYear());
-  const [vehiculoFiltro, setVehiculoFiltro] = useState('todos');
+  const [vehiculoFiltro, setVehiculoFiltro] = useState('');
   const [mostrarVehiculo, setMostrarVehiculo] = useState(false);
   const [formVehiculo, setFormVehiculo] = useState({ nombre: '', patente: '' });
   const [form, setForm] = useState({
@@ -214,7 +214,7 @@ export default function RendimientoVehiculosPage() {
       cargasCalculadas.filter(
         (carga) =>
           Number(carga.fecha.slice(0, 4)) === anio &&
-          (vehiculoFiltro === 'todos' || carga.vehiculo_id === vehiculoFiltro)
+          carga.vehiculo_id === vehiculoFiltro
       ),
     [anio, cargasCalculadas, vehiculoFiltro]
   );
@@ -404,12 +404,12 @@ export default function RendimientoVehiculosPage() {
         <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Año
           <select value={anio} onChange={(e) => setAnio(Number(e.target.value))} className="h-11 rounded-xl border bg-white px-3 text-sm font-bold normal-case">{aniosDisponibles.map((valor) => <option key={valor}>{valor}</option>)}</select>
         </label>
-        <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Vehículo
+        <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Vehículo de la planilla
           <select value={vehiculoFiltro} onChange={(e) => {
             const valor = e.target.value;
             setVehiculoFiltro(valor);
-            if (valor !== 'todos') setForm((actual) => ({ ...actual, vehiculo_id: valor }));
-          }} className="h-11 rounded-xl border bg-white px-3 text-sm font-bold normal-case"><option value="todos">Todos los vehículos</option>{vehiculos.map((vehiculo) => <option key={vehiculo.id} value={vehiculo.id}>{vehiculo.nombre}{vehiculo.patente ? ` · ${vehiculo.patente}` : ''}</option>)}</select>
+            setForm((actual) => ({ ...actual, vehiculo_id: valor }));
+          }} className="h-11 rounded-xl border bg-white px-3 text-sm font-bold normal-case"><option value="">Selecciona un vehículo</option>{vehiculos.map((vehiculo) => <option key={vehiculo.id} value={vehiculo.id}>{vehiculo.nombre}{vehiculo.patente ? ` · ${vehiculo.patente}` : ''}</option>)}</select>
         </label>
       </section>
 
@@ -445,7 +445,11 @@ export default function RendimientoVehiculosPage() {
           <p className="no-print mt-1 text-xs font-bold text-maruxa-cafe/55">
             Ingresa la próxima carga en la última fila. Los cálculos aparecen al guardar.
           </p>
-          {cargando ? <p className="py-10 text-center font-bold">Cargando...</p> : (
+          {!vehiculoFiltro ? (
+            <div className="no-print mt-4 rounded-2xl border-2 border-dashed border-red-200 bg-red-50/50 px-5 py-10 text-center font-black text-maruxa-cafe/65">
+              Selecciona un vehículo para abrir su planilla de cargas.
+            </div>
+          ) : cargando ? <p className="py-10 text-center font-bold">Cargando...</p> : (
             <div className="mt-4 overflow-x-auto">
               <datalist id="conductores-vehiculos">{conductores.map((nombre) => <option key={nombre} value={nombre} />)}</datalist>
               <table className="w-full min-w-[1450px] text-xs">
@@ -457,7 +461,7 @@ export default function RendimientoVehiculosPage() {
                   })}
                   <tr className="no-print border-t-2 border-red-700 bg-red-50/60 align-top">
                     <td className="p-1"><input aria-label="Fecha nueva carga" type="date" value={form.fecha} onChange={(e) => setForm({ ...form, fecha: e.target.value })} className="h-10 w-[135px] rounded-lg border bg-white px-2 font-bold" /></td>
-                    <td className="p-1"><select aria-label="Vehículo nueva carga" value={form.vehiculo_id} onChange={(e) => setForm({ ...form, vehiculo_id: e.target.value })} className="h-10 w-[190px] rounded-lg border bg-white px-2 font-bold"><option value="">Elegir vehículo</option>{vehiculos.map((vehiculo) => <option key={vehiculo.id} value={vehiculo.id}>{vehiculo.nombre}{vehiculo.patente ? ` · ${vehiculo.patente}` : ''}</option>)}</select></td>
+                    <td className="p-1"><div className="flex h-10 w-[190px] items-center rounded-lg border bg-red-100 px-2 font-black">{vehiculos.find((vehiculo) => vehiculo.id === vehiculoFiltro)?.nombre}</div></td>
                     <td className="p-1"><input aria-label="Conductor nueva carga" list="conductores-vehiculos" value={form.conductor_nombre} onChange={(e) => setForm({ ...form, conductor_nombre: e.target.value })} placeholder="Conductor" className="h-10 w-[155px] rounded-lg border bg-white px-2 font-bold" /></td>
                     <td className="p-1"><input aria-label="Guía nueva carga" value={form.numero_guia} onChange={(e) => setForm({ ...form, numero_guia: e.target.value })} placeholder="N° guía" className="h-10 w-[90px] rounded-lg border bg-white px-2 text-right font-bold" /></td>
                     <td className="p-1"><input aria-label="Precio litro nueva carga" inputMode="numeric" value={form.precio_litro} onChange={(e) => setForm({ ...form, precio_litro: e.target.value.replace(/\D/g, '') })} placeholder="$0" className="h-10 w-[90px] rounded-lg border bg-white px-2 text-right font-bold" /></td>
