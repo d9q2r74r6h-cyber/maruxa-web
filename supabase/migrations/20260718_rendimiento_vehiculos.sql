@@ -86,52 +86,44 @@ on conflict (usuario_id, modulo_codigo) do update set
   puede_editar = true,
   puede_eliminar = true;
 
-do $$
-declare
-  v_empresa uuid;
-  v_rantul uuid;
-  v_albornoz uuid;
-  v_reemplazo uuid;
-begin
-  select id into v_empresa
-  from public.empresas
-  where slug = 'maruxa'
-  limit 1;
-
-  if v_empresa is null then
-    return;
-  end if;
-
-  insert into public.vehiculos_reparto (empresa_id, codigo, nombre, patente)
-  values (v_empresa, 'RANTUL', 'Camioneta Luis Rantul', 'VU 3159')
+insert into public.vehiculos_reparto (empresa_id, codigo, nombre, patente)
+select id, 'RANTUL', 'Camioneta Luis Rantul', 'VU 3159'
+from public.empresas
+where slug = 'maruxa'
+limit 1
   on conflict (empresa_id, codigo) do update set
     nombre = excluded.nombre,
     patente = excluded.patente,
-    activo = true
-  returning id into v_rantul;
+    activo = true;
 
-  insert into public.vehiculos_reparto (empresa_id, codigo, nombre, patente)
-  values (v_empresa, 'ALBORNOZ', 'Lifan Luis Albornoz', null)
+insert into public.vehiculos_reparto (empresa_id, codigo, nombre, patente)
+select id, 'ALBORNOZ', 'Lifan Luis Albornoz', null
+from public.empresas
+where slug = 'maruxa'
+limit 1
   on conflict (empresa_id, codigo) do update set
     nombre = excluded.nombre,
-    activo = true
-  returning id into v_albornoz;
+    activo = true;
 
-  insert into public.vehiculos_reparto (empresa_id, codigo, nombre, patente)
-  values (v_empresa, 'REEMPLAZO', 'Camioneta de reemplazo', 'BR WC-65')
+insert into public.vehiculos_reparto (empresa_id, codigo, nombre, patente)
+select id, 'REEMPLAZO', 'Camioneta de reemplazo', 'BR WC-65'
+from public.empresas
+where slug = 'maruxa'
+limit 1
   on conflict (empresa_id, codigo) do update set
     nombre = excluded.nombre,
     patente = excluded.patente,
-    activo = true
-  returning id into v_reemplazo;
+    activo = true;
 
-  insert into public.combustible_cargas (
+insert into public.combustible_cargas (
     empresa_id, vehiculo_id, fecha, conductor_nombre, numero_guia,
     precio_litro, monto_guia, litros, kilometraje, observacion, origen, origen_fila
-  )
-  select v_empresa, v_rantul, x.fecha, 'Luis Rantul', x.guia, x.precio,
+)
+select e.id, v.id, x.fecha, 'Luis Rantul', x.guia, x.precio,
     x.monto, x.litros, x.kilometraje, x.observacion, 'excel_2024_rantul', x.fila
-  from (values
+from public.empresas e
+join public.vehiculos_reparto v on v.empresa_id = e.id and v.codigo = 'RANTUL'
+cross join (values
     (6, date '2024-02-02', '23951', 1013::numeric, 31800::numeric, 31.395::numeric, 169165::numeric, null::text),
     (7, date '2024-02-07', '24258', 1013, 32300, 31.887, 169645, null),
     (8, date '2024-02-12', '24319', 1030, 34000, 30.010, null, 'Kilometraje ausente en Excel'),
@@ -146,7 +138,8 @@ begin
     (17, date '2024-04-11', '24922', 1081, 33200, 30.710, 173941, null),
     (18, date '2024-04-15', '24964', 1081, 31500, 29.140, 174357, null)
   ) as x(fila, fecha, guia, precio, monto, litros, kilometraje, observacion)
-  on conflict (empresa_id, origen, origen_fila) do update set
+where e.slug = 'maruxa'
+on conflict (empresa_id, origen, origen_fila) do update set
     vehiculo_id = excluded.vehiculo_id,
     fecha = excluded.fecha,
     conductor_nombre = excluded.conductor_nombre,
@@ -157,13 +150,15 @@ begin
     kilometraje = excluded.kilometraje,
     observacion = excluded.observacion;
 
-  insert into public.combustible_cargas (
+insert into public.combustible_cargas (
     empresa_id, vehiculo_id, fecha, conductor_nombre, numero_guia,
     precio_litro, monto_guia, litros, kilometraje, observacion, origen, origen_fila
-  )
-  select v_empresa, v_albornoz, x.fecha, 'Luis Albornoz', x.guia, x.precio,
+)
+select e.id, v.id, x.fecha, 'Luis Albornoz', x.guia, x.precio,
     x.monto, x.litros, x.kilometraje, x.observacion, 'excel_2024_albornoz', x.fila
-  from (values
+from public.empresas e
+join public.vehiculos_reparto v on v.empresa_id = e.id and v.codigo = 'ALBORNOZ'
+cross join (values
     (3, date '2024-02-02', '23953', 1284::numeric, 45000::numeric, 35.054::numeric, 16611::numeric, null::text),
     (4, date '2024-02-09', '24287', 1312, 46800, 35.600, 16889, null),
     (5, date '2024-02-15', '24004', 1313, 47200, 35.900, null, 'Kilometraje ausente en Excel'),
@@ -180,7 +175,8 @@ begin
     (16, date '2024-04-11', '24923', 1409, 50450, 35.800, null, 'Kilometraje ausente en Excel'),
     (17, date '2024-04-15', '24971', 1409, 50650, 35.900, 20843, null)
   ) as x(fila, fecha, guia, precio, monto, litros, kilometraje, observacion)
-  on conflict (empresa_id, origen, origen_fila) do update set
+where e.slug = 'maruxa'
+on conflict (empresa_id, origen, origen_fila) do update set
     vehiculo_id = excluded.vehiculo_id,
     fecha = excluded.fecha,
     conductor_nombre = excluded.conductor_nombre,
@@ -191,15 +187,17 @@ begin
     kilometraje = excluded.kilometraje,
     observacion = excluded.observacion;
 
-  insert into public.combustible_cargas (
+insert into public.combustible_cargas (
     empresa_id, vehiculo_id, fecha, conductor_nombre, numero_guia,
     precio_litro, monto_guia, litros, kilometraje, observacion, origen, origen_fila
-  ) values (
-    v_empresa, v_reemplazo, date '2024-03-26', 'Luis Rantul', '24612',
-    1316, 20020, 15.200, null, 'Kilometraje ausente en Excel',
-    'excel_2024_reemplazo', 3
-  )
-  on conflict (empresa_id, origen, origen_fila) do update set
+)
+select e.id, v.id, date '2024-03-26', 'Luis Rantul', '24612',
+  1316, 20020, 15.200, null, 'Kilometraje ausente en Excel',
+  'excel_2024_reemplazo', 3
+from public.empresas e
+join public.vehiculos_reparto v on v.empresa_id = e.id and v.codigo = 'REEMPLAZO'
+where e.slug = 'maruxa'
+on conflict (empresa_id, origen, origen_fila) do update set
     vehiculo_id = excluded.vehiculo_id,
     fecha = excluded.fecha,
     conductor_nombre = excluded.conductor_nombre,
@@ -209,4 +207,3 @@ begin
     litros = excluded.litros,
     kilometraje = excluded.kilometraje,
     observacion = excluded.observacion;
-end $$;
