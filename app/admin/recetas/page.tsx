@@ -391,7 +391,7 @@ export default function AdminRecetasPage() {
       )
     );
 
-    alert('Precio de venta y margen guardados en el producto.');
+    alert('Precio final con IVA y margen guardados en el producto.');
   }
 
   async function cargarRecetas() {
@@ -1134,6 +1134,13 @@ export default function AdminRecetasPage() {
                 </div>
               </div>
 
+              <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-900">
+                <span className="font-black">Criterio tributario:</span>{' '}
+                todos los costos del módulo son netos, sin IVA. Los precios de
+                venta y precios sugeridos son valores finales con IVA incluido
+                ({ivaVenta.toLocaleString('es-CL')}%).
+              </div>
+
               {tabActiva === 'ingredientes' && (
                 <>
               <div className="mt-8 rounded-[28px] bg-maruxa-crema p-5">
@@ -1239,7 +1246,7 @@ export default function AdminRecetasPage() {
                           <th className="px-4 py-3 text-center">Unidad</th>
                           <th className="px-4 py-3 text-right">IVA referencial</th>
                           <th className="px-4 py-3 text-right">Costo neto aplicado</th>
-                          <th className="px-4 py-3 text-right">Costo</th>
+                          <th className="px-4 py-3 text-right">Costo neto total</th>
                         </tr>
                       </thead>
 
@@ -1316,7 +1323,7 @@ export default function AdminRecetasPage() {
                           <th className="px-4 py-3 text-left">Ingrediente</th>
                           <th className="px-4 py-3 text-right">Cantidad normalizada</th>
                           <th className="px-4 py-3 text-center">Unidad</th>
-                          <th className="px-4 py-3 text-right">Costo proporcional</th>
+                          <th className="px-4 py-3 text-right">Costo neto proporcional</th>
                         </tr>
                       </thead>
 
@@ -1459,7 +1466,7 @@ export default function AdminRecetasPage() {
                           <th className="px-4 py-3 text-center">Tipo</th>
                           <th className="px-4 py-3 text-right">Cantidad</th>
                           <th className="px-4 py-3 text-center">Unidad</th>
-                          <th className="px-4 py-3 text-right">Costo</th>
+                          <th className="px-4 py-3 text-right">Costo neto</th>
                         </tr>
                       </thead>
 
@@ -1493,10 +1500,10 @@ export default function AdminRecetasPage() {
 
               <section className="mt-8 rounded-[28px] bg-white p-5 shadow-sm">
                 <h3 className="text-xl font-black text-maruxa-chocolate">
-                  Costos indirectos
+                  Costos indirectos netos
                 </h3>
                 <p className="mt-1 text-sm font-bold text-maruxa-cafe/70">
-                  Porcentaje editable aplicado sobre ingredientes + envases + mano de obra.
+                  Porcentaje editable aplicado sobre los costos netos de ingredientes + envases + mano de obra.
                 </p>
 
                 <div className="mt-4 grid gap-4 md:grid-cols-3">
@@ -1514,7 +1521,7 @@ export default function AdminRecetasPage() {
 
                   <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4">
                     <p className="text-sm font-black uppercase text-orange-800">
-                      Base indirectos
+                      Base neta indirectos
                     </p>
                     <p className="mt-2 text-3xl font-black text-orange-900">
                       {dinero(subtotalDirecto)}
@@ -1523,7 +1530,7 @@ export default function AdminRecetasPage() {
 
                   <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4">
                     <p className="text-sm font-black uppercase text-orange-800">
-                      Costo indirecto
+                      Costo indirecto neto
                     </p>
                     <p className="mt-2 text-3xl font-black text-orange-900">
                       {dinero(costoIndirectos)}
@@ -1538,7 +1545,7 @@ export default function AdminRecetasPage() {
               {tabActiva === 'resumen' && (
               <section className="mt-8 rounded-[28px] border border-maruxa-crema bg-maruxa-crema p-5 shadow-sm">
                 <h3 className="text-2xl font-black text-maruxa-chocolate">
-                  Resumen final de costos
+                  Resumen final: costos netos y precios con IVA
                 </h3>
 
                 {!recetaProduceIngrediente && (
@@ -1602,7 +1609,7 @@ export default function AdminRecetasPage() {
                     </label>
                   ) : (
                     <label className="grid gap-2 text-xs font-black uppercase text-[#4B2818]/60">
-                      Precio de venta
+                      Precio de venta final (IVA incluido)
                       <input
                         type="number"
                         min="0"
@@ -1627,7 +1634,7 @@ export default function AdminRecetasPage() {
                 <div className="mt-5 grid gap-4 md:grid-cols-3">
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
                     <p className="text-sm font-black uppercase text-amber-800">
-                      Ingredientes base
+                      Ingredientes base · neto
                     </p>
                     <p className="mt-2 text-3xl font-black text-amber-900">
                       {dinero(costoIngredientes)}
@@ -1636,7 +1643,7 @@ export default function AdminRecetasPage() {
 
                   <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4">
                     <p className="text-sm font-black uppercase text-sky-800">
-                      Envases / mano de obra
+                      Envases / mano de obra · neto
                     </p>
                     <p className="mt-2 text-3xl font-black text-sky-900">
                       {dinero(costoInsumosDirectos)}
@@ -1645,7 +1652,7 @@ export default function AdminRecetasPage() {
 
                   <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4">
                     <p className="text-sm font-black uppercase text-orange-800">
-                      Costos indirectos
+                      Costos indirectos · neto
                     </p>
                     <p className="mt-2 text-3xl font-black text-orange-900">
                       {dinero(costoIndirectos)}
@@ -1654,7 +1661,7 @@ export default function AdminRecetasPage() {
 
                   <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
                     <p className="text-sm font-black uppercase text-blue-800">
-                      Costo final por kg
+                      Costo neto final por kg
                     </p>
                     <p className="mt-2 text-3xl font-black text-blue-900">
                       {dinero(costoFinalPorKg)}
@@ -1665,7 +1672,7 @@ export default function AdminRecetasPage() {
                     <>
                   <div className="rounded-2xl border border-green-200 bg-green-50 p-4">
                     <p className="text-sm font-black uppercase text-green-800">
-                      Costo final por unidad
+                      Costo neto final por unidad
                     </p>
                     <p className="mt-2 text-3xl font-black text-green-900">
                       {dinero(costoFinalPorUnidad)}
@@ -1675,8 +1682,8 @@ export default function AdminRecetasPage() {
                   <div className="rounded-2xl border border-green-200 bg-green-50 p-4">
                     <p className="text-sm font-black uppercase text-green-800">
                       {modoPrecio === 'desde_precio'
-                        ? 'Precio de venta ingresado'
-                        : 'Precio sugerido final'}
+                        ? 'Precio final ingresado · IVA incluido'
+                        : `Precio sugerido final · IVA ${ivaVenta.toLocaleString('es-CL')}% incluido`}
                     </p>
                     {productoId ? (
                       <p className="mt-2 text-3xl font-black text-green-900">
@@ -1698,7 +1705,7 @@ export default function AdminRecetasPage() {
                       Esta receta produce un ingrediente.
                     </p>
                     <p className="mt-1 text-sm font-bold text-blue-700">
-                      Al guardar, el sistema actualizará su costo unitario con el costo final por kg calculado.
+                      Al guardar, el sistema actualizará su costo unitario con el costo neto final por kg calculado.
                     </p>
                   </div>
                 ) : (
@@ -1728,7 +1735,7 @@ export default function AdminRecetasPage() {
                     %
                   </p>
                   <p className="mt-1 text-sm font-bold text-purple-700">
-                    Venta neta: {dinero(precioVentaNeto)} · IVA: {ivaVenta.toLocaleString('es-CL')}%
+                    Venta neta: {dinero(precioVentaNeto)} · Precio final mostrado con IVA: {ivaVenta.toLocaleString('es-CL')}%
                   </p>
                   <p className="mt-1 text-sm font-bold text-purple-700">
                     Redondeo: {dinero(redondeoAplicado)}
@@ -1749,7 +1756,7 @@ export default function AdminRecetasPage() {
                   >
                     {guardandoPrecio
                       ? 'Guardando...'
-                      : 'Guardar precio y margen en el producto'}
+                      : 'Guardar precio final con IVA y margen'}
                   </button>
                 </div>
                 )}
@@ -1765,7 +1772,7 @@ export default function AdminRecetasPage() {
                       Costeo por tamaños / subproductos
                     </h3>
                     <p className="mt-1 text-sm font-bold text-maruxa-cafe/70">
-                      Ingresa el peso de cada subproducto. El costo se calcula como peso × costo final por kg y el precio con la utilidad configurada.
+                      Ingresa el peso de cada subproducto. El costo se calcula en neto como peso × costo final por kg; el precio sugerido incluye IVA.
                     </p>
                   </div>
 
@@ -1780,6 +1787,9 @@ export default function AdminRecetasPage() {
 
 
                 <div className="mt-4 overflow-x-auto rounded-2xl bg-white p-3">
+                <p className="mb-2 text-xs font-black uppercase text-maruxa-cafe/60">
+                  Costo calculado: neto · Precio sugerido: IVA {ivaVenta.toLocaleString('es-CL')}% incluido
+                </p>
                 <div className="grid gap-2">
                   {subproductos.map((subproducto, index) => {
                     const costoBase = costoFinalPorKg * numero(subproducto.peso_kg);
@@ -1867,10 +1877,10 @@ export default function AdminRecetasPage() {
                         <tr>
                           <th className="px-4 py-3 text-left">Subproducto</th>
                           <th className="px-4 py-3 text-right">Peso kg</th>
-                          <th className="px-4 py-3 text-right">Costo por kg</th>
-                          <th className="px-4 py-3 text-right">Costo calculado</th>
+                          <th className="px-4 py-3 text-right">Costo neto por kg</th>
+                          <th className="px-4 py-3 text-right">Costo neto calculado</th>
                           <th className="px-4 py-3 text-right">Margen</th>
-                          <th className="px-4 py-3 text-right">Precio sugerido</th>
+                          <th className="px-4 py-3 text-right">Precio sugerido · IVA incluido</th>
                         </tr>
                       </thead>
 
