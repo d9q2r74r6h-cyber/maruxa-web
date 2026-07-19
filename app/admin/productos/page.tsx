@@ -1060,11 +1060,13 @@ export default function AdminProductosPage() {
                   />
 
                   {form.imagen && (
-                    <img
-                      src={form.imagen}
-                      alt={form.nombre}
-                      className="mt-4 h-40 w-full rounded-2xl object-cover"
-                    />
+                    <div className="mx-auto mt-4 aspect-square w-full max-w-sm overflow-hidden rounded-2xl border border-maruxa-rojo/10 bg-maruxa-crema/40 p-3">
+                      <img
+                        src={form.imagen}
+                        alt={form.nombre || 'Vista previa del producto'}
+                        className="h-full w-full object-contain"
+                      />
+                    </div>
                   )}
                 </div>
               )}
