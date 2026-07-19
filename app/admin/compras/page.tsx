@@ -2355,7 +2355,7 @@ export default function AdminComprasPage() {
             </div>
 
             {proveedorId && (
-              <label className="mt-3 flex max-w-xl items-center gap-3 rounded-2xl border border-maruxa-rojo/15 bg-[#FFF8ED] px-4 py-3 text-sm font-black text-maruxa-chocolate">
+              <label className="mt-3 flex max-w-xl items-center gap-3 rounded-2xl border border-maruxa-rojo/15 bg-[#FFF8ED] px-4 py-3 text-sm font-black text-maruxa-chocolate sm:mx-5">
                 <input
                   type="checkbox"
                   checked={precioIvaIncluido}
@@ -2371,15 +2371,15 @@ export default function AdminComprasPage() {
               </label>
             )}
 
-            <div className="mt-3 grid max-w-3xl gap-3 sm:grid-cols-[minmax(0,1fr)_180px]">
-              <label className="grid gap-1">
+            <div className="mt-3 grid max-w-3xl items-start gap-3 sm:mx-5 sm:grid-cols-[minmax(0,1fr)_180px]">
+              <label className="grid min-w-0 gap-1">
                 <span className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
                   Familia para productos nuevos
                 </span>
                 <select
                   value={familiaGeneralId}
                   onChange={(e) => seleccionarFamiliaGeneral(e.target.value)}
-                  className="rounded-2xl border bg-white px-4 py-3 font-bold text-maruxa-chocolate"
+                  className="w-full min-w-0 rounded-2xl border bg-white px-4 py-3 font-bold text-maruxa-chocolate"
                 >
                   <option value="">Seleccionar familia</option>
                   {familias.map((familia) => (
@@ -2390,7 +2390,7 @@ export default function AdminComprasPage() {
                 </select>
               </label>
 
-              <label className="grid gap-1">
+              <label className="grid min-w-0 gap-1">
                 <span className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
                   Margen
                 </span>
@@ -2399,7 +2399,7 @@ export default function AdminComprasPage() {
                   onChange={(e) => setMargenGeneral(valorPorcentajeEntrada(e.target.value))}
                   inputMode="decimal"
                   placeholder="0%"
-                  className="rounded-2xl border bg-white px-4 py-3 text-right font-black text-maruxa-chocolate"
+                  className="w-full min-w-0 rounded-2xl border bg-white px-4 py-3 text-right font-black text-maruxa-chocolate"
                 />
                 <span className="text-[10px] font-bold text-maruxa-cafe/55">
                   {tipoMargenGeneral === 'markup' ? 'Markup' : 'Margen comercial'}
@@ -2749,7 +2749,7 @@ export default function AdminComprasPage() {
                       }`}
                     >
                       <div className={`relative z-20 grid min-w-0 gap-1 ${mostrarDetalle ? 'xl:col-span-2' : ''}`}>
-                        <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
+                        <span className="flex min-h-7 items-end text-[11px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
                           Producto
                         </span>
                         <input
@@ -2836,7 +2836,7 @@ export default function AdminComprasPage() {
                       </div>
 
                       <label className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
-                        <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
+                        <span className="flex min-h-7 items-end text-[11px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
                           Costo proveedor
                           {precioIvaIncluido ? ' bruto' : ' neto'}
                         </span>
@@ -2864,7 +2864,7 @@ export default function AdminComprasPage() {
                       </label>
 
                       <div className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
-                        <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
+                        <span className="flex min-h-7 items-end text-[11px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
                           Neto
                         </span>
                         <div className="flex items-center justify-end rounded-xl border border-maruxa-cafe/10 bg-maruxa-crema/60 px-3 py-2 text-sm font-black text-maruxa-chocolate">
@@ -2873,7 +2873,7 @@ export default function AdminComprasPage() {
                       </div>
 
                       <div className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
-                        <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
+                        <span className="flex min-h-7 items-end text-[11px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
                           IVA
                         </span>
                         <div className="flex items-center justify-end rounded-xl border border-maruxa-cafe/10 bg-maruxa-crema/60 px-3 py-2 text-sm font-black text-maruxa-chocolate">
@@ -2882,7 +2882,7 @@ export default function AdminComprasPage() {
                       </div>
 
                       <div className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
-                        <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
+                        <span className="flex min-h-7 items-end text-[11px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
                           Total
                         </span>
                         <div className="flex items-center justify-end rounded-xl border border-maruxa-rojo/15 bg-red-50 px-3 py-2 text-sm font-black text-maruxa-rojo">
@@ -2891,7 +2891,7 @@ export default function AdminComprasPage() {
                       </div>
 
                       <label className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
-                        <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
+                        <span className="flex min-h-7 items-end text-[11px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
                           Margen
                         </span>
                         <input
@@ -2917,7 +2917,7 @@ export default function AdminComprasPage() {
                       </label>
 
                       <label className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
-                        <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
+                        <span className="flex min-h-7 items-end text-[11px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
                           Precio venta
                         </span>
                         <input
