@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Car, Fuel, Plus, Printer, Trash2 } from 'lucide-react';
+import { Car, Printer, Save, Trash2 } from 'lucide-react';
 import { useAdminSession } from '@/components/AdminSession';
 import { supabase } from '@/lib/supabase';
 
@@ -144,7 +144,6 @@ export default function RendimientoVehiculosPage() {
   const [errorModulo, setErrorModulo] = useState('');
   const [anio, setAnio] = useState(new Date().getFullYear());
   const [vehiculoFiltro, setVehiculoFiltro] = useState('todos');
-  const [mostrarCarga, setMostrarCarga] = useState(false);
   const [mostrarVehiculo, setMostrarVehiculo] = useState(false);
   const [formVehiculo, setFormVehiculo] = useState({ nombre: '', patente: '' });
   const [form, setForm] = useState({
@@ -200,11 +199,6 @@ export default function RendimientoVehiculosPage() {
     setConductores(
       (funcionariosResp.data || []).map((item) => item.nombre_completo)
     );
-    setForm((actual) => ({
-      ...actual,
-      vehiculo_id: actual.vehiculo_id || vehiculosData[0]?.id || '',
-    }));
-
     const anios = cargasData.map((carga) => Number(carga.fecha.slice(0, 4)));
     if (anios.length && !anios.includes(anio)) setAnio(Math.max(...anios));
     setCargando(false);
@@ -349,7 +343,6 @@ export default function RendimientoVehiculosPage() {
       kilometraje: '',
       observacion: '',
     }));
-    setMostrarCarga(false);
     await cargarDatos();
   }
 
@@ -383,9 +376,6 @@ export default function RendimientoVehiculosPage() {
           <button type="button" onClick={() => setMostrarVehiculo(!mostrarVehiculo)} className="rounded-full border-2 border-red-700 bg-white px-5 py-3 text-sm font-black text-red-700">
             <Car className="mr-2 inline h-4 w-4" />Nuevo vehículo
           </button>
-          <button type="button" onClick={() => setMostrarCarga(!mostrarCarga)} className="rounded-full bg-red-700 px-5 py-3 text-sm font-black text-white shadow-lg">
-            <Plus className="mr-2 inline h-4 w-4" />Registrar carga
-          </button>
           <button type="button" onClick={() => window.print()} className="rounded-full bg-maruxa-chocolate px-5 py-3 text-sm font-black text-white">
             <Printer className="mr-2 inline h-4 w-4" />Imprimir
           </button>
@@ -410,54 +400,16 @@ export default function RendimientoVehiculosPage() {
         </section>
       )}
 
-      {mostrarCarga && (
-        <section className="no-print rounded-3xl bg-white p-5 shadow-sm">
-          <h2 className="text-xl font-black text-maruxa-chocolate">Nueva carga de combustible</h2>
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Vehículo
-              <select value={form.vehiculo_id} onChange={(e) => setForm({ ...form, vehiculo_id: e.target.value })} className="h-11 min-w-0 rounded-xl border bg-white px-3 text-sm font-bold normal-case">
-                <option value="">Seleccionar</option>
-                {vehiculos.map((vehiculo) => <option key={vehiculo.id} value={vehiculo.id}>{vehiculo.nombre}{vehiculo.patente ? ` · ${vehiculo.patente}` : ''}</option>)}
-              </select>
-            </label>
-            <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Fecha
-              <input type="date" value={form.fecha} onChange={(e) => setForm({ ...form, fecha: e.target.value })} className="h-11 rounded-xl border px-3 text-sm font-bold normal-case" />
-            </label>
-            <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Conductor
-              <input list="conductores-vehiculos" value={form.conductor_nombre} onChange={(e) => setForm({ ...form, conductor_nombre: e.target.value })} className="h-11 rounded-xl border px-3 text-sm font-bold normal-case" />
-              <datalist id="conductores-vehiculos">{conductores.map((nombre) => <option key={nombre} value={nombre} />)}</datalist>
-            </label>
-            <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Nº guía
-              <input value={form.numero_guia} onChange={(e) => setForm({ ...form, numero_guia: e.target.value })} className="h-11 rounded-xl border px-3 text-sm font-bold normal-case" />
-            </label>
-            <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Precio por litro
-              <input inputMode="numeric" value={form.precio_litro} onChange={(e) => setForm({ ...form, precio_litro: e.target.value.replace(/\D/g, '') })} placeholder="$0" className="h-11 rounded-xl border px-3 text-right text-sm font-bold normal-case" />
-            </label>
-            <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Litros
-              <input inputMode="decimal" value={form.litros} onChange={(e) => setForm({ ...form, litros: e.target.value })} placeholder="0,000" className="h-11 rounded-xl border px-3 text-right text-sm font-bold normal-case" />
-            </label>
-            <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Valor guía
-              <input inputMode="numeric" value={form.monto_guia} onChange={(e) => setForm({ ...form, monto_guia: e.target.value.replace(/\D/g, '') })} placeholder={dinero(numero(form.precio_litro) * numero(form.litros))} className="h-11 rounded-xl border px-3 text-right text-sm font-bold normal-case" />
-            </label>
-            <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Kilometraje
-              <input inputMode="numeric" value={form.kilometraje} onChange={(e) => setForm({ ...form, kilometraje: e.target.value.replace(/\D/g, '') })} placeholder="Opcional" className="h-11 rounded-xl border px-3 text-right text-sm font-bold normal-case" />
-            </label>
-          </div>
-          <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-end">
-            <label className="grid flex-1 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Observación
-              <input value={form.observacion} onChange={(e) => setForm({ ...form, observacion: e.target.value })} className="h-11 rounded-xl border px-3 text-sm font-bold normal-case" />
-            </label>
-            <button type="button" disabled={guardando} onClick={guardarCarga} className="h-11 rounded-xl bg-red-700 px-7 font-black text-white disabled:opacity-50">{guardando ? 'Guardando...' : 'Guardar carga'}</button>
-          </div>
-        </section>
-      )}
-
       <section className="no-print grid gap-3 rounded-3xl bg-white p-5 shadow-sm md:grid-cols-2">
         <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Año
           <select value={anio} onChange={(e) => setAnio(Number(e.target.value))} className="h-11 rounded-xl border bg-white px-3 text-sm font-bold normal-case">{aniosDisponibles.map((valor) => <option key={valor}>{valor}</option>)}</select>
         </label>
         <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Vehículo
-          <select value={vehiculoFiltro} onChange={(e) => setVehiculoFiltro(e.target.value)} className="h-11 rounded-xl border bg-white px-3 text-sm font-bold normal-case"><option value="todos">Todos los vehículos</option>{vehiculos.map((vehiculo) => <option key={vehiculo.id} value={vehiculo.id}>{vehiculo.nombre}{vehiculo.patente ? ` · ${vehiculo.patente}` : ''}</option>)}</select>
+          <select value={vehiculoFiltro} onChange={(e) => {
+            const valor = e.target.value;
+            setVehiculoFiltro(valor);
+            if (valor !== 'todos') setForm((actual) => ({ ...actual, vehiculo_id: valor }));
+          }} className="h-11 rounded-xl border bg-white px-3 text-sm font-bold normal-case"><option value="todos">Todos los vehículos</option>{vehiculos.map((vehiculo) => <option key={vehiculo.id} value={vehiculo.id}>{vehiculo.nombre}{vehiculo.patente ? ` · ${vehiculo.patente}` : ''}</option>)}</select>
         </label>
       </section>
 
@@ -489,19 +441,36 @@ export default function RendimientoVehiculosPage() {
         </section>
 
         <section className="rounded-3xl bg-white p-5 shadow-sm">
-          <h2 className="text-xl font-black text-maruxa-chocolate">Detalle de cargas</h2>
+          <h2 className="text-xl font-black text-maruxa-chocolate">Planilla de cargas</h2>
+          <p className="no-print mt-1 text-xs font-bold text-maruxa-cafe/55">
+            Ingresa la próxima carga en la última fila. Los cálculos aparecen al guardar.
+          </p>
           {cargando ? <p className="py-10 text-center font-bold">Cargando...</p> : (
             <div className="mt-4 overflow-x-auto">
-              <table className="w-full min-w-[1250px] text-xs">
+              <datalist id="conductores-vehiculos">{conductores.map((nombre) => <option key={nombre} value={nombre} />)}</datalist>
+              <table className="w-full min-w-[1450px] text-xs">
                 <thead className="bg-maruxa-chocolate text-white"><tr><th className="px-2 py-2 text-left">Fecha</th><th className="px-2 py-2 text-left">Vehículo</th><th className="px-2 py-2 text-left">Conductor</th><th className="px-2 py-2 text-right">Guía</th><th className="px-2 py-2 text-right">$/litro</th><th className="px-2 py-2 text-right">Litros</th><th className="px-2 py-2 text-right">Gasto</th><th className="px-2 py-2 text-right">Kilometraje</th><th className="px-2 py-2 text-right">Km recorridos</th><th className="px-2 py-2 text-right">Km/l</th><th className="px-2 py-2 text-right">Litros/día</th><th className="px-2 py-2 text-right">$/día</th><th className="no-print px-2 py-2"></th></tr></thead>
-                <tbody>{cargasFiltradas.map((carga) => {
-                  const vehiculo = vehiculos.find((item) => item.id === carga.vehiculo_id);
-                  return <tr key={carga.id} className={`border-b ${carga.alerta ? 'bg-red-50' : carga.origen.startsWith('excel_2024') ? 'bg-blue-50/40' : ''}`}><td className="px-2 py-2 font-bold">{fechaLocal(carga.fecha)}</td><td className="px-2 py-2 font-black">{vehiculo?.nombre || '—'}</td><td className="px-2 py-2">{carga.conductor_nombre || '—'}</td><td className="px-2 py-2 text-right">{carga.numero_guia || '—'}</td><td className="px-2 py-2 text-right">{dinero(carga.precio_litro)}</td><td className="px-2 py-2 text-right">{decimal(carga.litros, 3)}</td><td className="px-2 py-2 text-right">{dinero(carga.monto_guia)}</td><td className="px-2 py-2 text-right">{carga.kilometraje === null ? 'Pendiente' : numero(carga.kilometraje).toLocaleString('es-CL')}</td><td className="px-2 py-2 text-right">{carga.km_recorridos === null ? '—' : numero(carga.km_recorridos).toLocaleString('es-CL')}</td><td className="px-2 py-2 text-right font-black">{decimal(carga.rendimiento)}</td><td className="px-2 py-2 text-right">{decimal(carga.litros_diarios)}</td><td className="px-2 py-2 text-right">{carga.gasto_diario === null ? '—' : dinero(carga.gasto_diario)}</td><td className="no-print px-2 py-2 text-right"><button type="button" onClick={() => eliminarCarga(carga.id)} className="rounded-lg p-2 text-red-700 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button></td></tr>;
-                })}</tbody>
+                <tbody>
+                  {[...cargasFiltradas].reverse().map((carga) => {
+                    const vehiculo = vehiculos.find((item) => item.id === carga.vehiculo_id);
+                    return <tr key={carga.id} className={`border-b ${carga.alerta ? 'bg-red-50' : carga.origen.startsWith('excel_2024') ? 'bg-blue-50/40' : ''}`}><td className="px-2 py-2 font-bold">{fechaLocal(carga.fecha)}</td><td className="px-2 py-2 font-black">{vehiculo?.nombre || '—'}</td><td className="px-2 py-2">{carga.conductor_nombre || '—'}</td><td className="px-2 py-2 text-right">{carga.numero_guia || '—'}</td><td className="px-2 py-2 text-right">{dinero(carga.precio_litro)}</td><td className="px-2 py-2 text-right">{decimal(carga.litros, 3)}</td><td className="px-2 py-2 text-right">{dinero(carga.monto_guia)}</td><td className="px-2 py-2 text-right">{carga.kilometraje === null ? 'Pendiente' : numero(carga.kilometraje).toLocaleString('es-CL')}</td><td className="px-2 py-2 text-right">{carga.km_recorridos === null ? '—' : numero(carga.km_recorridos).toLocaleString('es-CL')}</td><td className="px-2 py-2 text-right font-black">{decimal(carga.rendimiento)}</td><td className="px-2 py-2 text-right">{decimal(carga.litros_diarios)}</td><td className="px-2 py-2 text-right">{carga.gasto_diario === null ? '—' : dinero(carga.gasto_diario)}</td><td className="no-print px-2 py-2 text-right"><button type="button" onClick={() => eliminarCarga(carga.id)} className="rounded-lg p-2 text-red-700 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button></td></tr>;
+                  })}
+                  <tr className="no-print border-t-2 border-red-700 bg-red-50/60 align-top">
+                    <td className="p-1"><input aria-label="Fecha nueva carga" type="date" value={form.fecha} onChange={(e) => setForm({ ...form, fecha: e.target.value })} className="h-10 w-[135px] rounded-lg border bg-white px-2 font-bold" /></td>
+                    <td className="p-1"><select aria-label="Vehículo nueva carga" value={form.vehiculo_id} onChange={(e) => setForm({ ...form, vehiculo_id: e.target.value })} className="h-10 w-[190px] rounded-lg border bg-white px-2 font-bold"><option value="">Elegir vehículo</option>{vehiculos.map((vehiculo) => <option key={vehiculo.id} value={vehiculo.id}>{vehiculo.nombre}{vehiculo.patente ? ` · ${vehiculo.patente}` : ''}</option>)}</select></td>
+                    <td className="p-1"><input aria-label="Conductor nueva carga" list="conductores-vehiculos" value={form.conductor_nombre} onChange={(e) => setForm({ ...form, conductor_nombre: e.target.value })} placeholder="Conductor" className="h-10 w-[155px] rounded-lg border bg-white px-2 font-bold" /></td>
+                    <td className="p-1"><input aria-label="Guía nueva carga" value={form.numero_guia} onChange={(e) => setForm({ ...form, numero_guia: e.target.value })} placeholder="N° guía" className="h-10 w-[90px] rounded-lg border bg-white px-2 text-right font-bold" /></td>
+                    <td className="p-1"><input aria-label="Precio litro nueva carga" inputMode="numeric" value={form.precio_litro} onChange={(e) => setForm({ ...form, precio_litro: e.target.value.replace(/\D/g, '') })} placeholder="$0" className="h-10 w-[90px] rounded-lg border bg-white px-2 text-right font-bold" /></td>
+                    <td className="p-1"><input aria-label="Litros nueva carga" inputMode="decimal" value={form.litros} onChange={(e) => setForm({ ...form, litros: e.target.value })} placeholder="0,000" className="h-10 w-[90px] rounded-lg border bg-white px-2 text-right font-bold" /></td>
+                    <td className="p-1"><input aria-label="Gasto nueva carga" inputMode="numeric" value={form.monto_guia} onChange={(e) => setForm({ ...form, monto_guia: e.target.value.replace(/\D/g, '') })} placeholder={dinero(numero(form.precio_litro) * numero(form.litros))} className="h-10 w-[105px] rounded-lg border bg-white px-2 text-right font-bold" /></td>
+                    <td className="p-1"><input aria-label="Kilometraje nueva carga" inputMode="numeric" value={form.kilometraje} onChange={(e) => setForm({ ...form, kilometraje: e.target.value.replace(/\D/g, '') })} placeholder="Kilometraje" className="h-10 w-[110px] rounded-lg border bg-white px-2 text-right font-bold" /></td>
+                    <td className="px-2 py-3 text-right text-maruxa-cafe/40">—</td><td className="px-2 py-3 text-right text-maruxa-cafe/40">—</td><td className="px-2 py-3 text-right text-maruxa-cafe/40">—</td><td className="px-2 py-3 text-right text-maruxa-cafe/40">—</td>
+                    <td className="p-1"><button type="button" disabled={guardando} onClick={guardarCarga} className="flex h-10 items-center gap-1 rounded-lg bg-red-700 px-3 font-black text-white disabled:opacity-50"><Save className="h-4 w-4" />{guardando ? 'Guardando' : 'Guardar'}</button></td>
+                  </tr>
+                </tbody>
               </table>
             </div>
           )}
-          {!cargando && cargasFiltradas.length === 0 && <p className="py-10 text-center font-bold text-maruxa-cafe/50">No hay cargas para este filtro.</p>}
         </section>
       </div>
     </div>
