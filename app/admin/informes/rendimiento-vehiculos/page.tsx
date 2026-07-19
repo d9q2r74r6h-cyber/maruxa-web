@@ -10,7 +10,13 @@ type Vehiculo = {
   codigo: string;
   nombre: string;
   patente: string | null;
+  repartidor_id: string | null;
   activo: boolean;
+};
+
+type Repartidor = {
+  id: string;
+  nombre_completo: string;
 };
 
 type Carga = {
@@ -151,14 +157,14 @@ export default function RendimientoVehiculosPage() {
   const { perfil } = useAdminSession();
   const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
   const [cargas, setCargas] = useState<Carga[]>([]);
-  const [conductores, setConductores] = useState<string[]>([]);
+  const [repartidores, setRepartidores] = useState<Repartidor[]>([]);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [errorModulo, setErrorModulo] = useState('');
   const [anio, setAnio] = useState(new Date().getFullYear());
   const [vehiculoFiltro, setVehiculoFiltro] = useState('');
   const [mostrarVehiculo, setMostrarVehiculo] = useState(false);
-  const [formVehiculo, setFormVehiculo] = useState({ nombre: '', patente: '' });
+  const [formVehiculo, setFormVehiculo] = useState({ nombre: '', patente: '', repartidor_id: '' });
   const [form, setForm] = useState({
     vehiculo_id: '',
     fecha: new Date().toISOString().slice(0, 10),
@@ -180,7 +186,7 @@ export default function RendimientoVehiculosPage() {
     const [vehiculosResp, cargasResp, funcionariosResp] = await Promise.all([
       supabase
         .from('vehiculos_reparto')
-        .select('id,codigo,nombre,patente,activo')
+        .select('id,codigo,nombre,patente,repartidor_id,activo')
         .eq('empresa_id', perfil.empresa_id)
         .eq('activo', true)
         .order('nombre'),
@@ -191,7 +197,7 @@ export default function RendimientoVehiculosPage() {
         .order('fecha', { ascending: true }),
       supabase
         .from('funcionarios')
-        .select('nombre_completo,cargo')
+        .select('id,nombre_completo,cargo')
         .eq('empresa_id', perfil.empresa_id)
         .eq('activo', true)
         .order('nombre_completo'),
@@ -210,10 +216,10 @@ export default function RendimientoVehiculosPage() {
     const cargasData = (cargasResp.data as Carga[]) || [];
     setVehiculos(vehiculosData);
     setCargas(cargasData);
-    setConductores(
+    setRepartidores(
       (funcionariosResp.data || [])
         .filter((item) => String(item.cargo || '').toLowerCase() === 'repartidor')
-        .map((item) => item.nombre_completo)
+        .map((item) => ({ id: item.id, nombre_completo: item.nombre_completo }))
     );
     const anios = cargasData.map((carga) => Number(carga.fecha.slice(0, 4)));
     if (anios.length && !anios.includes(anio)) setAnio(Math.max(...anios));
@@ -302,12 +308,39 @@ export default function RendimientoVehiculosPage() {
       codigo,
       nombre,
       patente: formVehiculo.patente.trim() || null,
+      repartidor_id: formVehiculo.repartidor_id || null,
     });
     setGuardando(false);
     if (error) return alert(error.message);
-    setFormVehiculo({ nombre: '', patente: '' });
+    setFormVehiculo({ nombre: '', patente: '', repartidor_id: '' });
     setMostrarVehiculo(false);
     await cargarDatos();
+  }
+
+  async function asignarRepartidor(repartidorId: string) {
+    if (!vehiculoFiltro) return;
+    setGuardando(true);
+    const { error } = await supabase
+      .from('vehiculos_reparto')
+      .update({ repartidor_id: repartidorId || null })
+      .eq('id', vehiculoFiltro);
+    setGuardando(false);
+    if (error) {
+      alert(error.code === '23505'
+        ? 'Este repartidor ya está asignado a otro vehículo.'
+        : error.message);
+      return;
+    }
+    setVehiculos((actuales) => actuales.map((vehiculo) =>
+      vehiculo.id === vehiculoFiltro
+        ? { ...vehiculo, repartidor_id: repartidorId || null }
+        : vehiculo
+    ));
+    const repartidor = repartidores.find((item) => item.id === repartidorId);
+    setForm((actual) => ({
+      ...actual,
+      conductor_nombre: repartidor?.nombre_completo || '',
+    }));
   }
 
   async function guardarCarga() {
@@ -407,18 +440,21 @@ export default function RendimientoVehiculosPage() {
       )}
 
       {mostrarVehiculo && (
-        <section className="no-print grid gap-3 rounded-3xl bg-white p-5 shadow-sm md:grid-cols-[1fr_220px_auto] md:items-end">
+        <section className="no-print grid gap-3 rounded-3xl bg-white p-5 shadow-sm md:grid-cols-2 xl:grid-cols-[1fr_190px_1fr_auto] xl:items-end">
           <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Nombre
             <input value={formVehiculo.nombre} onChange={(e) => setFormVehiculo({ ...formVehiculo, nombre: e.target.value })} placeholder="Ej: Furgón sala de ventas" className="h-11 rounded-xl border px-3 text-sm font-bold normal-case" />
           </label>
           <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Patente
             <input value={formVehiculo.patente} onChange={(e) => setFormVehiculo({ ...formVehiculo, patente: e.target.value.toUpperCase() })} placeholder="AB CD-12" className="h-11 rounded-xl border px-3 text-sm font-bold normal-case" />
           </label>
+          <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Repartidor asignado
+            <select value={formVehiculo.repartidor_id} onChange={(e) => setFormVehiculo({ ...formVehiculo, repartidor_id: e.target.value })} className="h-11 rounded-xl border bg-white px-3 text-sm font-bold normal-case"><option value="">Sin asignar</option>{repartidores.map((repartidor) => <option key={repartidor.id} value={repartidor.id}>{repartidor.nombre_completo}</option>)}</select>
+          </label>
           <button type="button" disabled={guardando} onClick={guardarVehiculo} className="h-11 rounded-xl bg-red-700 px-5 font-black text-white disabled:opacity-50">Guardar</button>
         </section>
       )}
 
-      <section className="no-print grid gap-3 rounded-3xl bg-white p-5 shadow-sm md:grid-cols-2">
+      <section className="no-print grid gap-3 rounded-3xl bg-white p-5 shadow-sm md:grid-cols-3">
         <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Año
           <select value={anio} onChange={(e) => setAnio(Number(e.target.value))} className="h-11 rounded-xl border bg-white px-3 text-sm font-bold normal-case">{aniosDisponibles.map((valor) => <option key={valor}>{valor}</option>)}</select>
         </label>
@@ -426,8 +462,17 @@ export default function RendimientoVehiculosPage() {
           <select value={vehiculoFiltro} onChange={(e) => {
             const valor = e.target.value;
             setVehiculoFiltro(valor);
-            setForm((actual) => ({ ...actual, vehiculo_id: valor }));
+            const vehiculo = vehiculos.find((item) => item.id === valor);
+            const repartidor = repartidores.find((item) => item.id === vehiculo?.repartidor_id);
+            setForm((actual) => ({
+              ...actual,
+              vehiculo_id: valor,
+              conductor_nombre: repartidor?.nombre_completo || '',
+            }));
           }} className="h-11 rounded-xl border bg-white px-3 text-sm font-bold normal-case"><option value="">Selecciona un vehículo</option>{vehiculos.map((vehiculo) => <option key={vehiculo.id} value={vehiculo.id}>{vehiculo.nombre}{vehiculo.patente ? ` · ${vehiculo.patente}` : ''}</option>)}</select>
+        </label>
+        <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Repartidor asignado
+          <select disabled={!vehiculoFiltro || guardando} value={vehiculos.find((vehiculo) => vehiculo.id === vehiculoFiltro)?.repartidor_id || ''} onChange={(e) => void asignarRepartidor(e.target.value)} className="h-11 rounded-xl border bg-white px-3 text-sm font-bold normal-case disabled:bg-stone-100"><option value="">Sin asignar</option>{repartidores.map((repartidor) => <option key={repartidor.id} value={repartidor.id}>{repartidor.nombre_completo}</option>)}</select>
         </label>
       </section>
 
@@ -479,7 +524,7 @@ export default function RendimientoVehiculosPage() {
                   <tr className="no-print border-t-2 border-red-700 bg-red-50/60 align-top">
                     <td className="p-1"><input aria-label="Fecha nueva carga" type="date" value={form.fecha} onChange={(e) => setForm({ ...form, fecha: e.target.value })} className="h-10 w-[135px] rounded-lg border bg-white px-2 font-bold" /></td>
                     <td className="p-1"><div className="flex h-10 w-[190px] items-center rounded-lg border bg-red-100 px-2 font-black">{vehiculos.find((vehiculo) => vehiculo.id === vehiculoFiltro)?.nombre}</div></td>
-                    <td className="p-1"><select aria-label="Repartidor nueva carga" value={form.conductor_nombre} onChange={(e) => setForm({ ...form, conductor_nombre: e.target.value })} className="h-10 w-[155px] rounded-lg border bg-white px-2 font-bold"><option value="">Elegir repartidor</option>{conductores.map((nombre) => <option key={nombre} value={nombre}>{nombre}</option>)}</select></td>
+                    <td className="p-1"><div className="flex h-10 w-[155px] items-center rounded-lg border bg-red-100 px-2 font-black">{form.conductor_nombre || 'Sin asignar'}</div></td>
                     <td className="p-1"><div className="flex w-[170px] gap-1"><select aria-label="Tipo documento" value={form.tipo_documento} onChange={(e) => setForm({ ...form, tipo_documento: e.target.value })} className="h-10 w-[82px] rounded-lg border bg-white px-1 font-bold"><option value="guia">Guía</option><option value="boleta">Boleta</option><option value="factura">Factura</option></select><input aria-label="Número documento" value={form.numero_guia} onChange={(e) => setForm({ ...form, numero_guia: e.target.value })} placeholder="Número" className="h-10 w-[85px] rounded-lg border bg-white px-2 text-right font-bold" /></div></td>
                     <td className="p-1"><input aria-label="Precio litro nueva carga" inputMode="numeric" value={form.precio_litro} onChange={(e) => setForm({ ...form, precio_litro: e.target.value.replace(/\D/g, '') })} placeholder="$0" className="h-10 w-[90px] rounded-lg border bg-white px-2 text-right font-bold" /></td>
                     <td className="p-1"><input aria-label="Litros nueva carga" inputMode="decimal" value={form.litros} onChange={(e) => setForm({ ...form, litros: e.target.value })} placeholder="0,000" className="h-10 w-[90px] rounded-lg border bg-white px-2 text-right font-bold" /></td>
