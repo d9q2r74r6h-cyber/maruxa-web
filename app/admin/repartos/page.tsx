@@ -7,7 +7,7 @@ import {
   type KeyboardEvent,
   type WheelEvent,
 } from 'react';
-import { Loader2, Save, Truck } from 'lucide-react';
+import { ArrowDown, ArrowUp, Loader2, Save, Truck } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAdminSession } from '@/components/AdminSession';
 
@@ -34,6 +34,7 @@ type Planilla = {
   repartidor_nombre: string;
   saldo_inicial: number;
   estado: string;
+  observaciones: string | null;
 };
 
 type Detalle = {
@@ -148,6 +149,21 @@ function filaDesdeCliente(cliente: Cliente): Fila {
     precio: Number(cliente.precio_base || 0),
     dias: {},
   };
+}
+
+function ordenClientesGuardado(valor: string | null | undefined): string[] {
+  if (!valor) return [];
+
+  try {
+    const datos = JSON.parse(valor);
+    return Array.isArray(datos?.orden_clientes)
+      ? datos.orden_clientes.filter(
+          (item: unknown): item is string => typeof item === 'string'
+        )
+      : [];
+  } catch {
+    return [];
+  }
 }
 
 export default function RepartosPage() {
@@ -380,7 +396,20 @@ export default function RepartosPage() {
       abonosPorDia[dia] = Number(abono.monto || 0);
     });
 
-    setFilas(Array.from(mapa.values()));
+    const ordenGuardado = ordenClientesGuardado(planillaData.observaciones);
+    const posicionGuardada = new Map<string, number>(
+      ordenGuardado.map((key, indice) => [key, indice])
+    );
+    const filasCargadas = Array.from(mapa.values()).sort((a, b) => {
+      const posicionA = posicionGuardada.get(a.key);
+      const posicionB = posicionGuardada.get(b.key);
+      if (posicionA === undefined && posicionB === undefined) return 0;
+      if (posicionA === undefined) return 1;
+      if (posicionB === undefined) return -1;
+      return posicionA - posicionB;
+    });
+
+    setFilas(filasCargadas);
     setAbonos(abonosPorDia);
     setCargando(false);
   }
@@ -422,6 +451,21 @@ export default function RepartosPage() {
     );
   }
 
+  function moverFila(filaKey: string, direccion: -1 | 1) {
+    setFilas((actuales) => {
+      const indice = actuales.findIndex((fila) => fila.key === filaKey);
+      const destino = indice + direccion;
+      if (indice < 0 || destino < 0 || destino >= actuales.length) return actuales;
+
+      const siguientes = [...actuales];
+      [siguientes[indice], siguientes[destino]] = [
+        siguientes[destino],
+        siguientes[indice],
+      ];
+      return siguientes;
+    });
+  }
+
   async function guardarPlanilla() {
     if (!planilla) {
       await abrirPlanilla();
@@ -432,7 +476,12 @@ export default function RepartosPage() {
 
     const { error: errorPlanilla } = await supabase
       .from('reparto_planillas')
-      .update({ saldo_inicial: saldoInicial })
+      .update({
+        saldo_inicial: saldoInicial,
+        observaciones: JSON.stringify({
+          orden_clientes: filas.map((fila) => fila.key),
+        }),
+      })
       .eq('id', planilla.id);
 
     if (errorPlanilla) {
@@ -632,10 +681,10 @@ export default function RepartosPage() {
           <div className="max-h-[620px] overflow-auto">
             <table
               className="table-fixed border-collapse text-xs"
-              style={{ width: 144 + 96 + dias.length * 128 + 112 }}
+              style={{ width: 190 + 96 + dias.length * 128 + 112 }}
             >
               <colgroup>
-                <col style={{ width: 144 }} />
+                <col style={{ width: 190 }} />
                 <col style={{ width: 96 }} />
                 {dias.flatMap((dia) => [
                   <col key={`${dia}-vendidos-col`} style={{ width: 64 }} />,
@@ -645,10 +694,10 @@ export default function RepartosPage() {
               </colgroup>
               <thead className="sticky top-0 z-10 bg-[#2A1710] text-white">
                 <tr>
-                  <th className="sticky left-0 z-20 w-36 min-w-36 max-w-36 bg-[#2A1710] px-2 py-2 text-left">
+                  <th className="sticky left-0 z-20 w-[190px] min-w-[190px] max-w-[190px] bg-[#2A1710] px-2 py-2 text-left">
                     Cliente
                   </th>
-                  <th className="sticky left-36 z-20 w-24 min-w-24 max-w-24 bg-[#2A1710] px-2 py-2 text-right">
+                  <th className="sticky left-[190px] z-20 w-24 min-w-24 max-w-24 bg-[#2A1710] px-2 py-2 text-right">
                     Precio
                   </th>
                   {dias.map((dia) => {
@@ -675,7 +724,7 @@ export default function RepartosPage() {
                 </tr>
                 <tr>
                   <th className="sticky left-0 z-20 bg-[#2A1710]" />
-                  <th className="sticky left-36 z-20 bg-[#2A1710]" />
+                  <th className="sticky left-[190px] z-20 bg-[#2A1710]" />
                   {dias.map((dia) => {
                     const domingo = esDomingo(anio, mes, dia);
 
@@ -694,12 +743,18 @@ export default function RepartosPage() {
                 </tr>
               </thead>
               <tbody>
-                {filas.map((fila) => (
+                {filas.map((fila, indice) => (
                   <tr key={fila.key} className="border-b border-[#4B2818]/10 hover:bg-[#FFF3DF]/45">
-                    <td className="sticky left-0 z-[5] w-36 min-w-36 max-w-36 overflow-hidden bg-white px-2 py-1 font-black uppercase text-[#2A1710]">
-                      <span className="block truncate" title={fila.nombre}>{fila.sigla}</span>
+                    <td className="sticky left-0 z-[5] w-[190px] min-w-[190px] max-w-[190px] overflow-hidden bg-white px-2 py-1 font-black uppercase text-[#2A1710]">
+                      <div className="flex items-center gap-1">
+                        <div className="no-print flex shrink-0 gap-0.5">
+                          <button type="button" disabled={indice === 0} onClick={() => moverFila(fila.key, -1)} title="Subir cliente" aria-label={`Subir ${fila.nombre}`} className="rounded border border-[#4B2818]/15 p-1 text-[#A51F2B] disabled:opacity-25"><ArrowUp className="h-3.5 w-3.5" /></button>
+                          <button type="button" disabled={indice === filas.length - 1} onClick={() => moverFila(fila.key, 1)} title="Bajar cliente" aria-label={`Bajar ${fila.nombre}`} className="rounded border border-[#4B2818]/15 p-1 text-[#A51F2B] disabled:opacity-25"><ArrowDown className="h-3.5 w-3.5" /></button>
+                        </div>
+                        <span className="block min-w-0 truncate" title={fila.nombre}>{fila.sigla}</span>
+                      </div>
                     </td>
-                    <td className="sticky left-36 z-[5] w-24 min-w-24 max-w-24 bg-white px-2 py-1">
+                    <td className="sticky left-[190px] z-[5] w-24 min-w-24 max-w-24 bg-white px-2 py-1">
                       <input
                         type="number"
                         data-columna="precio"
@@ -768,7 +823,7 @@ export default function RepartosPage() {
 
                 <tr className="border-t-2 border-[#2A1710] bg-[#FFF3DF] font-black">
                   <td className="sticky left-0 z-[5] bg-[#FFF3DF] px-2 py-2">Total kg</td>
-                  <td className="sticky left-36 z-[5] bg-[#FFF3DF]" />
+                  <td className="sticky left-[190px] z-[5] bg-[#FFF3DF]" />
                   {dias.map((dia) => (
                     <>
                       <td key={`${dia}-tv`} className={`border-l border-[#4B2818]/10 px-2 py-2 text-right ${esDomingo(anio, mes, dia) ? 'bg-amber-200' : ''}`}>
@@ -784,7 +839,7 @@ export default function RepartosPage() {
 
                 <tr className="bg-white font-black">
                   <td className="sticky left-0 z-[5] bg-white px-2 py-2">Monto dia</td>
-                  <td className="sticky left-36 z-[5] bg-white" />
+                  <td className="sticky left-[190px] z-[5] bg-white" />
                   {dias.map((dia) => (
                     <>
                       <td key={`${dia}-mv`} className={`border-l border-[#4B2818]/10 px-2 py-2 text-right ${esDomingo(anio, mes, dia) ? 'bg-amber-100' : ''}`}>
@@ -800,7 +855,7 @@ export default function RepartosPage() {
 
                 <tr className="bg-emerald-50 font-black">
                   <td className="sticky left-0 z-[5] bg-emerald-50 px-2 py-2">Abono</td>
-                  <td className="sticky left-36 z-[5] bg-emerald-50" />
+                  <td className="sticky left-[190px] z-[5] bg-emerald-50" />
                   {dias.map((dia) => (
                     <>
                       <td key={`${dia}-ab`} className={`border-l border-[#4B2818]/10 px-1 py-1 ${esDomingo(anio, mes, dia) ? 'bg-amber-100' : ''}`} colSpan={2}>
