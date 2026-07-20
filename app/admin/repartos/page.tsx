@@ -882,7 +882,15 @@ export default function RepartosPage() {
                           <button type="button" disabled={guardandoOrden || indice === 0} onClick={() => void moverFila(fila.key, -1)} title="Subir cliente" aria-label={`Subir ${fila.nombre}`} className="rounded border border-[#4B2818]/15 p-1 text-[#A51F2B] disabled:opacity-25"><ArrowUp className="h-3.5 w-3.5" /></button>
                           <button type="button" disabled={guardandoOrden || indice === filas.length - 1} onClick={() => void moverFila(fila.key, 1)} title="Bajar cliente" aria-label={`Bajar ${fila.nombre}`} className="rounded border border-[#4B2818]/15 p-1 text-[#A51F2B] disabled:opacity-25"><ArrowDown className="h-3.5 w-3.5" /></button>
                         </div>
-                        <span className="block min-w-0 truncate" title={fila.nombre}>{fila.sigla}</span>
+                        <div className="min-w-0 leading-tight" title={fila.nombre}>
+                          <span className="block truncate">{fila.sigla}</span>
+                          {normalizarNombre(fila.sigla) !==
+                            normalizarNombre(fila.nombre) && (
+                            <span className="block truncate text-[9px] font-bold normal-case text-[#4B2818]/60">
+                              {fila.nombre}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="sticky left-[170px] z-[5] w-[72px] min-w-[72px] max-w-[72px] bg-white px-1 py-1">
