@@ -70,6 +70,12 @@ function normalizar(texto: string | null | undefined) {
     .trim();
 }
 
+function normalizarRut(rut: string | null | undefined) {
+  return String(rut || '')
+    .replace(/[^0-9kK]/g, '')
+    .toUpperCase();
+}
+
 function repartidorOficial(nombre: string | null | undefined) {
   const valor = normalizar(nombre);
 
@@ -165,6 +171,19 @@ export default function ClientesPage() {
       return coincideBusqueda && coincideRepartidor && coincideEstado;
     });
   }, [busqueda, clientes, filtroEstado, filtroRepartidor]);
+
+  const clienteRutExistente = useMemo(() => {
+    const rut = normalizarRut(form.rut);
+    if (rut.length < 7) return null;
+
+    return (
+      clientes.find(
+        (cliente) =>
+          cliente.id !== clienteEditando?.id &&
+          normalizarRut(cliente.rut) === rut
+      ) || null
+    );
+  }, [clienteEditando?.id, clientes, form.rut]);
 
   const productosFiltradosPrecios = useMemo(() => {
     const texto = normalizar(busquedaProducto);
@@ -319,6 +338,14 @@ export default function ClientesPage() {
   async function guardar(event: React.FormEvent) {
     event.preventDefault();
     if (!perfil) return;
+
+    if (clienteRutExistente) {
+      alert(
+        `El RUT ingresado ya pertenece a ${clienteRutExistente.razon_social}.`
+      );
+      return;
+    }
+
     setGuardando(true);
 
     const payload = {
@@ -448,6 +475,12 @@ export default function ClientesPage() {
                   }
                   className="h-10 rounded-md border border-[#4B2818]/20 px-3 font-bold outline-none focus:border-[#A51F2B]"
                 />
+                {campo === 'rut' && clienteRutExistente && (
+                  <span className="rounded-md bg-red-50 px-2 py-1 text-xs font-black text-red-700">
+                    Este RUT ya existe: {clienteRutExistente.razon_social}
+                    {clienteRutExistente.activo ? ' (activo)' : ' (inactivo)'}.
+                  </span>
+                )}
               </label>
             ))}
 
@@ -493,7 +526,7 @@ export default function ClientesPage() {
           </div>
 
           <button
-            disabled={guardando}
+            disabled={guardando || Boolean(clienteRutExistente)}
             className="mt-5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-[#A51F2B] font-black text-white disabled:opacity-60"
           >
             {guardando ? (

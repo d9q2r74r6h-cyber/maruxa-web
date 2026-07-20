@@ -63,6 +63,30 @@ function numero(valor: unknown) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function normalizarNombre(valor: string | null | undefined) {
+  return String(valor || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function correspondeAlRepartidor(
+  asignado: string | null | undefined,
+  seleccionado: string
+) {
+  const nombreAsignado = normalizarNombre(asignado);
+  const nombreSeleccionado = normalizarNombre(seleccionado);
+  if (!nombreAsignado) return true;
+  if (nombreAsignado === nombreSeleccionado) return true;
+
+  return ['albornoz', 'tapia', 'panaderia'].some(
+    (referencia) =>
+      nombreAsignado.includes(referencia) &&
+      nombreSeleccionado.includes(referencia)
+  );
+}
+
 function kilos(valor: unknown) {
   return Math.max(0, numero(valor));
 }
@@ -240,6 +264,21 @@ export default function RepartosPage() {
     cargarBase();
   }, [perfil]);
 
+  useEffect(() => {
+    if (!perfil) return;
+
+    const actualizarAlVolver = () => {
+      if (document.visibilityState === 'visible') void cargarBase();
+    };
+
+    window.addEventListener('focus', actualizarAlVolver);
+    document.addEventListener('visibilitychange', actualizarAlVolver);
+    return () => {
+      window.removeEventListener('focus', actualizarAlVolver);
+      document.removeEventListener('visibilitychange', actualizarAlVolver);
+    };
+  }, [perfil]);
+
   const dias = useMemo(
     () => Array.from({ length: diasDelMes(anio, mes) }, (_, i) => i + 1),
     [anio, mes]
@@ -282,11 +321,8 @@ export default function RepartosPage() {
   }, [abonos, dias, filas, saldoInicial]);
 
   function clientesDelRepartidor() {
-    const nombre = repartidor.toLowerCase().trim();
     const filtrados = clientes.filter(
-      (cliente) =>
-        cliente.repartidor_nombre?.toLowerCase().trim() === nombre ||
-        !cliente.repartidor_nombre
+      (cliente) => correspondeAlRepartidor(cliente.repartidor_nombre, repartidor)
     );
 
     return filtrados.length > 0 ? filtrados : clientes;
