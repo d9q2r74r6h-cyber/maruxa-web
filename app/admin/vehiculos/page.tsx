@@ -60,7 +60,7 @@ export default function VehiculosPage() {
     if (!perfil) return;
     setCargando(true); setErrorModulo('');
     const [v, f, p, r] = await Promise.all([
-      supabase.from('vehiculos_reparto').select('*').eq('empresa_id', perfil.empresa_id).order('nombre'),
+      supabase.from('vehiculos_reparto').select('*').eq('empresa_id', perfil.empresa_id).eq('activo', true).order('nombre'),
       supabase.from('funcionarios').select('id,nombre_completo,cargo').eq('empresa_id', perfil.empresa_id).eq('activo', true).order('nombre_completo'),
       supabase.from('vehiculo_alerta_politicas').select('id,codigo,nombre,dias_anticipacion,km_anticipacion,activo').eq('empresa_id', perfil.empresa_id).eq('activo', true).order('nombre'),
       supabase.from('vehiculo_registros').select('id,vehiculo_id,politica_id,tipo,titulo,fecha,kilometraje,costo,detalle,proxima_fecha,proximo_kilometraje').eq('empresa_id', perfil.empresa_id).order('fecha', { ascending: false }),
