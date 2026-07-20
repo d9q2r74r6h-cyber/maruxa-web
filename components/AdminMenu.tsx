@@ -71,6 +71,7 @@ const grupos: {
       { label: 'Listados de precios', href: '/admin/informes/precios', modulo: 'compras' },
       { label: 'Productos por proveedor', href: '/admin/informes/productos-proveedor', modulo: 'compras' },
       { label: 'Rendimiento de vehículos', href: '/admin/informes/rendimiento-vehiculos', modulo: 'rendimiento_vehiculos' },
+      { label: 'Combustible de hornos', href: '/admin/informes/combustible-hornos', modulo: 'combustible_hornos' },
       { label: 'Costos', future: true },
       { label: 'Rentabilidad', future: true },
       { label: 'Stock critico', future: true },
