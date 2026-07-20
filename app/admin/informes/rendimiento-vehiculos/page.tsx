@@ -232,6 +232,15 @@ export default function RendimientoVehiculosPage() {
   }, [perfil]);
 
   const cargasCalculadas = useMemo(() => calcularRendimiento(cargas), [cargas]);
+  const vehiculoPorRepartidor = useMemo(
+    () =>
+      new Map(
+        vehiculos
+          .filter((vehiculo) => vehiculo.repartidor_id)
+          .map((vehiculo) => [vehiculo.repartidor_id as string, vehiculo.nombre])
+      ),
+    [vehiculos]
+  );
   const cargasFiltradas = useMemo(
     () =>
       cargasCalculadas.filter(
@@ -297,6 +306,13 @@ export default function RendimientoVehiculosPage() {
   async function guardarVehiculo() {
     const nombre = formVehiculo.nombre.trim();
     if (!perfil || !nombre) return;
+    const vehiculoAsignado = formVehiculo.repartidor_id
+      ? vehiculoPorRepartidor.get(formVehiculo.repartidor_id)
+      : null;
+    if (vehiculoAsignado) {
+      alert(`Este repartidor ya está asignado al vehículo ${vehiculoAsignado}.`);
+      return;
+    }
     setGuardando(true);
     const codigo = (formVehiculo.patente || nombre)
       .normalize('NFD')
@@ -312,7 +328,13 @@ export default function RendimientoVehiculosPage() {
       repartidor_id: formVehiculo.repartidor_id || null,
     });
     setGuardando(false);
-    if (error) return alert(error.message);
+    if (error) {
+      return alert(
+        error.code === '23505'
+          ? 'La patente ya existe o el repartidor seleccionado ya está asignado a otro vehículo activo.'
+          : error.message
+      );
+    }
     setFormVehiculo({ nombre: '', patente: '', repartidor_id: '' });
     setMostrarVehiculo(false);
     await cargarDatos();
@@ -456,7 +478,7 @@ export default function RendimientoVehiculosPage() {
             <input value={formVehiculo.patente} onChange={(e) => setFormVehiculo({ ...formVehiculo, patente: e.target.value.toUpperCase() })} placeholder="AB CD-12" className="h-11 min-w-0 w-full rounded-xl border px-3 text-sm font-bold normal-case" />
           </label>
           <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Repartidor asignado
-            <select value={formVehiculo.repartidor_id} onChange={(e) => setFormVehiculo({ ...formVehiculo, repartidor_id: e.target.value })} className="h-11 min-w-0 w-full rounded-xl border bg-white px-3 text-sm font-bold normal-case"><option value="">Sin asignar</option>{repartidores.map((repartidor) => <option key={repartidor.id} value={repartidor.id}>{repartidor.nombre_completo}</option>)}</select>
+            <select value={formVehiculo.repartidor_id} onChange={(e) => setFormVehiculo({ ...formVehiculo, repartidor_id: e.target.value })} className="h-11 min-w-0 w-full rounded-xl border bg-white px-3 text-sm font-bold normal-case"><option value="">Sin asignar</option>{repartidores.map((repartidor) => { const vehiculoAsignado = vehiculoPorRepartidor.get(repartidor.id); return <option key={repartidor.id} value={repartidor.id} disabled={Boolean(vehiculoAsignado)}>{repartidor.nombre_completo}{vehiculoAsignado ? ` · asignado a ${vehiculoAsignado}` : ''}</option>; })}</select>
           </label>
           <button type="button" disabled={guardando} onClick={guardarVehiculo} className="h-11 rounded-xl bg-red-700 px-5 font-black text-white disabled:opacity-50">Guardar</button>
         </section>
