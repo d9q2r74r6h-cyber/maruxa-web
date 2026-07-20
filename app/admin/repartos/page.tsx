@@ -58,6 +58,13 @@ type Fila = {
   dias: Record<number, { vendidos: number; devueltos: number; ajuste: number }>;
 };
 
+type BorradorPlanilla = {
+  filas: Fila[];
+  abonos: Record<number, number>;
+  saldoInicial: number;
+  actualizadoEn: string;
+};
+
 function numero(valor: unknown) {
   const n = Number(String(valor ?? '').replace(',', '.'));
   return Number.isFinite(n) ? n : 0;
@@ -211,6 +218,23 @@ function ordenClientesGuardado(valor: string | null | undefined): string[] {
   }
 }
 
+function claveBorradorPlanilla(planillaId: string) {
+  return `maruxa-repartos-borrador-${planillaId}`;
+}
+
+function leerBorradorPlanilla(planillaId: string): BorradorPlanilla | null {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const guardado = window.localStorage.getItem(claveBorradorPlanilla(planillaId));
+    if (!guardado) return null;
+    const borrador = JSON.parse(guardado) as BorradorPlanilla;
+    return Array.isArray(borrador?.filas) ? borrador : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function RepartosPage() {
   const { perfil } = useAdminSession();
   const hoy = new Date();
@@ -284,21 +308,6 @@ export default function RepartosPage() {
 
   useEffect(() => {
     cargarBase();
-  }, [perfil]);
-
-  useEffect(() => {
-    if (!perfil) return;
-
-    const actualizarAlVolver = () => {
-      if (document.visibilityState === 'visible') void cargarBase();
-    };
-
-    window.addEventListener('focus', actualizarAlVolver);
-    document.addEventListener('visibilitychange', actualizarAlVolver);
-    return () => {
-      window.removeEventListener('focus', actualizarAlVolver);
-      document.removeEventListener('visibilitychange', actualizarAlVolver);
-    };
   }, [perfil]);
 
   const dias = useMemo(
@@ -498,8 +507,10 @@ export default function RepartosPage() {
       return posicionA - posicionB;
     });
 
-    setFilas(filasCargadas);
-    setAbonos(abonosPorDia);
+    const borrador = leerBorradorPlanilla(planillaData.id);
+    setFilas(borrador?.filas || filasCargadas);
+    setAbonos(borrador?.abonos || abonosPorDia);
+    if (borrador) setSaldoInicial(Number(borrador.saldoInicial || 0));
     setCargando(false);
   }
 
@@ -507,6 +518,25 @@ export default function RepartosPage() {
     if (!perfil || !repartidor.trim()) return;
     void abrirPlanilla();
   }, [perfil, anio, mes, repartidor, repartidorId, clientes]);
+
+  useEffect(() => {
+    if (!planilla || cargando || typeof window === 'undefined') return;
+
+    const borrador: BorradorPlanilla = {
+      filas,
+      abonos,
+      saldoInicial,
+      actualizadoEn: new Date().toISOString(),
+    };
+    try {
+      window.localStorage.setItem(
+        claveBorradorPlanilla(planilla.id),
+        JSON.stringify(borrador)
+      );
+    } catch {
+      // La planilla sigue operativa aunque el navegador no permita almacenamiento local.
+    }
+  }, [abonos, cargando, filas, planilla, saldoInicial]);
 
   function actualizarCelda(
     filaKey: string,
@@ -734,6 +764,9 @@ export default function RepartosPage() {
       }
     }
 
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(claveBorradorPlanilla(planilla.id));
+    }
     setGuardando(false);
     alert('Planilla guardada.');
   }
