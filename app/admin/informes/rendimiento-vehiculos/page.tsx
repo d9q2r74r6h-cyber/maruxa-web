@@ -448,15 +448,15 @@ export default function RendimientoVehiculosPage() {
       )}
 
       {mostrarVehiculo && (
-        <section className="no-print grid gap-3 rounded-3xl bg-white p-5 shadow-sm md:grid-cols-2 xl:grid-cols-[1fr_190px_1fr_auto] xl:items-end">
-          <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Nombre
-            <input value={formVehiculo.nombre} onChange={(e) => setFormVehiculo({ ...formVehiculo, nombre: e.target.value })} placeholder="Ej: Furgón sala de ventas" className="h-11 rounded-xl border px-3 text-sm font-bold normal-case" />
+        <section className="no-print grid gap-3 rounded-3xl bg-white p-5 shadow-sm md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_190px_minmax(0,1fr)_auto] xl:items-end">
+          <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Nombre
+            <input value={formVehiculo.nombre} onChange={(e) => setFormVehiculo({ ...formVehiculo, nombre: e.target.value })} placeholder="Ej: Furgón sala de ventas" className="h-11 min-w-0 w-full rounded-xl border px-3 text-sm font-bold normal-case" />
           </label>
-          <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Patente
-            <input value={formVehiculo.patente} onChange={(e) => setFormVehiculo({ ...formVehiculo, patente: e.target.value.toUpperCase() })} placeholder="AB CD-12" className="h-11 rounded-xl border px-3 text-sm font-bold normal-case" />
+          <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Patente
+            <input value={formVehiculo.patente} onChange={(e) => setFormVehiculo({ ...formVehiculo, patente: e.target.value.toUpperCase() })} placeholder="AB CD-12" className="h-11 min-w-0 w-full rounded-xl border px-3 text-sm font-bold normal-case" />
           </label>
-          <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Repartidor asignado
-            <select value={formVehiculo.repartidor_id} onChange={(e) => setFormVehiculo({ ...formVehiculo, repartidor_id: e.target.value })} className="h-11 rounded-xl border bg-white px-3 text-sm font-bold normal-case"><option value="">Sin asignar</option>{repartidores.map((repartidor) => <option key={repartidor.id} value={repartidor.id}>{repartidor.nombre_completo}</option>)}</select>
+          <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Repartidor asignado
+            <select value={formVehiculo.repartidor_id} onChange={(e) => setFormVehiculo({ ...formVehiculo, repartidor_id: e.target.value })} className="h-11 min-w-0 w-full rounded-xl border bg-white px-3 text-sm font-bold normal-case"><option value="">Sin asignar</option>{repartidores.map((repartidor) => <option key={repartidor.id} value={repartidor.id}>{repartidor.nombre_completo}</option>)}</select>
           </label>
           <button type="button" disabled={guardando} onClick={guardarVehiculo} className="h-11 rounded-xl bg-red-700 px-5 font-black text-white disabled:opacity-50">Guardar</button>
         </section>
