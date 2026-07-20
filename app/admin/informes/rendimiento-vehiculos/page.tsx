@@ -297,6 +297,18 @@ export default function RendimientoVehiculosPage() {
     [cargasFiltradas]
   );
 
+  const litrosEnFormulario = numero(form.litros);
+  const precioLitroEnFormulario = numero(form.precio_litro);
+  const gastoIngresadoEnFormulario = numero(form.monto_guia);
+  const gastoCalculadoEnFormulario =
+    gastoIngresadoEnFormulario ||
+    precioLitroEnFormulario * litrosEnFormulario;
+  const precioCalculadoEnFormulario =
+    precioLitroEnFormulario ||
+    (litrosEnFormulario > 0
+      ? gastoIngresadoEnFormulario / litrosEnFormulario
+      : 0);
+
   const aniosDisponibles = useMemo(() => {
     const valores = new Set(cargas.map((carga) => Number(carga.fecha.slice(0, 4))));
     valores.add(new Date().getFullYear());
@@ -554,15 +566,58 @@ export default function RendimientoVehiculosPage() {
         <section className="rounded-3xl bg-white p-5 shadow-sm">
           <h2 className="text-xl font-black text-maruxa-chocolate">Planilla de cargas</h2>
           <p className="no-print mt-1 text-xs font-bold text-maruxa-cafe/55">
-            Ingresa la próxima carga en la última fila. Los cálculos aparecen al guardar.
-            En $/litro escribe el valor unitario (por ejemplo, 1.370); el total de la factura va en Gasto.
+            Completa la grilla de nueva carga. Los cálculos se actualizan inmediatamente, antes de guardar.
           </p>
           {!vehiculoFiltro ? (
             <div className="no-print mt-4 rounded-2xl border-2 border-dashed border-red-200 bg-red-50/50 px-5 py-10 text-center font-black text-maruxa-cafe/65">
               Selecciona un vehículo para abrir su planilla de cargas.
             </div>
           ) : cargando ? <p className="py-10 text-center font-bold">Cargando...</p> : (
-            <div className="mt-4 overflow-x-auto">
+            <>
+            <div className="no-print mt-4 grid gap-4 rounded-2xl border border-red-200 bg-red-50/60 p-4 sm:grid-cols-2 xl:grid-cols-4">
+              <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
+                Fecha
+                <input aria-label="Fecha nueva carga" type="date" value={form.fecha} onChange={(e) => setForm({ ...form, fecha: e.target.value })} className="h-11 rounded-xl border bg-white px-3 text-sm font-bold normal-case" />
+              </label>
+              <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
+                Vehículo
+                <div className="flex h-11 items-center rounded-xl border bg-white px-3 text-sm font-black normal-case">{vehiculos.find((vehiculo) => vehiculo.id === vehiculoFiltro)?.nombre}</div>
+              </label>
+              <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
+                Repartidor
+                <div className="flex h-11 items-center rounded-xl border bg-white px-3 text-sm font-black normal-case">{form.conductor_nombre || 'Sin asignar'}</div>
+              </label>
+              <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
+                Documento
+                <div className="grid grid-cols-[110px_minmax(0,1fr)] gap-2">
+                  <select aria-label="Tipo documento" value={form.tipo_documento} onChange={(e) => setForm({ ...form, tipo_documento: e.target.value })} className="h-11 rounded-xl border bg-white px-2 text-sm font-bold normal-case"><option value="guia">Guía</option><option value="boleta">Boleta</option><option value="factura">Factura</option></select>
+                  <input aria-label="Número documento" value={form.numero_guia} onChange={(e) => setForm({ ...form, numero_guia: e.target.value })} placeholder="Número" className="h-11 min-w-0 rounded-xl border bg-white px-3 text-right text-sm font-bold normal-case" />
+                </div>
+              </label>
+              <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
+                Litros cargados
+                <input aria-label="Litros nueva carga" inputMode="decimal" value={form.litros} onChange={(e) => setForm({ ...form, litros: e.target.value })} placeholder="Ej: 35,6" className="h-11 rounded-xl border bg-white px-3 text-right text-sm font-bold normal-case" />
+              </label>
+              <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
+                Gasto total
+                <input aria-label="Gasto nueva carga" inputMode="numeric" value={form.monto_guia} onChange={(e) => setForm({ ...form, monto_guia: e.target.value.replace(/\D/g, '') })} placeholder="Ej: 50.167" className="h-11 rounded-xl border bg-white px-3 text-right text-sm font-bold normal-case" />
+              </label>
+              <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
+                Precio por litro (opcional)
+                <input aria-label="Precio litro nueva carga" inputMode="numeric" value={form.precio_litro} onChange={(e) => setForm({ ...form, precio_litro: e.target.value.replace(/\D/g, '') })} placeholder="Se calcula solo" className="h-11 rounded-xl border bg-white px-3 text-right text-sm font-bold normal-case" />
+              </label>
+              <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
+                Kilometraje
+                <input aria-label="Kilometraje nueva carga" inputMode="numeric" value={form.kilometraje} onChange={(e) => setForm({ ...form, kilometraje: e.target.value.replace(/\D/g, '') })} placeholder="Ej: 68.919" className="h-11 rounded-xl border bg-white px-3 text-right text-sm font-bold normal-case" />
+              </label>
+              <div className="grid gap-3 rounded-2xl border border-emerald-200 bg-white p-4 sm:col-span-2 sm:grid-cols-3 xl:col-span-4">
+                <div><p className="text-[11px] font-black uppercase text-maruxa-cafe/55">Litros</p><p className="mt-1 text-xl font-black text-maruxa-chocolate">{decimal(litrosEnFormulario, 3)}</p></div>
+                <div><p className="text-[11px] font-black uppercase text-maruxa-cafe/55">Precio por litro calculado</p><p className="mt-1 text-xl font-black text-emerald-800">{dinero(precioCalculadoEnFormulario)}</p></div>
+                <div><p className="text-[11px] font-black uppercase text-maruxa-cafe/55">Gasto total calculado</p><p className="mt-1 text-xl font-black text-emerald-800">{dinero(gastoCalculadoEnFormulario)}</p></div>
+              </div>
+              <button type="button" disabled={guardando} onClick={guardarCarga} className="h-11 rounded-xl bg-red-700 px-5 font-black text-white disabled:opacity-50 sm:col-span-2 xl:col-span-4"><Save className="mr-2 inline h-4 w-4" />{guardando ? 'Guardando' : 'Guardar carga'}</button>
+            </div>
+            <div className="mt-5 overflow-x-auto">
               <table className="w-full min-w-[1450px] text-xs">
                 <thead className="bg-maruxa-chocolate text-white"><tr><th className="px-2 py-2 text-left">Fecha</th><th className="px-2 py-2 text-left">Vehículo</th><th className="px-2 py-2 text-left">Repartidor</th><th className="px-2 py-2 text-right">Documento</th><th className="px-2 py-2 text-right">$/litro</th><th className="px-2 py-2 text-right">Litros</th><th className="px-2 py-2 text-right">Gasto</th><th className="px-2 py-2 text-right">Kilometraje</th><th className="px-2 py-2 text-right">Km recorridos</th><th className="px-2 py-2 text-right">Km/l</th><th className="px-2 py-2 text-right">Litros/día</th><th className="px-2 py-2 text-right">$/día</th><th className="no-print px-2 py-2"></th></tr></thead>
                 <tbody>
@@ -570,21 +625,10 @@ export default function RendimientoVehiculosPage() {
                     const vehiculo = vehiculos.find((item) => item.id === carga.vehiculo_id);
                     return <tr key={carga.id} className={`border-b ${carga.alerta ? 'bg-red-50' : carga.origen.startsWith('excel_2024') ? 'bg-blue-50/40' : ''}`}><td className="px-2 py-2 font-bold">{fechaLocal(carga.fecha)}</td><td className="px-2 py-2 font-black">{vehiculo?.nombre || '—'}</td><td className="px-2 py-2">{carga.conductor_nombre || '—'}</td><td className="px-2 py-2 text-right">{documentoTexto(carga.numero_guia)}</td><td className="px-2 py-2 text-right">{dinero(carga.precio_litro)}</td><td className="px-2 py-2 text-right">{decimal(carga.litros, 3)}</td><td className="px-2 py-2 text-right">{dinero(carga.monto_guia)}</td><td className="px-2 py-2 text-right">{carga.kilometraje === null ? 'Pendiente' : numero(carga.kilometraje).toLocaleString('es-CL')}</td><td className="px-2 py-2 text-right">{carga.km_recorridos === null ? '—' : numero(carga.km_recorridos).toLocaleString('es-CL')}</td><td className="px-2 py-2 text-right font-black">{decimal(carga.rendimiento)}</td><td className="px-2 py-2 text-right">{decimal(carga.litros_diarios)}</td><td className="px-2 py-2 text-right">{carga.gasto_diario === null ? '—' : dinero(carga.gasto_diario)}</td><td className="no-print px-2 py-2 text-right"><button type="button" onClick={() => eliminarCarga(carga.id)} className="rounded-lg p-2 text-red-700 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button></td></tr>;
                   })}
-                  <tr className="no-print border-t-2 border-red-700 bg-red-50/60 align-top">
-                    <td className="p-1"><input aria-label="Fecha nueva carga" type="date" value={form.fecha} onChange={(e) => setForm({ ...form, fecha: e.target.value })} className="h-10 w-[135px] rounded-lg border bg-white px-2 font-bold" /></td>
-                    <td className="p-1"><div className="flex h-10 w-[190px] items-center rounded-lg border bg-red-100 px-2 font-black">{vehiculos.find((vehiculo) => vehiculo.id === vehiculoFiltro)?.nombre}</div></td>
-                    <td className="p-1"><div className="flex h-10 w-[155px] items-center rounded-lg border bg-red-100 px-2 font-black">{form.conductor_nombre || 'Sin asignar'}</div></td>
-                    <td className="p-1"><div className="flex w-[170px] gap-1"><select aria-label="Tipo documento" value={form.tipo_documento} onChange={(e) => setForm({ ...form, tipo_documento: e.target.value })} className="h-10 w-[82px] rounded-lg border bg-white px-1 font-bold"><option value="guia">Guía</option><option value="boleta">Boleta</option><option value="factura">Factura</option></select><input aria-label="Número documento" value={form.numero_guia} onChange={(e) => setForm({ ...form, numero_guia: e.target.value })} placeholder="Número" className="h-10 w-[85px] rounded-lg border bg-white px-2 text-right font-bold" /></div></td>
-                    <td className="p-1"><input aria-label="Precio litro nueva carga" inputMode="numeric" value={form.precio_litro} onChange={(e) => setForm({ ...form, precio_litro: e.target.value.replace(/\D/g, '') })} placeholder="Ej: 1.370" className="h-10 w-[90px] rounded-lg border bg-white px-2 text-right font-bold" /></td>
-                    <td className="p-1"><input aria-label="Litros nueva carga" inputMode="decimal" value={form.litros} onChange={(e) => setForm({ ...form, litros: e.target.value })} placeholder="0,000" className="h-10 w-[90px] rounded-lg border bg-white px-2 text-right font-bold" /></td>
-                    <td className="p-1"><input aria-label="Gasto nueva carga" inputMode="numeric" value={form.monto_guia} onChange={(e) => setForm({ ...form, monto_guia: e.target.value.replace(/\D/g, '') })} placeholder={numero(form.precio_litro) > 0 ? dinero(numero(form.precio_litro) * numero(form.litros)) : 'Total factura'} className="h-10 w-[105px] rounded-lg border bg-white px-2 text-right font-bold" /></td>
-                    <td className="p-1"><input aria-label="Kilometraje nueva carga" inputMode="numeric" value={form.kilometraje} onChange={(e) => setForm({ ...form, kilometraje: e.target.value.replace(/\D/g, '') })} placeholder="Kilometraje" className="h-10 w-[110px] rounded-lg border bg-white px-2 text-right font-bold" /></td>
-                    <td className="px-2 py-3 text-right text-maruxa-cafe/40">—</td><td className="px-2 py-3 text-right text-maruxa-cafe/40">—</td><td className="px-2 py-3 text-right text-maruxa-cafe/40">—</td><td className="px-2 py-3 text-right text-maruxa-cafe/40">—</td>
-                    <td className="p-1"><button type="button" disabled={guardando} onClick={guardarCarga} className="flex h-10 items-center gap-1 rounded-lg bg-red-700 px-3 font-black text-white disabled:opacity-50"><Save className="h-4 w-4" />{guardando ? 'Guardando' : 'Guardar'}</button></td>
-                  </tr>
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </section>
       </div>
