@@ -7,7 +7,7 @@ import {
   type KeyboardEvent,
   type WheelEvent,
 } from 'react';
-import { ArrowDown, ArrowUp, Loader2, Save, Truck } from 'lucide-react';
+import { ArrowDown, ArrowUp, Loader2, Save } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAdminSession } from '@/components/AdminSession';
 
@@ -839,14 +839,7 @@ export default function RepartosPage() {
         ))}
       </section>
 
-      <section className="overflow-hidden rounded-lg border border-[#4B2818]/15 bg-white">
-        <div className="flex items-center gap-2 border-b border-[#4B2818]/10 bg-[#FFF3DF] px-4 py-3">
-          <Truck className="h-5 w-5 text-[#A51F2B]" />
-          <h2 className="font-black text-[#2A1710]">
-            {repartidor || 'Selecciona repartidor'} - {nombreMes(mes)} {anio}
-          </h2>
-        </div>
-
+      <section className="min-w-0">
         {!planilla ? (
           <p className="p-8 text-center text-sm font-bold text-[#4B2818]/60">
             {cargando
