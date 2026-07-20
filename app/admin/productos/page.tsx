@@ -949,7 +949,7 @@ export default function AdminProductosPage() {
               </>
 
             {esProducto && (
-              <label className="flex items-center gap-3 font-black text-maruxa-chocolate">
+              <label className="flex items-center gap-3 font-black text-maruxa-chocolate md:col-span-2">
                 <input
                   type="checkbox"
                   checked={form.usar_configuracion_familia}
