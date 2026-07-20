@@ -206,6 +206,7 @@ export default function RepartosPage() {
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [guardandoOrden, setGuardandoOrden] = useState(false);
+  const [replicandoOrden, setReplicandoOrden] = useState(false);
   const anioActual = hoy.getFullYear();
   const aniosDisponibles = Array.from(
     { length: Math.max(anioActual + 1, anio) - 2023 },
@@ -446,7 +447,24 @@ export default function RepartosPage() {
       abonosPorDia[dia] = Number(abono.monto || 0);
     });
 
-    const ordenGuardado = ordenClientesGuardado(planillaData.observaciones);
+    let observacionesOrden = planillaData.observaciones;
+    if (ordenClientesGuardado(observacionesOrden).length === 0) {
+      const { data: plantillasOrden } = await supabase
+        .from('reparto_planillas')
+        .select('observaciones')
+        .eq('empresa_id', perfil.empresa_id)
+        .eq('repartidor_nombre', repartidor.trim())
+        .not('observaciones', 'is', null)
+        .order('updated_at', { ascending: false })
+        .limit(24);
+
+      observacionesOrden =
+        (plantillasOrden || []).find(
+          (item) => ordenClientesGuardado(item.observaciones).length > 0
+        )?.observaciones || null;
+    }
+
+    const ordenGuardado = ordenClientesGuardado(observacionesOrden);
     const posicionGuardada = new Map<string, number>(
       ordenGuardado.map((key, indice) => [key, indice])
     );
@@ -531,6 +549,33 @@ export default function RepartosPage() {
       setFilas(ordenAnterior);
       alert(`No se pudo guardar el nuevo orden: ${error.message}`);
     }
+  }
+
+  async function replicarOrdenEnTodosLosMeses() {
+    if (!perfil || !planilla || !repartidor.trim() || filas.length === 0) return;
+
+    setReplicandoOrden(true);
+    const observaciones = JSON.stringify({
+      orden_clientes: filas.map((fila) => fila.key),
+    });
+    const { error } = await supabase
+      .from('reparto_planillas')
+      .update({ observaciones })
+      .eq('empresa_id', perfil.empresa_id)
+      .eq('repartidor_nombre', repartidor.trim());
+    setReplicandoOrden(false);
+
+    if (error) {
+      alert(`No se pudo replicar el orden: ${error.message}`);
+      return;
+    }
+
+    setPlanilla((actual) =>
+      actual ? { ...actual, observaciones } : actual
+    );
+    alert(
+      'Orden aplicado a todos los meses existentes. Los meses nuevos heredaran este mismo orden.'
+    );
   }
 
   async function guardarPlanilla() {
@@ -1020,7 +1065,16 @@ export default function RepartosPage() {
         )}
       </section>
 
-      <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-3">
+        <button
+          type="button"
+          onClick={replicarOrdenEnTodosLosMeses}
+          disabled={replicandoOrden || guardando || cargando || !planilla}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-[#A51F2B] bg-white px-5 text-sm font-black text-[#A51F2B] disabled:opacity-60"
+        >
+          {replicandoOrden && <Loader2 className="h-4 w-4 animate-spin" />}
+          Aplicar orden a todos los meses
+        </button>
         <button
           type="button"
           onClick={guardarPlanilla}
