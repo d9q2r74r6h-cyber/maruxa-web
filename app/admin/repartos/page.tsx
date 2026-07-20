@@ -181,6 +181,7 @@ export default function RepartosPage() {
   const [planilla, setPlanilla] = useState<Planilla | null>(null);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
+  const [guardandoOrden, setGuardandoOrden] = useState(false);
   const anioActual = hoy.getFullYear();
   const aniosDisponibles = Array.from(
     { length: Math.max(anioActual + 1, anio) - 2023 },
@@ -464,19 +465,36 @@ export default function RepartosPage() {
     );
   }
 
-  function moverFila(filaKey: string, direccion: -1 | 1) {
-    setFilas((actuales) => {
-      const indice = actuales.findIndex((fila) => fila.key === filaKey);
-      const destino = indice + direccion;
-      if (indice < 0 || destino < 0 || destino >= actuales.length) return actuales;
+  async function moverFila(filaKey: string, direccion: -1 | 1) {
+    if (!planilla || guardandoOrden) return;
 
-      const siguientes = [...actuales];
-      [siguientes[indice], siguientes[destino]] = [
-        siguientes[destino],
-        siguientes[indice],
-      ];
-      return siguientes;
-    });
+    const indice = filas.findIndex((fila) => fila.key === filaKey);
+    const destino = indice + direccion;
+    if (indice < 0 || destino < 0 || destino >= filas.length) return;
+
+    const ordenAnterior = filas;
+    const siguientes = [...filas];
+    [siguientes[indice], siguientes[destino]] = [
+      siguientes[destino],
+      siguientes[indice],
+    ];
+
+    setFilas(siguientes);
+    setGuardandoOrden(true);
+    const { error } = await supabase
+      .from('reparto_planillas')
+      .update({
+        observaciones: JSON.stringify({
+          orden_clientes: siguientes.map((fila) => fila.key),
+        }),
+      })
+      .eq('id', planilla.id);
+    setGuardandoOrden(false);
+
+    if (error) {
+      setFilas(ordenAnterior);
+      alert(`No se pudo guardar el nuevo orden: ${error.message}`);
+    }
   }
 
   async function guardarPlanilla() {
@@ -825,8 +843,8 @@ export default function RepartosPage() {
                     <td className="sticky left-0 z-[5] w-[170px] min-w-[170px] max-w-[170px] overflow-hidden bg-white px-2 py-1 font-black uppercase text-[#2A1710]">
                       <div className="flex items-center gap-1">
                         <div className="no-print flex shrink-0 gap-0.5">
-                          <button type="button" disabled={indice === 0} onClick={() => moverFila(fila.key, -1)} title="Subir cliente" aria-label={`Subir ${fila.nombre}`} className="rounded border border-[#4B2818]/15 p-1 text-[#A51F2B] disabled:opacity-25"><ArrowUp className="h-3.5 w-3.5" /></button>
-                          <button type="button" disabled={indice === filas.length - 1} onClick={() => moverFila(fila.key, 1)} title="Bajar cliente" aria-label={`Bajar ${fila.nombre}`} className="rounded border border-[#4B2818]/15 p-1 text-[#A51F2B] disabled:opacity-25"><ArrowDown className="h-3.5 w-3.5" /></button>
+                          <button type="button" disabled={guardandoOrden || indice === 0} onClick={() => void moverFila(fila.key, -1)} title="Subir cliente" aria-label={`Subir ${fila.nombre}`} className="rounded border border-[#4B2818]/15 p-1 text-[#A51F2B] disabled:opacity-25"><ArrowUp className="h-3.5 w-3.5" /></button>
+                          <button type="button" disabled={guardandoOrden || indice === filas.length - 1} onClick={() => void moverFila(fila.key, 1)} title="Bajar cliente" aria-label={`Bajar ${fila.nombre}`} className="rounded border border-[#4B2818]/15 p-1 text-[#A51F2B] disabled:opacity-25"><ArrowDown className="h-3.5 w-3.5" /></button>
                         </div>
                         <span className="block min-w-0 truncate" title={fila.nombre}>{fila.sigla}</span>
                       </div>
