@@ -133,25 +133,46 @@ const mesesDelAnio = [
   'Diciembre',
 ];
 
-function moverVertical(event: KeyboardEvent<HTMLInputElement>) {
-  if (event.key !== 'Enter') return;
+function moverEnGrilla(event: KeyboardEvent<HTMLInputElement>) {
+  const teclasNavegacion = [
+    'Enter',
+    'ArrowUp',
+    'ArrowDown',
+    'ArrowLeft',
+    'ArrowRight',
+  ];
+  if (!teclasNavegacion.includes(event.key)) return;
 
   const input = event.currentTarget;
   const columna = input.dataset.columna;
-
   if (!columna) return;
 
   const fila = input.closest('tr');
-  const siguienteFila = event.shiftKey
-    ? fila?.previousElementSibling
-    : fila?.nextElementSibling;
-  const siguiente = siguienteFila?.querySelector<HTMLInputElement>(
-    `input[data-columna="${columna}"]`
-  );
+  event.preventDefault();
+
+  let siguiente: HTMLInputElement | null | undefined;
+  if (
+    event.key === 'Enter' ||
+    event.key === 'ArrowUp' ||
+    event.key === 'ArrowDown'
+  ) {
+    const subir = event.key === 'ArrowUp' || (event.key === 'Enter' && event.shiftKey);
+    const siguienteFila = subir
+      ? fila?.previousElementSibling
+      : fila?.nextElementSibling;
+    siguiente = siguienteFila?.querySelector<HTMLInputElement>(
+      `input[data-columna="${columna}"]`
+    );
+  } else if (fila) {
+    const entradas = Array.from(
+      fila.querySelectorAll<HTMLInputElement>('input[data-columna]')
+    );
+    const indice = entradas.indexOf(input);
+    siguiente =
+      entradas[indice + (event.key === 'ArrowLeft' ? -1 : 1)] || null;
+  }
 
   if (!siguiente) return;
-
-  event.preventDefault();
   siguiente.focus();
   siguiente.select();
 }
@@ -937,7 +958,7 @@ export default function RepartosPage() {
                         data-columna="precio"
                         value={fila.precio || ''}
                         onChange={(e) => actualizarPrecio(fila.key, e.target.value)}
-                        onKeyDown={moverVertical}
+                        onKeyDown={moverEnGrilla}
                         className="sin-spinner h-8 w-16 rounded border border-[#4B2818]/15 px-1 text-right font-bold"
                       />
                     </td>
@@ -958,7 +979,7 @@ export default function RepartosPage() {
                               onChange={(e) =>
                                 actualizarCelda(fila.key, dia, 'vendidos', e.target.value)
                               }
-                              onKeyDown={moverVertical}
+                              onKeyDown={moverEnGrilla}
                               className="sin-spinner h-8 w-14 rounded border border-[#4B2818]/15 px-1 text-right font-bold"
                             />
                           </td>
@@ -971,7 +992,7 @@ export default function RepartosPage() {
                               onChange={(e) =>
                                 actualizarCelda(fila.key, dia, 'devueltos', e.target.value)
                               }
-                              onKeyDown={moverVertical}
+                              onKeyDown={moverEnGrilla}
                               className="sin-spinner h-8 w-14 rounded border border-red-200 bg-red-50 px-1 text-right font-bold text-red-800"
                             />
                           </td>
@@ -1038,6 +1059,7 @@ export default function RepartosPage() {
                       <td key={`${dia}-ab`} className={`border-l border-[#4B2818]/10 px-1 py-1 ${esDomingo(anio, mes, dia) ? 'bg-amber-100' : ''}`} colSpan={2}>
                         <input
                           type="number"
+                          data-columna={`${dia}-abono`}
                           value={abonos[dia] || ''}
                           onChange={(e) =>
                             setAbonos((actual) => ({
@@ -1045,6 +1067,7 @@ export default function RepartosPage() {
                               [dia]: numero(e.target.value),
                             }))
                           }
+                          onKeyDown={moverEnGrilla}
                           className="sin-spinner h-8 w-28 rounded border border-emerald-200 bg-white px-2 text-right font-bold text-emerald-800"
                         />
                       </td>
