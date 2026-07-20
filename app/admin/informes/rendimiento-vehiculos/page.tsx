@@ -367,8 +367,24 @@ export default function RendimientoVehiculosPage() {
   }
 
   async function guardarCarga() {
-    if (!perfil || !form.vehiculo_id || !form.fecha || !form.conductor_nombre || numero(form.litros) <= 0) {
+    const litrosCarga = numero(form.litros);
+    const precioLitroIngresado = numero(form.precio_litro);
+    const gastoIngresado = numero(form.monto_guia);
+
+    if (!perfil || !form.vehiculo_id || !form.fecha || !form.conductor_nombre || litrosCarga <= 0) {
       alert('Completa vehículo, fecha, repartidor y litros.');
+      return;
+    }
+
+    if (precioLitroIngresado <= 0 && gastoIngresado <= 0) {
+      alert('Ingresa el precio por litro o el gasto total de la carga.');
+      return;
+    }
+
+    if (precioLitroIngresado > 5000) {
+      alert(
+        `El valor ${dinero(precioLitroIngresado)} parece ser el gasto total, no el precio por litro. Escríbelo en la columna Gasto.`
+      );
       return;
     }
 
@@ -391,7 +407,9 @@ export default function RendimientoVehiculosPage() {
     }
 
     setGuardando(true);
-    const montoCalculado = numero(form.precio_litro) * numero(form.litros);
+    const montoFinal = gastoIngresado || precioLitroIngresado * litrosCarga;
+    const precioLitroFinal =
+      precioLitroIngresado || montoFinal / litrosCarga;
     const { error } = await supabase.from('combustible_cargas').insert({
       empresa_id: perfil.empresa_id,
       vehiculo_id: form.vehiculo_id,
@@ -400,9 +418,9 @@ export default function RendimientoVehiculosPage() {
       numero_guia: form.numero_guia.trim()
         ? `${form.tipo_documento}|${form.numero_guia.trim()}`
         : null,
-      precio_litro: numero(form.precio_litro),
-      monto_guia: numero(form.monto_guia) || montoCalculado,
-      litros: numero(form.litros),
+      precio_litro: precioLitroFinal,
+      monto_guia: montoFinal,
+      litros: litrosCarga,
       kilometraje,
       observacion: form.observacion.trim() || null,
     });
@@ -537,6 +555,7 @@ export default function RendimientoVehiculosPage() {
           <h2 className="text-xl font-black text-maruxa-chocolate">Planilla de cargas</h2>
           <p className="no-print mt-1 text-xs font-bold text-maruxa-cafe/55">
             Ingresa la próxima carga en la última fila. Los cálculos aparecen al guardar.
+            En $/litro escribe el valor unitario (por ejemplo, 1.370); el total de la factura va en Gasto.
           </p>
           {!vehiculoFiltro ? (
             <div className="no-print mt-4 rounded-2xl border-2 border-dashed border-red-200 bg-red-50/50 px-5 py-10 text-center font-black text-maruxa-cafe/65">
@@ -556,9 +575,9 @@ export default function RendimientoVehiculosPage() {
                     <td className="p-1"><div className="flex h-10 w-[190px] items-center rounded-lg border bg-red-100 px-2 font-black">{vehiculos.find((vehiculo) => vehiculo.id === vehiculoFiltro)?.nombre}</div></td>
                     <td className="p-1"><div className="flex h-10 w-[155px] items-center rounded-lg border bg-red-100 px-2 font-black">{form.conductor_nombre || 'Sin asignar'}</div></td>
                     <td className="p-1"><div className="flex w-[170px] gap-1"><select aria-label="Tipo documento" value={form.tipo_documento} onChange={(e) => setForm({ ...form, tipo_documento: e.target.value })} className="h-10 w-[82px] rounded-lg border bg-white px-1 font-bold"><option value="guia">Guía</option><option value="boleta">Boleta</option><option value="factura">Factura</option></select><input aria-label="Número documento" value={form.numero_guia} onChange={(e) => setForm({ ...form, numero_guia: e.target.value })} placeholder="Número" className="h-10 w-[85px] rounded-lg border bg-white px-2 text-right font-bold" /></div></td>
-                    <td className="p-1"><input aria-label="Precio litro nueva carga" inputMode="numeric" value={form.precio_litro} onChange={(e) => setForm({ ...form, precio_litro: e.target.value.replace(/\D/g, '') })} placeholder="$0" className="h-10 w-[90px] rounded-lg border bg-white px-2 text-right font-bold" /></td>
+                    <td className="p-1"><input aria-label="Precio litro nueva carga" inputMode="numeric" value={form.precio_litro} onChange={(e) => setForm({ ...form, precio_litro: e.target.value.replace(/\D/g, '') })} placeholder="Ej: 1.370" className="h-10 w-[90px] rounded-lg border bg-white px-2 text-right font-bold" /></td>
                     <td className="p-1"><input aria-label="Litros nueva carga" inputMode="decimal" value={form.litros} onChange={(e) => setForm({ ...form, litros: e.target.value })} placeholder="0,000" className="h-10 w-[90px] rounded-lg border bg-white px-2 text-right font-bold" /></td>
-                    <td className="p-1"><input aria-label="Gasto nueva carga" inputMode="numeric" value={form.monto_guia} onChange={(e) => setForm({ ...form, monto_guia: e.target.value.replace(/\D/g, '') })} placeholder={dinero(numero(form.precio_litro) * numero(form.litros))} className="h-10 w-[105px] rounded-lg border bg-white px-2 text-right font-bold" /></td>
+                    <td className="p-1"><input aria-label="Gasto nueva carga" inputMode="numeric" value={form.monto_guia} onChange={(e) => setForm({ ...form, monto_guia: e.target.value.replace(/\D/g, '') })} placeholder={numero(form.precio_litro) > 0 ? dinero(numero(form.precio_litro) * numero(form.litros)) : 'Total factura'} className="h-10 w-[105px] rounded-lg border bg-white px-2 text-right font-bold" /></td>
                     <td className="p-1"><input aria-label="Kilometraje nueva carga" inputMode="numeric" value={form.kilometraje} onChange={(e) => setForm({ ...form, kilometraje: e.target.value.replace(/\D/g, '') })} placeholder="Kilometraje" className="h-10 w-[110px] rounded-lg border bg-white px-2 text-right font-bold" /></td>
                     <td className="px-2 py-3 text-right text-maruxa-cafe/40">—</td><td className="px-2 py-3 text-right text-maruxa-cafe/40">—</td><td className="px-2 py-3 text-right text-maruxa-cafe/40">—</td><td className="px-2 py-3 text-right text-maruxa-cafe/40">—</td>
                     <td className="p-1"><button type="button" disabled={guardando} onClick={guardarCarga} className="flex h-10 items-center gap-1 rounded-lg bg-red-700 px-3 font-black text-white disabled:opacity-50"><Save className="h-4 w-4" />{guardando ? 'Guardando' : 'Guardar'}</button></td>
