@@ -336,7 +336,7 @@ export default function RepartosPage() {
     setPlanilla(planillaData as Planilla);
     setSaldoInicial(Number(planillaData.saldo_inicial || 0));
 
-    const [{ data: detallesData }, { data: abonosData }] = await Promise.all([
+    const [detallesRespuesta, abonosRespuesta] = await Promise.all([
       supabase
         .from('reparto_planilla_detalles')
         .select('*')
@@ -346,6 +346,19 @@ export default function RepartosPage() {
         .select('*')
         .eq('planilla_id', planillaData.id),
     ]);
+
+    if (detallesRespuesta.error || abonosRespuesta.error) {
+      alert(
+        detallesRespuesta.error?.message ||
+          abonosRespuesta.error?.message ||
+          'No se pudieron cargar los datos de la planilla.'
+      );
+      setCargando(false);
+      return;
+    }
+
+    const detallesData = detallesRespuesta.data;
+    const abonosData = abonosRespuesta.data;
 
     const baseFilas = clientesDelRepartidor().map(filaDesdeCliente);
     const mapa = new Map(baseFilas.map((fila) => [fila.sigla, fila]));
@@ -490,9 +503,6 @@ export default function RepartosPage() {
       return;
     }
 
-    await supabase.from('reparto_planilla_detalles').delete().eq('planilla_id', planilla.id);
-    await supabase.from('reparto_planilla_abonos').delete().eq('planilla_id', planilla.id);
-
     const detalles = filas.flatMap((fila) =>
       dias.flatMap((dia) => {
         const celda = fila.dias[dia] || { vendidos: 0, devueltos: 0, ajuste: 0 };
@@ -519,19 +529,86 @@ export default function RepartosPage() {
         monto: numero(monto),
       }));
 
+    const [detallesExistentesRespuesta, abonosExistentesRespuesta] =
+      await Promise.all([
+        supabase
+          .from('reparto_planilla_detalles')
+          .select('id,cliente_sigla,fecha')
+          .eq('planilla_id', planilla.id),
+        supabase
+          .from('reparto_planilla_abonos')
+          .select('id,fecha')
+          .eq('planilla_id', planilla.id),
+      ]);
+
+    if (detallesExistentesRespuesta.error || abonosExistentesRespuesta.error) {
+      alert(
+        detallesExistentesRespuesta.error?.message ||
+          abonosExistentesRespuesta.error?.message ||
+          'No se pudo verificar la planilla antes de guardar.'
+      );
+      setGuardando(false);
+      return;
+    }
+
     if (detalles.length > 0) {
-      const { error } = await supabase.from('reparto_planilla_detalles').insert(detalles);
+      const { error } = await supabase
+        .from('reparto_planilla_detalles')
+        .upsert(detalles, {
+          onConflict: 'planilla_id,cliente_sigla,fecha',
+        });
       if (error) {
-        alert(error.message);
+        alert(`No se guardó la planilla. Tus datos siguen visibles: ${error.message}`);
         setGuardando(false);
         return;
       }
     }
 
     if (abonosGuardar.length > 0) {
-      const { error } = await supabase.from('reparto_planilla_abonos').insert(abonosGuardar);
+      const { error } = await supabase
+        .from('reparto_planilla_abonos')
+        .upsert(abonosGuardar, { onConflict: 'planilla_id,fecha' });
       if (error) {
-        alert(error.message);
+        alert(`No se guardaron los abonos. Los datos anteriores se conservaron: ${error.message}`);
+        setGuardando(false);
+        return;
+      }
+    }
+
+    const clavesDetalles = new Set(
+      detalles.map((detalle) => `${detalle.cliente_sigla}|${detalle.fecha}`)
+    );
+    const detallesAEliminar = (detallesExistentesRespuesta.data || [])
+      .filter(
+        (detalle) =>
+          !clavesDetalles.has(`${detalle.cliente_sigla}|${detalle.fecha}`)
+      )
+      .map((detalle) => detalle.id);
+
+    const fechasAbonos = new Set(abonosGuardar.map((abono) => abono.fecha));
+    const abonosAEliminar = (abonosExistentesRespuesta.data || [])
+      .filter((abono) => !fechasAbonos.has(abono.fecha))
+      .map((abono) => abono.id);
+
+    if (detallesAEliminar.length > 0) {
+      const { error } = await supabase
+        .from('reparto_planilla_detalles')
+        .delete()
+        .in('id', detallesAEliminar);
+      if (error) {
+        alert(`La planilla se guardó, pero no se pudieron limpiar filas antiguas: ${error.message}`);
+        setGuardando(false);
+        return;
+      }
+    }
+
+    if (abonosAEliminar.length > 0) {
+      const { error } = await supabase
+        .from('reparto_planilla_abonos')
+        .delete()
+        .in('id', abonosAEliminar);
+      if (error) {
+        alert(`La planilla se guardó, pero no se pudieron limpiar abonos antiguos: ${error.message}`);
         setGuardando(false);
         return;
       }
