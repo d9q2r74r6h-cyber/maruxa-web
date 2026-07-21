@@ -57,6 +57,33 @@ function normalizar(valor: string) {
     .toLowerCase();
 }
 
+function dividirNombreProducto(nombre: string): DescripcionSuelta {
+  const palabras = nombre.trim().split(/\s+/).filter(Boolean);
+
+  if (palabras.length <= 1) {
+    return { linea1: palabras[0] || '', linea2: '' };
+  }
+
+  let mejorCorte = 1;
+  let menorDiferencia = Number.POSITIVE_INFINITY;
+
+  for (let corte = 1; corte < palabras.length; corte += 1) {
+    const linea1 = palabras.slice(0, corte).join(' ');
+    const linea2 = palabras.slice(corte).join(' ');
+    const diferencia = Math.abs(linea1.length - linea2.length);
+
+    if (diferencia < menorDiferencia) {
+      menorDiferencia = diferencia;
+      mejorCorte = corte;
+    }
+  }
+
+  return {
+    linea1: palabras.slice(0, mejorCorte).join(' '),
+    linea2: palabras.slice(mejorCorte).join(' '),
+  };
+}
+
 export default function InformePreciosPage() {
   const { perfil } = useAdminSession();
   const [productos, setProductos] = useState<ProductoPrecio[]>([]);
@@ -158,8 +185,12 @@ export default function InformePreciosPage() {
         normalizar(familia.nombre).includes('cecina')
       );
       const seleccionInicial: Record<number, boolean> = {};
+      const descripcionesIniciales: Record<number, DescripcionSuelta> = {};
 
       productosConPrecio.forEach((producto) => {
+        descripcionesIniciales[producto.id] = dividirNombreProducto(
+          producto.nombre
+        );
         if (familiaCecinas && producto.familia_id === familiaCecinas.id) {
           seleccionInicial[producto.id] = true;
         }
@@ -171,6 +202,7 @@ export default function InformePreciosPage() {
       setProductosConCambio(cambiosDetectados);
       setFamiliaId(familiaCecinas?.id || '');
       setSeleccionados(seleccionInicial);
+      setDescripciones(descripcionesIniciales);
       setCargando(false);
     }
 
@@ -323,20 +355,20 @@ export default function InformePreciosPage() {
       </header>
 
       <section className="no-print grid gap-4 rounded-3xl bg-white p-5 shadow-sm md:grid-cols-2 xl:grid-cols-7">
-        <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
+        <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
           Formato
           <select
             value={formato}
             onChange={(event) =>
               setFormato(event.target.value as 'listado' | 'suelto')
             }
-            className="h-11 rounded-xl border bg-white px-3 text-sm font-bold normal-case text-maruxa-chocolate"
+            className="h-11 min-w-0 w-full rounded-xl border bg-white px-3 text-sm font-bold normal-case text-maruxa-chocolate"
           >
             <option value="listado">Precio listado</option>
             <option value="suelto">Precio suelto</option>
           </select>
         </label>
-        <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
+        <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
           Valor 1/4
           <select
             value={mostrarCuarto ? 'mostrar' : 'ocultar'}
@@ -344,19 +376,19 @@ export default function InformePreciosPage() {
               setMostrarCuarto(event.target.value === 'mostrar')
             }
             disabled={formato !== 'listado'}
-            className="h-11 rounded-xl border bg-white px-3 text-sm font-bold normal-case text-maruxa-chocolate disabled:bg-gray-100 disabled:text-gray-400"
+            className="h-11 min-w-0 w-full rounded-xl border bg-white px-3 text-sm font-bold normal-case text-maruxa-chocolate disabled:bg-gray-100 disabled:text-gray-400"
           >
             <option value="mostrar">Mostrar 1/4</option>
             <option value="ocultar">Ocultar 1/4</option>
           </select>
         </label>
-        <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
+        <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
           Tipo de letra
           <select
             value={fuentePrecio}
             onChange={(event) => setFuentePrecio(event.target.value)}
             disabled={formato !== 'suelto'}
-            className="h-11 rounded-xl border bg-white px-3 text-sm font-bold normal-case text-maruxa-chocolate disabled:bg-gray-100 disabled:text-gray-400"
+            className="h-11 min-w-0 w-full rounded-xl border bg-white px-3 text-sm font-bold normal-case text-maruxa-chocolate disabled:bg-gray-100 disabled:text-gray-400"
           >
             {FUENTES_PRECIO.map((fuente) => (
               <option key={fuente.nombre} value={fuente.valor}>
@@ -370,7 +402,7 @@ export default function InformePreciosPage() {
             </span>
           )}
         </label>
-        <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
+        <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
           Grosor del texto
           <select
             value={negritaPrecio ? 'negrita' : 'normal'}
@@ -378,18 +410,18 @@ export default function InformePreciosPage() {
               setNegritaPrecio(event.target.value === 'negrita')
             }
             disabled={formato !== 'suelto'}
-            className="h-11 rounded-xl border bg-white px-3 text-sm font-bold normal-case text-maruxa-chocolate disabled:bg-gray-100 disabled:text-gray-400"
+            className="h-11 min-w-0 w-full rounded-xl border bg-white px-3 text-sm font-bold normal-case text-maruxa-chocolate disabled:bg-gray-100 disabled:text-gray-400"
           >
             <option value="normal">Normal</option>
             <option value="negrita">Negrita</option>
           </select>
         </label>
-        <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
+        <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
           Familia
           <select
             value={familiaId}
             onChange={(event) => cambiarFamilia(event.target.value)}
-            className="h-11 rounded-xl border bg-white px-3 text-sm font-bold normal-case text-maruxa-chocolate"
+            className="h-11 min-w-0 w-full rounded-xl border bg-white px-3 text-sm font-bold normal-case text-maruxa-chocolate"
           >
             <option value="">Todas las familias</option>
             {familias.map((familia) => (
@@ -401,7 +433,7 @@ export default function InformePreciosPage() {
             ))}
           </select>
         </label>
-        <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60 xl:col-span-2">
+        <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60 xl:col-span-2">
           Buscar producto
           <span className="relative block h-11">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-maruxa-cafe/45" />
