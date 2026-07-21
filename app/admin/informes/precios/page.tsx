@@ -392,6 +392,10 @@ export default function InformePreciosPage() {
           .precio-cambio {
             background-color: #fde047 !important;
           }
+          .precios-sueltos-grid {
+            width: 100% !important;
+            max-width: none !important;
+          }
         }
       `}</style>
 
@@ -655,10 +659,11 @@ export default function InformePreciosPage() {
                         />
                         <select
                           aria-label={`Color línea 1 de ${producto.nombre}`}
-                          value={
+                          value={colorLinea(
+                            descripciones[producto.id]?.linea1 || producto.nombre,
                             descripciones[producto.id]?.colorLinea1 ||
-                            COLORES_PRIMARIOS[0].valor
-                          }
+                              COLORES_PRIMARIOS[0].valor
+                          )}
                           onChange={(event) =>
                             actualizarDescripcion(
                               producto.id,
@@ -667,9 +672,12 @@ export default function InformePreciosPage() {
                             )
                           }
                           style={{
-                            color:
+                            color: colorLinea(
+                              descripciones[producto.id]?.linea1 ||
+                                producto.nombre,
                               descripciones[producto.id]?.colorLinea1 ||
-                              COLORES_PRIMARIOS[0].valor,
+                                COLORES_PRIMARIOS[0].valor
+                            ),
                           }}
                           className="h-full min-w-0 rounded-lg border bg-white px-1 text-xs font-black"
                         >
@@ -702,10 +710,11 @@ export default function InformePreciosPage() {
                         />
                         <select
                           aria-label={`Color línea 2 de ${producto.nombre}`}
-                          value={
+                          value={colorLinea(
+                            descripciones[producto.id]?.linea2 || '',
                             descripciones[producto.id]?.colorLinea2 ||
-                            COLORES_PRIMARIOS[0].valor
-                          }
+                              COLORES_PRIMARIOS[0].valor
+                          )}
                           onChange={(event) =>
                             actualizarDescripcion(
                               producto.id,
@@ -714,9 +723,11 @@ export default function InformePreciosPage() {
                             )
                           }
                           style={{
-                            color:
+                            color: colorLinea(
+                              descripciones[producto.id]?.linea2 || '',
                               descripciones[producto.id]?.colorLinea2 ||
-                              COLORES_PRIMARIOS[0].valor,
+                                COLORES_PRIMARIOS[0].valor
+                            ),
                           }}
                           className="h-full min-w-0 rounded-lg border bg-white px-1 text-xs font-black"
                         >
@@ -821,7 +832,7 @@ export default function InformePreciosPage() {
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-3">
+          <div className="precios-sueltos-grid mx-auto grid w-full max-w-[806px] grid-cols-2">
             {productosSeleccionados.map((producto) => {
               const descripcion = descripciones[producto.id];
               return (
@@ -831,7 +842,7 @@ export default function InformePreciosPage() {
                     fontFamily: fuentePrecio,
                     fontWeight: negritaPrecio ? 900 : 400,
                   }}
-                  className="flex min-h-[175px] break-inside-avoid flex-col items-center justify-center border-2 border-black px-4 py-3 text-center"
+                  className="flex min-h-[186px] break-inside-avoid flex-col items-center justify-center border-2 border-black px-4 py-3 text-center"
                 >
                   <h2
                     style={{
