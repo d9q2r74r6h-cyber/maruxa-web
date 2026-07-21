@@ -49,6 +49,12 @@ const FUENTES_PRECIO = [
   { nombre: 'Courier New', valor: '"Courier New", monospace' },
 ];
 
+const COLORES_PRIMARIOS = [
+  { nombre: 'Rojo', valor: '#E00000' },
+  { nombre: 'Amarillo', valor: '#F2C500' },
+  { nombre: 'Azul', valor: '#0057D9' },
+];
+
 function dinero(valor: number | null | undefined) {
   return `$${Math.round(Number(valor || 0)).toLocaleString('es-CL')}`;
 }
@@ -77,8 +83,8 @@ function dividirNombreProducto(nombre: string): DescripcionSuelta {
     return {
       linea1: palabras[0] || '',
       linea2: '',
-      colorLinea1: '#2A1710',
-      colorLinea2: '#2A1710',
+      colorLinea1: COLORES_PRIMARIOS[0].valor,
+      colorLinea2: COLORES_PRIMARIOS[0].valor,
     };
   }
 
@@ -99,8 +105,8 @@ function dividirNombreProducto(nombre: string): DescripcionSuelta {
   return {
     linea1: palabras.slice(0, mejorCorte).join(' '),
     linea2: palabras.slice(mejorCorte).join(' '),
-    colorLinea1: '#2A1710',
-    colorLinea2: '#2A1710',
+    colorLinea1: COLORES_PRIMARIOS[0].valor,
+    colorLinea2: COLORES_PRIMARIOS[0].valor,
   };
 }
 
@@ -332,8 +338,10 @@ export default function InformePreciosPage() {
       [productoId]: {
         linea1: actuales[productoId]?.linea1 || '',
         linea2: actuales[productoId]?.linea2 || '',
-        colorLinea1: actuales[productoId]?.colorLinea1 || '#2A1710',
-        colorLinea2: actuales[productoId]?.colorLinea2 || '#2A1710',
+        colorLinea1:
+          actuales[productoId]?.colorLinea1 || COLORES_PRIMARIOS[0].valor,
+        colorLinea2:
+          actuales[productoId]?.colorLinea2 || COLORES_PRIMARIOS[0].valor,
         [campo]: valor,
       },
     }));
@@ -615,7 +623,7 @@ export default function InformePreciosPage() {
 
                   {formato === 'suelto' && activo && (
                     <div className="mt-3 grid gap-2 border-t pt-3">
-                      <div className="grid grid-cols-[1fr_44px] gap-2">
+                      <div className="grid grid-cols-[1fr_96px] gap-2">
                         <input
                           value={
                             descripciones[producto.id]?.linea1 ?? producto.nombre
@@ -627,13 +635,20 @@ export default function InformePreciosPage() {
                               event.target.value
                             )
                           }
+                          style={{
+                            color:
+                              descripciones[producto.id]?.colorLinea1 ||
+                              COLORES_PRIMARIOS[0].valor,
+                          }}
                           placeholder="Título"
                           className="min-w-0 rounded-lg border bg-white px-3 py-2 text-xs font-bold"
                         />
-                        <input
-                          type="color"
+                        <select
                           aria-label={`Color línea 1 de ${producto.nombre}`}
-                          value={descripciones[producto.id]?.colorLinea1 || '#2A1710'}
+                          value={
+                            descripciones[producto.id]?.colorLinea1 ||
+                            COLORES_PRIMARIOS[0].valor
+                          }
                           onChange={(event) =>
                             actualizarDescripcion(
                               producto.id,
@@ -641,10 +656,21 @@ export default function InformePreciosPage() {
                               event.target.value
                             )
                           }
-                          className="h-full w-11 cursor-pointer rounded-lg border bg-white p-1"
-                        />
+                          style={{
+                            color:
+                              descripciones[producto.id]?.colorLinea1 ||
+                              COLORES_PRIMARIOS[0].valor,
+                          }}
+                          className="h-full min-w-0 rounded-lg border bg-white px-1 text-xs font-black"
+                        >
+                          {COLORES_PRIMARIOS.map((color) => (
+                            <option key={color.valor} value={color.valor}>
+                              {color.nombre}
+                            </option>
+                          ))}
+                        </select>
                       </div>
-                      <div className="grid grid-cols-[1fr_44px] gap-2">
+                      <div className="grid grid-cols-[1fr_96px] gap-2">
                         <input
                           value={descripciones[producto.id]?.linea2 || ''}
                           onChange={(event) =>
@@ -654,13 +680,20 @@ export default function InformePreciosPage() {
                               event.target.value
                             )
                           }
+                          style={{
+                            color:
+                              descripciones[producto.id]?.colorLinea2 ||
+                              COLORES_PRIMARIOS[0].valor,
+                          }}
                           placeholder="Descripción opcional"
                           className="min-w-0 rounded-lg border bg-white px-3 py-2 text-xs font-bold"
                         />
-                        <input
-                          type="color"
+                        <select
                           aria-label={`Color línea 2 de ${producto.nombre}`}
-                          value={descripciones[producto.id]?.colorLinea2 || '#2A1710'}
+                          value={
+                            descripciones[producto.id]?.colorLinea2 ||
+                            COLORES_PRIMARIOS[0].valor
+                          }
                           onChange={(event) =>
                             actualizarDescripcion(
                               producto.id,
@@ -668,8 +701,19 @@ export default function InformePreciosPage() {
                               event.target.value
                             )
                           }
-                          className="h-full w-11 cursor-pointer rounded-lg border bg-white p-1"
-                        />
+                          style={{
+                            color:
+                              descripciones[producto.id]?.colorLinea2 ||
+                              COLORES_PRIMARIOS[0].valor,
+                          }}
+                          className="h-full min-w-0 rounded-lg border bg-white px-1 text-xs font-black"
+                        >
+                          {COLORES_PRIMARIOS.map((color) => (
+                            <option key={color.valor} value={color.valor}>
+                              {color.nombre}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </div>
                   )}
@@ -782,7 +826,8 @@ export default function InformePreciosPage() {
                       fontFamily: fuentePrecio,
                       fontWeight: negritaPrecio ? 900 : 400,
                       fontSize: `${tamanoLinea1}px`,
-                      color: descripcion?.colorLinea1 || '#2A1710',
+                      color:
+                        descripcion?.colorLinea1 || COLORES_PRIMARIOS[0].valor,
                     }}
                     className="text-2xl font-black uppercase leading-tight"
                   >
@@ -794,7 +839,8 @@ export default function InformePreciosPage() {
                         fontFamily: fuentePrecio,
                         fontWeight: negritaPrecio ? 900 : 400,
                         fontSize: `${tamanoLinea2}px`,
-                        color: descripcion?.colorLinea2 || '#2A1710',
+                        color:
+                          descripcion?.colorLinea2 || COLORES_PRIMARIOS[0].valor,
                       }}
                       className="text-lg font-bold uppercase leading-tight"
                     >
