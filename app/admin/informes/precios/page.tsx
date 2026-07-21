@@ -383,13 +383,13 @@ export default function InformePreciosPage() {
         </label>
         <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
           Buscar producto
-          <span className="flex h-11 items-center gap-2 rounded-xl border px-3">
-            <Search className="h-4 w-4 text-maruxa-cafe/45" />
+          <span className="relative block h-11">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-maruxa-cafe/45" />
             <input
               value={busqueda}
               onChange={(event) => setBusqueda(event.target.value)}
               placeholder="Nombre del producto"
-              className="min-w-0 flex-1 bg-transparent text-sm font-bold normal-case outline-none"
+              className="h-11 w-full rounded-xl border bg-white pl-10 pr-3 text-sm font-bold normal-case outline-none"
             />
           </span>
         </label>
