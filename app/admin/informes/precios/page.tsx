@@ -396,11 +396,6 @@ export default function InformePreciosPage() {
               </option>
             ))}
           </select>
-          {fuentePrecio.startsWith('"Amasis') && (
-            <span className="text-[10px] font-bold normal-case text-maruxa-cafe/55">
-              Amasis requiere estar instalada en el equipo; si no, se usa Georgia.
-            </span>
-          )}
         </label>
         <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
           Grosor del texto
