@@ -67,6 +67,7 @@ export function AdminSessionProvider({ children }: { children: ReactNode }) {
   const [cargando, setCargando] = useState(true);
   const [errorSesion, setErrorSesion] = useState('');
   const pathnameRef = useRef(pathname);
+  const usuarioSesionRef = useRef<string | null>(null);
 
   useEffect(() => {
     pathnameRef.current = pathname;
@@ -81,6 +82,7 @@ export function AdminSessionProvider({ children }: { children: ReactNode }) {
     } = await supabase.auth.getSession();
 
     if (!session) {
+      usuarioSesionRef.current = null;
       setPerfil(null);
       setPermisos([]);
       if (pathnameRef.current !== '/admin/login') {
@@ -145,6 +147,7 @@ export function AdminSessionProvider({ children }: { children: ReactNode }) {
       ...perfilData,
       funcionarios: funcionarioRelacion,
     } as PerfilUsuario);
+    usuarioSesionRef.current = session.user.id;
     setPermisos((permisosData || []) as PermisoModulo[]);
     setCargando(false);
 
@@ -167,8 +170,15 @@ export function AdminSessionProvider({ children }: { children: ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((evento) => {
+    } = supabase.auth.onAuthStateChange((evento, session) => {
       if (['INITIAL_SESSION', 'TOKEN_REFRESHED', 'USER_UPDATED'].includes(evento)) {
+        return;
+      }
+
+      if (
+        evento === 'SIGNED_IN' &&
+        session?.user.id === usuarioSesionRef.current
+      ) {
         return;
       }
 
