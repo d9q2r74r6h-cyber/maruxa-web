@@ -96,6 +96,8 @@ export default function InformePreciosPage() {
   const [formato, setFormato] = useState<'listado' | 'suelto'>('listado');
   const [fuentePrecio, setFuentePrecio] = useState(FUENTES_PRECIO[0].valor);
   const [negritaPrecio, setNegritaPrecio] = useState(true);
+  const [tamanoLinea1, setTamanoLinea1] = useState(24);
+  const [tamanoLinea2, setTamanoLinea2] = useState(24);
   const [mostrarCuarto, setMostrarCuarto] = useState(true);
   const [familiaId, setFamiliaId] = useState('');
   const [busqueda, setBusqueda] = useState('');
@@ -412,6 +414,36 @@ export default function InformePreciosPage() {
           </select>
         </label>
         <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
+          Tamaño línea 1
+          <select
+            value={tamanoLinea1}
+            onChange={(event) => setTamanoLinea1(Number(event.target.value))}
+            disabled={formato !== 'suelto'}
+            className="h-11 min-w-0 w-full rounded-xl border bg-white px-3 text-sm font-bold normal-case text-maruxa-chocolate disabled:bg-gray-100 disabled:text-gray-400"
+          >
+            {[16, 18, 20, 24, 28, 32, 36].map((tamano) => (
+              <option key={tamano} value={tamano}>
+                {tamano} px
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
+          Tamaño línea 2
+          <select
+            value={tamanoLinea2}
+            onChange={(event) => setTamanoLinea2(Number(event.target.value))}
+            disabled={formato !== 'suelto'}
+            className="h-11 min-w-0 w-full rounded-xl border bg-white px-3 text-sm font-bold normal-case text-maruxa-chocolate disabled:bg-gray-100 disabled:text-gray-400"
+          >
+            {[16, 18, 20, 24, 28, 32, 36].map((tamano) => (
+              <option key={tamano} value={tamano}>
+                {tamano} px
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
           Familia
           <select
             value={familiaId}
@@ -645,6 +677,7 @@ export default function InformePreciosPage() {
                     style={{
                       fontFamily: fuentePrecio,
                       fontWeight: negritaPrecio ? 900 : 400,
+                      fontSize: `${tamanoLinea1}px`,
                     }}
                     className="text-2xl font-black uppercase leading-tight"
                   >
@@ -655,6 +688,7 @@ export default function InformePreciosPage() {
                       style={{
                         fontFamily: fuentePrecio,
                         fontWeight: negritaPrecio ? 900 : 400,
+                        fontSize: `${tamanoLinea2}px`,
                       }}
                       className="text-lg font-bold uppercase leading-tight"
                     >
