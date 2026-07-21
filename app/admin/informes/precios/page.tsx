@@ -98,6 +98,8 @@ export default function InformePreciosPage() {
   const [negritaPrecio, setNegritaPrecio] = useState(true);
   const [tamanoLinea1, setTamanoLinea1] = useState(24);
   const [tamanoLinea2, setTamanoLinea2] = useState(24);
+  const [colorLinea1, setColorLinea1] = useState('#2A1710');
+  const [colorLinea2, setColorLinea2] = useState('#2A1710');
   const [mostrarCuarto, setMostrarCuarto] = useState(true);
   const [familiaId, setFamiliaId] = useState('');
   const [busqueda, setBusqueda] = useState('');
@@ -444,6 +446,26 @@ export default function InformePreciosPage() {
           </select>
         </label>
         <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
+          Color línea 1
+          <input
+            type="color"
+            value={colorLinea1}
+            onChange={(event) => setColorLinea1(event.target.value)}
+            disabled={formato !== 'suelto'}
+            className="h-11 w-full cursor-pointer rounded-xl border bg-white p-1 disabled:cursor-not-allowed disabled:bg-gray-100"
+          />
+        </label>
+        <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
+          Color línea 2
+          <input
+            type="color"
+            value={colorLinea2}
+            onChange={(event) => setColorLinea2(event.target.value)}
+            disabled={formato !== 'suelto'}
+            className="h-11 w-full cursor-pointer rounded-xl border bg-white p-1 disabled:cursor-not-allowed disabled:bg-gray-100"
+          />
+        </label>
+        <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
           Familia
           <select
             value={familiaId}
@@ -678,6 +700,7 @@ export default function InformePreciosPage() {
                       fontFamily: fuentePrecio,
                       fontWeight: negritaPrecio ? 900 : 400,
                       fontSize: `${tamanoLinea1}px`,
+                      color: colorLinea1,
                     }}
                     className="text-2xl font-black uppercase leading-tight"
                   >
@@ -689,6 +712,7 @@ export default function InformePreciosPage() {
                         fontFamily: fuentePrecio,
                         fontWeight: negritaPrecio ? 900 : 400,
                         fontSize: `${tamanoLinea2}px`,
+                        color: colorLinea2,
                       }}
                       className="text-lg font-bold uppercase leading-tight"
                     >
