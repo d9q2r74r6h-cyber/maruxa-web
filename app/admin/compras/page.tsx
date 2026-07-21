@@ -3490,7 +3490,7 @@ export default function AdminComprasPage() {
                 })}
 
                 {!mostrarCrearProducto && (
-                  <div className="flex justify-end pt-1">
+                  <div className="order-last flex justify-end pt-1">
                     <button
                       ref={botonAgregarProducto}
                       type="button"
