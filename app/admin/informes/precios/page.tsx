@@ -19,6 +19,7 @@ type ProductoPrecio = {
   familia_id: string | null;
   proveedor_id: string | null;
   unidad_base: string | null;
+  created_at: string | null;
 };
 
 type Proveedor = {
@@ -30,6 +31,8 @@ type Proveedor = {
 type DescripcionSuelta = {
   linea1: string;
   linea2: string;
+  colorLinea1: string;
+  colorLinea2: string;
 };
 
 const FUENTES_PRECIO = [
@@ -57,11 +60,26 @@ function normalizar(valor: string) {
     .toLowerCase();
 }
 
+function fechaChile(valor: string | null | undefined) {
+  if (!valor) return '';
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Santiago',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(valor));
+}
+
 function dividirNombreProducto(nombre: string): DescripcionSuelta {
   const palabras = nombre.trim().split(/\s+/).filter(Boolean);
 
   if (palabras.length <= 1) {
-    return { linea1: palabras[0] || '', linea2: '' };
+    return {
+      linea1: palabras[0] || '',
+      linea2: '',
+      colorLinea1: '#2A1710',
+      colorLinea2: '#2A1710',
+    };
   }
 
   let mejorCorte = 1;
@@ -81,6 +99,8 @@ function dividirNombreProducto(nombre: string): DescripcionSuelta {
   return {
     linea1: palabras.slice(0, mejorCorte).join(' '),
     linea2: palabras.slice(mejorCorte).join(' '),
+    colorLinea1: '#2A1710',
+    colorLinea2: '#2A1710',
   };
 }
 
@@ -98,11 +118,18 @@ export default function InformePreciosPage() {
   const [negritaPrecio, setNegritaPrecio] = useState(true);
   const [tamanoLinea1, setTamanoLinea1] = useState(24);
   const [tamanoLinea2, setTamanoLinea2] = useState(24);
-  const [colorLinea1, setColorLinea1] = useState('#2A1710');
-  const [colorLinea2, setColorLinea2] = useState('#2A1710');
   const [mostrarCuarto, setMostrarCuarto] = useState(true);
   const [familiaId, setFamiliaId] = useState('');
   const [busqueda, setBusqueda] = useState('');
+  const [tipoFecha, setTipoFecha] = useState<
+    'todos' | 'ingresados' | 'modificados'
+  >('todos');
+  const [fechaFiltro, setFechaFiltro] = useState(() =>
+    fechaChile(new Date().toISOString())
+  );
+  const [fechasModificacion, setFechasModificacion] = useState<
+    Record<number, string>
+  >({});
   const [seleccionados, setSeleccionados] = useState<Record<number, boolean>>({});
   const [descripciones, setDescripciones] = useState<
     Record<number, DescripcionSuelta>
@@ -121,7 +148,7 @@ export default function InformePreciosPage() {
         await Promise.all([
           supabase
             .from('productos')
-            .select('id,nombre,precio,familia_id,proveedor_id,unidad_base')
+            .select('id,nombre,precio,familia_id,proveedor_id,unidad_base,created_at')
             .eq('empresa_id', perfil.empresa_id)
             .eq('activo', true)
             .eq('tipo_producto', 'producto')
@@ -154,6 +181,7 @@ export default function InformePreciosPage() {
       const familiasActivas = (familiasData as Familia[]) || [];
       const productoIds = productosConPrecio.map((producto) => producto.id);
       const cambiosDetectados: Record<number, boolean> = {};
+      const modificacionesDetectadas: Record<number, string> = {};
 
       if (productoIds.length > 0) {
         const { data: historialPrecios } = await supabase
@@ -168,6 +196,9 @@ export default function InformePreciosPage() {
 
         for (const registro of historialPrecios || []) {
           const productoId = Number(registro.producto_id);
+          if (!modificacionesDetectadas[productoId]) {
+            modificacionesDetectadas[productoId] = registro.created_at;
+          }
           const precios = preciosPorProducto.get(productoId) || [];
           if (precios.length >= 2) continue;
           precios.push(Number(registro.precio_venta || 0));
@@ -204,6 +235,7 @@ export default function InformePreciosPage() {
       setFamilias(familiasActivas);
       setProveedores((proveedoresData as Proveedor[]) || []);
       setProductosConCambio(cambiosDetectados);
+      setFechasModificacion(modificacionesDetectadas);
       setFamiliaId(familiaCecinas?.id || '');
       setSeleccionados(seleccionInicial);
       setDescripciones(descripcionesIniciales);
@@ -217,9 +249,21 @@ export default function InformePreciosPage() {
     const termino = normalizar(busqueda.trim());
     return productos.filter((producto) => {
       if (familiaId && producto.familia_id !== familiaId) return false;
+      if (
+        tipoFecha === 'ingresados' &&
+        fechaChile(producto.created_at) !== fechaFiltro
+      ) {
+        return false;
+      }
+      if (
+        tipoFecha === 'modificados' &&
+        fechaChile(fechasModificacion[producto.id]) !== fechaFiltro
+      ) {
+        return false;
+      }
       return !termino || normalizar(producto.nombre).includes(termino);
     });
-  }, [busqueda, familiaId, productos]);
+  }, [busqueda, familiaId, fechaFiltro, fechasModificacion, productos, tipoFecha]);
 
   const productosSeleccionados = useMemo(
     () => productos.filter((producto) => seleccionados[producto.id]),
@@ -288,6 +332,8 @@ export default function InformePreciosPage() {
       [productoId]: {
         linea1: actuales[productoId]?.linea1 || '',
         linea2: actuales[productoId]?.linea2 || '',
+        colorLinea1: actuales[productoId]?.colorLinea1 || '#2A1710',
+        colorLinea2: actuales[productoId]?.colorLinea2 || '#2A1710',
         [campo]: valor,
       },
     }));
@@ -446,26 +492,6 @@ export default function InformePreciosPage() {
           </select>
         </label>
         <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
-          Color línea 1
-          <input
-            type="color"
-            value={colorLinea1}
-            onChange={(event) => setColorLinea1(event.target.value)}
-            disabled={formato !== 'suelto'}
-            className="h-11 w-full cursor-pointer rounded-xl border bg-white p-1 disabled:cursor-not-allowed disabled:bg-gray-100"
-          />
-        </label>
-        <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
-          Color línea 2
-          <input
-            type="color"
-            value={colorLinea2}
-            onChange={(event) => setColorLinea2(event.target.value)}
-            disabled={formato !== 'suelto'}
-            className="h-11 w-full cursor-pointer rounded-xl border bg-white p-1 disabled:cursor-not-allowed disabled:bg-gray-100"
-          />
-        </label>
-        <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
           Familia
           <select
             value={familiaId}
@@ -493,6 +519,32 @@ export default function InformePreciosPage() {
               className="h-11 w-full rounded-xl border bg-white pl-10 pr-3 text-sm font-bold normal-case outline-none"
             />
           </span>
+        </label>
+        <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
+          Fecha de actividad
+          <select
+            value={tipoFecha}
+            onChange={(event) =>
+              setTipoFecha(
+                event.target.value as 'todos' | 'ingresados' | 'modificados'
+              )
+            }
+            className="h-11 min-w-0 w-full rounded-xl border bg-white px-3 text-sm font-bold normal-case text-maruxa-chocolate"
+          >
+            <option value="todos">Todos</option>
+            <option value="ingresados">Ingresados</option>
+            <option value="modificados">Modificados</option>
+          </select>
+        </label>
+        <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
+          Día
+          <input
+            type="date"
+            value={fechaFiltro}
+            onChange={(event) => setFechaFiltro(event.target.value)}
+            disabled={tipoFecha === 'todos'}
+            className="h-11 min-w-0 w-full rounded-xl border bg-white px-3 text-sm font-bold normal-case text-maruxa-chocolate disabled:bg-gray-100 disabled:text-gray-400"
+          />
         </label>
       </section>
 
@@ -563,32 +615,62 @@ export default function InformePreciosPage() {
 
                   {formato === 'suelto' && activo && (
                     <div className="mt-3 grid gap-2 border-t pt-3">
-                      <input
-                        value={
-                          descripciones[producto.id]?.linea1 ?? producto.nombre
-                        }
-                        onChange={(event) =>
-                          actualizarDescripcion(
-                            producto.id,
-                            'linea1',
-                            event.target.value
-                          )
-                        }
-                        placeholder="Título"
-                        className="rounded-lg border bg-white px-3 py-2 text-xs font-bold"
-                      />
-                      <input
-                        value={descripciones[producto.id]?.linea2 || ''}
-                        onChange={(event) =>
-                          actualizarDescripcion(
-                            producto.id,
-                            'linea2',
-                            event.target.value
-                          )
-                        }
-                        placeholder="Descripción opcional"
-                        className="rounded-lg border bg-white px-3 py-2 text-xs font-bold"
-                      />
+                      <div className="grid grid-cols-[1fr_44px] gap-2">
+                        <input
+                          value={
+                            descripciones[producto.id]?.linea1 ?? producto.nombre
+                          }
+                          onChange={(event) =>
+                            actualizarDescripcion(
+                              producto.id,
+                              'linea1',
+                              event.target.value
+                            )
+                          }
+                          placeholder="Título"
+                          className="min-w-0 rounded-lg border bg-white px-3 py-2 text-xs font-bold"
+                        />
+                        <input
+                          type="color"
+                          aria-label={`Color línea 1 de ${producto.nombre}`}
+                          value={descripciones[producto.id]?.colorLinea1 || '#2A1710'}
+                          onChange={(event) =>
+                            actualizarDescripcion(
+                              producto.id,
+                              'colorLinea1',
+                              event.target.value
+                            )
+                          }
+                          className="h-full w-11 cursor-pointer rounded-lg border bg-white p-1"
+                        />
+                      </div>
+                      <div className="grid grid-cols-[1fr_44px] gap-2">
+                        <input
+                          value={descripciones[producto.id]?.linea2 || ''}
+                          onChange={(event) =>
+                            actualizarDescripcion(
+                              producto.id,
+                              'linea2',
+                              event.target.value
+                            )
+                          }
+                          placeholder="Descripción opcional"
+                          className="min-w-0 rounded-lg border bg-white px-3 py-2 text-xs font-bold"
+                        />
+                        <input
+                          type="color"
+                          aria-label={`Color línea 2 de ${producto.nombre}`}
+                          value={descripciones[producto.id]?.colorLinea2 || '#2A1710'}
+                          onChange={(event) =>
+                            actualizarDescripcion(
+                              producto.id,
+                              'colorLinea2',
+                              event.target.value
+                            )
+                          }
+                          className="h-full w-11 cursor-pointer rounded-lg border bg-white p-1"
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
@@ -700,7 +782,7 @@ export default function InformePreciosPage() {
                       fontFamily: fuentePrecio,
                       fontWeight: negritaPrecio ? 900 : 400,
                       fontSize: `${tamanoLinea1}px`,
-                      color: colorLinea1,
+                      color: descripcion?.colorLinea1 || '#2A1710',
                     }}
                     className="text-2xl font-black uppercase leading-tight"
                   >
@@ -712,7 +794,7 @@ export default function InformePreciosPage() {
                         fontFamily: fuentePrecio,
                         fontWeight: negritaPrecio ? 900 : 400,
                         fontSize: `${tamanoLinea2}px`,
-                        color: colorLinea2,
+                        color: descripcion?.colorLinea2 || '#2A1710',
                       }}
                       className="text-lg font-bold uppercase leading-tight"
                     >

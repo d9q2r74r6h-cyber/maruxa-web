@@ -624,6 +624,64 @@ export default function AdminProductosPage() {
     const datos = construirDatosProducto(undefined, codigoFinal);
     delete datos.empresa_id;
 
+    const precioAnterior = Number(productoEditando.precio || 0);
+    const precioNuevo = Number(datos.precio || 0);
+    const precioCambio = precioAnterior !== precioNuevo;
+    const registrosPrecio: Record<string, unknown>[] = [];
+
+    if (precioCambio) {
+      const { data: ultimoHistorial, error: errorUltimoHistorial } = await supabase
+        .from('producto_costos_historial')
+        .select('id,precio_venta')
+        .eq('empresa_id', empresa.id)
+        .eq('producto_id', productoEditando.id)
+        .not('precio_venta', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (errorUltimoHistorial) {
+        alert(errorUltimoHistorial.message);
+        return;
+      }
+
+      const ahora = new Date();
+      const costoAnterior = Number(productoEditando.costo_unitario || 0);
+      const costoNuevo = Number(datos.costo_unitario || 0);
+
+      if (
+        !ultimoHistorial ||
+        Number(ultimoHistorial.precio_venta || 0) !== precioAnterior
+      ) {
+        registrosPrecio.push({
+          empresa_id: empresa.id,
+          producto_id: productoEditando.id,
+          costo_anterior: costoAnterior,
+          costo_nuevo: costoAnterior,
+          variacion_porcentaje: 0,
+          margen_porcentaje: productoEditando.margen_personalizado || null,
+          precio_venta: precioAnterior,
+          referencia_tipo: 'precio_anterior_producto',
+          created_at: new Date(ahora.getTime() - 1000).toISOString(),
+        });
+      }
+
+      registrosPrecio.push({
+        empresa_id: empresa.id,
+        producto_id: productoEditando.id,
+        costo_anterior: costoAnterior,
+        costo_nuevo: costoNuevo,
+        variacion_porcentaje:
+          costoAnterior > 0
+            ? ((costoNuevo - costoAnterior) / costoAnterior) * 100
+            : 0,
+        margen_porcentaje: Number(datos.margen_personalizado || 0) || null,
+        precio_venta: precioNuevo,
+        referencia_tipo: 'actualizacion_precio_producto',
+        created_at: ahora.toISOString(),
+      });
+    }
+
     const { error } = await supabase
       .from('productos')
       .update(datos)
@@ -632,6 +690,19 @@ export default function AdminProductosPage() {
     if (error) {
       alert(error.message);
       return;
+    }
+
+    if (registrosPrecio.length > 0) {
+      const { error: errorHistorial } = await supabase
+        .from('producto_costos_historial')
+        .insert(registrosPrecio);
+
+      if (errorHistorial) {
+        alert(
+          `El producto se actualizó, pero no se pudo registrar el historial: ${errorHistorial.message}`
+        );
+        return;
+      }
     }
 
     limpiarFormulario();
