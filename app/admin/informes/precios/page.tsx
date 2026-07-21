@@ -32,6 +32,20 @@ type DescripcionSuelta = {
   linea2: string;
 };
 
+const FUENTES_PRECIO = [
+  {
+    nombre: 'Amasis',
+    valor: '"Amasis MT Pro", "Amasis MT", Amasis, Georgia, serif',
+  },
+  { nombre: 'Georgia', valor: 'Georgia, serif' },
+  { nombre: 'Garamond', valor: 'Garamond, "Times New Roman", serif' },
+  { nombre: 'Times New Roman', valor: '"Times New Roman", serif' },
+  { nombre: 'Arial', valor: 'Arial, sans-serif' },
+  { nombre: 'Trebuchet', valor: '"Trebuchet MS", sans-serif' },
+  { nombre: 'Verdana', valor: 'Verdana, sans-serif' },
+  { nombre: 'Courier New', valor: '"Courier New", monospace' },
+];
+
 function dinero(valor: number | null | undefined) {
   return `$${Math.round(Number(valor || 0)).toLocaleString('es-CL')}`;
 }
@@ -41,33 +55,6 @@ function normalizar(valor: string) {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
-}
-
-function dividirNombreProducto(nombre: string): DescripcionSuelta {
-  const palabras = nombre.trim().split(/\s+/).filter(Boolean);
-
-  if (palabras.length <= 1) {
-    return { linea1: palabras[0] || '', linea2: '' };
-  }
-
-  let mejorCorte = 1;
-  let menorDiferencia = Number.POSITIVE_INFINITY;
-
-  for (let corte = 1; corte < palabras.length; corte += 1) {
-    const linea1 = palabras.slice(0, corte).join(' ');
-    const linea2 = palabras.slice(corte).join(' ');
-    const diferencia = Math.abs(linea1.length - linea2.length);
-
-    if (diferencia < menorDiferencia) {
-      menorDiferencia = diferencia;
-      mejorCorte = corte;
-    }
-  }
-
-  return {
-    linea1: palabras.slice(0, mejorCorte).join(' '),
-    linea2: palabras.slice(mejorCorte).join(' '),
-  };
 }
 
 export default function InformePreciosPage() {
@@ -80,6 +67,7 @@ export default function InformePreciosPage() {
   >({});
   const [cargando, setCargando] = useState(true);
   const [formato, setFormato] = useState<'listado' | 'suelto'>('listado');
+  const [fuentePrecio, setFuentePrecio] = useState(FUENTES_PRECIO[0].valor);
   const [mostrarCuarto, setMostrarCuarto] = useState(true);
   const [familiaId, setFamiliaId] = useState('');
   const [busqueda, setBusqueda] = useState('');
@@ -169,12 +157,8 @@ export default function InformePreciosPage() {
         normalizar(familia.nombre).includes('cecina')
       );
       const seleccionInicial: Record<number, boolean> = {};
-      const descripcionesIniciales: Record<number, DescripcionSuelta> = {};
 
       productosConPrecio.forEach((producto) => {
-        descripcionesIniciales[producto.id] = dividirNombreProducto(
-          producto.nombre
-        );
         if (familiaCecinas && producto.familia_id === familiaCecinas.id) {
           seleccionInicial[producto.id] = true;
         }
@@ -186,7 +170,6 @@ export default function InformePreciosPage() {
       setProductosConCambio(cambiosDetectados);
       setFamiliaId(familiaCecinas?.id || '');
       setSeleccionados(seleccionInicial);
-      setDescripciones(descripcionesIniciales);
       setCargando(false);
     }
 
@@ -338,7 +321,7 @@ export default function InformePreciosPage() {
         </button>
       </header>
 
-      <section className="no-print grid gap-4 rounded-3xl bg-white p-5 shadow-sm md:grid-cols-2 lg:grid-cols-4">
+      <section className="no-print grid gap-4 rounded-3xl bg-white p-5 shadow-sm md:grid-cols-2 lg:grid-cols-5">
         <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
           Formato
           <select
@@ -364,6 +347,21 @@ export default function InformePreciosPage() {
           >
             <option value="mostrar">Mostrar 1/4</option>
             <option value="ocultar">Ocultar 1/4</option>
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
+          Tipo de letra
+          <select
+            value={fuentePrecio}
+            onChange={(event) => setFuentePrecio(event.target.value)}
+            disabled={formato !== 'suelto'}
+            className="h-11 rounded-xl border bg-white px-3 text-sm font-bold normal-case text-maruxa-chocolate disabled:bg-gray-100 disabled:text-gray-400"
+          >
+            {FUENTES_PRECIO.map((fuente) => (
+              <option key={fuente.nombre} value={fuente.valor}>
+                {fuente.nombre}
+              </option>
+            ))}
           </select>
         </label>
         <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
@@ -590,6 +588,7 @@ export default function InformePreciosPage() {
               return (
                 <article
                   key={producto.id}
+                  style={{ fontFamily: fuentePrecio }}
                   className="flex min-h-[175px] break-inside-avoid flex-col items-center justify-center border-2 border-black px-4 py-3 text-center"
                 >
                   <h2 className="text-2xl font-black uppercase leading-tight">
