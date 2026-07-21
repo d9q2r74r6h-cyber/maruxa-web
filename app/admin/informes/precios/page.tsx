@@ -393,8 +393,9 @@ export default function InformePreciosPage() {
             background-color: #fde047 !important;
           }
           .precios-sueltos-grid {
-            width: 100% !important;
-            max-width: none !important;
+            width: 680px !important;
+            max-width: 100% !important;
+            margin-inline: auto !important;
           }
         }
       `}</style>
@@ -832,7 +833,7 @@ export default function InformePreciosPage() {
             ))}
           </div>
         ) : (
-          <div className="precios-sueltos-grid mx-auto grid w-full max-w-[806px] grid-cols-2">
+          <div className="precios-sueltos-grid mx-auto grid w-full max-w-[680px] grid-cols-2">
             {productosSeleccionados.map((producto) => {
               const descripcion = descripciones[producto.id];
               return (
@@ -842,7 +843,7 @@ export default function InformePreciosPage() {
                     fontFamily: fuentePrecio,
                     fontWeight: negritaPrecio ? 900 : 400,
                   }}
-                  className="flex min-h-[186px] break-inside-avoid flex-col items-center justify-center border-2 border-black px-4 py-3 text-center"
+                  className="flex min-h-[150px] break-inside-avoid flex-col items-center justify-center border-2 border-black px-3 py-2 text-center"
                 >
                   <h2
                     style={{
