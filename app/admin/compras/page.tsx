@@ -22,8 +22,10 @@ type Producto = {
   precio: number | null;
   proveedor_id?: string | null;
   proveedor?: {
+    id: string;
     razon_social: string;
     nombre_fantasia: string | null;
+    precio_iva_incluido: boolean | null;
   } | null;
   controla_stock: boolean | null;
   usar_configuracion_familia?: boolean | null;
@@ -444,7 +446,7 @@ export default function AdminComprasPage() {
         costo_unitario,
         precio,
         proveedor_id,
-        proveedor:proveedores(nombre_fantasia,razon_social),
+        proveedor:proveedores(id,nombre_fantasia,razon_social,precio_iva_incluido),
         controla_stock,
         usar_configuracion_familia,
         margen_personalizado,
@@ -882,15 +884,20 @@ export default function AdminComprasPage() {
     }
 
     if (producto.proveedor_id) {
-      const { data: proveedorProducto, error } = await supabase
-        .from('proveedores')
-        .select('id,razon_social,nombre_fantasia,precio_iva_incluido,activo')
-        .eq('id', producto.proveedor_id)
-        .maybeSingle();
+      let proveedorProducto = producto.proveedor;
 
-      if (!error && proveedorProducto) {
+      if (!proveedorProducto) {
+        const { data } = await supabase
+          .from('proveedores')
+          .select('id,razon_social,nombre_fantasia,precio_iva_incluido')
+          .eq('id', producto.proveedor_id)
+          .maybeSingle();
+        proveedorProducto = data;
+      }
+
+      if (proveedorProducto) {
         await seleccionarProveedor({
-          id: String(proveedorProducto.id),
+          id: String(producto.proveedor_id),
           razon_social: proveedorProducto.razon_social,
           nombre_fantasia: proveedorProducto.nombre_fantasia || null,
           precio_iva_incluido:
