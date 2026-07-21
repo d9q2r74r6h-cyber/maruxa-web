@@ -363,6 +363,11 @@ export default function InformePreciosPage() {
               </option>
             ))}
           </select>
+          {fuentePrecio.startsWith('"Amasis') && (
+            <span className="text-[10px] font-bold normal-case text-maruxa-cafe/55">
+              Amasis requiere estar instalada en el equipo; si no, se usa Georgia.
+            </span>
+          )}
         </label>
         <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
           Familia
@@ -591,15 +596,24 @@ export default function InformePreciosPage() {
                   style={{ fontFamily: fuentePrecio }}
                   className="flex min-h-[175px] break-inside-avoid flex-col items-center justify-center border-2 border-black px-4 py-3 text-center"
                 >
-                  <h2 className="text-2xl font-black uppercase leading-tight">
+                  <h2
+                    style={{ fontFamily: fuentePrecio }}
+                    className="text-2xl font-black uppercase leading-tight"
+                  >
                     {descripcion?.linea1 || producto.nombre}
                   </h2>
                   {descripcion?.linea2 && (
-                    <p className="text-lg font-bold uppercase leading-tight">
+                    <p
+                      style={{ fontFamily: fuentePrecio }}
+                      className="text-lg font-bold uppercase leading-tight"
+                    >
                       {descripcion.linea2}
                     </p>
                   )}
-                  <p className="mt-3 text-5xl font-black leading-none">
+                  <p
+                    style={{ fontFamily: fuentePrecio }}
+                    className="mt-3 text-5xl font-black leading-none"
+                  >
                     {dinero(producto.precio)}
                   </p>
                 </article>
