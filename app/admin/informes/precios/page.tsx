@@ -68,6 +68,7 @@ export default function InformePreciosPage() {
   const [cargando, setCargando] = useState(true);
   const [formato, setFormato] = useState<'listado' | 'suelto'>('listado');
   const [fuentePrecio, setFuentePrecio] = useState(FUENTES_PRECIO[0].valor);
+  const [negritaPrecio, setNegritaPrecio] = useState(true);
   const [mostrarCuarto, setMostrarCuarto] = useState(true);
   const [familiaId, setFamiliaId] = useState('');
   const [busqueda, setBusqueda] = useState('');
@@ -321,7 +322,7 @@ export default function InformePreciosPage() {
         </button>
       </header>
 
-      <section className="no-print grid gap-4 rounded-3xl bg-white p-5 shadow-sm md:grid-cols-2 lg:grid-cols-5">
+      <section className="no-print grid gap-4 rounded-3xl bg-white p-5 shadow-sm md:grid-cols-2 xl:grid-cols-7">
         <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
           Formato
           <select
@@ -370,6 +371,20 @@ export default function InformePreciosPage() {
           )}
         </label>
         <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
+          Grosor del texto
+          <select
+            value={negritaPrecio ? 'negrita' : 'normal'}
+            onChange={(event) =>
+              setNegritaPrecio(event.target.value === 'negrita')
+            }
+            disabled={formato !== 'suelto'}
+            className="h-11 rounded-xl border bg-white px-3 text-sm font-bold normal-case text-maruxa-chocolate disabled:bg-gray-100 disabled:text-gray-400"
+          >
+            <option value="normal">Normal</option>
+            <option value="negrita">Negrita</option>
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
           Familia
           <select
             value={familiaId}
@@ -386,7 +401,7 @@ export default function InformePreciosPage() {
             ))}
           </select>
         </label>
-        <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
+        <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60 xl:col-span-2">
           Buscar producto
           <span className="relative block h-11">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-maruxa-cafe/45" />
@@ -593,25 +608,37 @@ export default function InformePreciosPage() {
               return (
                 <article
                   key={producto.id}
-                  style={{ fontFamily: fuentePrecio }}
+                  style={{
+                    fontFamily: fuentePrecio,
+                    fontWeight: negritaPrecio ? 900 : 400,
+                  }}
                   className="flex min-h-[175px] break-inside-avoid flex-col items-center justify-center border-2 border-black px-4 py-3 text-center"
                 >
                   <h2
-                    style={{ fontFamily: fuentePrecio }}
+                    style={{
+                      fontFamily: fuentePrecio,
+                      fontWeight: negritaPrecio ? 900 : 400,
+                    }}
                     className="text-2xl font-black uppercase leading-tight"
                   >
                     {descripcion?.linea1 || producto.nombre}
                   </h2>
                   {descripcion?.linea2 && (
                     <p
-                      style={{ fontFamily: fuentePrecio }}
+                      style={{
+                        fontFamily: fuentePrecio,
+                        fontWeight: negritaPrecio ? 900 : 400,
+                      }}
                       className="text-lg font-bold uppercase leading-tight"
                     >
                       {descripcion.linea2}
                     </p>
                   )}
                   <p
-                    style={{ fontFamily: fuentePrecio }}
+                    style={{
+                      fontFamily: fuentePrecio,
+                      fontWeight: negritaPrecio ? 900 : 400,
+                    }}
                     className="mt-3 text-5xl font-black leading-none"
                   >
                     {dinero(producto.precio)}
