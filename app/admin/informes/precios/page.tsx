@@ -50,10 +50,17 @@ const FUENTES_PRECIO = [
 ];
 
 const COLORES_PRIMARIOS = [
+  { nombre: 'Negro', valor: '#2A1710' },
   { nombre: 'Rojo', valor: '#E00000' },
   { nombre: 'Amarillo', valor: '#F2C500' },
   { nombre: 'Azul', valor: '#0057D9' },
 ];
+
+function colorLinea(texto: string, colorSeleccionado: string) {
+  return /\boferta\b/i.test(normalizar(texto))
+    ? '#E00000'
+    : colorSeleccionado;
+}
 
 function dinero(valor: number | null | undefined) {
   return `$${Math.round(Number(valor || 0)).toLocaleString('es-CL')}`;
@@ -636,9 +643,12 @@ export default function InformePreciosPage() {
                             )
                           }
                           style={{
-                            color:
+                            color: colorLinea(
+                              descripciones[producto.id]?.linea1 ||
+                                producto.nombre,
                               descripciones[producto.id]?.colorLinea1 ||
-                              COLORES_PRIMARIOS[0].valor,
+                                COLORES_PRIMARIOS[0].valor
+                            ),
                           }}
                           placeholder="Título"
                           className="min-w-0 rounded-lg border bg-white px-3 py-2 text-xs font-bold"
@@ -681,9 +691,11 @@ export default function InformePreciosPage() {
                             )
                           }
                           style={{
-                            color:
+                            color: colorLinea(
+                              descripciones[producto.id]?.linea2 || '',
                               descripciones[producto.id]?.colorLinea2 ||
-                              COLORES_PRIMARIOS[0].valor,
+                                COLORES_PRIMARIOS[0].valor
+                            ),
                           }}
                           placeholder="Descripción opcional"
                           className="min-w-0 rounded-lg border bg-white px-3 py-2 text-xs font-bold"
@@ -826,8 +838,10 @@ export default function InformePreciosPage() {
                       fontFamily: fuentePrecio,
                       fontWeight: negritaPrecio ? 900 : 400,
                       fontSize: `${tamanoLinea1}px`,
-                      color:
-                        descripcion?.colorLinea1 || COLORES_PRIMARIOS[0].valor,
+                      color: colorLinea(
+                        descripcion?.linea1 || producto.nombre,
+                        descripcion?.colorLinea1 || COLORES_PRIMARIOS[0].valor
+                      ),
                     }}
                     className="text-2xl font-black uppercase leading-tight"
                   >
@@ -839,8 +853,10 @@ export default function InformePreciosPage() {
                         fontFamily: fuentePrecio,
                         fontWeight: negritaPrecio ? 900 : 400,
                         fontSize: `${tamanoLinea2}px`,
-                        color:
-                          descripcion?.colorLinea2 || COLORES_PRIMARIOS[0].valor,
+                        color: colorLinea(
+                          descripcion?.linea2 || '',
+                          descripcion?.colorLinea2 || COLORES_PRIMARIOS[0].valor
+                        ),
                       }}
                       className="text-lg font-bold uppercase leading-tight"
                     >
