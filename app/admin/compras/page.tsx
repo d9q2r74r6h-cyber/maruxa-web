@@ -21,6 +21,10 @@ type Producto = {
   costo_unitario: number | null;
   precio: number | null;
   proveedor_id?: string | null;
+  proveedor?: {
+    razon_social: string;
+    nombre_fantasia: string | null;
+  } | null;
   controla_stock: boolean | null;
   usar_configuracion_familia?: boolean | null;
   margen_personalizado?: number | null;
@@ -440,6 +444,7 @@ export default function AdminComprasPage() {
         costo_unitario,
         precio,
         proveedor_id,
+        proveedor:proveedores(nombre_fantasia,razon_social),
         controla_stock,
         usar_configuracion_familia,
         margen_personalizado,
@@ -463,7 +468,13 @@ export default function AdminComprasPage() {
       return;
     }
 
-    setProductos((data as Producto[]) || []);
+    const productosNormalizados = (data || []).map((producto) => ({
+      ...producto,
+      proveedor: Array.isArray(producto.proveedor)
+        ? producto.proveedor[0] || null
+        : producto.proveedor || null,
+    }));
+    setProductos(productosNormalizados as Producto[]);
     setFamilias((familiasData as FamiliaProducto[]) || []);
     if (mostrarCarga) setLoading(false);
   }
@@ -851,17 +862,47 @@ export default function AdminComprasPage() {
     actualizarItem(index, 'producto_id', String(producto.id));
     setIndiceBusquedaActivo(null);
 
-    if (producto.proveedor_id && producto.proveedor_id !== proveedorId) {
+    if (producto.familia_id) {
+      const familiaProducto = familias.find(
+        (familia) => familia.id === producto.familia_id
+      );
+      const { margen, tipoMargen } = configuracionMargenProducto(producto);
+
+      setFamiliaGeneralId(producto.familia_id);
+      setMargenGeneral(String(margen || ''));
+      setTipoMargenGeneral(
+        producto.usar_configuracion_familia === false
+          ? tipoMargen
+          : familiaProducto?.tipo_margen || tipoMargen
+      );
+    } else {
+      setFamiliaGeneralId('');
+      setMargenGeneral('');
+      setTipoMargenGeneral('markup');
+    }
+
+    if (producto.proveedor_id) {
       const { data: proveedorProducto, error } = await supabase
         .from('proveedores')
-        .select('id,razon_social,nombre_fantasia,precio_iva_incluido')
+        .select('id,razon_social,nombre_fantasia,precio_iva_incluido,activo')
         .eq('id', producto.proveedor_id)
-        .eq('activo', true)
         .maybeSingle();
 
       if (!error && proveedorProducto) {
-        await seleccionarProveedor(proveedorProducto as ProveedorCompra);
+        await seleccionarProveedor({
+          id: String(proveedorProducto.id),
+          razon_social: proveedorProducto.razon_social,
+          nombre_fantasia: proveedorProducto.nombre_fantasia || null,
+          precio_iva_incluido:
+            typeof proveedorProducto.precio_iva_incluido === 'boolean'
+              ? proveedorProducto.precio_iva_incluido
+              : true,
+        });
       }
+    } else {
+      setProveedorId('');
+      setProveedorTexto('');
+      setPrecioIvaIncluido(false);
     }
 
     setFocoPendiente({ index, campo: 'costo' });
@@ -2889,6 +2930,12 @@ export default function AdminComprasPage() {
                                     <span className="text-gray-500">
                                       {productoItem.tipo_producto}
                                     </span>
+                                  </span>
+                                  <span className="text-[11px] font-black text-maruxa-rojo">
+                                    Proveedor:{' '}
+                                    {productoItem.proveedor?.nombre_fantasia ||
+                                      productoItem.proveedor?.razon_social ||
+                                      'Sin proveedor asignado'}
                                   </span>
                                   <span className="text-[11px] font-bold text-gray-500">
                                     Últimos registros:{' '}
