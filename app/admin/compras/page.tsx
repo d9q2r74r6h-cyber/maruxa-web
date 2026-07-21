@@ -294,6 +294,9 @@ export default function AdminComprasPage() {
     index: number;
     campo: CampoFocoItem;
   } | null>(null);
+  const [indiceBusquedaActivo, setIndiceBusquedaActivo] = useState<
+    number | null
+  >(null);
   const inputsProducto = useRef<Record<number, HTMLInputElement | null>>({});
   const inputsCosto = useRef<Record<number, HTMLInputElement | null>>({});
   const inputsMargen = useRef<Record<number, HTMLInputElement | null>>({});
@@ -844,8 +847,23 @@ export default function AdminComprasPage() {
     setFocoPendiente({ index: nuevoIndice, campo: 'producto' });
   }
 
-  function seleccionarProductoItem(index: number, producto: Producto) {
+  async function seleccionarProductoItem(index: number, producto: Producto) {
     actualizarItem(index, 'producto_id', String(producto.id));
+    setIndiceBusquedaActivo(null);
+
+    if (producto.proveedor_id && producto.proveedor_id !== proveedorId) {
+      const { data: proveedorProducto, error } = await supabase
+        .from('proveedores')
+        .select('id,razon_social,nombre_fantasia,precio_iva_incluido')
+        .eq('id', producto.proveedor_id)
+        .eq('activo', true)
+        .maybeSingle();
+
+      if (!error && proveedorProducto) {
+        await seleccionarProveedor(proveedorProducto as ProveedorCompra);
+      }
+    }
+
     setFocoPendiente({ index, campo: 'costo' });
   }
 
@@ -905,7 +923,7 @@ export default function AdminComprasPage() {
     const producto = coincidenciaExacta || coincidencias[0];
 
     if (producto) {
-      seleccionarProductoItem(index, producto);
+      void seleccionarProductoItem(index, producto);
       return;
     }
 
@@ -1369,28 +1387,61 @@ export default function AdminComprasPage() {
       return;
     }
 
-    const { error: errorProducto } = await supabase
-      .from('productos')
-      .update({
-        nombre: nombreProducto,
-        familia_id: historialEditando.familiaId || null,
-      })
-      .eq('id', productoId);
-
-    if (errorProducto) {
-      setGuardandoHistorial(false);
-      alert(errorProducto.message);
-      return;
-    }
-
     const { error } = await supabase
       .from('producto_costos_historial')
       .update(cambios)
       .eq('id', historialEditandoId);
 
-    setGuardandoHistorial(false);
     if (error) {
+      setGuardandoHistorial(false);
       alert(error.message);
+      return;
+    }
+
+    const { data: registroVigente, error: errorRegistroVigente } = await supabase
+      .from('producto_costos_historial')
+      .select('id')
+      .eq('producto_id', productoId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (errorRegistroVigente) {
+      setGuardandoHistorial(false);
+      alert(errorRegistroVigente.message);
+      return;
+    }
+
+    const esRegistroVigente = registroVigente?.id === historialEditandoId;
+    const familiaSeleccionada = familias.find(
+      (familia) => familia.id === historialEditando.familiaId
+    );
+    const margenIngresado = numero(historialEditando.margen);
+    const usaMargenFamilia =
+      margenIngresado === numero(familiaSeleccionada?.margen_porcentaje);
+    const cambiosProducto = {
+      nombre: nombreProducto,
+      familia_id: historialEditando.familiaId || null,
+      ...(esRegistroVigente
+        ? {
+            costo_unitario: cambios.costo_nuevo,
+            precio: cambios.precio_venta || 0,
+            usar_configuracion_familia: usaMargenFamilia,
+            margen_personalizado: usaMargenFamilia ? null : margenIngresado || null,
+            tipo_margen_personalizado: usaMargenFamilia
+              ? null
+              : familiaSeleccionada?.tipo_margen || 'markup',
+          }
+        : {}),
+    };
+    const { error: errorProducto } = await supabase
+      .from('productos')
+      .update(cambiosProducto)
+      .eq('id', productoId);
+
+    setGuardandoHistorial(false);
+    if (errorProducto) {
+      alert(errorProducto.message);
       return;
     }
 
@@ -1413,8 +1464,7 @@ export default function AdminComprasPage() {
         producto.id === productoId
           ? {
               ...producto,
-              nombre: nombreProducto,
-              familia_id: historialEditando.familiaId || null,
+              ...cambiosProducto,
             }
           : producto
       )
@@ -2727,16 +2777,27 @@ export default function AdminComprasPage() {
                     precioIvaIncluido
                   );
                   const busquedaNormalizada = normalizarTexto(item.busqueda_producto);
+                  const terminosBusqueda = busquedaNormalizada
+                    .split(/\s+/)
+                    .filter(Boolean);
                   const productosFiltrados =
-                    busquedaNormalizada.length < 2
-                      ? []
-                      : productos
-                          .filter((productoItem) =>
-                            normalizarTexto(
+                    busquedaNormalizada.length > 0
+                      ? productos
+                          .filter((productoItem) => {
+                            const textoProducto = normalizarTexto(
                               `${productoItem.codigo || ''} ${productoItem.nombre} ${productoItem.tipo_producto}`
-                            ).includes(busquedaNormalizada)
-                          )
-                          .slice(0, 8);
+                            );
+                            return terminosBusqueda.every((termino) =>
+                              textoProducto.includes(termino)
+                            );
+                          })
+                      : proveedorId
+                        ? productos
+                            .filter(
+                              (productoItem) =>
+                                String(productoItem.proveedor_id || '') === proveedorId
+                            )
+                        : [];
 
                   return (
                     <div
@@ -2757,6 +2818,16 @@ export default function AdminComprasPage() {
                             inputsProducto.current[index] = elemento;
                           }}
                           value={item.busqueda_producto}
+                          onFocus={() => setIndiceBusquedaActivo(index)}
+                          onBlur={() =>
+                            setTimeout(
+                              () =>
+                                setIndiceBusquedaActivo((actual) =>
+                                  actual === index ? null : actual
+                                ),
+                              150
+                            )
+                          }
                           onChange={(e) =>
                             actualizarItem(index, 'busqueda_producto', e.target.value)
                           }
@@ -2782,7 +2853,8 @@ export default function AdminComprasPage() {
                         )}
 
                         {!item.producto_id &&
-                          item.busqueda_producto &&
+                          indiceBusquedaActivo === index &&
+                          (item.busqueda_producto || proveedorId) &&
                           !(
                             mostrarCrearProducto &&
                             indiceItemCreacion === index
@@ -2801,8 +2873,9 @@ export default function AdminComprasPage() {
                                 <button
                                   key={productoItem.id}
                                   type="button"
+                                  onMouseDown={(event) => event.preventDefault()}
                                   onClick={() =>
-                                    seleccionarProductoItem(index, productoItem)
+                                    void seleccionarProductoItem(index, productoItem)
                                   }
                                   className="flex w-full flex-col gap-1 px-3 py-2 text-left text-xs font-bold hover:bg-maruxa-crema"
                                 >
