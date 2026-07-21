@@ -128,7 +128,6 @@ export default function AdminRecetasPage() {
 
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
-  const [guardandoPrecio, setGuardandoPrecio] = useState(false);
   const [borradorListo, setBorradorListo] = useState(false);
   const [borradorRecuperado, setBorradorRecuperado] = useState(false);
   const [ivaEmpresa, setIvaEmpresa] = useState(19);
@@ -136,6 +135,21 @@ export default function AdminRecetasPage() {
   const [recetas, setRecetas] = useState<RecetaGuardada[]>([]);
   const [recetaEditando, setRecetaEditando] =
     useState<RecetaGuardada | null>(null);
+
+  const productosConReceta = useMemo(
+    () => new Set(recetas.map((receta) => String(receta.producto_id))),
+    [recetas]
+  );
+
+  const productosDisponiblesParaReceta = useMemo(
+    () =>
+      productos.filter(
+        (producto) =>
+          !productosConReceta.has(String(producto.id)) ||
+          String(producto.id) === String(recetaEditando?.producto_id)
+      ),
+    [productos, productosConReceta, recetaEditando?.producto_id]
+  );
 
   const recetasComoIngredientes = useMemo(() => {
     return productos
@@ -150,7 +164,7 @@ export default function AdminRecetasPage() {
         (producto) =>
           ({
             id: producto.id,
-            nombre: `${producto.nombre} (receta)`,
+            nombre: producto.nombre,
             unidad_base: producto.unidad_base || 'KG',
             costo_unitario: producto.costo_unitario || 0,
             iva_porcentaje: 0,
@@ -165,16 +179,25 @@ export default function AdminRecetasPage() {
   }, [productos, recetaEditando?.id, recetas]);
 
   const recursosCalculables = useMemo(
-    () => [...recursos, ...recetasComoIngredientes],
-    [recetasComoIngredientes, recursos]
+    () => [
+      ...recursos.filter(
+        (recurso) => !productosConReceta.has(String(recurso.id))
+      ),
+      ...recetasComoIngredientes,
+    ],
+    [productosConReceta, recetasComoIngredientes, recursos]
   );
 
   const ingredientesBase = useMemo(() => {
     return [
-      ...recursos.filter((recurso) => recurso.tipo_producto === 'ingrediente'),
+      ...recursos.filter(
+        (recurso) =>
+          recurso.tipo_producto === 'ingrediente' &&
+          !productosConReceta.has(String(recurso.id))
+      ),
       ...recetasComoIngredientes,
     ].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
-  }, [recetasComoIngredientes, recursos]);
+  }, [productosConReceta, recetasComoIngredientes, recursos]);
 
   const insumosDisponibles = useMemo(() => {
     return recursos.filter((recurso) =>
@@ -350,48 +373,6 @@ export default function AdminRecetasPage() {
     }
 
     return precio;
-  }
-
-  async function guardarConfiguracionComercial() {
-    if (!productoSeleccionado || precioVentaAnalizado <= 0) {
-      alert('Selecciona un producto e ingresa un precio de venta válido.');
-      return;
-    }
-
-    setGuardandoPrecio(true);
-
-    const { error } = await supabase
-      .from('productos')
-      .update({
-        precio: Math.round(precioVentaAnalizado),
-        usar_configuracion_familia: false,
-        margen_personalizado: Number(porcentajeCalculado.toFixed(2)),
-        tipo_margen_personalizado: tipoMargenCalculo,
-        redondeo_personalizado: redondeoAplicado,
-      })
-      .eq('id', productoSeleccionado.id);
-
-    setGuardandoPrecio(false);
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    setProductos((actuales) =>
-      actuales.map((producto) =>
-        producto.id === productoSeleccionado.id
-          ? {
-              ...producto,
-              usar_configuracion_familia: false,
-              margen_personalizado: Number(porcentajeCalculado.toFixed(2)),
-              tipo_margen_personalizado: tipoMargenCalculo,
-            }
-          : producto
-      )
-    );
-
-    alert('Precio final con IVA y margen guardados en el producto.');
   }
 
   async function cargarRecetas() {
@@ -762,6 +743,17 @@ export default function AdminRecetasPage() {
       return;
     }
 
+    const recetaDelProducto = recetas.find(
+      (receta) =>
+        String(receta.producto_id) === String(productoId) &&
+        receta.id !== recetaEditando?.id
+    );
+
+    if (recetaDelProducto) {
+      alert('Este producto ya tiene una receta. Edita la receta existente.');
+      return;
+    }
+
     if (numero(pesoUnidadKg) <= 0) {
       alert('Ingresa el peso por unidad en kg.');
       return;
@@ -769,6 +761,14 @@ export default function AdminRecetasPage() {
 
     if (numero(unidadesProducidas) <= 0) {
       alert('Ingresa cuántas unidades produce la receta.');
+      return;
+    }
+
+    if (
+      !recetaProduceIngrediente &&
+      (precioVentaAnalizado <= 0 || !margenSobreVentaValido)
+    ) {
+      alert('Revisa el precio final y el margen antes de guardar la receta.');
       return;
     }
 
@@ -802,6 +802,20 @@ export default function AdminRecetasPage() {
     const subproductosValidos = subproductos.filter(
       (item) => numero(item.peso_kg) > 0 && (item.producto_id || item.nombre)
     );
+
+    const datosProducto: Record<string, number | string | boolean> = {
+      costo_unitario: Number(costoFinalPorKg.toFixed(4)),
+    };
+
+    if (!recetaProduceIngrediente) {
+      Object.assign(datosProducto, {
+        precio: Math.round(precioVentaAnalizado),
+        usar_configuracion_familia: false,
+        margen_personalizado: Number(porcentajeCalculado.toFixed(2)),
+        tipo_margen_personalizado: tipoMargenCalculo,
+        redondeo_personalizado: redondeoAplicado,
+      });
+    }
 
     if (recetaEditando) {
       const { error: errorUpdate } = await supabase
@@ -888,7 +902,7 @@ export default function AdminRecetasPage() {
 
       await supabase
         .from('productos')
-        .update({ costo_unitario: costoFinalPorKg })
+        .update(datosProducto)
         .eq('id', Number(productoId));
 
       await cargarRecetas();
@@ -963,7 +977,7 @@ export default function AdminRecetasPage() {
 
     await supabase
       .from('productos')
-      .update({ costo_unitario: costoFinalPorKg })
+      .update(datosProducto)
       .eq('id', Number(productoId));
 
     limpiarFormulario();
@@ -1051,7 +1065,7 @@ export default function AdminRecetasPage() {
                     className="w-full bg-transparent text-lg font-black outline-none"
                   >
                     <option value="">Seleccionar producto o ingrediente</option>
-                    {productos.map((producto) => (
+                    {productosDisponiblesParaReceta.map((producto) => (
                       <option key={producto.id} value={producto.id}>
                         {producto.nombre}
                         {producto.tipo_producto === 'ingrediente'
@@ -1361,7 +1375,9 @@ export default function AdminRecetasPage() {
                         })}
 
                         <tr className="bg-maruxa-crema font-black">
-                          <td className="px-4 py-4">TOTAL FÓRMULA</td>
+                          <td className="px-4 py-4">
+                            TOTAL FÓRMULA (SOLO INGREDIENTES)
+                          </td>
                           <td className="px-4 py-4 text-right">1,0000</td>
                           <td className="px-4 py-4 text-center">base</td>
                           <td className="px-4 py-4 text-right">
@@ -1371,6 +1387,10 @@ export default function AdminRecetasPage() {
                       </tbody>
                     </table>
                   </div>
+                  <p className="mt-3 text-xs font-bold text-maruxa-cafe/70">
+                    El costo unitario del producto puede ser mayor porque incluye
+                    insumos, costos indirectos y el rendimiento real de la receta.
+                  </p>
                 </div>
               </section>
                 </>
@@ -1743,21 +1763,9 @@ export default function AdminRecetasPage() {
                   <p className="mt-1 text-sm font-bold text-purple-700">
                     Ganancia: {dinero(gananciaPesos)} por unidad
                   </p>
-                  <button
-                    type="button"
-                    onClick={guardarConfiguracionComercial}
-                    disabled={
-                      guardandoPrecio ||
-                      !productoId ||
-                      precioVentaAnalizado <= 0 ||
-                      !margenSobreVentaValido
-                    }
-                    className="mt-4 h-10 rounded-md bg-[#A51F2B] px-4 text-sm font-black text-white disabled:opacity-50"
-                  >
-                    {guardandoPrecio
-                      ? 'Guardando...'
-                      : 'Guardar precio final con IVA y margen'}
-                  </button>
+                  <p className="mt-4 text-sm font-black text-purple-900">
+                    El precio, IVA y margen se guardarán junto con la receta.
+                  </p>
                 </div>
                 )}
               </section>

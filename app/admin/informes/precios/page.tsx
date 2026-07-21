@@ -43,6 +43,33 @@ function normalizar(valor: string) {
     .toLowerCase();
 }
 
+function dividirNombreProducto(nombre: string): DescripcionSuelta {
+  const palabras = nombre.trim().split(/\s+/).filter(Boolean);
+
+  if (palabras.length <= 1) {
+    return { linea1: palabras[0] || '', linea2: '' };
+  }
+
+  let mejorCorte = 1;
+  let menorDiferencia = Number.POSITIVE_INFINITY;
+
+  for (let corte = 1; corte < palabras.length; corte += 1) {
+    const linea1 = palabras.slice(0, corte).join(' ');
+    const linea2 = palabras.slice(corte).join(' ');
+    const diferencia = Math.abs(linea1.length - linea2.length);
+
+    if (diferencia < menorDiferencia) {
+      menorDiferencia = diferencia;
+      mejorCorte = corte;
+    }
+  }
+
+  return {
+    linea1: palabras.slice(0, mejorCorte).join(' '),
+    linea2: palabras.slice(mejorCorte).join(' '),
+  };
+}
+
 export default function InformePreciosPage() {
   const { perfil } = useAdminSession();
   const [productos, setProductos] = useState<ProductoPrecio[]>([]);
@@ -142,8 +169,12 @@ export default function InformePreciosPage() {
         normalizar(familia.nombre).includes('cecina')
       );
       const seleccionInicial: Record<number, boolean> = {};
+      const descripcionesIniciales: Record<number, DescripcionSuelta> = {};
 
       productosConPrecio.forEach((producto) => {
+        descripcionesIniciales[producto.id] = dividirNombreProducto(
+          producto.nombre
+        );
         if (familiaCecinas && producto.familia_id === familiaCecinas.id) {
           seleccionInicial[producto.id] = true;
         }
@@ -155,6 +186,7 @@ export default function InformePreciosPage() {
       setProductosConCambio(cambiosDetectados);
       setFamiliaId(familiaCecinas?.id || '');
       setSeleccionados(seleccionInicial);
+      setDescripciones(descripcionesIniciales);
       setCargando(false);
     }
 
@@ -552,7 +584,7 @@ export default function InformePreciosPage() {
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-2">
+          <div className="grid grid-cols-3">
             {productosSeleccionados.map((producto) => {
               const descripcion = descripciones[producto.id];
               return (

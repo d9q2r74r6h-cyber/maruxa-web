@@ -393,7 +393,9 @@ export default function AdminProductosPage() {
 
       tipo_producto: tipoProducto,
       unidad_base: producto.unidad_base || 'KG',
-      costo_unitario: String(producto.costo_unitario || ''),
+      costo_unitario: producto.costo_unitario
+        ? String(Number(Number(producto.costo_unitario).toFixed(4)))
+        : '',
       iva_porcentaje: String(ivaEmpresa || producto.iva_porcentaje || 19),
       impuesto_adicional_porcentaje: String(
         producto.impuesto_adicional_porcentaje || ''
