@@ -44,6 +44,16 @@ function normalizarTexto(texto: string) {
     .trim();
 }
 
+const LIMITE_DESCRIPCION = 120;
+
+function descripcionResumida(descripcion: string) {
+  if (descripcion.length <= LIMITE_DESCRIPCION) return descripcion;
+
+  const fragmento = descripcion.slice(0, LIMITE_DESCRIPCION + 1);
+  const ultimoEspacio = fragmento.lastIndexOf(' ');
+
+  return `${fragmento.slice(0, ultimoEspacio > 0 ? ultimoEspacio : LIMITE_DESCRIPCION).trim()}…`;
+}
 
 
 const tamanosTorta = [
@@ -77,6 +87,9 @@ export default function Catalogo() {
 
   const [tamanoSeleccionado, setTamanoSeleccionado] =
     useState<Record<number, string>>({});
+
+  const [descripcionesExpandidas, setDescripcionesExpandidas] =
+    useState<Record<number, boolean>>({});
 
   useEffect(() => {
     const categoria = searchParams.get('categoria');
@@ -474,9 +487,35 @@ export default function Catalogo() {
                     </h3>
                   </Link>
 
-                  <p className="mt-2 min-h-12 text-sm font-semibold leading-6 text-maruxa-cafe/75">
-                    {p.descripcion}
-                  </p>
+                  <div className="mt-2 min-h-[5.5rem]">
+                    {p.descripcion && (
+                      <>
+                        <p className="text-sm font-semibold leading-6 text-maruxa-cafe/75">
+                          {descripcionesExpandidas[p.id]
+                            ? p.descripcion
+                            : descripcionResumida(p.descripcion)}
+                        </p>
+
+                        {p.descripcion.length > LIMITE_DESCRIPCION && (
+                          <button
+                            type="button"
+                            aria-expanded={Boolean(descripcionesExpandidas[p.id])}
+                            onClick={() =>
+                              setDescripcionesExpandidas((actuales) => ({
+                                ...actuales,
+                                [p.id]: !actuales[p.id],
+                              }))
+                            }
+                            className="mt-1 text-sm font-black text-maruxa-rojo transition hover:text-maruxa-vino hover:underline"
+                          >
+                            {descripcionesExpandidas[p.id]
+                              ? 'Ver menos'
+                              : 'Ver más'}
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
 
                   {esTorta(p) && (
                     <div className="mt-5">
