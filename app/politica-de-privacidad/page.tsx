@@ -88,10 +88,10 @@ const secciones = [
         Puedes solicitar información, corrección o eliminación de tus datos,
         cuando corresponda, escribiendo a{' '}
         <a
-          href="mailto:pedidos@panaderiamaruxa.cl"
+          href="mailto:contacto@panaderiamaruxa.cl"
           className="font-black text-[#A51F2B] underline"
         >
-          pedidos@panaderiamaruxa.cl
+          contacto@panaderiamaruxa.cl
         </a>
         . Para proteger al titular, podremos solicitar antecedentes que permitan
         verificar su identidad. Ciertos registros deberán conservarse cuando

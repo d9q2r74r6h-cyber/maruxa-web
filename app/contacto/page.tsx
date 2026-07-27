@@ -12,7 +12,7 @@ import {
 import { Header } from '@/components/Header';
 import { MARUXA } from '@/lib/marca';
 
-const correo = 'pedidos@panaderiamaruxa.cl';
+const correo = 'contacto@panaderiamaruxa.cl';
 const mensaje = encodeURIComponent(
   'Hola Maruxa, quisiera hacer una consulta.'
 );
