@@ -169,7 +169,7 @@ export function Home() {
             </p>
           </div>
 
-          <div className="card-premium rounded-[30px] p-8">
+          <div id="contacto" className="card-premium scroll-mt-28 rounded-[30px] p-8">
             <Phone className="text-maruxa-rojo" />
 
             <h3 className="mt-4 text-2xl font-black">
