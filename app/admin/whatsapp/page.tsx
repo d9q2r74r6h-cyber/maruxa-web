@@ -162,6 +162,20 @@ function nombreContacto(evento: WhatsappEvento) {
   return contacto?.profile?.name || 'Cliente WhatsApp';
 }
 
+function nombreConversacion(eventos: WhatsappEvento[]) {
+  const ultimoEvento = eventos[eventos.length - 1];
+  if (!ultimoEvento) return 'Contacto';
+  if (ultimoEvento.origen !== 'whatsapp') return nombreContacto(ultimoEvento);
+
+  const eventoConNombre = [...eventos]
+    .reverse()
+    .find((evento) => valoresPayload(evento).contacto?.profile?.name);
+
+  return eventoConNombre
+    ? nombreContacto(eventoConNombre)
+    : ultimoEvento.telefono || 'Cliente WhatsApp';
+}
+
 function esMensajePropio(evento: WhatsappEvento) {
   return (
     evento.payload?.direccion === 'saliente' ||
@@ -466,7 +480,7 @@ export default function AdminWhatsappPage() {
         return {
           clave,
           telefono: ultimoEvento.telefono || 'Sin telefono',
-          nombre: nombreContacto(ultimoEvento),
+          nombre: nombreConversacion(ordenados),
           canalPhoneNumberId: canal.phoneNumberId,
           canalTelefono: canal.telefono,
           canalEtiqueta: canal.etiqueta,
