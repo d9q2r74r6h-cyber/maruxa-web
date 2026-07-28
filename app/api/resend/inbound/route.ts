@@ -33,13 +33,21 @@ async function obtenerEmpresaId(
 }
 
 export function GET() {
+  const apiKey = Boolean(process.env.RESEND_API_KEY);
+  const webhookSecret = Boolean(process.env.RESEND_WEBHOOK_SECRET);
+  const supabaseAdmin = Boolean(
+    process.env.NEXT_PUBLIC_SUPABASE_URL &&
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
+
   return NextResponse.json({
     servicio: 'Resend Inbound',
-    configurado: Boolean(
-      process.env.RESEND_API_KEY &&
-        process.env.RESEND_WEBHOOK_SECRET &&
-        process.env.SUPABASE_SERVICE_ROLE_KEY
-    ),
+    configurado: apiKey && webhookSecret && supabaseAdmin,
+    requisitos: {
+      resend_api_key: apiKey,
+      resend_webhook_secret: webhookSecret,
+      supabase_admin: supabaseAdmin,
+    },
   });
 }
 
