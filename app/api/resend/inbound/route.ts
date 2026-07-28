@@ -32,13 +32,23 @@ async function obtenerEmpresaId(
   return data[0].id as string;
 }
 
-export function GET() {
+export async function GET() {
   const apiKey = Boolean(process.env.RESEND_API_KEY);
   const webhookSecret = Boolean(process.env.RESEND_WEBHOOK_SECRET);
   const supabaseAdmin = Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL &&
       process.env.SUPABASE_SERVICE_ROLE_KEY
   );
+  const admin = crearAdmin();
+  let pruebaBandeja: boolean | null = null;
+
+  if (admin) {
+    const { count, error } = await admin
+      .from('correo_eventos')
+      .select('id', { count: 'exact', head: true })
+      .eq('asunto', 'Prueba bandeja Mensajes Maruxa 2026-07-28');
+    pruebaBandeja = error ? null : Boolean(count);
+  }
 
   return NextResponse.json({
     servicio: 'Resend Inbound',
@@ -48,6 +58,7 @@ export function GET() {
       resend_webhook_secret: webhookSecret,
       supabase_admin: supabaseAdmin,
     },
+    prueba_bandeja_recibida: pruebaBandeja,
   });
 }
 
