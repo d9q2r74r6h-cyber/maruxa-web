@@ -44,6 +44,7 @@ export async function GET() {
   const admin = crearAdmin();
   let pruebaBandeja: boolean | null = null;
   let accesoApiRecepcion: boolean | null = null;
+  let pruebaRecibidaEnResend: boolean | null = null;
 
   if (admin) {
     const { count, error } = await admin
@@ -55,8 +56,17 @@ export async function GET() {
 
   if (receivingApiKey) {
     const resend = new Resend(receivingApiKey);
-    const { error } = await resend.emails.receiving.list({ limit: 1 });
+    const { data, error } = await resend.emails.receiving.list({ limit: 20 });
     accesoApiRecepcion = !error;
+    pruebaRecibidaEnResend = error
+      ? null
+      : Boolean(
+          data?.data.some(
+            (correo) =>
+              correo.subject ===
+              'Prueba bandeja Mensajes Maruxa 2026-07-28'
+          )
+        );
   }
 
   return NextResponse.json({
@@ -69,6 +79,7 @@ export async function GET() {
       supabase_admin: supabaseAdmin,
     },
     acceso_api_recepcion: accesoApiRecepcion,
+    prueba_recibida_en_resend: pruebaRecibidaEnResend,
     prueba_bandeja_recibida: pruebaBandeja,
   });
 }
