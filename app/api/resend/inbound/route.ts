@@ -33,7 +33,9 @@ async function obtenerEmpresaId(
 }
 
 export async function GET() {
-  const apiKey = Boolean(process.env.RESEND_API_KEY);
+  const receivingApiKey =
+    process.env.RESEND_RECEIVING_API_KEY || process.env.RESEND_API_KEY;
+  const apiKey = Boolean(receivingApiKey);
   const webhookSecret = Boolean(process.env.RESEND_WEBHOOK_SECRET);
   const supabaseAdmin = Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL &&
@@ -51,8 +53,8 @@ export async function GET() {
     pruebaBandeja = error ? null : Boolean(count);
   }
 
-  if (process.env.RESEND_API_KEY) {
-    const resend = new Resend(process.env.RESEND_API_KEY);
+  if (receivingApiKey) {
+    const resend = new Resend(receivingApiKey);
     const { error } = await resend.emails.receiving.list({ limit: 1 });
     accesoApiRecepcion = !error;
   }
@@ -62,6 +64,7 @@ export async function GET() {
     configurado: apiKey && webhookSecret && supabaseAdmin,
     requisitos: {
       resend_api_key: apiKey,
+      resend_receiving_api_key: Boolean(process.env.RESEND_RECEIVING_API_KEY),
       resend_webhook_secret: webhookSecret,
       supabase_admin: supabaseAdmin,
     },
@@ -71,7 +74,8 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const apiKey = process.env.RESEND_API_KEY;
+  const apiKey =
+    process.env.RESEND_RECEIVING_API_KEY || process.env.RESEND_API_KEY;
   const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
   const admin = crearAdmin();
 
