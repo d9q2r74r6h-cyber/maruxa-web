@@ -46,6 +46,7 @@ export async function POST(request: Request) {
   const cuerpo = await request.json().catch(() => ({}));
   const whatsappIds = idsValidos(cuerpo.whatsappIds);
   const instagramIds = idsValidos(cuerpo.instagramIds);
+  const correoIds = idsValidos(cuerpo.correoIds);
   const errores: string[] = [];
 
   if (whatsappIds.length > 0) {
@@ -68,12 +69,22 @@ export async function POST(request: Request) {
     if (error) errores.push(error.message);
   }
 
+  if (correoIds.length > 0) {
+    const { error } = await admin
+      .from('correo_eventos')
+      .update({ estado: 'leido' })
+      .eq('empresa_id', perfil.empresa_id)
+      .in('id', correoIds)
+      .not('estado', 'in', '(respondido,enviado)');
+    if (error) errores.push(error.message);
+  }
+
   if (errores.length > 0) {
     return NextResponse.json({ error: errores.join(' | ') }, { status: 500 });
   }
 
   return NextResponse.json({
     ok: true,
-    actualizados: whatsappIds.length + instagramIds.length,
+    actualizados: whatsappIds.length + instagramIds.length + correoIds.length,
   });
 }

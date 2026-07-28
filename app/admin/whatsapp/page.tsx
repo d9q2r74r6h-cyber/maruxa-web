@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock,
   Landmark,
+  Mail,
   MessageCircle,
   RefreshCw,
   Search,
@@ -17,7 +18,7 @@ import { obtenerEmpresaActual } from '@/lib/empresa';
 
 type WhatsappEvento = {
   id: string;
-  origen?: 'whatsapp' | 'instagram';
+  origen?: 'whatsapp' | 'instagram' | 'correo';
   created_at: string;
   telefono: string | null;
   sender_id?: string | null;
@@ -42,7 +43,7 @@ type Conversacion = {
   ultimoEvento: WhatsappEvento;
 };
 
-type CanalActivo = 'whatsapp' | 'instagram' | 'todos';
+type CanalActivo = 'whatsapp' | 'instagram' | 'correo' | 'todos';
 
 type CuentaBancaria = {
   banco: string;
@@ -68,7 +69,7 @@ function textoCuentaBancaria(cuenta: CuentaBancaria) {
 }
 
 function valoresPayload(evento: WhatsappEvento) {
-  if (evento.origen === 'instagram') {
+  if (evento.origen === 'instagram' || evento.origen === 'correo') {
     return {
       mensaje: null,
       contacto: null,
@@ -100,6 +101,14 @@ function valoresPayload(evento: WhatsappEvento) {
 }
 
 function datosCanalWhatsapp(evento: WhatsappEvento) {
+  if (evento.origen === 'correo') {
+    return {
+      phoneNumberId: null,
+      telefono: 'contacto@panaderiamaruxa.cl',
+      etiqueta: 'Correo',
+    };
+  }
+
   if (evento.origen === 'instagram') {
     return {
       phoneNumberId: null,
@@ -127,6 +136,10 @@ function datosCanalWhatsapp(evento: WhatsappEvento) {
 }
 
 function claveBaseEvento(evento: WhatsappEvento) {
+  if (evento.origen === 'correo') {
+    return `correo:${evento.telefono || evento.id}`;
+  }
+
   if (evento.origen === 'instagram') {
     return `instagram:${evento.sender_id || evento.telefono || evento.id}`;
   }
@@ -137,6 +150,10 @@ function claveBaseEvento(evento: WhatsappEvento) {
 }
 
 function nombreContacto(evento: WhatsappEvento) {
+  if (evento.origen === 'correo') {
+    return evento.payload?.from_original || evento.telefono || 'Correo';
+  }
+
   if (evento.origen === 'instagram') {
     return evento.sender_id ? `Instagram ${evento.sender_id}` : 'Instagram';
   }
@@ -147,13 +164,17 @@ function nombreContacto(evento: WhatsappEvento) {
 
 function esMensajePropio(evento: WhatsappEvento) {
   return (
+    evento.payload?.direccion === 'saliente' ||
     evento.tipo === 'respuesta' ||
-    evento.estado === 'enviado' ||
-    evento.payload?.direccion === 'saliente'
+    evento.estado === 'enviado'
   );
 }
 
 function textoMensaje(evento: WhatsappEvento) {
+  if (evento.origen === 'correo') {
+    return evento.texto || evento.observacion || 'Correo sin contenido de texto.';
+  }
+
   if (evento.origen === 'instagram') {
     return evento.texto || evento.observacion || 'Mensaje recibido desde Instagram.';
   }
@@ -211,6 +232,7 @@ function horaChile(valor: string) {
 }
 
 function etiquetaTipo(tipo: string | null) {
+  if (tipo === 'email') return 'Correo';
   if (tipo === 'respuesta') return 'Tu respuesta';
   if (tipo === 'text') return 'Texto';
   if (tipo === 'order') return 'Pedido';
@@ -253,7 +275,9 @@ export default function AdminWhatsappPage() {
 
   function notificarNuevoEvento(evento: WhatsappEvento) {
     const titulo =
-      evento.origen === 'instagram'
+      evento.origen === 'correo'
+        ? 'Nuevo correo recibido'
+        : evento.origen === 'instagram'
         ? 'Nuevo mensaje de Instagram'
         : evento.tipo === 'order'
           ? 'Nuevo pedido por WhatsApp'
@@ -324,6 +348,15 @@ export default function AdminWhatsappPage() {
       .order('created_at', { ascending: false })
       .limit(1000);
 
+    const { data: correoData, error: correoError } = await supabase
+      .from('correo_eventos')
+      .select(
+        'id,created_at,remitente,asunto,texto,estado,email_id,message_id,direccion,destinatarios,adjuntos,payload'
+      )
+      .eq('empresa_id', empresa.id)
+      .order('created_at', { ascending: false })
+      .limit(1000);
+
     const eventosWhatsapp = ((data as WhatsappEvento[]) || []).map((evento) => ({
       ...evento,
       origen: 'whatsapp' as const,
@@ -336,8 +369,36 @@ export default function AdminWhatsappPage() {
           telefono: evento.sender_id || 'Instagram',
           pedido_id: null,
         }));
+    const eventosCorreo = correoError
+      ? []
+      : ((correoData as any[]) || []).map((evento) => ({
+          id: evento.id,
+          origen: 'correo' as const,
+          created_at: evento.created_at,
+          telefono:
+            evento.direccion === 'saliente'
+              ? evento.destinatarios?.[0] || 'Correo'
+              : evento.remitente,
+          tipo: 'email',
+          estado: evento.estado,
+          observacion: evento.asunto,
+          pedido_id: null,
+          message_id: evento.message_id || evento.email_id,
+          texto: evento.texto,
+          payload: {
+            ...evento.payload,
+            direccion: evento.direccion,
+            asunto: evento.asunto,
+            adjuntos: evento.adjuntos || [],
+            email_id: evento.email_id,
+          },
+        }));
 
-    const eventosOrdenados = [...eventosWhatsapp, ...eventosInstagram].sort(
+    const eventosOrdenados = [
+      ...eventosWhatsapp,
+      ...eventosInstagram,
+      ...eventosCorreo,
+    ].sort(
       (a, b) =>
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
@@ -368,7 +429,7 @@ export default function AdminWhatsappPage() {
     const canalConocidoPorTelefono = new Map<string, string>();
 
     eventosVisibles.forEach((evento) => {
-      if (evento.origen === 'instagram' || !evento.telefono) return;
+      if (evento.origen !== 'whatsapp' || !evento.telefono) return;
       const phoneNumberId = datosCanalWhatsapp(evento).phoneNumberId;
       if (phoneNumberId && !canalConocidoPorTelefono.has(evento.telefono)) {
         canalConocidoPorTelefono.set(evento.telefono, phoneNumberId);
@@ -378,7 +439,9 @@ export default function AdminWhatsappPage() {
     eventosVisibles.forEach((evento) => {
       const telefono = evento.telefono || 'Sin telefono';
       const clave =
-        evento.origen === 'instagram'
+        evento.origen === 'correo'
+          ? `correo:${telefono}`
+          : evento.origen === 'instagram'
           ? `instagram:${evento.sender_id || evento.telefono || evento.id}`
           : `whatsapp:${
               datosCanalWhatsapp(evento).phoneNumberId ||
@@ -443,6 +506,11 @@ export default function AdminWhatsappPage() {
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'instagram_eventos' },
+        () => cargarMensajes(true)
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'correo_eventos' },
         () => cargarMensajes(true)
       )
       .subscribe();
@@ -516,6 +584,9 @@ export default function AdminWhatsappPage() {
       const instagramIds = pendientes
         .filter((evento) => evento.origen === 'instagram')
         .map((evento) => evento.id);
+      const correoIds = pendientes
+        .filter((evento) => evento.origen === 'correo')
+        .map((evento) => evento.id);
 
       const respuesta = await fetch('/api/whatsapp/marcar-leidos', {
         method: 'POST',
@@ -523,12 +594,12 @@ export default function AdminWhatsappPage() {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ whatsappIds, instagramIds }),
+        body: JSON.stringify({ whatsappIds, instagramIds, correoIds }),
       });
 
       if (!respuesta.ok || cancelado) return;
 
-      const ids = new Set([...whatsappIds, ...instagramIds]);
+      const ids = new Set([...whatsappIds, ...instagramIds, ...correoIds]);
       setEventos((actuales) =>
         actuales.map((evento) =>
           ids.has(evento.id) ? { ...evento, estado: 'leido' } : evento
@@ -576,6 +647,12 @@ export default function AdminWhatsappPage() {
       total: eventos.filter((evento) => evento.origen === 'instagram').length,
     },
     {
+      id: 'correo' as const,
+      label: 'Correo',
+      detalle: 'contacto@panaderiamaruxa.cl',
+      total: eventos.filter((evento) => evento.origen === 'correo').length,
+    },
+    {
       id: 'todos' as const,
       label: 'Todo',
       detalle: 'Vista unificada',
@@ -620,19 +697,41 @@ export default function AdminWhatsappPage() {
       .filter(estaPendiente)
       .map((evento) => evento.id);
 
-    const respuesta = await fetch('/api/whatsapp/enviar-mensaje', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${session.access_token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        telefono: conversacion.telefono,
-        mensaje,
-        idsPendientes,
-        phoneNumberId: conversacion.canalPhoneNumberId,
-      }),
-    });
+    const esCorreo = conversacion.ultimoEvento.origen === 'correo';
+    const ultimoCorreoEntrante = [...conversacion.eventos]
+      .reverse()
+      .find(
+        (evento) =>
+          evento.origen === 'correo' && evento.payload?.direccion !== 'saliente'
+      );
+    const respuesta = await fetch(
+      esCorreo ? '/api/resend/responder' : '/api/whatsapp/enviar-mensaje',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(
+          esCorreo
+            ? {
+                destino: conversacion.telefono,
+                mensaje,
+                idsPendientes,
+                asunto:
+                  ultimoCorreoEntrante?.payload?.asunto ||
+                  conversacion.ultimoEvento.payload?.asunto,
+                messageIdAnterior: ultimoCorreoEntrante?.message_id,
+              }
+            : {
+                telefono: conversacion.telefono,
+                mensaje,
+                idsPendientes,
+                phoneNumberId: conversacion.canalPhoneNumberId,
+              }
+        ),
+      }
+    );
 
     if (!respuesta.ok) {
       const data = await respuesta.json().catch(() => ({}));
@@ -656,11 +755,11 @@ export default function AdminWhatsappPage() {
             </p>
 
             <h1 className="mt-1 text-2xl font-black text-maruxa-chocolate md:text-3xl">
-              WhatsApp Business
+              Mensajes
             </h1>
 
             <p className="mt-1 max-w-2xl text-xs font-bold text-maruxa-cafe/70">
-              Bandeja para ver y responder los mensajes que llegan por el numero conectado a Meta.
+              Bandeja unificada para WhatsApp, Instagram y contacto@panaderiamaruxa.cl.
             </p>
           </div>
 
@@ -686,7 +785,7 @@ export default function AdminWhatsappPage() {
           </div>
         </div>
 
-        <div className="mt-4 grid gap-2 md:grid-cols-3">
+        <div className="mt-4 grid gap-2 md:grid-cols-4">
           {canales.map((canal) => {
             const activo = canalActivo === canal.id;
 
@@ -768,7 +867,11 @@ export default function AdminWhatsappPage() {
                   </span>
                   <span className="truncate">{textoMensaje(evento)}</span>
                   <span className="col-span-2 truncate text-[10px] font-black text-maruxa-rojo sm:col-span-1">
-                    {evento.origen === 'instagram' ? 'Instagram' : evento.telefono || 'Sin telefono'}
+                    {evento.origen === 'correo'
+                       ? 'Correo'
+                       : evento.origen === 'instagram'
+                         ? 'Instagram'
+                         : evento.telefono || 'Sin telefono'}
                   </span>
                 </button>
               ))
@@ -805,6 +908,7 @@ export default function AdminWhatsappPage() {
                     const activo = conversacion.clave === conversacionActiva?.clave;
                     const esPedido = conversacion.ultimoEvento.tipo === 'order';
                     const esInstagram = conversacion.ultimoEvento.origen === 'instagram';
+                    const esCorreo = conversacion.ultimoEvento.origen === 'correo';
 
                     return (
                       <button
@@ -821,6 +925,8 @@ export default function AdminWhatsappPage() {
                           className={`grid h-8 w-8 place-items-center rounded-full ${
                             activo
                               ? 'bg-white/15'
+                              : esCorreo
+                                ? 'bg-sky-50 text-sky-700'
                               : esInstagram
                                 ? 'bg-pink-50 text-pink-700'
                                 : esPedido
@@ -830,6 +936,8 @@ export default function AdminWhatsappPage() {
                         >
                           {esPedido ? (
                             <ShoppingBag className="h-3.5 w-3.5" />
+                          ) : esCorreo ? (
+                            <Mail className="h-3.5 w-3.5" />
                           ) : (
                             <MessageCircle className="h-3.5 w-3.5" />
                           )}
@@ -876,11 +984,13 @@ export default function AdminWhatsappPage() {
                         {conversacionActiva.nombre}
                       </h2>
                       <p className="text-xs font-bold text-maruxa-cafe/65">
-                        {conversacionActiva.ultimoEvento.origen === 'instagram'
+                        {conversacionActiva.ultimoEvento.origen === 'correo'
+                          ? conversacionActiva.telefono
+                          : conversacionActiva.ultimoEvento.origen === 'instagram'
                           ? 'Instagram'
                           : conversacionActiva.telefono}
                       </p>
-                      {conversacionActiva.ultimoEvento.origen !== 'instagram' && (
+                      {conversacionActiva.ultimoEvento.origen === 'whatsapp' && (
                         <p className="mt-0.5 text-[10px] font-black uppercase tracking-wide text-maruxa-rojo">
                           Recibido en {conversacionActiva.canalTelefono || conversacionActiva.canalEtiqueta}
                         </p>
@@ -904,6 +1014,7 @@ export default function AdminWhatsappPage() {
                     {conversacionActiva.eventos.map((evento) => {
                       const esPedido = evento.tipo === 'order';
                       const esInstagram = evento.origen === 'instagram';
+                      const esCorreo = evento.origen === 'correo';
                       const propio = esMensajePropio(evento);
                       const pendiente = estaPendiente(evento);
 
@@ -916,6 +1027,8 @@ export default function AdminWhatsappPage() {
                             className={`max-w-[min(620px,92%)] rounded-xl px-3 py-2 shadow-sm ${
                               propio
                                 ? 'bg-[#A51F2B] text-white'
+                                : esCorreo
+                                ? 'bg-sky-50 text-maruxa-chocolate'
                                 : esInstagram
                                 ? 'bg-pink-50 text-maruxa-chocolate'
                                 : esPedido
@@ -930,6 +1043,8 @@ export default function AdminWhatsappPage() {
                                 className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase ${
                                   propio || esPedido
                                     ? 'bg-white/15 text-white'
+                                    : esCorreo
+                                      ? 'bg-sky-100 text-sky-700'
                                     : esInstagram
                                       ? 'bg-pink-100 text-pink-700'
                                     : 'bg-maruxa-crema text-maruxa-cafe'
@@ -937,6 +1052,8 @@ export default function AdminWhatsappPage() {
                               >
                                 {propio
                                   ? 'Tu respuesta'
+                                  : evento.origen === 'correo'
+                                     ? `Correo - ${evento.payload?.asunto || '(Sin asunto)'}`
                                   : evento.origen === 'instagram'
                                     ? `Instagram - ${etiquetaTipo(evento.tipo)}`
                                     : etiquetaTipo(evento.tipo)}
@@ -990,7 +1107,7 @@ export default function AdminWhatsappPage() {
                   </div>
 
                   <footer className="border-t border-maruxa-rojo/10 bg-white p-3">
-                    {conversacionActiva.ultimoEvento.origen !== 'instagram' && (
+                    {conversacionActiva.ultimoEvento.origen === 'whatsapp' && (
                       <div className="mb-2 flex flex-wrap items-center gap-2">
                         <span className="text-[10px] font-black uppercase tracking-wider text-maruxa-cafe/55">
                           Respuestas rapidas
@@ -1030,7 +1147,11 @@ export default function AdminWhatsappPage() {
                             [conversacionActiva.clave]: e.target.value,
                           }))
                         }
-                        placeholder="Escribe un mensaje"
+                        placeholder={
+                          conversacionActiva.ultimoEvento.origen === 'correo'
+                            ? 'Escribe una respuesta por correo'
+                            : 'Escribe un mensaje'
+                        }
                         disabled={conversacionActiva.ultimoEvento.origen === 'instagram'}
                         className="min-h-10 w-full min-w-0 resize-y rounded-lg border border-maruxa-rojo/10 bg-maruxa-crema p-2.5 text-xs font-bold leading-5 text-maruxa-chocolate outline-none"
                       />
@@ -1062,7 +1183,7 @@ export default function AdminWhatsappPage() {
                       No hay conversaciones.
                     </p>
                     <p className="mt-2 font-bold text-maruxa-cafe/70">
-                      Cuando llegue un mensaje al WhatsApp conectado aparecera aqui.
+                      Cuando llegue un mensaje o correo aparecera aqui.
                     </p>
                   </div>
                 </div>

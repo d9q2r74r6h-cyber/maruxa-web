@@ -35,7 +35,7 @@ const grupos: {
     label: 'Comercial',
     items: [
       { label: 'Pedidos', href: '/admin/pedidos', modulo: 'pedidos' },
-      { label: 'WhatsApp Business', href: '/admin/whatsapp', modulo: 'whatsapp' },
+      { label: 'Mensajes', href: '/admin/whatsapp', modulo: 'whatsapp' },
       { label: 'Documentos tributarios', href: '/admin/documentos', modulo: 'documentos' },
       { label: 'Clientes', href: '/admin/clientes', modulo: 'clientes' },
       { label: 'Repartos mensuales', href: '/admin/repartos', modulo: 'repartos' },
@@ -159,6 +159,14 @@ export function AdminMenu() {
         .order('created_at', { ascending: false })
         .limit(100);
 
+      const { data: correoData } = await supabase
+        .from('correo_eventos')
+        .select('id,estado,created_at,remitente,direccion')
+        .eq('empresa_id', perfil.empresa_id)
+        .eq('direccion', 'entrante')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
       const pendientesWhatsapp = (data || []).filter(
         (evento) =>
           evento.estado !== 'respondido' &&
@@ -171,18 +179,39 @@ export function AdminMenu() {
           evento.estado !== 'leido' &&
           evento.estado !== 'informativo'
       );
+      const pendientesCorreo = (correoData || []).filter(
+        (evento) =>
+          evento.estado !== 'respondido' &&
+          evento.estado !== 'leido'
+      );
       const totalPendientes =
-        pendientesWhatsapp.length + pendientesInstagram.length;
-      const ultimoWhatsapp = pendientesWhatsapp[0];
-      const ultimoInstagram = pendientesInstagram[0];
-      const ultimoEsInstagram =
-        ultimoInstagram &&
-        (!ultimoWhatsapp ||
-          new Date(ultimoInstagram.created_at).getTime() >
-            new Date(ultimoWhatsapp.created_at).getTime());
-      const ultimoEvento = ultimoEsInstagram ? ultimoInstagram : ultimoWhatsapp;
+        pendientesWhatsapp.length +
+        pendientesInstagram.length +
+        pendientesCorreo.length;
+      const candidatos = [
+        ...pendientesWhatsapp.map((evento) => ({
+          ...evento,
+          origen: 'whatsapp' as const,
+          remitente: evento.telefono || 'WhatsApp',
+        })),
+        ...pendientesInstagram.map((evento) => ({
+          ...evento,
+          origen: 'instagram' as const,
+          remitente: evento.sender_id || 'Instagram',
+        })),
+        ...pendientesCorreo.map((evento) => ({
+          ...evento,
+          origen: 'correo' as const,
+          remitente: evento.remitente || 'Correo',
+        })),
+      ].sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() -
+          new Date(a.created_at).getTime()
+      );
+      const ultimoEvento = candidatos[0];
       const ultimoEventoClave = ultimoEvento
-        ? `${ultimoEsInstagram ? 'instagram' : 'whatsapp'}-${ultimoEvento.id}`
+        ? `${ultimoEvento.origen}-${ultimoEvento.id}`
         : null;
       const claveUltimoAviso = `maruxa-ultimo-aviso-${perfil.empresa_id}`;
       const ultimoEventoPersistido =
@@ -200,10 +229,13 @@ export function AdminMenu() {
         ultimoEvento &&
         pathname !== '/admin/whatsapp'
       ) {
-        const origen = ultimoEsInstagram ? 'Instagram' : 'WhatsApp';
-        const remitente = ultimoEsInstagram
-          ? ultimoInstagram?.sender_id || 'Instagram'
-          : ultimoWhatsapp?.telefono || 'WhatsApp';
+        const origen =
+          ultimoEvento.origen === 'correo'
+            ? 'Correo'
+            : ultimoEvento.origen === 'instagram'
+              ? 'Instagram'
+              : 'WhatsApp';
+        const remitente = ultimoEvento.remitente;
         const cantidadNuevos =
           pendientesPreviosRef.current === null
             ? 1
@@ -291,6 +323,26 @@ export function AdminMenu() {
           event: 'UPDATE',
           schema: 'public',
           table: 'instagram_eventos',
+          filter: `empresa_id=eq.${perfil?.empresa_id}`,
+        },
+        cargarPendientes
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'correo_eventos',
+          filter: `empresa_id=eq.${perfil?.empresa_id}`,
+        },
+        cargarPendientes
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'correo_eventos',
           filter: `empresa_id=eq.${perfil?.empresa_id}`,
         },
         cargarPendientes
@@ -464,7 +516,7 @@ export function AdminMenu() {
           {puedeVer('whatsapp') && (
             <Link
               href="/admin/whatsapp"
-              title="WhatsApp Business"
+              title="Mensajes"
               className={`relative grid h-10 w-10 place-items-center rounded-xl ${
                 pendientes > 0
                   ? 'bg-amber-100 text-amber-800'
