@@ -94,6 +94,41 @@ function correspondeAlRepartidor(
   );
 }
 
+function reconciliarFilasBorrador(filasCargadas: Fila[], filasBorrador: Fila[]) {
+  const resultado = filasBorrador.map((fila) => ({
+    ...fila,
+    dias: { ...fila.dias },
+  }));
+  const porClienteId = new Map(
+    resultado
+      .filter((fila) => fila.cliente_id)
+      .map((fila) => [fila.cliente_id as string, fila])
+  );
+  const porSigla = new Map(resultado.map((fila) => [fila.sigla, fila]));
+
+  filasCargadas.forEach((filaCargada) => {
+    const existente =
+      (filaCargada.cliente_id
+        ? porClienteId.get(filaCargada.cliente_id)
+        : undefined) || porSigla.get(filaCargada.sigla);
+
+    if (!existente) {
+      const nueva = { ...filaCargada, dias: { ...filaCargada.dias } };
+      resultado.push(nueva);
+      porSigla.set(nueva.sigla, nueva);
+      if (nueva.cliente_id) porClienteId.set(nueva.cliente_id, nueva);
+      return;
+    }
+
+    existente.cliente_id = filaCargada.cliente_id;
+    existente.sigla = filaCargada.sigla;
+    existente.nombre = filaCargada.nombre;
+    if (!existente.precio) existente.precio = filaCargada.precio;
+  });
+
+  return resultado;
+}
+
 function kilos(valor: unknown) {
   return Math.max(0, numero(valor));
 }
@@ -508,7 +543,11 @@ export default function RepartosPage() {
     });
 
     const borrador = leerBorradorPlanilla(planillaData.id);
-    setFilas(borrador?.filas || filasCargadas);
+    setFilas(
+      borrador
+        ? reconciliarFilasBorrador(filasCargadas, borrador.filas)
+        : filasCargadas
+    );
     setAbonos(borrador?.abonos || abonosPorDia);
     if (borrador) setSaldoInicial(Number(borrador.saldoInicial || 0));
     setCargando(false);
