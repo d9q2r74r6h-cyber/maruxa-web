@@ -194,7 +194,7 @@ export default function AlertasPage() {
         const fecha = fechaPorPlanillaRinde.get(String(detalle.planilla_id));
         if (!fecha) return;
         const nombre = nombreRepartidorRinde(detalle.nombre_producto || '');
-        if (!nombre) return;
+        if (!nombre || normalizar(nombre).startsWith('merma')) return;
         const clave = claveRepartidor(nombre);
         obtenerDia(clave, nombre, fecha).rinde += numero(detalle.kilos_total);
       });
@@ -255,6 +255,14 @@ export default function AlertasPage() {
       a.nombre.localeCompare(b.nombre, 'es')
     );
   }, [registros]);
+
+  const alertasConDiferencia = useMemo(
+    () =>
+      registros.filter(
+        (dia) => Math.abs(dia.rinde - dia.repartos) > 0.01
+      ),
+    [registros]
+  );
 
   return (
     <div className="space-y-6 pb-12">
@@ -373,9 +381,9 @@ export default function AlertasPage() {
           </div>
         ) : error ? (
           <p className="p-6 text-sm font-bold text-red-700">{error}</p>
-        ) : registros.length === 0 ? (
+        ) : alertasConDiferencia.length === 0 ? (
           <p className="p-8 text-center text-sm font-semibold text-[#4B2818]/60">
-            No hay kilos registrados en Rinde ni en Repartos para este mes.
+            No hay diferencias entre Rinde y Repartos para este mes.
           </p>
         ) : (
           <div className="overflow-x-auto">
@@ -391,7 +399,7 @@ export default function AlertasPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#4B2818]/10">
-                {registros.map((dia) => {
+                {alertasConDiferencia.map((dia) => {
                   const diferencia = dia.rinde - dia.repartos;
                   return (
                     <tr key={`${dia.claveRepartidor}-${dia.fecha}`}>
