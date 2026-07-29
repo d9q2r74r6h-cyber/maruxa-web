@@ -17,7 +17,6 @@ type ComparativoDia = {
   fecha: string;
   rinde: number;
   repartos: number;
-  devueltos: number;
 };
 
 function mesActual() {
@@ -151,7 +150,7 @@ export default function AlertasPage() {
         idsPlanillasReparto.length
           ? supabase
             .from('reparto_planilla_detalles')
-            .select('planilla_id,fecha,kilos_vendidos,kilos_devueltos')
+            .select('planilla_id,fecha,kilos_vendidos')
             .in('planilla_id', idsPlanillasReparto)
             .gte('fecha', inicio)
             .lte('fecha', fin)
@@ -184,7 +183,6 @@ export default function AlertasPage() {
           fecha,
           rinde: 0,
           repartos: 0,
-          devueltos: 0,
         };
         porRepartidorFecha.set(llave, nuevo);
         return nuevo;
@@ -209,7 +207,6 @@ export default function AlertasPage() {
           detalle.fecha
         );
         dia.repartos += numero(detalle.kilos_vendidos);
-        dia.devueltos += numero(detalle.kilos_devueltos);
       });
 
       setRegistros(
@@ -233,7 +230,6 @@ export default function AlertasPage() {
         nombre: string;
         rinde: number;
         repartos: number;
-        devueltos: number;
       }
     >();
 
@@ -243,11 +239,9 @@ export default function AlertasPage() {
         nombre: dia.repartidor,
         rinde: 0,
         repartos: 0,
-        devueltos: 0,
       };
       actual.rinde += dia.rinde;
       actual.repartos += dia.repartos;
-      actual.devueltos += dia.devueltos;
       porRepartidor.set(dia.claveRepartidor, actual);
     });
 
@@ -323,7 +317,7 @@ export default function AlertasPage() {
             <p className="font-black text-[#2A1710]">
               {repartidor.nombre}
             </p>
-            <div className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+            <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
               <div>
                 <p className="text-xs font-black uppercase text-[#4B2818]/50">
                   Rinde
@@ -336,14 +330,6 @@ export default function AlertasPage() {
                 </p>
                 <p className="font-black">
                   {formatoKilos(repartidor.repartos)}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-black uppercase text-[#4B2818]/50">
-                  Devueltos
-                </p>
-                <p className="font-black">
-                  {formatoKilos(repartidor.devueltos)}
                 </p>
               </div>
               <div>
@@ -394,7 +380,6 @@ export default function AlertasPage() {
                   <th className="px-5 py-3 text-left">Fecha</th>
                   <th className="px-3 py-3 text-right">Rinde</th>
                   <th className="px-3 py-3 text-right">Repartos</th>
-                  <th className="px-3 py-3 text-right">Devueltos</th>
                   <th className="px-5 py-3 text-right">Diferencia</th>
                 </tr>
               </thead>
@@ -414,9 +399,6 @@ export default function AlertasPage() {
                       </td>
                       <td className="px-3 py-3 text-right">
                         {formatoKilos(dia.repartos)}
-                      </td>
-                      <td className="px-3 py-3 text-right text-[#4B2818]/65">
-                        {formatoKilos(dia.devueltos)}
                       </td>
                       <td
                         className={`px-5 py-3 text-right font-black ${
