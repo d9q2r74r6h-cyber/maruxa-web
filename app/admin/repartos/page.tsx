@@ -282,6 +282,7 @@ export default function RepartosPage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [filas, setFilas] = useState<Fila[]>([]);
   const [abonos, setAbonos] = useState<Record<number, number>>({});
+  const [cambiosPendientes, setCambiosPendientes] = useState(false);
   const [planilla, setPlanilla] = useState<Planilla | null>(null);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
@@ -298,6 +299,33 @@ export default function RepartosPage() {
     setFilas([]);
     setAbonos({});
     setSaldoInicial(0);
+    setCambiosPendientes(false);
+  }
+
+  function guardarBorradorActual() {
+    if (!planilla || typeof window === 'undefined') return;
+
+    const borrador: BorradorPlanilla = {
+      filas,
+      abonos,
+      saldoInicial,
+      actualizadoEn: new Date().toISOString(),
+    };
+
+    try {
+      window.localStorage.setItem(
+        claveBorradorPlanilla(planilla.id),
+        JSON.stringify(borrador)
+      );
+    } catch {
+      // La advertencia al abandonar sigue protegiendo si no hay almacenamiento local.
+    }
+  }
+
+  function cambiarContexto(accion: () => void) {
+    if (cambiosPendientes) guardarBorradorActual();
+    accion();
+    limpiarPlanillaAbierta();
   }
 
   async function cargarBase() {
@@ -550,6 +578,7 @@ export default function RepartosPage() {
     );
     setAbonos(borrador?.abonos || abonosPorDia);
     if (borrador) setSaldoInicial(Number(borrador.saldoInicial || 0));
+    setCambiosPendientes(Boolean(borrador));
     setCargando(false);
   }
 
@@ -559,7 +588,14 @@ export default function RepartosPage() {
   }, [perfil, anio, mes, repartidor, repartidorId, clientes]);
 
   useEffect(() => {
-    if (!planilla || cargando || typeof window === 'undefined') return;
+    if (
+      !planilla ||
+      cargando ||
+      !cambiosPendientes ||
+      typeof window === 'undefined'
+    ) {
+      return;
+    }
 
     const borrador: BorradorPlanilla = {
       filas,
@@ -575,7 +611,59 @@ export default function RepartosPage() {
     } catch {
       // La planilla sigue operativa aunque el navegador no permita almacenamiento local.
     }
-  }, [abonos, cargando, filas, planilla, saldoInicial]);
+  }, [
+    abonos,
+    cambiosPendientes,
+    cargando,
+    filas,
+    planilla,
+    saldoInicial,
+  ]);
+
+  useEffect(() => {
+    if (!cambiosPendientes) return;
+
+    function advertirCierre(event: BeforeUnloadEvent) {
+      guardarBorradorActual();
+      event.preventDefault();
+      event.returnValue = '';
+    }
+
+    function advertirNavegacion(event: MouseEvent) {
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return;
+      }
+
+      const enlace = (event.target as Element | null)?.closest('a[href]');
+      if (!enlace || enlace.getAttribute('target') === '_blank') return;
+
+      const destino = new URL(enlace.getAttribute('href') || '', window.location.href);
+      if (destino.href === window.location.href) return;
+
+      guardarBorradorActual();
+      const salir = window.confirm(
+        'Hay cambios pendientes sin guardar en la base de datos. El borrador quedó respaldado solo en este equipo. ¿Quieres salir de Repartos?'
+      );
+      if (!salir) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    }
+
+    window.addEventListener('beforeunload', advertirCierre);
+    document.addEventListener('click', advertirNavegacion, true);
+    return () => {
+      window.removeEventListener('beforeunload', advertirCierre);
+      document.removeEventListener('click', advertirNavegacion, true);
+    };
+  }, [abonos, cambiosPendientes, filas, planilla, saldoInicial]);
 
   function actualizarCelda(
     filaKey: string,
@@ -583,6 +671,7 @@ export default function RepartosPage() {
     campo: 'vendidos' | 'devueltos' | 'ajuste',
     valor: string
   ) {
+    setCambiosPendientes(true);
     setFilas((actuales) =>
       actuales.map((fila) => {
         if (fila.key !== filaKey) return fila;
@@ -602,6 +691,7 @@ export default function RepartosPage() {
   }
 
   function actualizarPrecio(filaKey: string, valor: string) {
+    setCambiosPendientes(true);
     setFilas((actuales) =>
       actuales.map((fila) =>
         fila.key === filaKey ? { ...fila, precio: numero(valor) } : fila
@@ -806,6 +896,7 @@ export default function RepartosPage() {
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem(claveBorradorPlanilla(planilla.id));
     }
+    setCambiosPendientes(false);
     setGuardando(false);
     alert('Planilla guardada.');
   }
@@ -835,6 +926,17 @@ export default function RepartosPage() {
           </p>
         </div>
 
+        <div
+          className={`inline-flex w-fit items-center rounded-full px-3 py-1.5 text-xs font-black ${
+            cambiosPendientes
+              ? 'bg-amber-100 text-amber-800'
+              : 'bg-emerald-100 text-emerald-700'
+          }`}
+        >
+          {cambiosPendientes
+            ? 'Cambios pendientes · borrador en este equipo'
+            : 'Guardado'}
+        </div>
       </header>
 
       <nav className="flex overflow-x-auto rounded-lg border border-[#4B2818]/15 bg-white p-1">
@@ -847,8 +949,7 @@ export default function RepartosPage() {
               key={nombre}
               type="button"
               onClick={() => {
-                setMes(numeroMes);
-                limpiarPlanillaAbierta();
+                cambiarContexto(() => setMes(numeroMes));
               }}
               className={`min-w-max flex-1 rounded-md px-3 py-2 text-xs font-black transition ${
                 activo
@@ -868,8 +969,8 @@ export default function RepartosPage() {
           <select
             value={anio}
             onChange={(e) => {
-              setAnio(Number(e.target.value));
-              limpiarPlanillaAbierta();
+              const siguienteAnio = Number(e.target.value);
+              cambiarContexto(() => setAnio(siguienteAnio));
             }}
             className="h-10 rounded-md border border-[#4B2818]/20 px-3 font-bold"
           >
@@ -889,9 +990,11 @@ export default function RepartosPage() {
               const seleccionado = funcionarios.find(
                 (item) => item.nombre_completo === e.target.value
               );
-              setRepartidor(e.target.value);
-              setRepartidorId(seleccionado?.id || null);
-              limpiarPlanillaAbierta();
+              const siguienteRepartidor = e.target.value;
+              cambiarContexto(() => {
+                setRepartidor(siguienteRepartidor);
+                setRepartidorId(seleccionado?.id || null);
+              });
             }}
             className="h-10 rounded-md border border-[#4B2818]/20 px-3 font-bold"
           >
@@ -909,7 +1012,10 @@ export default function RepartosPage() {
           <input
             type="number"
             value={saldoInicial || ''}
-            onChange={(e) => setSaldoInicial(numero(e.target.value))}
+            onChange={(e) => {
+              setCambiosPendientes(true);
+              setSaldoInicial(numero(e.target.value));
+            }}
             className="sin-spinner h-10 rounded-md border border-[#4B2818]/20 px-3 font-bold"
           />
         </label>
@@ -1133,12 +1239,13 @@ export default function RepartosPage() {
                           type="number"
                           data-columna={`${dia}-abono`}
                           value={abonos[dia] || ''}
-                          onChange={(e) =>
+                          onChange={(e) => {
+                            setCambiosPendientes(true);
                             setAbonos((actual) => ({
                               ...actual,
                               [dia]: numero(e.target.value),
-                            }))
-                          }
+                            }));
+                          }}
                           onKeyDown={moverEnGrilla}
                           className="sin-spinner h-8 w-28 rounded border border-emerald-200 bg-white px-2 text-right font-bold text-emerald-800"
                         />
