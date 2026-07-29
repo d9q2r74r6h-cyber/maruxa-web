@@ -1140,9 +1140,7 @@ export default function RepartosPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="sticky left-[170px] z-[5] w-[104px] min-w-[104px] max-w-[104px] border-l border-[#4B2818]/10 bg-white px-2 py-1 text-center font-bold capitalize text-[#4B2818]/65">
-                      {mesesDelAnio[mes - 1]} {anio}
-                    </td>
+                    <td className="sticky left-[170px] z-[5] w-[104px] min-w-[104px] max-w-[104px] border-l border-[#4B2818]/10 bg-white" />
                     <td className="sticky left-[274px] z-[5] w-[72px] min-w-[72px] max-w-[72px] bg-white px-1 py-1">
                       <input
                         type="number"
