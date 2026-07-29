@@ -12,8 +12,10 @@ import { useAdminSession } from '@/components/AdminSession';
 import { supabase } from '@/lib/supabase';
 
 type ComparativoDia = {
+  claveRepartidor: string;
+  repartidor: string;
   fecha: string;
-  tapiaRinde: number;
+  rinde: number;
   repartos: number;
   devueltos: number;
 };
@@ -26,6 +28,29 @@ function mesActual() {
 function numero(valor: unknown) {
   const resultado = Number(valor || 0);
   return Number.isFinite(resultado) ? resultado : 0;
+}
+
+function normalizar(valor: string | null | undefined) {
+  return String(valor || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function claveRepartidor(nombre: string) {
+  const limpio = nombre.trim();
+  const partes = normalizar(limpio).split(/\s+/).filter(Boolean);
+  if (partes.length >= 4) return partes[partes.length - 2];
+  if (partes.length >= 2) return partes[partes.length - 1];
+  return partes[0] || 'sin-repartidor';
+}
+
+function nombreRepartidorRinde(nombreDetalle: string) {
+  let nombre = nombreDetalle.replace(/\s*\[turno:\d+\]\s*$/i, '').trim();
+  const separadorTurno = nombre.lastIndexOf(' - ');
+  if (separadorTurno > -1) nombre = nombre.slice(0, separadorTurno).trim();
+  return nombre;
 }
 
 function formatoKilos(valor: number) {
@@ -73,7 +98,7 @@ export default function AlertasPage() {
           .eq('empresa_id', perfil.empresa_id)
           .eq('anio', anio)
           .eq('mes', numeroMes)
-          .ilike('repartidor_nombre', '%tapia%'),
+          .order('repartidor_nombre'),
       ]);
 
       if (planillasRindeResp.error || planillasRepartoResp.error) {
@@ -99,6 +124,21 @@ export default function AlertasPage() {
       const idsPlanillasReparto = (planillasRepartoResp.data || []).map(
         (planilla) => planilla.id
       );
+      const repartidorPorPlanilla = new Map(
+        (planillasRepartoResp.data || []).map((planilla) => [
+          String(planilla.id),
+          {
+            clave: claveRepartidor(planilla.repartidor_nombre),
+            nombre: planilla.repartidor_nombre,
+          },
+        ])
+      );
+      const nombresPorClave = new Map(
+        (planillasRepartoResp.data || []).map((planilla) => [
+          claveRepartidor(planilla.repartidor_nombre),
+          planilla.repartidor_nombre,
+        ])
+      );
 
       const [detallesRindeResp, detallesRepartoResp] = await Promise.all([
         idsPlanillasRinde.length
@@ -107,12 +147,11 @@ export default function AlertasPage() {
               .select('planilla_id,nombre_producto,kilos_total,producto_id')
               .in('planilla_id', idsPlanillasRinde)
               .is('producto_id', null)
-              .ilike('nombre_producto', '%tapia%')
           : Promise.resolve({ data: [], error: null }),
         idsPlanillasReparto.length
           ? supabase
             .from('reparto_planilla_detalles')
-            .select('fecha,kilos_vendidos,kilos_devueltos')
+            .select('planilla_id,fecha,kilos_vendidos,kilos_devueltos')
             .in('planilla_id', idsPlanillasReparto)
             .gte('fecha', inicio)
             .lte('fecha', fin)
@@ -130,35 +169,54 @@ export default function AlertasPage() {
         return;
       }
 
-      const porFecha = new Map<string, ComparativoDia>();
-      const obtenerDia = (fecha: string) => {
-        const existente = porFecha.get(fecha);
+      const porRepartidorFecha = new Map<string, ComparativoDia>();
+      const obtenerDia = (
+        clave: string,
+        nombre: string,
+        fecha: string
+      ) => {
+        const llave = `${clave}::${fecha}`;
+        const existente = porRepartidorFecha.get(llave);
         if (existente) return existente;
         const nuevo = {
+          claveRepartidor: clave,
+          repartidor: nombresPorClave.get(clave) || nombre,
           fecha,
-          tapiaRinde: 0,
+          rinde: 0,
           repartos: 0,
           devueltos: 0,
         };
-        porFecha.set(fecha, nuevo);
+        porRepartidorFecha.set(llave, nuevo);
         return nuevo;
       };
 
       (detallesRindeResp.data || []).forEach((detalle: any) => {
         const fecha = fechaPorPlanillaRinde.get(String(detalle.planilla_id));
         if (!fecha) return;
-        obtenerDia(fecha).tapiaRinde += numero(detalle.kilos_total);
+        const nombre = nombreRepartidorRinde(detalle.nombre_producto || '');
+        if (!nombre) return;
+        const clave = claveRepartidor(nombre);
+        obtenerDia(clave, nombre, fecha).rinde += numero(detalle.kilos_total);
       });
 
       (detallesRepartoResp.data || []).forEach((detalle: any) => {
         if (!detalle.fecha) return;
-        obtenerDia(detalle.fecha).repartos += numero(detalle.kilos_vendidos);
-        obtenerDia(detalle.fecha).devueltos += numero(detalle.kilos_devueltos);
+        const planilla = repartidorPorPlanilla.get(String(detalle.planilla_id));
+        if (!planilla) return;
+        const dia = obtenerDia(
+          planilla.clave,
+          planilla.nombre,
+          detalle.fecha
+        );
+        dia.repartos += numero(detalle.kilos_vendidos);
+        dia.devueltos += numero(detalle.kilos_devueltos);
       });
 
       setRegistros(
-        Array.from(porFecha.values()).sort((a, b) =>
-          a.fecha.localeCompare(b.fecha)
+        Array.from(porRepartidorFecha.values()).sort(
+          (a, b) =>
+            a.repartidor.localeCompare(b.repartidor, 'es') ||
+            a.fecha.localeCompare(b.fecha)
         )
       );
       setCargando(false);
@@ -168,21 +226,34 @@ export default function AlertasPage() {
   }, [mes, perfil?.empresa_id]);
 
   const resumen = useMemo(() => {
-    const tapiaRinde = registros.reduce(
-      (total, dia) => total + dia.tapiaRinde,
-      0
+    const porRepartidor = new Map<
+      string,
+      {
+        clave: string;
+        nombre: string;
+        rinde: number;
+        repartos: number;
+        devueltos: number;
+      }
+    >();
+
+    registros.forEach((dia) => {
+      const actual = porRepartidor.get(dia.claveRepartidor) || {
+        clave: dia.claveRepartidor,
+        nombre: dia.repartidor,
+        rinde: 0,
+        repartos: 0,
+        devueltos: 0,
+      };
+      actual.rinde += dia.rinde;
+      actual.repartos += dia.repartos;
+      actual.devueltos += dia.devueltos;
+      porRepartidor.set(dia.claveRepartidor, actual);
+    });
+
+    return Array.from(porRepartidor.values()).sort((a, b) =>
+      a.nombre.localeCompare(b.nombre, 'es')
     );
-    const repartos = registros.reduce((total, dia) => total + dia.repartos, 0);
-    const devueltos = registros.reduce(
-      (total, dia) => total + dia.devueltos,
-      0
-    );
-    return {
-      tapiaRinde,
-      repartos,
-      devueltos,
-      diferencia: tapiaRinde - repartos,
-    };
   }, [registros]);
 
   return (
@@ -196,8 +267,8 @@ export default function AlertasPage() {
             Centro de alertas
           </h1>
           <p className="mt-2 max-w-2xl text-sm font-semibold text-[#4B2818]/65">
-            Compara los kilos asignados a Tapia en la planilla de Rinde con
-            los kilos ingresados en la planilla mensual de Tapia.
+            Compara los kilos asignados a cada reparto en la planilla de Rinde
+            con los kilos ingresados en sus planillas mensuales.
           </p>
         </div>
         <label className="grid gap-1 text-xs font-black text-[#4B2818]">
@@ -229,38 +300,70 @@ export default function AlertasPage() {
         </Link>
       )}
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          ['Tapia · Rinde', resumen.tapiaRinde, 'bg-white'],
-          ['Tapia · Repartos', resumen.repartos, 'bg-white'],
-          ['Devoluciones', resumen.devueltos, 'bg-white'],
-          [
-            'Diferencia',
-            resumen.diferencia,
-            Math.abs(resumen.diferencia) > 0.01
-              ? 'border-amber-300 bg-amber-50'
-              : 'border-emerald-300 bg-emerald-50',
-          ],
-        ].map(([etiqueta, valor, clase]) => (
+      <section className="grid gap-3 md:grid-cols-2">
+        {resumen.map((repartidor) => {
+          const diferencia = repartidor.rinde - repartidor.repartos;
+          return (
           <div
-            key={String(etiqueta)}
-            className={`rounded-lg border border-[#4B2818]/15 p-4 ${clase}`}
+            key={repartidor.clave}
+            className={`rounded-lg border p-4 ${
+              Math.abs(diferencia) > 0.01
+                ? 'border-amber-300 bg-amber-50'
+                : 'border-emerald-300 bg-emerald-50'
+            }`}
           >
-            <p className="text-xs font-black uppercase text-[#4B2818]/55">
-              {etiqueta}
+            <p className="font-black text-[#2A1710]">
+              {repartidor.nombre}
             </p>
-            <p className="mt-1 text-2xl font-black text-[#2A1710]">
-              {formatoKilos(Number(valor))}
-            </p>
+            <div className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+              <div>
+                <p className="text-xs font-black uppercase text-[#4B2818]/50">
+                  Rinde
+                </p>
+                <p className="font-black">{formatoKilos(repartidor.rinde)}</p>
+              </div>
+              <div>
+                <p className="text-xs font-black uppercase text-[#4B2818]/50">
+                  Repartos
+                </p>
+                <p className="font-black">
+                  {formatoKilos(repartidor.repartos)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-black uppercase text-[#4B2818]/50">
+                  Devueltos
+                </p>
+                <p className="font-black">
+                  {formatoKilos(repartidor.devueltos)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-black uppercase text-[#4B2818]/50">
+                  Diferencia
+                </p>
+                <p
+                  className={`font-black ${
+                    Math.abs(diferencia) > 0.01
+                      ? 'text-amber-800'
+                      : 'text-emerald-700'
+                  }`}
+                >
+                  {diferencia > 0 ? '+' : ''}
+                  {formatoKilos(diferencia)}
+                </p>
+              </div>
+            </div>
           </div>
-        ))}
+          );
+        })}
       </section>
 
       <section className="overflow-hidden rounded-lg border border-[#4B2818]/15 bg-white">
         <div className="flex items-center gap-2 border-b border-[#4B2818]/10 bg-[#FFF3DF] px-5 py-4">
           <Scale className="h-5 w-5 text-[#A51F2B]" />
           <h2 className="font-black text-[#2A1710]">
-            Tapia Rinde vs Tapia Repartos por día
+            Rinde vs Repartos por día
           </h2>
         </div>
 
@@ -272,31 +375,34 @@ export default function AlertasPage() {
           <p className="p-6 text-sm font-bold text-red-700">{error}</p>
         ) : registros.length === 0 ? (
           <p className="p-8 text-center text-sm font-semibold text-[#4B2818]/60">
-            No hay kilos de Tapia registrados en Rinde ni en Repartos para
-            este mes.
+            No hay kilos registrados en Rinde ni en Repartos para este mes.
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[620px] text-sm">
+            <table className="w-full min-w-[760px] text-sm">
               <thead className="border-b border-[#4B2818]/10 text-xs uppercase text-[#4B2818]/60">
                 <tr>
+                  <th className="px-5 py-3 text-left">Reparto</th>
                   <th className="px-5 py-3 text-left">Fecha</th>
-                  <th className="px-3 py-3 text-right">Tapia · Rinde</th>
-                  <th className="px-3 py-3 text-right">Tapia · Repartos</th>
+                  <th className="px-3 py-3 text-right">Rinde</th>
+                  <th className="px-3 py-3 text-right">Repartos</th>
                   <th className="px-3 py-3 text-right">Devueltos</th>
                   <th className="px-5 py-3 text-right">Diferencia</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#4B2818]/10">
                 {registros.map((dia) => {
-                  const diferencia = dia.tapiaRinde - dia.repartos;
+                  const diferencia = dia.rinde - dia.repartos;
                   return (
-                    <tr key={dia.fecha}>
+                    <tr key={`${dia.claveRepartidor}-${dia.fecha}`}>
+                      <td className="px-5 py-3 font-black">
+                        {dia.repartidor}
+                      </td>
                       <td className="px-5 py-3 font-bold capitalize">
                         {formatoFecha(dia.fecha)}
                       </td>
                       <td className="px-3 py-3 text-right">
-                        {formatoKilos(dia.tapiaRinde)}
+                        {formatoKilos(dia.rinde)}
                       </td>
                       <td className="px-3 py-3 text-right">
                         {formatoKilos(dia.repartos)}
