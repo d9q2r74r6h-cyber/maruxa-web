@@ -13,8 +13,9 @@ import { supabase } from '@/lib/supabase';
 
 type ComparativoDia = {
   fecha: string;
-  rinde: number;
+  tapiaRinde: number;
   repartos: number;
+  devueltos: number;
 };
 
 function mesActual() {
@@ -59,31 +60,26 @@ export default function AlertasPage() {
       const inicio = `${mes}-01`;
       const fin = `${mes}-${String(new Date(anio, numeroMes, 0).getDate()).padStart(2, '0')}`;
 
-      const [rindeResp, planillasRepartoResp] = await Promise.all([
+      const [planillasRindeResp, planillasRepartoResp] = await Promise.all([
         supabase
-          .from('planilla_turnos')
-          .select(`
-            kilos,
-            planillas!inner (
-              fecha,
-              empresa_id
-            )
-          `)
-          .eq('planillas.empresa_id', perfil.empresa_id)
-          .gte('planillas.fecha', inicio)
-          .lte('planillas.fecha', fin),
+          .from('planillas')
+          .select('id,fecha')
+          .eq('empresa_id', perfil.empresa_id)
+          .gte('fecha', inicio)
+          .lte('fecha', fin),
         supabase
           .from('reparto_planillas')
-          .select('id')
+          .select('id,repartidor_nombre')
           .eq('empresa_id', perfil.empresa_id)
           .eq('anio', anio)
-          .eq('mes', numeroMes),
+          .eq('mes', numeroMes)
+          .ilike('repartidor_nombre', '%tapia%'),
       ]);
 
-      if (rindeResp.error || planillasRepartoResp.error) {
+      if (planillasRindeResp.error || planillasRepartoResp.error) {
         setRegistros([]);
         setError(
-          rindeResp.error?.message ||
+          planillasRindeResp.error?.message ||
             planillasRepartoResp.error?.message ||
             'No fue posible cargar el comparativo.'
         );
@@ -91,21 +87,45 @@ export default function AlertasPage() {
         return;
       }
 
-      const idsPlanillas = (planillasRepartoResp.data || []).map(
+      const idsPlanillasRinde = (planillasRindeResp.data || []).map(
         (planilla) => planilla.id
       );
-      const detallesResp = idsPlanillas.length
-        ? await supabase
+      const fechaPorPlanillaRinde = new Map(
+        (planillasRindeResp.data || []).map((planilla) => [
+          String(planilla.id),
+          String(planilla.fecha),
+        ])
+      );
+      const idsPlanillasReparto = (planillasRepartoResp.data || []).map(
+        (planilla) => planilla.id
+      );
+
+      const [detallesRindeResp, detallesRepartoResp] = await Promise.all([
+        idsPlanillasRinde.length
+          ? supabase
+              .from('planilla_detalles')
+              .select('planilla_id,nombre_producto,kilos_total,producto_id')
+              .in('planilla_id', idsPlanillasRinde)
+              .is('producto_id', null)
+              .ilike('nombre_producto', '%tapia%')
+          : Promise.resolve({ data: [], error: null }),
+        idsPlanillasReparto.length
+          ? supabase
             .from('reparto_planilla_detalles')
             .select('fecha,kilos_vendidos,kilos_devueltos')
-            .in('planilla_id', idsPlanillas)
+            .in('planilla_id', idsPlanillasReparto)
             .gte('fecha', inicio)
             .lte('fecha', fin)
-        : { data: [], error: null };
+          : Promise.resolve({ data: [], error: null }),
+      ]);
 
-      if (detallesResp.error) {
+      if (detallesRindeResp.error || detallesRepartoResp.error) {
         setRegistros([]);
-        setError(detallesResp.error.message);
+        setError(
+          detallesRindeResp.error?.message ||
+            detallesRepartoResp.error?.message ||
+            'No fue posible cargar el detalle de Tapia.'
+        );
         setCargando(false);
         return;
       }
@@ -114,23 +134,26 @@ export default function AlertasPage() {
       const obtenerDia = (fecha: string) => {
         const existente = porFecha.get(fecha);
         if (existente) return existente;
-        const nuevo = { fecha, rinde: 0, repartos: 0 };
+        const nuevo = {
+          fecha,
+          tapiaRinde: 0,
+          repartos: 0,
+          devueltos: 0,
+        };
         porFecha.set(fecha, nuevo);
         return nuevo;
       };
 
-      (rindeResp.data || []).forEach((registro: any) => {
-        const planilla = Array.isArray(registro.planillas)
-          ? registro.planillas[0]
-          : registro.planillas;
-        if (!planilla?.fecha) return;
-        obtenerDia(planilla.fecha).rinde += numero(registro.kilos);
+      (detallesRindeResp.data || []).forEach((detalle: any) => {
+        const fecha = fechaPorPlanillaRinde.get(String(detalle.planilla_id));
+        if (!fecha) return;
+        obtenerDia(fecha).tapiaRinde += numero(detalle.kilos_total);
       });
 
-      (detallesResp.data || []).forEach((detalle: any) => {
+      (detallesRepartoResp.data || []).forEach((detalle: any) => {
         if (!detalle.fecha) return;
-        obtenerDia(detalle.fecha).repartos +=
-          numero(detalle.kilos_vendidos) - numero(detalle.kilos_devueltos);
+        obtenerDia(detalle.fecha).repartos += numero(detalle.kilos_vendidos);
+        obtenerDia(detalle.fecha).devueltos += numero(detalle.kilos_devueltos);
       });
 
       setRegistros(
@@ -145,12 +168,20 @@ export default function AlertasPage() {
   }, [mes, perfil?.empresa_id]);
 
   const resumen = useMemo(() => {
-    const rinde = registros.reduce((total, dia) => total + dia.rinde, 0);
+    const tapiaRinde = registros.reduce(
+      (total, dia) => total + dia.tapiaRinde,
+      0
+    );
     const repartos = registros.reduce((total, dia) => total + dia.repartos, 0);
+    const devueltos = registros.reduce(
+      (total, dia) => total + dia.devueltos,
+      0
+    );
     return {
-      rinde,
+      tapiaRinde,
       repartos,
-      diferencia: rinde - repartos,
+      devueltos,
+      diferencia: tapiaRinde - repartos,
     };
   }, [registros]);
 
@@ -165,8 +196,8 @@ export default function AlertasPage() {
             Centro de alertas
           </h1>
           <p className="mt-2 max-w-2xl text-sm font-semibold text-[#4B2818]/65">
-            Compara los kilos producidos en Rinde con los kilos netos de
-            Repartos (vendidos menos devueltos).
+            Compara los kilos asignados a Tapia en la planilla de Rinde con
+            los kilos ingresados en la planilla mensual de Tapia.
           </p>
         </div>
         <label className="grid gap-1 text-xs font-black text-[#4B2818]">
@@ -198,10 +229,11 @@ export default function AlertasPage() {
         </Link>
       )}
 
-      <section className="grid gap-3 sm:grid-cols-3">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          ['Rinde', resumen.rinde, 'bg-white'],
-          ['Repartos netos', resumen.repartos, 'bg-white'],
+          ['Tapia · Rinde', resumen.tapiaRinde, 'bg-white'],
+          ['Tapia · Repartos', resumen.repartos, 'bg-white'],
+          ['Devoluciones', resumen.devueltos, 'bg-white'],
           [
             'Diferencia',
             resumen.diferencia,
@@ -228,7 +260,7 @@ export default function AlertasPage() {
         <div className="flex items-center gap-2 border-b border-[#4B2818]/10 bg-[#FFF3DF] px-5 py-4">
           <Scale className="h-5 w-5 text-[#A51F2B]" />
           <h2 className="font-black text-[#2A1710]">
-            Rinde vs Repartos por día
+            Tapia Rinde vs Tapia Repartos por día
           </h2>
         </div>
 
@@ -240,7 +272,8 @@ export default function AlertasPage() {
           <p className="p-6 text-sm font-bold text-red-700">{error}</p>
         ) : registros.length === 0 ? (
           <p className="p-8 text-center text-sm font-semibold text-[#4B2818]/60">
-            No hay kilos registrados en Rinde ni en Repartos para este mes.
+            No hay kilos de Tapia registrados en Rinde ni en Repartos para
+            este mes.
           </p>
         ) : (
           <div className="overflow-x-auto">
@@ -248,24 +281,28 @@ export default function AlertasPage() {
               <thead className="border-b border-[#4B2818]/10 text-xs uppercase text-[#4B2818]/60">
                 <tr>
                   <th className="px-5 py-3 text-left">Fecha</th>
-                  <th className="px-3 py-3 text-right">Rinde</th>
-                  <th className="px-3 py-3 text-right">Repartos netos</th>
+                  <th className="px-3 py-3 text-right">Tapia · Rinde</th>
+                  <th className="px-3 py-3 text-right">Tapia · Repartos</th>
+                  <th className="px-3 py-3 text-right">Devueltos</th>
                   <th className="px-5 py-3 text-right">Diferencia</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#4B2818]/10">
                 {registros.map((dia) => {
-                  const diferencia = dia.rinde - dia.repartos;
+                  const diferencia = dia.tapiaRinde - dia.repartos;
                   return (
                     <tr key={dia.fecha}>
                       <td className="px-5 py-3 font-bold capitalize">
                         {formatoFecha(dia.fecha)}
                       </td>
                       <td className="px-3 py-3 text-right">
-                        {formatoKilos(dia.rinde)}
+                        {formatoKilos(dia.tapiaRinde)}
                       </td>
                       <td className="px-3 py-3 text-right">
                         {formatoKilos(dia.repartos)}
+                      </td>
+                      <td className="px-3 py-3 text-right text-[#4B2818]/65">
+                        {formatoKilos(dia.devueltos)}
                       </td>
                       <td
                         className={`px-5 py-3 text-right font-black ${
