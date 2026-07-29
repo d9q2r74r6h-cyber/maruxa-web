@@ -503,10 +503,10 @@ export function AdminMenu() {
         </Link>
 
         <div className="flex items-center gap-1">
-          {puedeVer('vehiculos') && (
+          {(puedeVer('vehiculos') || puedeVer('repartos')) && (
             <Link
-              href="/admin/vehiculos"
-              title={alertasVehiculos ? `${alertasVehiculos} alertas de vehículos` : 'Sin alertas de vehículos'}
+              href="/admin/alertas"
+              title={alertasVehiculos ? `${alertasVehiculos} alertas y comparativo de kilos` : 'Alertas y comparativo de kilos'}
               className={`relative grid h-10 w-10 place-items-center rounded-xl ${alertasVehiculos ? 'bg-red-100 text-red-800' : 'bg-[#FFF3DF] text-[#A51F2B]'}`}
             >
               <AlertTriangle className="h-4 w-4" />
@@ -730,10 +730,10 @@ export function AdminMenu() {
             </Link>
           )}
 
-          {puedeVer('vehiculos') && (
+          {(puedeVer('vehiculos') || puedeVer('repartos')) && (
             <Link
-              href="/admin/vehiculos"
-              title={alertasVehiculos ? `${alertasVehiculos} alerta${alertasVehiculos === 1 ? '' : 's'} de vehículos` : 'Sin alertas de vehículos'}
+              href="/admin/alertas"
+              title={alertasVehiculos ? `${alertasVehiculos} alerta${alertasVehiculos === 1 ? '' : 's'} y comparativo de kilos` : 'Alertas y comparativo de kilos'}
               className={`relative grid h-9 w-9 place-items-center rounded-lg transition ${alertasVehiculos ? 'bg-red-100 text-red-800 hover:bg-red-200' : 'text-[#4B2818]/60 hover:bg-[#FFF3DF] hover:text-[#A51F2B]'}`}
             >
               <AlertTriangle className="h-4 w-4" />
