@@ -1049,10 +1049,11 @@ export default function RepartosPage() {
           <div className="max-h-[620px] overflow-auto">
             <table
               className="table-fixed border-collapse text-xs"
-              style={{ width: 170 + 72 + dias.length * 128 + 112 }}
+              style={{ width: 170 + 104 + 72 + dias.length * 128 + 112 }}
             >
               <colgroup>
                 <col style={{ width: 170 }} />
+                <col style={{ width: 104 }} />
                 <col style={{ width: 72 }} />
                 {dias.flatMap((dia) => [
                   <col key={`${dia}-vendidos-col`} style={{ width: 64 }} />,
@@ -1065,7 +1066,15 @@ export default function RepartosPage() {
                   <th className="sticky left-0 z-20 w-[170px] min-w-[170px] max-w-[170px] bg-[#2A1710] px-2 py-2 text-left">
                     Cliente
                   </th>
-                  <th className="sticky left-[170px] z-20 w-[72px] min-w-[72px] max-w-[72px] bg-[#2A1710] px-1 py-2 text-right">
+                  <th className="sticky left-[170px] z-20 w-[104px] min-w-[104px] max-w-[104px] border-l border-white/10 bg-[#2A1710] px-2 py-2 text-center">
+                    <span className="block capitalize">
+                      {mesesDelAnio[mes - 1]}
+                    </span>
+                    <span className="block text-[10px] text-white/70">
+                      {anio}
+                    </span>
+                  </th>
+                  <th className="sticky left-[274px] z-20 w-[72px] min-w-[72px] max-w-[72px] bg-[#2A1710] px-1 py-2 text-right">
                     Precio
                   </th>
                   {dias.map((dia) => {
@@ -1093,6 +1102,7 @@ export default function RepartosPage() {
                 <tr>
                   <th className="sticky left-0 z-20 bg-[#2A1710]" />
                   <th className="sticky left-[170px] z-20 bg-[#2A1710]" />
+                  <th className="sticky left-[274px] z-20 bg-[#2A1710]" />
                   {dias.map((dia) => {
                     const domingo = esDomingo(anio, mes, dia);
 
@@ -1130,7 +1140,10 @@ export default function RepartosPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="sticky left-[170px] z-[5] w-[72px] min-w-[72px] max-w-[72px] bg-white px-1 py-1">
+                    <td className="sticky left-[170px] z-[5] w-[104px] min-w-[104px] max-w-[104px] border-l border-[#4B2818]/10 bg-white px-2 py-1 text-center font-bold capitalize text-[#4B2818]/65">
+                      {mesesDelAnio[mes - 1]} {anio}
+                    </td>
+                    <td className="sticky left-[274px] z-[5] w-[72px] min-w-[72px] max-w-[72px] bg-white px-1 py-1">
                       <input
                         type="number"
                         data-columna="precio"
@@ -1200,6 +1213,7 @@ export default function RepartosPage() {
                 <tr className="border-t-2 border-[#2A1710] bg-[#FFF3DF] font-black">
                   <td className="sticky left-0 z-[5] bg-[#FFF3DF] px-2 py-2">Total kg</td>
                   <td className="sticky left-[170px] z-[5] bg-[#FFF3DF]" />
+                  <td className="sticky left-[274px] z-[5] bg-[#FFF3DF]" />
                   {dias.map((dia) => (
                     <>
                       <td key={`${dia}-tv`} className={`border-l border-[#4B2818]/10 px-2 py-2 text-right ${esDomingo(anio, mes, dia) ? 'bg-amber-200' : ''}`}>
@@ -1216,6 +1230,7 @@ export default function RepartosPage() {
                 <tr className="bg-white font-black">
                   <td className="sticky left-0 z-[5] bg-white px-2 py-2">Monto dia</td>
                   <td className="sticky left-[170px] z-[5] bg-white" />
+                  <td className="sticky left-[274px] z-[5] bg-white" />
                   {dias.map((dia) => (
                     <>
                       <td key={`${dia}-mv`} className={`border-l border-[#4B2818]/10 px-2 py-2 text-right ${esDomingo(anio, mes, dia) ? 'bg-amber-100' : ''}`}>
@@ -1232,6 +1247,7 @@ export default function RepartosPage() {
                 <tr className="bg-emerald-50 font-black">
                   <td className="sticky left-0 z-[5] bg-emerald-50 px-2 py-2">Abono</td>
                   <td className="sticky left-[170px] z-[5] bg-emerald-50" />
+                  <td className="sticky left-[274px] z-[5] bg-emerald-50" />
                   {dias.map((dia) => (
                     <>
                       <td key={`${dia}-ab`} className={`border-l border-[#4B2818]/10 px-1 py-1 ${esDomingo(anio, mes, dia) ? 'bg-amber-100' : ''}`} colSpan={2}>
