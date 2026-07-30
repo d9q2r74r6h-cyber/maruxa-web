@@ -981,11 +981,10 @@ export default function RepartosPage() {
 
     return dias.map((dia) => {
       const kilosDia = totalDia(dia, 'vendidos');
-      const cacho = totalDia(dia, 'devueltos');
       const venta = totalDia(dia, 'monto');
-      const merma = totalDia(dia, 'devolucion');
+      const cacho = totalDia(dia, 'devolucion');
       const pastelesDia = numero(pasteles[dia]);
-      const ventaPan = venta - merma;
+      const ventaPan = venta - cacho;
       const precioPan = kilosDia > 0 ? ventaPan / kilosDia : 0;
       const total = ventaPan + pastelesDia;
       const subTotal = saldoAnterior + total;
@@ -993,6 +992,7 @@ export default function RepartosPage() {
       const saldo = subTotal - entregado;
       const resultado = {
         dia,
+        venta,
         cacho,
         pasteles: pastelesDia,
         total,
@@ -1376,9 +1376,10 @@ export default function RepartosPage() {
           </p>
         ) : (
           <div className="max-h-[620px] overflow-auto rounded-lg border border-[#4B2818]/15 bg-white">
-            <table className="w-full min-w-[1090px] table-fixed border-collapse text-sm">
+            <table className="w-full min-w-[1200px] table-fixed border-collapse text-sm">
               <colgroup>
                 <col style={{ width: 70 }} />
+                <col style={{ width: 110 }} />
                 <col style={{ width: 90 }} />
                 <col style={{ width: 120 }} />
                 <col style={{ width: 110 }} />
@@ -1392,6 +1393,7 @@ export default function RepartosPage() {
               <thead className="sticky top-0 z-10 bg-[#2A1710] text-white">
                 <tr>
                   <th className="px-3 py-3 text-left">Día</th>
+                  <th className="px-3 py-3 text-right">Venta</th>
                   <th className="px-3 py-3 text-right">Cacho</th>
                   <th className="px-3 py-3 text-right">Pasteles</th>
                   <th className="px-3 py-3 text-right">Total</th>
@@ -1416,11 +1418,11 @@ export default function RepartosPage() {
                     <td className="px-3 py-2 font-black">
                       {letraDiaSemana(anio, mes, item.dia)} {item.dia}
                     </td>
+                    <td className="px-3 py-2 text-right font-black">
+                      {dinero(item.venta)}
+                    </td>
                     <td className="px-3 py-2 text-right font-bold text-red-700">
-                      {item.cacho.toLocaleString('es-CL', {
-                        maximumFractionDigits: 2,
-                      })}{' '}
-                      kg
+                      {dinero(item.cacho)}
                     </td>
                     <td className="px-2 py-1">
                       <input
