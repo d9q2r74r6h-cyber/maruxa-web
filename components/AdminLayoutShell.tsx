@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import { ShieldAlert } from 'lucide-react';
 import { AdminMenu } from '@/components/AdminMenu';
 import { useAdminSession } from '@/components/AdminSession';
+import { GridKeyboardNavigation } from '@/components/GridKeyboardNavigation';
 
 const modulosPorRuta = [
   ['/admin/vehiculos', 'vehiculos'],
@@ -49,6 +50,7 @@ export function AdminLayoutShell({
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-maruxa-crema px-2 py-3 sm:px-3 md:px-5 md:py-8">
+      <GridKeyboardNavigation />
       <div className="mx-auto max-w-7xl">
         <AdminMenu />
         {autorizado ? (
