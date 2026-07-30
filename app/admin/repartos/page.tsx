@@ -61,6 +61,7 @@ type Fila = {
 type BorradorPlanilla = {
   filas: Fila[];
   abonos: Record<number, number>;
+  pasteles?: Record<number, number>;
   saldoInicial: number;
   actualizadoEn: string;
 };
@@ -253,6 +254,38 @@ function ordenClientesGuardado(valor: string | null | undefined): string[] {
   }
 }
 
+function pastelesGuardados(
+  valor: string | null | undefined
+): Record<number, number> {
+  if (!valor) return {};
+
+  try {
+    const datos = JSON.parse(valor);
+    if (!datos?.pasteles_por_dia || typeof datos.pasteles_por_dia !== 'object') {
+      return {};
+    }
+
+    return Object.fromEntries(
+      Object.entries(datos.pasteles_por_dia).map(([dia, monto]) => [
+        Number(dia),
+        numero(monto),
+      ])
+    );
+  } catch {
+    return {};
+  }
+}
+
+function observacionesPlanilla(
+  ordenClientes: string[],
+  pasteles: Record<number, number>
+) {
+  return JSON.stringify({
+    orden_clientes: ordenClientes,
+    pasteles_por_dia: pasteles,
+  });
+}
+
 function claveBorradorPlanilla(planillaId: string) {
   return `maruxa-repartos-borrador-${planillaId}`;
 }
@@ -282,6 +315,10 @@ export default function RepartosPage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [filas, setFilas] = useState<Fila[]>([]);
   const [abonos, setAbonos] = useState<Record<number, number>>({});
+  const [pasteles, setPasteles] = useState<Record<number, number>>({});
+  const [vistaPlanilla, setVistaPlanilla] = useState<'ingreso' | 'totales'>(
+    'ingreso'
+  );
   const [cambiosPendientes, setCambiosPendientes] = useState(false);
   const [planilla, setPlanilla] = useState<Planilla | null>(null);
   const [cargando, setCargando] = useState(true);
@@ -298,6 +335,8 @@ export default function RepartosPage() {
     setPlanilla(null);
     setFilas([]);
     setAbonos({});
+    setPasteles({});
+    setVistaPlanilla('ingreso');
     setSaldoInicial(0);
     setCambiosPendientes(false);
   }
@@ -308,6 +347,7 @@ export default function RepartosPage() {
     const borrador: BorradorPlanilla = {
       filas,
       abonos,
+      pasteles,
       saldoInicial,
       actualizadoEn: new Date().toISOString(),
     };
@@ -577,6 +617,9 @@ export default function RepartosPage() {
         : filasCargadas
     );
     setAbonos(borrador?.abonos || abonosPorDia);
+    setPasteles(
+      borrador?.pasteles || pastelesGuardados(planillaData.observaciones)
+    );
     if (borrador) setSaldoInicial(Number(borrador.saldoInicial || 0));
     setCambiosPendientes(Boolean(borrador));
     setCargando(false);
@@ -600,6 +643,7 @@ export default function RepartosPage() {
     const borrador: BorradorPlanilla = {
       filas,
       abonos,
+      pasteles,
       saldoInicial,
       actualizadoEn: new Date().toISOString(),
     };
@@ -616,6 +660,7 @@ export default function RepartosPage() {
     cambiosPendientes,
     cargando,
     filas,
+    pasteles,
     planilla,
     saldoInicial,
   ]);
@@ -663,7 +708,7 @@ export default function RepartosPage() {
       window.removeEventListener('beforeunload', advertirCierre);
       document.removeEventListener('click', advertirNavegacion, true);
     };
-  }, [abonos, cambiosPendientes, filas, planilla, saldoInicial]);
+  }, [abonos, cambiosPendientes, filas, pasteles, planilla, saldoInicial]);
 
   function actualizarCelda(
     filaKey: string,
@@ -718,9 +763,10 @@ export default function RepartosPage() {
     const { error } = await supabase
       .from('reparto_planillas')
       .update({
-        observaciones: JSON.stringify({
-          orden_clientes: siguientes.map((fila) => fila.key),
-        }),
+        observaciones: observacionesPlanilla(
+          siguientes.map((fila) => fila.key),
+          pasteles
+        ),
       })
       .eq('id', planilla.id);
     setGuardandoOrden(false);
@@ -735,14 +781,28 @@ export default function RepartosPage() {
     if (!perfil || !planilla || !repartidor.trim() || filas.length === 0) return;
 
     setReplicandoOrden(true);
-    const observaciones = JSON.stringify({
-      orden_clientes: filas.map((fila) => fila.key),
-    });
-    const { error } = await supabase
+    const { data: planillasRepartidor, error: errorCarga } = await supabase
       .from('reparto_planillas')
-      .update({ observaciones })
+      .select('id,observaciones')
       .eq('empresa_id', perfil.empresa_id)
       .eq('repartidor_nombre', repartidor.trim());
+
+    const resultados = errorCarga
+      ? []
+      : await Promise.all(
+          (planillasRepartidor || []).map((item) =>
+            supabase
+              .from('reparto_planillas')
+              .update({
+                observaciones: observacionesPlanilla(
+                  filas.map((fila) => fila.key),
+                  pastelesGuardados(item.observaciones)
+                ),
+              })
+              .eq('id', item.id)
+          )
+        );
+    const error = errorCarga || resultados.find((resultado) => resultado.error)?.error;
     setReplicandoOrden(false);
 
     if (error) {
@@ -750,8 +810,12 @@ export default function RepartosPage() {
       return;
     }
 
+    const observacionesActuales = observacionesPlanilla(
+      filas.map((fila) => fila.key),
+      pasteles
+    );
     setPlanilla((actual) =>
-      actual ? { ...actual, observaciones } : actual
+      actual ? { ...actual, observaciones: observacionesActuales } : actual
     );
     alert(
       'Orden aplicado a todos los meses existentes. Los meses nuevos heredaran este mismo orden.'
@@ -770,9 +834,10 @@ export default function RepartosPage() {
       .from('reparto_planillas')
       .update({
         saldo_inicial: saldoInicial,
-        observaciones: JSON.stringify({
-          orden_clientes: filas.map((fila) => fila.key),
-        }),
+        observaciones: observacionesPlanilla(
+          filas.map((fila) => fila.key),
+          pasteles
+        ),
       })
       .eq('id', planilla.id);
 
@@ -911,6 +976,38 @@ export default function RepartosPage() {
     }, 0);
   }
 
+  const totalesDiarios = useMemo(() => {
+    let saldoAnterior = saldoInicial;
+
+    return dias.map((dia) => {
+      const kilosDia = totalDia(dia, 'vendidos');
+      const cacho = totalDia(dia, 'devueltos');
+      const venta = totalDia(dia, 'monto');
+      const merma = totalDia(dia, 'devolucion');
+      const pastelesDia = numero(pasteles[dia]);
+      const ventaPan = venta - merma;
+      const precioPan = kilosDia > 0 ? ventaPan / kilosDia : 0;
+      const total = ventaPan + pastelesDia;
+      const subTotal = saldoAnterior + total;
+      const entregado = numero(abonos[dia]);
+      const saldo = subTotal - entregado;
+      const resultado = {
+        dia,
+        cacho,
+        pasteles: pastelesDia,
+        total,
+        kilos: kilosDia,
+        precioPan,
+        saldoAnterior,
+        subTotal,
+        entregado,
+        saldo,
+      };
+      saldoAnterior = saldo;
+      return resultado;
+    });
+  }, [abonos, dias, filas, pasteles, saldoInicial]);
+
   return (
     <div className="space-y-5 pb-12" onWheel={evitarCambioNumeroConRueda}>
       <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
@@ -1038,7 +1135,7 @@ export default function RepartosPage() {
         ))}
       </section>
 
-      <section className="min-w-0">
+      <section className={vistaPlanilla === 'ingreso' ? 'min-w-0' : 'hidden'}>
         {!planilla ? (
           <p className="p-8 text-center text-sm font-bold text-[#4B2818]/60">
             {cargando
@@ -1271,6 +1368,115 @@ export default function RepartosPage() {
           </div>
         )}
       </section>
+
+      <section className={vistaPlanilla === 'totales' ? 'min-w-0' : 'hidden'}>
+        {!planilla ? (
+          <p className="p-8 text-center text-sm font-bold text-[#4B2818]/60">
+            Selecciona un repartidor para consultar sus totales.
+          </p>
+        ) : (
+          <div className="max-h-[620px] overflow-auto rounded-lg border border-[#4B2818]/15 bg-white">
+            <table className="w-full min-w-[1080px] border-collapse text-sm">
+              <thead className="sticky top-0 z-10 bg-[#2A1710] text-white">
+                <tr>
+                  <th className="px-3 py-3 text-left">Día</th>
+                  <th className="px-3 py-3 text-right">Cacho</th>
+                  <th className="px-3 py-3 text-right">Pasteles</th>
+                  <th className="px-3 py-3 text-right">Total</th>
+                  <th className="px-3 py-3 text-right">Kilos</th>
+                  <th className="px-3 py-3 text-right">Precio/p.</th>
+                  <th className="px-3 py-3 text-right">Saldo anterior</th>
+                  <th className="px-3 py-3 text-right">Sub Total</th>
+                  <th className="px-3 py-3 text-right">Entregado</th>
+                  <th className="px-3 py-3 text-right">Saldo</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#4B2818]/10">
+                {totalesDiarios.map((item) => (
+                  <tr
+                    key={item.dia}
+                    className={
+                      esDomingo(anio, mes, item.dia)
+                        ? 'bg-amber-100'
+                        : 'hover:bg-[#FFF3DF]/45'
+                    }
+                  >
+                    <td className="px-3 py-2 font-black">
+                      {letraDiaSemana(anio, mes, item.dia)} {item.dia}
+                    </td>
+                    <td className="px-3 py-2 text-right font-bold text-red-700">
+                      {item.cacho.toLocaleString('es-CL', {
+                        maximumFractionDigits: 2,
+                      })}{' '}
+                      kg
+                    </td>
+                    <td className="px-2 py-1">
+                      <input
+                        type="number"
+                        min="0"
+                        value={item.pasteles || ''}
+                        onChange={(event) => {
+                          setCambiosPendientes(true);
+                          setPasteles((actuales) => ({
+                            ...actuales,
+                            [item.dia]: Math.max(0, numero(event.target.value)),
+                          }));
+                        }}
+                        className="sin-spinner h-9 w-full rounded border border-[#4B2818]/15 bg-white px-2 text-right font-bold"
+                      />
+                    </td>
+                    <td className="px-3 py-2 text-right font-black">
+                      {dinero(item.total)}
+                    </td>
+                    <td className="px-3 py-2 text-right font-bold">
+                      {item.kilos.toLocaleString('es-CL', {
+                        maximumFractionDigits: 2,
+                      })}
+                    </td>
+                    <td className="px-3 py-2 text-right font-black text-[#A51F2B]">
+                      {dinero(item.precioPan)}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {dinero(item.saldoAnterior)}
+                    </td>
+                    <td className="px-3 py-2 text-right font-bold">
+                      {dinero(item.subTotal)}
+                    </td>
+                    <td className="px-3 py-2 text-right font-bold text-emerald-700">
+                      {dinero(item.entregado)}
+                    </td>
+                    <td className="px-3 py-2 text-right font-black">
+                      {dinero(item.saldo)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <nav className="flex w-fit rounded-t-lg border border-b-0 border-[#4B2818]/20 bg-[#F2E3CC] p-1 pb-0">
+        {[
+          ['ingreso', 'Ingreso de kilos'],
+          ['totales', 'Totales'],
+        ].map(([vista, etiqueta]) => (
+          <button
+            key={vista}
+            type="button"
+            onClick={() =>
+              setVistaPlanilla(vista as 'ingreso' | 'totales')
+            }
+            className={`rounded-t-md px-5 py-2 text-sm font-black transition ${
+              vistaPlanilla === vista
+                ? 'bg-[#2A1710] text-white'
+                : 'text-[#4B2818] hover:bg-white/60'
+            }`}
+          >
+            {etiqueta}
+          </button>
+        ))}
+      </nav>
 
       <div className="flex flex-wrap justify-end gap-3">
         <button
