@@ -62,7 +62,8 @@ function formatoKilos(valor: number) {
 function formatoFecha(fecha: string) {
   return new Intl.DateTimeFormat('es-CL', {
     day: '2-digit',
-    month: 'short',
+    month: 'long',
+    year: 'numeric',
   }).format(new Date(`${fecha}T12:00:00`));
 }
 
@@ -269,7 +270,7 @@ export default function AlertasPage() {
             Centro de alertas
           </h1>
           <p className="mt-2 max-w-2xl text-sm font-semibold text-[#4B2818]/65">
-            Compara los kilos asignados a cada reparto en la planilla de Rinde
+            Compara los kilos asignados a cada reparto en la Planilla
             con los kilos ingresados en sus planillas mensuales.
           </p>
         </div>
@@ -320,7 +321,7 @@ export default function AlertasPage() {
             <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
               <div>
                 <p className="text-xs font-black uppercase text-[#4B2818]/50">
-                  Rinde
+                  Planilla
                 </p>
                 <p className="font-black">{formatoKilos(repartidor.rinde)}</p>
               </div>
@@ -357,7 +358,7 @@ export default function AlertasPage() {
         <div className="flex items-center gap-2 border-b border-[#4B2818]/10 bg-[#FFF3DF] px-5 py-4">
           <Scale className="h-5 w-5 text-[#A51F2B]" />
           <h2 className="font-black text-[#2A1710]">
-            Rinde vs Repartos por día
+            Planilla vs Repartos por día
           </h2>
         </div>
 
@@ -369,7 +370,7 @@ export default function AlertasPage() {
           <p className="p-6 text-sm font-bold text-red-700">{error}</p>
         ) : alertasConDiferencia.length === 0 ? (
           <p className="p-8 text-center text-sm font-semibold text-[#4B2818]/60">
-            No hay diferencias entre Rinde y Repartos para este mes.
+            No hay diferencias entre Planilla y Repartos para este mes.
           </p>
         ) : (
           <div className="overflow-x-auto">
@@ -378,7 +379,7 @@ export default function AlertasPage() {
                 <tr>
                   <th className="px-5 py-3 text-left">Reparto</th>
                   <th className="px-5 py-3 text-left">Fecha</th>
-                  <th className="px-3 py-3 text-right">Rinde</th>
+                  <th className="px-3 py-3 text-right">Planilla</th>
                   <th className="px-3 py-3 text-right">Repartos</th>
                   <th className="px-5 py-3 text-right">Diferencia</th>
                 </tr>
