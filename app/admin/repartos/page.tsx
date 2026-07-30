@@ -336,7 +336,6 @@ export default function RepartosPage() {
     setFilas([]);
     setAbonos({});
     setPasteles({});
-    setVistaPlanilla('ingreso');
     setSaldoInicial(0);
     setCambiosPendientes(false);
   }
@@ -1486,26 +1485,59 @@ export default function RepartosPage() {
         )}
       </section>
 
-      <nav className="flex w-fit rounded-t-lg border border-b-0 border-[#4B2818]/20 bg-[#F2E3CC] p-1 pb-0">
-        {[
-          ['ingreso', 'Ingreso de kilos'],
-          ['totales', 'Totales'],
-        ].map(([vista, etiqueta]) => (
-          <button
-            key={vista}
-            type="button"
-            onClick={() =>
-              setVistaPlanilla(vista as 'ingreso' | 'totales')
-            }
-            className={`rounded-t-md px-5 py-2 text-sm font-black transition ${
-              vistaPlanilla === vista
-                ? 'bg-[#2A1710] text-white'
-                : 'text-[#4B2818] hover:bg-white/60'
-            }`}
-          >
-            {etiqueta}
-          </button>
-        ))}
+      <nav className="!mt-0 flex w-full flex-col gap-2 rounded-b-lg border border-t-0 border-[#4B2818]/20 bg-white p-2 shadow-sm lg:flex-row lg:items-center">
+        <div className="flex shrink-0 rounded-md bg-[#F2E3CC] p-1">
+          {[
+            ['ingreso', 'Ingreso de kilos'],
+            ['totales', 'Totales'],
+          ].map(([vista, etiqueta]) => (
+            <button
+              key={vista}
+              type="button"
+              onClick={() =>
+                setVistaPlanilla(vista as 'ingreso' | 'totales')
+              }
+              className={`rounded px-5 py-2 text-sm font-black transition ${
+                vistaPlanilla === vista
+                  ? 'bg-[#2A1710] text-white shadow-sm'
+                  : 'text-[#4B2818] hover:bg-white/70'
+              }`}
+            >
+              {etiqueta}
+            </button>
+          ))}
+        </div>
+
+        <div className="hidden h-8 w-px shrink-0 bg-[#4B2818]/15 lg:block" />
+
+        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto">
+          <span className="shrink-0 px-1 text-[10px] font-black uppercase tracking-wide text-[#4B2818]/55">
+            Repartos
+          </span>
+          {funcionarios.map((funcionario) => {
+            const activo = funcionario.nombre_completo === repartidor;
+            return (
+              <button
+                key={funcionario.id}
+                type="button"
+                onClick={() => {
+                  if (activo) return;
+                  cambiarContexto(() => {
+                    setRepartidor(funcionario.nombre_completo);
+                    setRepartidorId(funcionario.id);
+                  });
+                }}
+                className={`shrink-0 rounded-md border px-3 py-2 text-xs font-black transition ${
+                  activo
+                    ? 'border-[#A51F2B] bg-[#A51F2B] text-white shadow-sm'
+                    : 'border-[#4B2818]/15 bg-[#FFF9EF] text-[#4B2818] hover:border-[#A51F2B]/40 hover:bg-[#FFF3DF]'
+                }`}
+              >
+                {funcionario.nombre_completo}
+              </button>
+            );
+          })}
+        </div>
       </nav>
 
       <div className="flex flex-wrap justify-end gap-3">
