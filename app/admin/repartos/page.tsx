@@ -1376,7 +1376,19 @@ export default function RepartosPage() {
           </p>
         ) : (
           <div className="max-h-[620px] overflow-auto rounded-lg border border-[#4B2818]/15 bg-white">
-            <table className="w-full min-w-[1080px] border-collapse text-sm">
+            <table className="w-full min-w-[1090px] table-fixed border-collapse text-sm">
+              <colgroup>
+                <col style={{ width: 70 }} />
+                <col style={{ width: 90 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 110 }} />
+                <col style={{ width: 90 }} />
+                <col style={{ width: 110 }} />
+                <col style={{ width: 140 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 120 }} />
+              </colgroup>
               <thead className="sticky top-0 z-10 bg-[#2A1710] text-white">
                 <tr>
                   <th className="px-3 py-3 text-left">Día</th>
@@ -1412,8 +1424,9 @@ export default function RepartosPage() {
                     </td>
                     <td className="px-2 py-1">
                       <input
-                        type="number"
-                        min="0"
+                        type="text"
+                        inputMode="decimal"
+                        data-columna="totales-pasteles"
                         value={item.pasteles || ''}
                         onChange={(event) => {
                           setCambiosPendientes(true);
@@ -1422,7 +1435,8 @@ export default function RepartosPage() {
                             [item.dia]: Math.max(0, numero(event.target.value)),
                           }));
                         }}
-                        className="sin-spinner h-9 w-full rounded border border-[#4B2818]/15 bg-white px-2 text-right font-bold"
+                        onKeyDown={moverEnGrilla}
+                        className="sin-spinner ml-auto block h-9 w-24 rounded border border-[#4B2818]/15 bg-white px-2 text-right font-bold"
                       />
                     </td>
                     <td className="px-3 py-2 text-right font-black">
@@ -1442,8 +1456,22 @@ export default function RepartosPage() {
                     <td className="px-3 py-2 text-right font-bold">
                       {dinero(item.subTotal)}
                     </td>
-                    <td className="px-3 py-2 text-right font-bold text-emerald-700">
-                      {dinero(item.entregado)}
+                    <td className="px-2 py-1">
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        data-columna="totales-entregado"
+                        value={item.entregado || ''}
+                        onChange={(event) => {
+                          setCambiosPendientes(true);
+                          setAbonos((actuales) => ({
+                            ...actuales,
+                            [item.dia]: Math.max(0, numero(event.target.value)),
+                          }));
+                        }}
+                        onKeyDown={moverEnGrilla}
+                        className="ml-auto block h-9 w-24 rounded border border-emerald-200 bg-emerald-50 px-2 text-right font-bold text-emerald-800"
+                      />
                     </td>
                     <td className="px-3 py-2 text-right font-black">
                       {dinero(item.saldo)}
