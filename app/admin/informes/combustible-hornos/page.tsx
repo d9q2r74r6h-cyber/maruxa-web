@@ -21,9 +21,6 @@ type CargaCalculada = Carga & {
   gasto_diario_neto: number | null; alerta: string | null;
 };
 
-const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio',
-  'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-
 const formInicial = {
   equipo_id: '', fecha: new Date().toISOString().slice(0, 10), tipo_documento: 'factura',
   numero_documento: '', proveedor: '', precio_litro: '', monto_factura: '',
@@ -183,16 +180,6 @@ export default function CombustibleHornosPage() {
       precioPromedio: litrosCargados ? costoLitros / litrosCargados : 0 };
   }, [cargasFiltradas]);
 
-  const resumenMensual = useMemo(() => meses.map((mes, indice) => {
-    const datos = cargasFiltradas.filter((carga) => Number(carga.fecha.slice(5, 7)) === indice + 1);
-    const litrosCargados = datos.reduce((s, c) => s + numero(c.litros_cargados), 0);
-    const litrosOcupados = datos.reduce((s, c) => s + Math.max(0, numero(c.litros_ocupados)), 0);
-    const gasto = datos.reduce((s, c) => s + numero(c.monto_factura), 0);
-    const dias = datos.reduce((s, c) => s + Math.max(0, numero(c.dias)), 0);
-    return { mes, cargas: datos.length, litrosCargados, litrosOcupados, gasto,
-      consumoDiario: dias ? litrosOcupados / dias : 0 };
-  }).filter((item) => item.cargas > 0), [cargasFiltradas]);
-
   const cargaAnterior = [...cargas].filter((carga) => carga.equipo_id === equipoFiltro && carga.fecha < form.fecha)
     .sort((a, b) => b.fecha.localeCompare(a.fecha))[0];
   const nivelFormulario = numero(form.nivel_restante);
@@ -317,11 +304,6 @@ export default function CombustibleHornosPage() {
           ['Gasto facturas', dinero(resumen.gasto)], ['Consumo diario', `${decimal(resumen.consumoDiario)} l/día`],
           ['Costo diario neto', dinero(resumen.gastoDiario)], ['Precio litro neto', dinero(resumen.precioPromedio)],
         ].map(([titulo, valor]) => <div key={titulo} className="rounded-2xl bg-white p-4 shadow-sm"><p className="text-[11px] font-black uppercase text-maruxa-cafe/55">{titulo}</p><p className="mt-2 text-2xl font-black text-maruxa-chocolate">{valor}</p></div>)}
-      </section>
-
-      <section className="rounded-3xl bg-white p-5 shadow-sm">
-        <h2 className="text-xl font-black text-maruxa-chocolate">Resumen mensual {anio}</h2>
-        <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[760px] text-sm"><thead className="bg-red-700 text-white"><tr><th className="px-3 py-2 text-left">MES</th><th className="px-3 py-2 text-right">CARGAS</th><th className="px-3 py-2 text-right">LITROS CARGADOS</th><th className="px-3 py-2 text-right">LITROS OCUPADOS</th><th className="px-3 py-2 text-right">GASTO</th><th className="px-3 py-2 text-right">LITROS/DÍA</th></tr></thead><tbody>{resumenMensual.map((item) => <tr key={item.mes} className="border-b"><td className="px-3 py-2 font-black">{item.mes}</td><td className="px-3 py-2 text-right">{item.cargas}</td><td className="px-3 py-2 text-right">{decimal(item.litrosCargados, 1)}</td><td className="px-3 py-2 text-right">{decimal(item.litrosOcupados, 1)}</td><td className="px-3 py-2 text-right">{dinero(item.gasto)}</td><td className="px-3 py-2 text-right font-black">{decimal(item.consumoDiario)}</td></tr>)}</tbody></table></div>
       </section>
 
       <section className="rounded-3xl bg-white p-5 shadow-sm">
