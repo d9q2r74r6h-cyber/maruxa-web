@@ -1123,9 +1123,9 @@ export default function RepartosPage() {
                 {filas.map((fila, indice) => (
                   <tr
                     key={fila.key}
-                    className="group border-b border-[#4B2818]/10 transition-shadow hover:bg-[#FFF3DF]/45 focus-within:bg-amber-50 focus-within:shadow-[inset_0_2px_0_#D97706,inset_0_-2px_0_#D97706]"
+                    className="group border-b border-[#4B2818]/10 hover:bg-[#FFF3DF]/45"
                   >
-                    <td className="sticky left-0 z-[5] w-[170px] min-w-[170px] max-w-[170px] overflow-hidden bg-white px-2 py-1 font-black uppercase text-[#2A1710] transition group-focus-within:bg-amber-100 group-focus-within:shadow-[inset_-5px_0_0_#A51F2B,inset_0_2px_0_#D97706,inset_0_-2px_0_#D97706]">
+                    <td className="sticky left-0 z-[5] w-[170px] min-w-[170px] max-w-[170px] overflow-hidden bg-white px-2 py-1 font-black uppercase text-[#2A1710] transition-colors group-focus-within:bg-amber-200">
                       <div className="flex items-center gap-1">
                         <div className="no-print flex shrink-0 gap-0.5">
                           <button type="button" disabled={guardandoOrden || indice === 0} onClick={() => void moverFila(fila.key, -1)} title="Subir cliente" aria-label={`Subir ${fila.nombre}`} className="rounded border border-[#4B2818]/15 p-1 text-[#A51F2B] disabled:opacity-25"><ArrowUp className="h-3.5 w-3.5" /></button>
@@ -1142,14 +1142,14 @@ export default function RepartosPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="sticky left-[170px] z-[5] w-[72px] min-w-[72px] max-w-[72px] bg-white px-1 py-1 transition group-focus-within:bg-amber-100 group-focus-within:shadow-[inset_0_2px_0_#D97706,inset_0_-2px_0_#D97706]">
+                    <td className="sticky left-[170px] z-[5] w-[72px] min-w-[72px] max-w-[72px] bg-white px-1 py-1 transition-colors group-focus-within:bg-amber-200">
                       <input
                         type="number"
                         data-columna="precio"
                         value={fila.precio || ''}
                         onChange={(e) => actualizarPrecio(fila.key, e.target.value)}
                         onKeyDown={moverEnGrilla}
-                        className="sin-spinner h-8 w-16 rounded border border-[#4B2818]/15 px-1 text-right font-bold"
+                        className="sin-spinner h-8 w-16 rounded border border-[#4B2818]/15 px-1 text-right font-bold group-focus-within:bg-amber-50"
                       />
                     </td>
                     {dias.map((dia) => {
@@ -1160,7 +1160,7 @@ export default function RepartosPage() {
                       };
                       return (
                         <>
-                          <td key={`${fila.key}-${dia}-v`} className={`border-l border-[#4B2818]/10 px-1 py-1 ${esDomingo(anio, mes, dia) ? 'bg-amber-100' : ''}`}>
+                          <td key={`${fila.key}-${dia}-v`} className={`border-l border-[#4B2818]/10 px-1 py-1 transition-colors group-focus-within:!bg-amber-100 ${esDomingo(anio, mes, dia) ? 'bg-amber-100' : ''}`}>
                             <input
                               type="number"
                               min="0"
@@ -1170,10 +1170,10 @@ export default function RepartosPage() {
                                 actualizarCelda(fila.key, dia, 'vendidos', e.target.value)
                               }
                               onKeyDown={moverEnGrilla}
-                              className="sin-spinner h-8 w-14 rounded border border-[#4B2818]/15 px-1 text-right font-bold"
+                              className="sin-spinner h-8 w-14 rounded border border-[#4B2818]/15 px-1 text-right font-bold group-focus-within:bg-amber-50"
                             />
                           </td>
-                          <td key={`${fila.key}-${dia}-d`} className={`px-1 py-1 ${esDomingo(anio, mes, dia) ? 'bg-amber-100' : ''}`}>
+                          <td key={`${fila.key}-${dia}-d`} className={`px-1 py-1 transition-colors group-focus-within:!bg-amber-100 ${esDomingo(anio, mes, dia) ? 'bg-amber-100' : ''}`}>
                             <input
                               type="number"
                               min="0"
@@ -1183,7 +1183,7 @@ export default function RepartosPage() {
                                 actualizarCelda(fila.key, dia, 'devueltos', e.target.value)
                               }
                               onKeyDown={moverEnGrilla}
-                              className="sin-spinner h-8 w-14 rounded border border-red-200 bg-red-50 px-1 text-right font-bold text-red-800"
+                              className="sin-spinner h-8 w-14 rounded border border-red-200 bg-red-50 px-1 text-right font-bold text-red-800 group-focus-within:bg-amber-50"
                             />
                           </td>
                         </>
