@@ -1277,7 +1277,7 @@ export default function RepartosPage() {
         })}
       </nav>
 
-      <section className="grid gap-3 rounded-lg border border-[#4B2818]/15 bg-white p-4 md:grid-cols-2 xl:grid-cols-[120px_minmax(260px,1fr)_180px] xl:items-end">
+      <section className="grid gap-3 rounded-lg border border-[#4B2818]/15 bg-white p-4 md:grid-cols-[120px_180px] md:items-end">
         <label className="grid gap-1 text-xs font-black text-[#4B2818]">
           Año
           <select
@@ -1291,31 +1291,6 @@ export default function RepartosPage() {
             {aniosDisponibles.map((item) => (
               <option key={item} value={item}>
                 {item}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="grid gap-1 text-xs font-black text-[#4B2818]">
-          Repartidor
-          <select
-            value={repartidor}
-            onChange={(e) => {
-              const seleccionado = funcionarios.find(
-                (item) => item.nombre_completo === e.target.value
-              );
-              const siguienteRepartidor = e.target.value;
-              cambiarContexto(() => {
-                setRepartidor(siguienteRepartidor);
-                setRepartidorId(seleccionado?.id || null);
-              });
-            }}
-            className="h-10 rounded-md border border-[#4B2818]/20 px-3 font-bold"
-          >
-            <option value="">Seleccionar</option>
-            {funcionarios.map((funcionario) => (
-              <option key={funcionario.id} value={funcionario.nombre_completo}>
-                {funcionario.nombre_completo}
               </option>
             ))}
           </select>
