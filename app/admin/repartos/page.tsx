@@ -95,6 +95,23 @@ function correspondeAlRepartidor(
   );
 }
 
+function apellidoPestana(nombre: string) {
+  const normalizado = normalizarNombre(nombre);
+  if (normalizado.includes('tapia')) return 'TAPIA';
+  if (normalizado.includes('albornoz')) return 'ALBORNOZ';
+  if (normalizado.includes('panaderia')) return 'PANADERIA';
+
+  return (
+    nombre
+      .trim()
+      .split(/\s+/)
+      .at(-1)
+      ?.normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase() || 'REPARTO'
+  );
+}
+
 function reconciliarFilasBorrador(filasCargadas: Fila[], filasBorrador: Fila[]) {
   const resultado = filasBorrador.map((fila) => ({
     ...fila,
@@ -1485,59 +1502,42 @@ export default function RepartosPage() {
         )}
       </section>
 
-      <nav className="!mt-0 flex w-full flex-col gap-2 rounded-b-lg border border-t-0 border-[#4B2818]/20 bg-white p-2 shadow-sm lg:flex-row lg:items-center">
-        <div className="flex shrink-0 rounded-md bg-[#F2E3CC] p-1">
-          {[
-            ['ingreso', 'Ingreso de kilos'],
-            ['totales', 'Totales'],
-          ].map(([vista, etiqueta]) => (
-            <button
-              key={vista}
-              type="button"
-              onClick={() =>
-                setVistaPlanilla(vista as 'ingreso' | 'totales')
-              }
-              className={`rounded px-5 py-2 text-sm font-black transition ${
-                vistaPlanilla === vista
-                  ? 'bg-[#2A1710] text-white shadow-sm'
-                  : 'text-[#4B2818] hover:bg-white/70'
-              }`}
-            >
-              {etiqueta}
-            </button>
-          ))}
-        </div>
+      <nav className="!mt-0 flex w-full gap-1 overflow-x-auto rounded-b-lg border border-t-0 border-[#4B2818]/20 bg-[#F2E3CC] p-2 shadow-sm">
+        {funcionarios.flatMap((funcionario) => {
+          const apellido = apellidoPestana(funcionario.nombre_completo);
+          return (['ingreso', 'totales'] as const).map((vista) => {
+            const activo =
+              funcionario.nombre_completo === repartidor &&
+              vistaPlanilla === vista;
+            const etiqueta = vista === 'ingreso' ? `ARR_${apellido}` : apellido;
 
-        <div className="hidden h-8 w-px shrink-0 bg-[#4B2818]/15 lg:block" />
-
-        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto">
-          <span className="shrink-0 px-1 text-[10px] font-black uppercase tracking-wide text-[#4B2818]/55">
-            Repartos
-          </span>
-          {funcionarios.map((funcionario) => {
-            const activo = funcionario.nombre_completo === repartidor;
             return (
               <button
-                key={funcionario.id}
+                key={`${funcionario.id}-${vista}`}
                 type="button"
                 onClick={() => {
                   if (activo) return;
+                  if (funcionario.nombre_completo === repartidor) {
+                    setVistaPlanilla(vista);
+                    return;
+                  }
                   cambiarContexto(() => {
+                    setVistaPlanilla(vista);
                     setRepartidor(funcionario.nombre_completo);
                     setRepartidorId(funcionario.id);
                   });
                 }}
-                className={`shrink-0 rounded-md border px-3 py-2 text-xs font-black transition ${
+                className={`min-w-[132px] shrink-0 rounded-md border px-4 py-2.5 text-xs font-black tracking-wide transition ${
                   activo
-                    ? 'border-[#A51F2B] bg-[#A51F2B] text-white shadow-sm'
-                    : 'border-[#4B2818]/15 bg-[#FFF9EF] text-[#4B2818] hover:border-[#A51F2B]/40 hover:bg-[#FFF3DF]'
+                    ? 'border-[#2A1710] bg-[#2A1710] text-white shadow-sm'
+                    : 'border-[#4B2818]/15 bg-white text-[#4B2818] hover:border-[#A51F2B]/40 hover:bg-[#FFF9EF]'
                 }`}
               >
-                {funcionario.nombre_completo}
+                {etiqueta}
               </button>
             );
-          })}
-        </div>
+          });
+        })}
       </nav>
 
       <div className="flex flex-wrap justify-end gap-3">
