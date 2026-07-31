@@ -1509,7 +1509,7 @@ export default function RepartosPage() {
             const activo =
               funcionario.nombre_completo === repartidor &&
               vistaPlanilla === vista;
-            const etiqueta = vista === 'ingreso' ? `ARR_${apellido}` : apellido;
+            const etiqueta = vista === 'totales' ? `ARR_${apellido}` : apellido;
 
             return (
               <button
