@@ -11,7 +11,7 @@ type Vehiculo = {
   anio: number | null; tipo: string | null; color: string | null;
   kilometraje_actual: number; estado: string; revision_tecnica_vence: string | null;
   permiso_circulacion_vence: string | null; seguro_vence: string | null;
-  observacion: string | null; activo: boolean;
+  observacion: string | null; activo: boolean; incluir_en_rendimientos: boolean;
 };
 type Repartidor = { id: string; nombre_completo: string };
 type Politica = { id: string; codigo: string; nombre: string; dias_anticipacion: number; km_anticipacion: number; activo: boolean };
@@ -26,6 +26,7 @@ const vacio = {
   nombre: '', patente: '', repartidor_id: '', marca: '', modelo: '', anio: '',
   tipo: '', color: '', kilometraje_actual: '', estado: 'activo',
   revision_tecnica_vence: '', permiso_circulacion_vence: '', seguro_vence: '', observacion: '',
+  incluir_en_rendimientos: true,
 };
 const registroVacio = {
   politica_id: '', tipo: 'mantencion', titulo: '', fecha: new Date().toISOString().slice(0, 10),
@@ -119,6 +120,7 @@ export default function VehiculosPage() {
       estado: vehiculo.estado, revision_tecnica_vence: vehiculo.revision_tecnica_vence || '',
       permiso_circulacion_vence: vehiculo.permiso_circulacion_vence || '', seguro_vence: vehiculo.seguro_vence || '',
       observacion: vehiculo.observacion || '',
+      incluir_en_rendimientos: vehiculo.incluir_en_rendimientos !== false,
     });
   }
   function iniciarNuevo() { setNuevo(true); setSeleccionado(''); setForm(vacio); }
@@ -133,6 +135,7 @@ export default function VehiculosPage() {
       kilometraje_actual: numero(form.kilometraje_actual), estado: form.estado,
       revision_tecnica_vence: form.revision_tecnica_vence || null, permiso_circulacion_vence: form.permiso_circulacion_vence || null,
       seguro_vence: form.seguro_vence || null, observacion: form.observacion.trim() || null,
+      incluir_en_rendimientos: form.incluir_en_rendimientos,
     };
     let error;
     if (nuevo) {
@@ -178,10 +181,14 @@ export default function VehiculosPage() {
     {(nuevo || vehiculoActual) && <section className="rounded-3xl bg-white p-5 shadow-sm">
       <h2 className="text-xl font-black text-maruxa-chocolate">{nuevo ? 'Nuevo vehículo' : `Ficha · ${vehiculoActual?.nombre}`}</h2>
       <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {[['nombre','Nombre'],['patente','Patente'],['marca','Marca'],['modelo','Modelo'],['anio','Año'],['tipo','Tipo'],['color','Color'],['kilometraje_actual','Kilometraje actual']].map(([campo, etiqueta]) => <label key={campo} className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">{etiqueta}<input value={form[campo as keyof typeof form]} onChange={(e) => setForm({ ...form, [campo]: e.target.value })} className="h-11 rounded-xl border px-3 text-sm font-bold normal-case" /></label>)}
+        {[['nombre','Nombre'],['patente','Patente'],['marca','Marca'],['modelo','Modelo'],['anio','Año'],['tipo','Tipo'],['color','Color'],['kilometraje_actual','Kilometraje actual']].map(([campo, etiqueta]) => <label key={campo} className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">{etiqueta}<input value={String(form[campo as keyof typeof form] ?? '')} onChange={(e) => setForm({ ...form, [campo]: e.target.value })} className="h-11 rounded-xl border px-3 text-sm font-bold normal-case" /></label>)}
         <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Repartidor<select value={form.repartidor_id} onChange={(e) => setForm({ ...form, repartidor_id: e.target.value })} className="h-11 rounded-xl border bg-white px-3 text-sm font-bold normal-case"><option value="">Sin asignar</option>{repartidores.map((r) => <option key={r.id} value={r.id}>{r.nombre_completo}</option>)}</select></label>
         <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Estado<select value={form.estado} onChange={(e) => setForm({ ...form, estado: e.target.value })} className="h-11 rounded-xl border bg-white px-3 text-sm font-bold normal-case"><option value="activo">Activo</option><option value="taller">En taller</option><option value="fuera_servicio">Fuera de servicio</option></select></label>
-        {[['revision_tecnica_vence','Revisión técnica'],['permiso_circulacion_vence','Permiso circulación'],['seguro_vence','Seguro obligatorio']].map(([campo, etiqueta]) => <label key={campo} className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">{etiqueta}<input type="date" value={form[campo as keyof typeof form]} onChange={(e) => setForm({ ...form, [campo]: e.target.value })} className="h-11 rounded-xl border px-3 text-sm font-bold normal-case" /></label>)}
+        <label className="flex h-11 items-center gap-3 self-end rounded-xl border bg-[#FFF9EF] px-3 text-sm font-black text-maruxa-chocolate">
+          <input type="checkbox" checked={form.incluir_en_rendimientos} onChange={(e) => setForm({ ...form, incluir_en_rendimientos: e.target.checked })} className="h-5 w-5 accent-red-700" />
+          Incluir en rendimientos
+        </label>
+        {[['revision_tecnica_vence','Revisión técnica'],['permiso_circulacion_vence','Permiso circulación'],['seguro_vence','Seguro obligatorio']].map(([campo, etiqueta]) => <label key={campo} className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">{etiqueta}<input type="date" value={String(form[campo as keyof typeof form] ?? '')} onChange={(e) => setForm({ ...form, [campo]: e.target.value })} className="h-11 rounded-xl border px-3 text-sm font-bold normal-case" /></label>)}
         <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60 md:col-span-2">Observación<input value={form.observacion} onChange={(e) => setForm({ ...form, observacion: e.target.value })} className="h-11 rounded-xl border px-3 text-sm font-bold normal-case" /></label>
       </div><div className="mt-4 flex justify-end"><button type="button" disabled={guardando} onClick={guardarVehiculo} className="rounded-xl bg-red-700 px-6 py-3 font-black text-white disabled:opacity-50"><Save className="mr-2 inline h-4 w-4" />Guardar ficha</button></div>
     </section>}

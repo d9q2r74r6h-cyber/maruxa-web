@@ -13,6 +13,7 @@ type Vehiculo = {
   repartidor_id: string | null;
   kilometraje_actual: number;
   activo: boolean;
+  incluir_en_rendimientos: boolean;
 };
 
 type Repartidor = {
@@ -187,7 +188,7 @@ export default function RendimientoVehiculosPage() {
     const [vehiculosResp, cargasResp, funcionariosResp] = await Promise.all([
       supabase
         .from('vehiculos_reparto')
-        .select('id,codigo,nombre,patente,repartidor_id,kilometraje_actual,activo')
+        .select('*')
         .eq('empresa_id', perfil.empresa_id)
         .eq('activo', true)
         .order('nombre'),
@@ -213,7 +214,9 @@ export default function RendimientoVehiculosPage() {
       return;
     }
 
-    const vehiculosData = (vehiculosResp.data as Vehiculo[]) || [];
+    const vehiculosData = ((vehiculosResp.data as Vehiculo[]) || []).filter(
+      (vehiculo) => vehiculo.incluir_en_rendimientos !== false
+    );
     const cargasData = (cargasResp.data as Carga[]) || [];
     setVehiculos(vehiculosData);
     setCargas(cargasData);
@@ -379,32 +382,6 @@ export default function RendimientoVehiculosPage() {
     await cargarDatos();
   }
 
-  async function asignarRepartidor(repartidorId: string) {
-    if (!vehiculoFiltro) return;
-    setGuardando(true);
-    const { error } = await supabase
-      .from('vehiculos_reparto')
-      .update({ repartidor_id: repartidorId || null })
-      .eq('id', vehiculoFiltro);
-    setGuardando(false);
-    if (error) {
-      alert(error.code === '23505'
-        ? 'Este repartidor ya está asignado a otro vehículo.'
-        : error.message);
-      return;
-    }
-    setVehiculos((actuales) => actuales.map((vehiculo) =>
-      vehiculo.id === vehiculoFiltro
-        ? { ...vehiculo, repartidor_id: repartidorId || null }
-        : vehiculo
-    ));
-    const repartidor = repartidores.find((item) => item.id === repartidorId);
-    setForm((actual) => ({
-      ...actual,
-      conductor_nombre: repartidor?.nombre_completo || '',
-    }));
-  }
-
   async function guardarCarga() {
     const litrosCarga = numero(form.litros);
     const precioLitroIngresado = numero(form.precio_litro);
@@ -541,26 +518,25 @@ export default function RendimientoVehiculosPage() {
         </section>
       )}
 
-      <section className="no-print grid gap-3 rounded-3xl bg-white p-5 shadow-sm md:grid-cols-3">
+      <section className="no-print grid gap-4 rounded-3xl bg-white p-5 shadow-sm md:grid-cols-[180px_minmax(0,1fr)]">
         <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Año
           <select value={anio} onChange={(e) => setAnio(Number(e.target.value))} className="h-11 rounded-xl border bg-white px-3 text-sm font-bold normal-case">{aniosDisponibles.map((valor) => <option key={valor}>{valor}</option>)}</select>
         </label>
-        <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Vehículo de la planilla
-          <select value={vehiculoFiltro} onChange={(e) => {
-            const valor = e.target.value;
-            setVehiculoFiltro(valor);
-            const vehiculo = vehiculos.find((item) => item.id === valor);
-            const repartidor = repartidores.find((item) => item.id === vehiculo?.repartidor_id);
-            setForm((actual) => ({
-              ...actual,
-              vehiculo_id: valor,
-              conductor_nombre: repartidor?.nombre_completo || '',
-            }));
-          }} className="h-11 rounded-xl border bg-white px-3 text-sm font-bold normal-case"><option value="">Selecciona un vehículo</option>{vehiculos.map((vehiculo) => <option key={vehiculo.id} value={vehiculo.id}>{vehiculo.nombre}{vehiculo.patente ? ` · ${vehiculo.patente}` : ''}</option>)}</select>
-        </label>
-        <label className="grid gap-1 text-xs font-black uppercase text-maruxa-cafe/60">Repartidor asignado
-          <select disabled={!vehiculoFiltro || guardando} value={vehiculos.find((vehiculo) => vehiculo.id === vehiculoFiltro)?.repartidor_id || ''} onChange={(e) => void asignarRepartidor(e.target.value)} className="h-11 rounded-xl border bg-white px-3 text-sm font-bold normal-case disabled:bg-stone-100"><option value="">Sin asignar</option>{repartidores.map((repartidor) => <option key={repartidor.id} value={repartidor.id}>{repartidor.nombre_completo}</option>)}</select>
-        </label>
+        <div className="grid gap-2 text-xs font-black uppercase text-maruxa-cafe/60">Vehículo de la planilla
+          <div className="flex flex-wrap gap-2">
+            {vehiculos.map((vehiculo) => <button key={vehiculo.id} type="button" onClick={() => {
+              setVehiculoFiltro(vehiculo.id);
+              const repartidor = repartidores.find((item) => item.id === vehiculo.repartidor_id);
+              setForm((actual) => ({
+                ...actual,
+                vehiculo_id: vehiculo.id,
+                conductor_nombre: repartidor?.nombre_completo || '',
+              }));
+            }} className={`rounded-xl border-2 px-4 py-2.5 text-sm font-black normal-case transition ${vehiculoFiltro === vehiculo.id ? 'border-red-700 bg-red-700 text-white shadow-md' : 'border-maruxa-cafe/15 bg-[#FFF9EF] text-maruxa-chocolate hover:border-red-300'}`}>
+              {vehiculo.nombre}{vehiculo.patente ? <span className="ml-2 text-xs opacity-70">{vehiculo.patente}</span> : null}
+            </button>)}
+          </div>
+        </div>
       </section>
 
       <div className="vehiculos-print space-y-6">
@@ -593,7 +569,9 @@ export default function RendimientoVehiculosPage() {
         <section className="rounded-3xl bg-white p-5 shadow-sm">
           <h2 className="text-xl font-black text-maruxa-chocolate">Planilla de cargas</h2>
           <p className="no-print mt-1 text-xs font-bold text-maruxa-cafe/55">
-            Completa la grilla de nueva carga. Los cálculos se actualizan inmediatamente, antes de guardar.
+            {vehiculoFiltro
+              ? `${vehiculos.find((vehiculo) => vehiculo.id === vehiculoFiltro)?.nombre || 'Vehículo'} · Repartidor: ${form.conductor_nombre || 'Sin asignar'}`
+              : 'Selecciona un vehículo para abrir su planilla de cargas.'}
           </p>
           {!vehiculoFiltro ? (
             <div className="no-print mt-4 rounded-2xl border-2 border-dashed border-red-200 bg-red-50/50 px-5 py-10 text-center font-black text-maruxa-cafe/65">
@@ -602,13 +580,12 @@ export default function RendimientoVehiculosPage() {
           ) : cargando ? <p className="py-10 text-center font-bold">Cargando...</p> : (
             <>
             <div className="mt-4 overflow-x-auto rounded-2xl border border-maruxa-cafe/15">
-              <table className="w-full min-w-[1450px] text-xs">
-                <thead className="bg-[#3b2116] text-xs font-black uppercase tracking-wide text-white"><tr><th className="px-2 py-3 text-left">FECHA</th><th className="px-2 py-3 text-left">VEHÍCULO</th><th className="px-2 py-3 text-left">REPARTIDOR</th><th className="px-2 py-3 text-right">DOCUMENTO</th><th className="px-2 py-3 text-right">$/LITRO</th><th className="px-2 py-3 text-right">LITROS</th><th className="px-2 py-3 text-right">GASTO</th><th className="px-2 py-3 text-right">KILOMETRAJE</th><th className="px-2 py-3 text-right">KM RECORRIDOS</th><th className="px-2 py-3 text-right">KM/L</th><th className="px-2 py-3 text-right">LITROS/DÍA</th><th className="px-2 py-3 text-right">$/DÍA</th><th className="no-print px-2 py-3"></th></tr></thead>
+              <table className="w-full min-w-[1290px] text-xs">
+                <thead className="bg-[#3b2116] text-xs font-black uppercase tracking-wide text-white"><tr><th className="px-2 py-3 text-left">FECHA</th><th className="px-2 py-3 text-left">VEHÍCULO</th><th className="px-2 py-3 text-right">DOCUMENTO</th><th className="px-2 py-3 text-right">$/LITRO</th><th className="px-2 py-3 text-right">LITROS</th><th className="px-2 py-3 text-right">GASTO</th><th className="px-2 py-3 text-right">KILOMETRAJE</th><th className="px-2 py-3 text-right">KM RECORRIDOS</th><th className="px-2 py-3 text-right">KM/L</th><th className="px-2 py-3 text-right">LITROS/DÍA</th><th className="px-2 py-3 text-right">$/DÍA</th><th className="no-print px-2 py-3"></th></tr></thead>
                 <tbody>
                   <tr className="no-print border-b-2 border-red-700 bg-red-50/70 align-middle">
                     <td className="p-1"><input aria-label="Fecha nueva carga" type="date" value={form.fecha} onChange={(e) => setForm({ ...form, fecha: e.target.value })} className="h-11 w-[135px] rounded-lg border bg-white px-2 font-bold" /></td>
                     <td className="p-1"><div className="flex h-11 w-[190px] items-center rounded-lg border bg-white px-2 font-black">{vehiculos.find((vehiculo) => vehiculo.id === vehiculoFiltro)?.nombre}</div></td>
-                    <td className="p-1"><div className="flex h-11 w-[155px] items-center rounded-lg border bg-white px-2 font-black">{form.conductor_nombre || 'Sin asignar'}</div></td>
                     <td className="p-1"><div className="grid w-[190px] grid-cols-[90px_1fr] gap-1"><select aria-label="Tipo documento" value={form.tipo_documento} onChange={(e) => setForm({ ...form, tipo_documento: e.target.value })} className="h-11 rounded-lg border bg-white px-1 font-bold"><option value="guia">Guía</option><option value="boleta">Boleta</option><option value="factura">Factura</option></select><input aria-label="Número documento" value={form.numero_guia} onChange={(e) => setForm({ ...form, numero_guia: e.target.value })} placeholder="Número" className="h-11 min-w-0 rounded-lg border bg-white px-2 text-right font-bold" /></div></td>
                     <td className="p-1"><input aria-label="Precio litro nueva carga" inputMode="numeric" value={form.precio_litro} onChange={(e) => setForm({ ...form, precio_litro: e.target.value.replace(/\D/g, '') })} placeholder={precioCalculadoEnFormulario > 0 ? dinero(precioCalculadoEnFormulario) : 'Automático'} className="h-11 w-[100px] rounded-lg border bg-white px-2 text-right font-bold" /></td>
                     <td className="p-1"><input aria-label="Litros nueva carga" inputMode="decimal" value={form.litros} onChange={(e) => setForm({ ...form, litros: e.target.value })} placeholder="Ej: 35,6" className="h-11 w-[90px] rounded-lg border bg-white px-2 text-right font-bold" /></td>
@@ -622,7 +599,7 @@ export default function RendimientoVehiculosPage() {
                   </tr>
                   {[...cargasFiltradas].sort((a, b) => b.fecha.localeCompare(a.fecha)).map((carga) => {
                     const vehiculo = vehiculos.find((item) => item.id === carga.vehiculo_id);
-                    return <tr key={carga.id} className={`border-b ${carga.alerta ? 'bg-red-50' : carga.origen.startsWith('excel_2024') ? 'bg-blue-50/40' : ''}`}><td className="px-2 py-2 font-bold">{fechaLocal(carga.fecha)}</td><td className="px-2 py-2 font-black">{vehiculo?.nombre || '—'}</td><td className="px-2 py-2">{carga.conductor_nombre || '—'}</td><td className="px-2 py-2 text-right">{documentoTexto(carga.numero_guia)}</td><td className="px-2 py-2 text-right">{dinero(carga.precio_litro)}</td><td className="px-2 py-2 text-right">{decimal(carga.litros, 3)}</td><td className="px-2 py-2 text-right">{dinero(carga.monto_guia)}</td><td className="px-2 py-2 text-right">{carga.kilometraje === null ? 'Pendiente' : numero(carga.kilometraje).toLocaleString('es-CL')}</td><td className="px-2 py-2 text-right">{carga.km_recorridos === null ? '—' : numero(carga.km_recorridos).toLocaleString('es-CL')}</td><td className="px-2 py-2 text-right font-black">{decimal(carga.rendimiento)}</td><td className="px-2 py-2 text-right">{decimal(carga.litros_diarios)}</td><td className="px-2 py-2 text-right">{carga.gasto_diario === null ? '—' : dinero(carga.gasto_diario)}</td><td className="no-print px-2 py-2 text-right"><button type="button" onClick={() => eliminarCarga(carga.id)} className="rounded-lg p-2 text-red-700 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button></td></tr>;
+                    return <tr key={carga.id} className={`border-b ${carga.alerta ? 'bg-red-50' : carga.origen.startsWith('excel_2024') ? 'bg-blue-50/40' : ''}`}><td className="px-2 py-2 font-bold">{fechaLocal(carga.fecha)}</td><td className="px-2 py-2 font-black">{vehiculo?.nombre || '—'}</td><td className="px-2 py-2 text-right">{documentoTexto(carga.numero_guia)}</td><td className="px-2 py-2 text-right">{dinero(carga.precio_litro)}</td><td className="px-2 py-2 text-right">{decimal(carga.litros, 3)}</td><td className="px-2 py-2 text-right">{dinero(carga.monto_guia)}</td><td className="px-2 py-2 text-right">{carga.kilometraje === null ? 'Pendiente' : numero(carga.kilometraje).toLocaleString('es-CL')}</td><td className="px-2 py-2 text-right">{carga.km_recorridos === null ? '—' : numero(carga.km_recorridos).toLocaleString('es-CL')}</td><td className="px-2 py-2 text-right font-black">{decimal(carga.rendimiento)}</td><td className="px-2 py-2 text-right">{decimal(carga.litros_diarios)}</td><td className="px-2 py-2 text-right">{carga.gasto_diario === null ? '—' : dinero(carga.gasto_diario)}</td><td className="no-print px-2 py-2 text-right"><button type="button" onClick={() => eliminarCarga(carga.id)} className="rounded-lg p-2 text-red-700 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button></td></tr>;
                   })}
                 </tbody>
               </table>
