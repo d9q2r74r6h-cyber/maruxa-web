@@ -1872,20 +1872,48 @@ export default function AdminPlanillasPage() {
     indiceFila: number,
     dia: number
   ) {
-    if (event.key !== 'Enter' || event.shiftKey || !fila.editable) {
+    const teclas = [
+      'Enter',
+      'ArrowUp',
+      'ArrowDown',
+      'ArrowLeft',
+      'ArrowRight',
+    ];
+    if (!teclas.includes(event.key) || !fila.editable) {
       return;
     }
 
-    const siguienteFila = filasMensuales.findIndex(
-      (item, indice) =>
-        indice > indiceFila &&
-        item.editable &&
-        !esFilaAccionGrilla(item)
-    );
+    let filaDestinoIndice = indiceFila;
+    let diaDestino = dia;
+    const subir =
+      event.key === 'ArrowUp' ||
+      (event.key === 'Enter' && event.shiftKey);
+    const bajar = event.key === 'ArrowDown' || event.key === 'Enter';
 
-    if (siguienteFila === -1) return;
+    if (subir || bajar) {
+      const indicesEditables = filasMensuales
+        .map((item, indice) => ({ item, indice }))
+        .filter(
+          ({ item }) => item.editable && !esFilaAccionGrilla(item)
+        )
+        .map(({ indice }) => indice);
+      const posicionActual = indicesEditables.indexOf(indiceFila);
+      filaDestinoIndice =
+        indicesEditables[posicionActual + (subir ? -1 : 1)] ?? -1;
+    } else {
+      diaDestino += event.key === 'ArrowLeft' ? -1 : 1;
+    }
 
-    const filaDestino = filasMensuales[siguienteFila];
+    if (
+      filaDestinoIndice < 0 ||
+      diaDestino < 1 ||
+      diaDestino > ultimoDia
+    ) {
+      event.preventDefault();
+      return;
+    }
+
+    const filaDestino = filasMensuales[filaDestinoIndice];
     const ordenDestino = filaDestino.editable?.turno;
 
     event.preventDefault();
@@ -1907,9 +1935,9 @@ export default function AdminPlanillasPage() {
       fila.editable.repartoId,
       fila.editable.productoTurnoId
     );
-    setCeldaEditable({ dia, fila: siguienteFila });
-    setFocoGrillaPendiente({ dia, fila: siguienteFila });
-    seleccionarCeldaGrilla(fechaDiaMes(dia), ordenDestino, false);
+    seleccionarCeldaGrilla(fechaDiaMes(diaDestino), ordenDestino, false);
+    setCeldaEditable({ dia: diaDestino, fila: filaDestinoIndice });
+    setFocoGrillaPendiente({ dia: diaDestino, fila: filaDestinoIndice });
   }
 
   function valorEditableGrilla(
