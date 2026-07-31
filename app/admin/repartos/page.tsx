@@ -8,7 +8,7 @@ import {
   type KeyboardEvent,
   type WheelEvent,
 } from 'react';
-import { ArrowDown, ArrowUp, Loader2, Save } from 'lucide-react';
+import { ArrowDown, ArrowUp, ClipboardPaste, Loader2, Save, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAdminSession } from '@/components/AdminSession';
 
@@ -65,6 +65,14 @@ type BorradorPlanilla = {
   pasteles?: Record<number, number>;
   saldoInicial: number;
   actualizadoEn: string;
+};
+
+type ResultadoImportacion = {
+  filas: Fila[];
+  filasLeidas: number;
+  diasConDatos: number;
+  kilosVendidos: number;
+  kilosDevueltos: number;
 };
 
 function numero(valor: unknown) {
@@ -360,6 +368,10 @@ export default function RepartosPage() {
   const [guardando, setGuardando] = useState(false);
   const [guardandoOrden, setGuardandoOrden] = useState(false);
   const [replicandoOrden, setReplicandoOrden] = useState(false);
+  const [mostrarImportador, setMostrarImportador] = useState(false);
+  const [textoImportacion, setTextoImportacion] = useState('');
+  const [resultadoImportacion, setResultadoImportacion] =
+    useState<ResultadoImportacion | null>(null);
   const grillaIngresoRef = useRef<HTMLDivElement | null>(null);
   const planillaDesplazadaRef = useRef('');
   const anioActual = hoy.getFullYear();
@@ -1063,6 +1075,105 @@ export default function RepartosPage() {
     }, 0);
   }
 
+  function analizarImportacion() {
+    if (!planilla || filas.length === 0) return;
+
+    const lineas = textoImportacion
+      .split(/\r?\n/)
+      .map((linea) => linea.split('\t'))
+      .filter((celdas) => celdas.some((celda) => celda.trim()));
+    const cantidadColumnasDias = dias.length * 2;
+    const filasNumericas = lineas
+      .map((celdas) => celdas.slice(-cantidadColumnasDias))
+      .filter(
+        (celdas) => {
+          const valores = celdas.map((celda) => celda.trim());
+          const noVacios = valores.filter(Boolean);
+          const esEncabezadoDias =
+            noVacios.length === dias.length &&
+            noVacios.every((valor, indice) => Number(valor) === dias[indice]);
+          return (
+            celdas.length === cantidadColumnasDias &&
+            !esEncabezadoDias &&
+            valores.some((valor) => /^-?\d+(?:[.,]\d+)?$/.test(valor)) &&
+            !noVacios.every((valor) => valor.toUpperCase() === 'K')
+          );
+        }
+      );
+
+    if (filasNumericas.length < filas.length) {
+      alert(
+        `Solo se detectaron ${filasNumericas.length} filas con datos para ${filas.length} clientes. Incluye todas las filas de clientes al copiar desde Excel.`
+      );
+      return;
+    }
+
+    // La ultima fila de una planilla copiada suele ser el total. Solo se toman
+    // tantas filas como clientes visibles, conservando exactamente su orden.
+    const datosClientes = filasNumericas.slice(0, filas.length);
+    const siguientes = filas.map((fila, indice) => {
+      const celdas = datosClientes[indice];
+      const diasImportados = Object.fromEntries(
+        dias.map((dia, indiceDia) => [
+          dia,
+          {
+            vendidos: kilos(celdas[indiceDia * 2]),
+            devueltos: kilos(celdas[indiceDia * 2 + 1]),
+            ajuste: 0,
+          },
+        ])
+      );
+      return { ...fila, dias: diasImportados };
+    });
+    const diasConDatos = dias.filter((dia) =>
+      siguientes.some(
+        (fila) => fila.dias[dia]?.vendidos || fila.dias[dia]?.devueltos
+      )
+    ).length;
+    const kilosVendidos = siguientes.reduce(
+      (total, fila) =>
+        total + dias.reduce((subtotal, dia) => subtotal + fila.dias[dia].vendidos, 0),
+      0
+    );
+    const kilosDevueltos = siguientes.reduce(
+      (total, fila) =>
+        total + dias.reduce((subtotal, dia) => subtotal + fila.dias[dia].devueltos, 0),
+      0
+    );
+    setResultadoImportacion({
+      filas: siguientes,
+      filasLeidas: datosClientes.length,
+      diasConDatos,
+      kilosVendidos,
+      kilosDevueltos,
+    });
+  }
+
+  function aplicarImportacion() {
+    if (!resultadoImportacion) return;
+    const hayDatos = filas.some((fila) =>
+      dias.some(
+        (dia) =>
+          fila.dias[dia]?.vendidos ||
+          fila.dias[dia]?.devueltos ||
+          fila.dias[dia]?.ajuste
+      )
+    );
+    if (
+      hayDatos &&
+      !window.confirm(
+        `Esta accion reemplazara las casillas visibles de ${nombreMes(mes)} ${anio}. ¿Continuar?`
+      )
+    ) {
+      return;
+    }
+    setFilas(resultadoImportacion.filas);
+    setCambiosPendientes(true);
+    setMostrarImportador(false);
+    setTextoImportacion('');
+    setResultadoImportacion(null);
+  }
+
   const totalesDiarios = useMemo(() => {
     let saldoAnterior = saldoInicial;
 
@@ -1221,6 +1332,69 @@ export default function RepartosPage() {
           </div>
         ))}
       </section>
+
+      {mostrarImportador && (
+        <section className="rounded-lg border-2 border-[#A51F2B]/25 bg-white p-4 shadow-sm">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-black text-[#2A1710]">
+                Importar desde Excel
+              </h2>
+              <p className="mt-1 text-sm font-semibold text-[#4B2818]/65">
+                Copia el rango completo y pegalo aqui. Las filas se asignaran en
+                el mismo orden de los clientes visibles; los valores sin cliente
+                conservaran el precio de esa fila.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setMostrarImportador(false);
+                setResultadoImportacion(null);
+              }}
+              className="rounded-md p-2 text-[#4B2818]/60 hover:bg-[#FFF3DF]"
+              aria-label="Cerrar importador"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <textarea
+            value={textoImportacion}
+            onChange={(event) => {
+              setTextoImportacion(event.target.value);
+              setResultadoImportacion(null);
+            }}
+            placeholder="Pega aqui las filas copiadas desde Excel..."
+            className="mt-4 min-h-40 w-full rounded-md border border-[#4B2818]/20 bg-[#FFFDF8] p-3 font-mono text-xs outline-none focus:border-[#A51F2B]"
+          />
+          {resultadoImportacion && (
+            <div className="mt-3 grid gap-2 rounded-md bg-[#FFF3DF] p-3 text-sm font-bold text-[#4B2818] sm:grid-cols-4">
+              <span>{resultadoImportacion.filasLeidas} clientes</span>
+              <span>{resultadoImportacion.diasConDatos} dias con datos</span>
+              <span>{resultadoImportacion.kilosVendidos.toLocaleString('es-CL')} kg vendidos</span>
+              <span>{resultadoImportacion.kilosDevueltos.toLocaleString('es-CL')} kg devueltos</span>
+            </div>
+          )}
+          <div className="mt-4 flex flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              onClick={analizarImportacion}
+              disabled={!textoImportacion.trim()}
+              className="h-10 rounded-md border border-[#A51F2B] px-4 text-sm font-black text-[#A51F2B] disabled:opacity-50"
+            >
+              Revisar datos
+            </button>
+            <button
+              type="button"
+              onClick={aplicarImportacion}
+              disabled={!resultadoImportacion}
+              className="h-10 rounded-md bg-[#A51F2B] px-4 text-sm font-black text-white disabled:opacity-50"
+            >
+              Cargar en la grilla
+            </button>
+          </div>
+        </section>
+      )}
 
       <section className={vistaPlanilla === 'ingreso' ? 'min-w-0' : 'hidden'}>
         {!planilla ? (
@@ -1612,6 +1786,18 @@ export default function RepartosPage() {
       </nav>
 
       <div className="flex flex-wrap justify-end gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            setMostrarImportador((actual) => !actual);
+            setResultadoImportacion(null);
+          }}
+          disabled={guardando || cargando || !planilla || vistaPlanilla !== 'ingreso'}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-[#4B2818]/30 bg-white px-5 text-sm font-black text-[#4B2818] disabled:opacity-60"
+        >
+          <ClipboardPaste className="h-4 w-4" />
+          Pegar desde Excel
+        </button>
         <button
           type="button"
           onClick={replicarOrdenEnTodosLosMeses}
