@@ -70,6 +70,7 @@ type BorradorPlanilla = {
 type ResultadoImportacion = {
   filas: Fila[];
   filasLeidas: number;
+  clientesSinDatos: number;
   diasConDatos: number;
   kilosVendidos: number;
   kilosDevueltos: number;
@@ -1101,24 +1102,41 @@ export default function RepartosPage() {
         }
       );
 
-    if (filasNumericas.length < filas.length) {
-      alert(
-        `Solo se detectaron ${filasNumericas.length} filas con datos para ${filas.length} clientes. Incluye todas las filas de clientes al copiar desde Excel.`
-      );
+    if (filasNumericas.length === 0) {
+      alert('No se detectaron filas numéricas para importar.');
       return;
     }
 
-    // La ultima fila de una planilla copiada suele ser el total. Solo se toman
-    // tantas filas como clientes visibles, conservando exactamente su orden.
-    const datosClientes = filasNumericas.slice(0, filas.length);
+    // Excel suele incluir al final una fila de totales. Se reconoce comparando
+    // sus columnas con la suma de las filas anteriores y nunca se asigna a un cliente.
+    const ultimaFila = filasNumericas.at(-1);
+    const filasAnteriores = filasNumericas.slice(0, -1);
+    const coincidenciasTotal = ultimaFila
+      ? ultimaFila.reduce((coincidencias, valor, indice) => {
+          const totalAnterior = filasAnteriores.reduce(
+            (suma, fila) => suma + numero(fila[indice]),
+            0
+          );
+          const valorTotal = numero(valor);
+          return coincidencias +
+            (valor.trim() && Math.abs(valorTotal - totalAnterior) < 0.001 ? 1 : 0);
+        }, 0)
+      : 0;
+    const columnasTotalConValor = ultimaFila?.filter((valor) => valor.trim()).length || 0;
+    const tieneFilaTotal =
+      filasAnteriores.length > 0 &&
+      columnasTotalConValor > 0 &&
+      coincidenciasTotal >= Math.max(3, Math.ceil(columnasTotalConValor * 0.6));
+    const filasSinTotal = tieneFilaTotal ? filasAnteriores : filasNumericas;
+    const datosClientes = filasSinTotal.slice(0, filas.length);
     const siguientes = filas.map((fila, indice) => {
       const celdas = datosClientes[indice];
       const diasImportados = Object.fromEntries(
         dias.map((dia, indiceDia) => [
           dia,
           {
-            vendidos: kilos(celdas[indiceDia * 2]),
-            devueltos: kilos(celdas[indiceDia * 2 + 1]),
+            vendidos: kilos(celdas?.[indiceDia * 2]),
+            devueltos: kilos(celdas?.[indiceDia * 2 + 1]),
             ajuste: 0,
           },
         ])
@@ -1143,6 +1161,7 @@ export default function RepartosPage() {
     setResultadoImportacion({
       filas: siguientes,
       filasLeidas: datosClientes.length,
+      clientesSinDatos: Math.max(0, filas.length - datosClientes.length),
       diasConDatos,
       kilosVendidos,
       kilosDevueltos,
@@ -1369,7 +1388,12 @@ export default function RepartosPage() {
           />
           {resultadoImportacion && (
             <div className="mt-3 grid gap-2 rounded-md bg-[#FFF3DF] p-3 text-sm font-bold text-[#4B2818] sm:grid-cols-4">
-              <span>{resultadoImportacion.filasLeidas} clientes</span>
+              <span>{resultadoImportacion.filasLeidas} filas importadas</span>
+              {resultadoImportacion.clientesSinDatos > 0 && (
+                <span className="text-amber-800">
+                  {resultadoImportacion.clientesSinDatos} clientes actuales quedan vacíos
+                </span>
+              )}
               <span>{resultadoImportacion.diasConDatos} dias con datos</span>
               <span>{resultadoImportacion.kilosVendidos.toLocaleString('es-CL')} kg vendidos</span>
               <span>{resultadoImportacion.kilosDevueltos.toLocaleString('es-CL')} kg devueltos</span>
