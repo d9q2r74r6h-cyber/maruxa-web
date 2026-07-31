@@ -3,6 +3,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type KeyboardEvent,
   type WheelEvent,
@@ -359,6 +360,8 @@ export default function RepartosPage() {
   const [guardando, setGuardando] = useState(false);
   const [guardandoOrden, setGuardandoOrden] = useState(false);
   const [replicandoOrden, setReplicandoOrden] = useState(false);
+  const grillaIngresoRef = useRef<HTMLDivElement | null>(null);
+  const planillaDesplazadaRef = useRef('');
   const anioActual = hoy.getFullYear();
   const aniosDisponibles = Array.from(
     { length: Math.max(anioActual + 1, anio) - 2023 },
@@ -662,6 +665,57 @@ export default function RepartosPage() {
     if (!perfil || !repartidor.trim()) return;
     void abrirPlanilla();
   }, [perfil, anio, mes, repartidor, repartidorId, clientes]);
+
+  useEffect(() => {
+    if (
+      !planilla ||
+      cargando ||
+      vistaPlanilla !== 'ingreso' ||
+      filas.length === 0
+    ) {
+      return;
+    }
+
+    const clave = `${planilla.id}-${anio}-${mes}`;
+    if (planillaDesplazadaRef.current === clave) return;
+
+    const diasConDatos = filas.flatMap((fila) =>
+      Object.entries(fila.dias)
+        .filter(([, valores]) =>
+          Boolean(valores.vendidos || valores.devueltos || valores.ajuste)
+        )
+        .map(([dia]) => Number(dia))
+    );
+    const ultimoDiaIngresado = diasConDatos.length
+      ? Math.max(...diasConDatos)
+      : 0;
+    const diaDestino = Math.min(
+      ultimoDiaIngresado > 0 ? ultimoDiaIngresado + 1 : 1,
+      diasDelMes(anio, mes)
+    );
+
+    planillaDesplazadaRef.current = clave;
+    const timeout = window.setTimeout(() => {
+      const contenedor = grillaIngresoRef.current;
+      if (!contenedor) return;
+
+      const anchoColumnasFijas = 242;
+      const anchoDia = 128;
+      contenedor.scrollLeft = Math.max(
+        0,
+        anchoColumnasFijas + (diaDestino - 1) * anchoDia -
+          anchoColumnasFijas
+      );
+
+      const entrada = contenedor.querySelector<HTMLInputElement>(
+        `input[data-columna="${diaDestino}-vendidos"]`
+      );
+      entrada?.focus({ preventScroll: true });
+      entrada?.select();
+    }, 100);
+
+    return () => window.clearTimeout(timeout);
+  }, [anio, cargando, filas, mes, planilla, vistaPlanilla]);
 
   useEffect(() => {
     if (
@@ -1176,7 +1230,7 @@ export default function RepartosPage() {
               : 'Selecciona un repartidor para registrar ventas y devoluciones.'}
           </p>
         ) : (
-          <div className="max-h-[620px] overflow-auto">
+          <div ref={grillaIngresoRef} className="max-h-[620px] overflow-auto">
             <table
               className="table-fixed border-collapse text-xs"
               style={{ width: 170 + 72 + dias.length * 128 + 112 }}
