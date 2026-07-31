@@ -533,7 +533,8 @@ export default function RendimientoVehiculosPage() {
                 conductor_nombre: repartidor?.nombre_completo || '',
               }));
             }} className={`rounded-xl border-2 px-4 py-2.5 text-sm font-black normal-case transition ${vehiculoFiltro === vehiculo.id ? 'border-red-700 bg-red-700 text-white shadow-md' : 'border-maruxa-cafe/15 bg-[#FFF9EF] text-maruxa-chocolate hover:border-red-300'}`}>
-              {vehiculo.nombre}{vehiculo.patente ? <span className="ml-2 text-xs opacity-70">{vehiculo.patente}</span> : null}
+              {repartidores.find((repartidor) => repartidor.id === vehiculo.repartidor_id)?.nombre_completo || vehiculo.nombre}
+              {vehiculo.patente ? <span className="ml-2 text-xs opacity-70">{vehiculo.patente}</span> : null}
             </button>)}
           </div>
         </div>
