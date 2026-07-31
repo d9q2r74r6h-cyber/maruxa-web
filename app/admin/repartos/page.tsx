@@ -223,6 +223,23 @@ function moverEnGrilla(event: KeyboardEvent<HTMLInputElement>) {
     siguiente = siguienteFila?.querySelector<HTMLInputElement>(
       `input[data-columna="${columna}"]`
     );
+
+    if (!siguiente) {
+      const coincidenciaDia = columna.match(/^(\d+)-(vendidos|devueltos)$/);
+      if (coincidenciaDia) {
+        const diaActual = Number(coincidenciaDia[1]);
+        const campo = coincidenciaDia[2];
+        const diaDestino = diaActual + (subir ? -1 : 1);
+        const entradasDestino = Array.from(
+          fila?.parentElement?.querySelectorAll<HTMLInputElement>(
+            `input[data-columna="${diaDestino}-${campo}"]`
+          ) || []
+        );
+        siguiente = subir
+          ? entradasDestino.at(-1) || null
+          : entradasDestino[0] || null;
+      }
+    }
   } else if (fila) {
     const entradas = Array.from(
       fila.querySelectorAll<HTMLInputElement>('input[data-columna]')
