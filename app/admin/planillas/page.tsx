@@ -1068,11 +1068,15 @@ export default function AdminPlanillasPage() {
             ).toFixed(2)
           )
         : 0;
+      const kilosTurnosDia = turnosDelDia.reduce(
+        (total, turnoItem) => total + Number(turnoItem.kilos || 0),
+        0
+      );
       const kilosProducidosDia =
-        kilosDetallesDia > 0
+        turnosDelDia.length > 0
+          ? kilosTurnosDia
+          : kilosDetallesDia > 0
           ? kilosDetallesDia
-          : turnosDelDia.length > 0
-          ? turnosDelDia.reduce((total, turnoItem) => total + Number(turnoItem.kilos || 0), 0)
           : Number(item.kilos_producidos || 0);
       const factorDia =
         turnosDelDia.length > 0
@@ -1102,7 +1106,7 @@ export default function AdminPlanillasPage() {
           masa_ocupada: Number(item.masa_ocupada || 0),
           masa_sobrante: Number(item.masa_sobrante || 0),
           kilos_producidos: kilosProducidosDia,
-          kilos_detalles: kilosDetallesDia,
+          kilos_detalles: kilosProducidosDia,
           rinde_por_saco:
             factorDia > 0
               ? Number((kilosProducidosDia / factorDia).toFixed(2))
@@ -1368,11 +1372,15 @@ export default function AdminPlanillasPage() {
             ).toFixed(2)
           )
         : 0;
+    const kilosTurnosDia = turnosResumen.reduce(
+      (total, item) => total + Number(item.kilos || 0),
+      0
+    );
     const kilosDia =
-      kilosDetallesDia > 0
+      turnosResumen.length > 0
+        ? kilosTurnosDia
+        : kilosDetallesDia > 0
         ? kilosDetallesDia
-        : turnosResumen.length > 0
-        ? turnosResumen.reduce((total, item) => total + Number(item.kilos || 0), 0)
         : Number(data.kilos_producidos || 0);
 
     setResumenDia({
@@ -2758,7 +2766,7 @@ export default function AdminPlanillasPage() {
           ),
           Number(resumenActual?.masa_sobrante || 0)
         ),
-        kilos_producidos: Math.max(kilosTotal, Number(resumenActual?.kilos_producidos || 0)),
+        kilos_producidos: Number(kilosTotal.toFixed(2)),
         rinde: Number(rindeTotal.toFixed(2)),
         observaciones: observacionActual || null,
         amasado1: amasado1Resumen,
