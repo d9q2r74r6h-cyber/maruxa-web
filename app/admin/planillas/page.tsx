@@ -319,6 +319,7 @@ function kilosConProductosIncluidos(
     otroskg?: number | null;
     merma?: number | null;
     cacho?: number | null;
+    pan_sobra?: number | null;
   },
   panSobranteAnterior = 0
 ) {
@@ -329,6 +330,7 @@ function kilosConProductosIncluidos(
     Math.abs(Number(turno.otroskg || 0)) +
     Math.abs(Number(turno.merma || 0)) +
     Math.abs(Number(turno.cacho || 0)) +
+    Math.abs(Number(turno.pan_sobra || 0)) +
     Math.abs(Number(panSobranteAnterior || 0));
 
   if (componentesKilos <= 0) return kilosGuardados;
@@ -338,7 +340,8 @@ function kilosConProductosIncluidos(
     Number(turno.reparto || 0) +
     Number(turno.otroskg || 0) +
     Number(turno.merma || 0) +
-    Number(turno.cacho || 0) -
+    Number(turno.cacho || 0) +
+    Number(turno.pan_sobra || 0) -
     Number(panSobranteAnterior || 0);
 
   return Number(kilosCalculados.toFixed(2));
