@@ -402,7 +402,10 @@ export default function UsuariosPage() {
               </label>
               {formFuncionario.trabaja_comision && (
                 <label className="grid gap-1 text-xs font-black text-[#4B2818]">Porcentaje de comisión
-                  <input type="number" step="0.1" min="0" value={formFuncionario.porcentaje_comision} onChange={(event) => setFormFuncionario({ ...formFuncionario, porcentaje_comision: event.target.value })} className="h-10 rounded-md border border-[#4B2818]/20 px-3 font-bold" />
+                  <span className="flex h-10 items-center rounded-md border border-[#4B2818]/20 bg-white pr-3 focus-within:border-[#A51F2B]">
+                    <input type="number" step="0.1" min="0" value={formFuncionario.porcentaje_comision} onChange={(event) => setFormFuncionario({ ...formFuncionario, porcentaje_comision: event.target.value })} className="h-full min-w-0 flex-1 rounded-md px-3 text-right font-bold outline-none" />
+                    <span className="ml-1 text-sm font-black text-[#A51F2B]">%</span>
+                  </span>
                 </label>
               )}
             </div>
@@ -446,7 +449,10 @@ export default function UsuariosPage() {
                         Comisión
                       </label>
                       {funcionario.trabaja_comision && (
-                        <input type="number" step="0.1" min="0" value={funcionario.porcentaje_comision || 3} onChange={(event) => setFuncionarios((actuales) => actuales.map((item) => item.id === funcionario.id ? { ...item, porcentaje_comision: Number(event.target.value) } : item))} onBlur={(event) => void actualizarComision(funcionario, true, Number(event.target.value))} className="h-8 w-20 rounded border px-2 text-right text-xs font-black" aria-label={`Porcentaje de comisión de ${funcionario.nombre_completo}`} />
+                        <span className="flex h-8 w-24 items-center rounded border bg-white pr-2">
+                          <input type="number" step="0.1" min="0" value={funcionario.porcentaje_comision || 3} onChange={(event) => setFuncionarios((actuales) => actuales.map((item) => item.id === funcionario.id ? { ...item, porcentaje_comision: Number(event.target.value) } : item))} onBlur={(event) => void actualizarComision(funcionario, true, Number(event.target.value))} className="h-full min-w-0 flex-1 px-2 text-right text-xs font-black outline-none" aria-label={`Porcentaje de comisión de ${funcionario.nombre_completo}`} />
+                          <span className="text-xs font-black text-[#A51F2B]">%</span>
+                        </span>
                       )}
                     </div>
                   </div>
