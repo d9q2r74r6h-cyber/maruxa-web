@@ -1099,22 +1099,35 @@ export default function RepartosPage() {
       })
       .map((celdas) => {
         // Las dos primeras columnas son Cliente y Precio. Aunque el archivo
-        // mantenga los 31 días, en meses cortos se toman desde el día 1.
-        const tieneColumnasCliente = celdas.length >= cantidadColumnasDias + 2;
+        // venga recortado al final o mantenga 31 días, se toman desde el día 1.
+        const primeraCelda = celdas[0]?.trim() || '';
+        const segundaCelda = celdas[1]?.trim() || '';
+        const tieneNombreYPrecio =
+          Boolean(primeraCelda) &&
+          !/^-?\d+(?:[.,]\d+)?$/.test(primeraCelda) &&
+          /^\d+(?:[.,]\d+)?$/.test(segundaCelda);
+        const tieneDosColumnasVacias = !primeraCelda && !segundaCelda;
+        const tieneColumnasCliente =
+          celdas.length >= cantidadColumnasDias + 2 ||
+          tieneNombreYPrecio ||
+          tieneDosColumnasVacias;
         const esFilaCliente =
           tieneColumnasCliente &&
           Boolean(
-            celdas[0]?.trim() ||
-              /^\d+(?:[.,]\d+)?$/.test(celdas[1]?.trim() || '')
+            primeraCelda || /^\d+(?:[.,]\d+)?$/.test(segundaCelda)
           );
-        if (celdas.length >= cantidadColumnasDias + 2) {
+        if (tieneColumnasCliente) {
+          const valores = celdas.slice(2, 2 + cantidadColumnasDias);
+          while (valores.length < cantidadColumnasDias) valores.push('');
           return {
-            valores: celdas.slice(2, 2 + cantidadColumnasDias),
+            valores,
             esFilaCliente,
           };
         }
+        const valores = celdas.slice(0, cantidadColumnasDias);
+        while (valores.length < cantidadColumnasDias) valores.push('');
         return {
-          valores: celdas.slice(0, cantidadColumnasDias),
+          valores,
           esFilaCliente: false,
         };
       })
