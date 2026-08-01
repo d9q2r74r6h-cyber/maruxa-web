@@ -1243,12 +1243,20 @@ export default function RepartosPage() {
     ).length;
     const kilosVendidos = siguientes.reduce(
       (total, fila) =>
-        total + dias.reduce((subtotal, dia) => subtotal + fila.dias[dia].vendidos, 0),
+        total +
+        dias.reduce(
+          (subtotal, dia) => subtotal + (fila.dias[dia]?.vendidos || 0),
+          0
+        ),
       0
     );
     const kilosDevueltos = siguientes.reduce(
       (total, fila) =>
-        total + dias.reduce((subtotal, dia) => subtotal + fila.dias[dia].devueltos, 0),
+        total +
+        dias.reduce(
+          (subtotal, dia) => subtotal + (fila.dias[dia]?.devueltos || 0),
+          0
+        ),
       0
     );
     setResultadoImportacion({
