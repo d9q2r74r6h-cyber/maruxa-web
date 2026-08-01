@@ -1943,19 +1943,35 @@ export default function RepartosPage() {
       </section>
 
       {vistaPlanilla === 'totales' && planilla && funcionarioActual?.trabaja_comision && (
-        <section className="rounded-lg border border-[#4B2818]/15 bg-white p-4 shadow-sm">
-          <h3 className="font-black text-[#2A1710]">Liquidación · {funcionarioActual.nombre_completo}</h3>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-            <div className="rounded-md bg-[#FFF3DF] p-3"><p className="text-[10px] font-black uppercase text-[#4B2818]/60">Comisión</p><p className="font-black">{porcentajeComision.toLocaleString('es-CL')}%</p></div>
-            <div className="rounded-md bg-[#FFF3DF] p-3"><p className="text-[10px] font-black uppercase text-[#4B2818]/60">Monto comisión</p><p className="font-black">{dinero(montoComision)}</p></div>
-            <label className="grid min-w-0 gap-1 text-[10px] font-black uppercase text-[#4B2818]/60">Libres<input type="number" value={liquidacion.diasLibres || ''} onChange={(event) => { setCambiosPendientes(true); setLiquidacion((actual) => ({ ...actual, diasLibres: Math.max(0, numero(event.target.value)) })); }} className="h-11 min-w-0 w-full rounded-md border px-3 text-right text-sm font-black text-[#2A1710]" /></label>
-            <div className="rounded-md bg-[#FFF3DF] p-3"><p className="text-[10px] font-black uppercase text-[#4B2818]/60">Días base</p><p className="font-black">30</p></div>
-            <div className="rounded-md bg-[#FFF3DF] p-3"><p className="text-[10px] font-black uppercase text-[#4B2818]/60">Valor día</p><p className="font-black">{dinero(valorDiaComision)}</p></div>
-            <div className="rounded-md bg-[#FFF3DF] p-3"><p className="text-[10px] font-black uppercase text-[#4B2818]/60">Liquidación</p><p className="font-black">{dinero(montoLiquidacion)}</p></div>
-            <label className="grid min-w-0 gap-1 text-[10px] font-black uppercase text-red-700">Anticipo<input type="text" inputMode="numeric" value={liquidacion.anticipo || ''} onChange={(event) => { setCambiosPendientes(true); setLiquidacion((actual) => ({ ...actual, anticipo: Math.max(0, numero(event.target.value)) })); }} className="h-11 min-w-0 w-full rounded-md border border-red-200 px-3 text-right text-sm font-black" /></label>
-            <div className="rounded-md bg-red-50 p-3"><p className="text-[10px] font-black uppercase text-red-700">Sub-Total</p><p className="font-black text-red-700">{dinero(subtotalLiquidacion)}</p></div>
-            <label className="grid min-w-0 gap-1 text-[10px] font-black uppercase text-[#4B2818]/60">Abono<input type="text" inputMode="numeric" value={liquidacion.abono || ''} onChange={(event) => { setCambiosPendientes(true); setLiquidacion((actual) => ({ ...actual, abono: Math.max(0, numero(event.target.value)) })); }} className="h-11 min-w-0 w-full rounded-md border px-3 text-right text-sm font-black" /></label>
-            <div className="rounded-md bg-[#2A1710] p-3 text-white"><p className="text-[10px] font-black uppercase text-white/70">Total</p><p className="font-black">{dinero(totalLiquidacion)}</p></div>
+        <section className="overflow-hidden rounded-xl border border-[#4B2818]/15 bg-white shadow-sm">
+          <div className="flex flex-col gap-3 border-b border-[#4B2818]/10 bg-gradient-to-r from-[#FFF3DF] to-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#A51F2B]">Cierre mensual</p>
+              <h3 className="mt-1 text-lg font-black text-[#2A1710]">Liquidación · {funcionarioActual.nombre_completo}</h3>
+            </div>
+            <div className="inline-flex w-fit items-baseline gap-2 rounded-full bg-[#A51F2B] px-4 py-2 text-white shadow-sm">
+              <span className="text-[10px] font-black uppercase tracking-wide text-white/75">Comisión</span>
+              <span className="text-xl font-black">{porcentajeComision.toLocaleString('es-CL')}%</span>
+            </div>
+          </div>
+
+          <div className="p-5">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border border-[#E9D7BC] bg-[#FFF9EF] px-4 py-3"><p className="text-[10px] font-black uppercase tracking-wide text-[#4B2818]/55">Monto comisión</p><p className="mt-1 text-xl font-black text-[#2A1710]">{dinero(montoComision)}</p></div>
+              <div className="rounded-lg border border-[#E9D7BC] bg-[#FFF9EF] px-4 py-3"><p className="text-[10px] font-black uppercase tracking-wide text-[#4B2818]/55">Días base</p><p className="mt-1 text-xl font-black text-[#2A1710]">30</p></div>
+              <div className="rounded-lg border border-[#E9D7BC] bg-[#FFF9EF] px-4 py-3"><p className="text-[10px] font-black uppercase tracking-wide text-[#4B2818]/55">Valor día</p><p className="mt-1 text-xl font-black text-[#2A1710]">{dinero(valorDiaComision)}</p></div>
+            </div>
+
+            <div className="mt-4 grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[88px_repeat(5,minmax(0,1fr))]">
+              <label className="grid gap-1 text-center text-[10px] font-black uppercase tracking-wide text-[#4B2818]/60">Libres
+                <input type="number" min="0" max="9" value={liquidacion.diasLibres || ''} onChange={(event) => { setCambiosPendientes(true); setLiquidacion((actual) => ({ ...actual, diasLibres: Math.min(9, Math.max(0, numero(event.target.value))) })); }} className="h-14 w-full rounded-lg border-2 border-[#D9C4A7] bg-white text-center text-2xl font-black text-[#2A1710] outline-none focus:border-[#A51F2B]" />
+              </label>
+              <div className="rounded-lg border border-[#E9D7BC] bg-[#FFF3DF] px-4 py-3"><p className="text-[10px] font-black uppercase tracking-wide text-[#4B2818]/55">Liquidación</p><p className="mt-1 text-lg font-black text-[#2A1710]">{dinero(montoLiquidacion)}</p></div>
+              <label className="grid min-w-0 gap-1 text-[10px] font-black uppercase tracking-wide text-[#A51F2B]">Anticipo<input type="text" inputMode="numeric" value={liquidacion.anticipo || ''} onChange={(event) => { setCambiosPendientes(true); setLiquidacion((actual) => ({ ...actual, anticipo: Math.max(0, numero(event.target.value)) })); }} className="h-14 min-w-0 w-full rounded-lg border-2 border-red-200 bg-white px-4 text-right text-lg font-black outline-none focus:border-[#A51F2B]" /></label>
+              <div className="rounded-lg border border-red-100 bg-red-50 px-4 py-3"><p className="text-[10px] font-black uppercase tracking-wide text-red-700">Sub-Total</p><p className="mt-1 text-lg font-black text-red-700">{dinero(subtotalLiquidacion)}</p></div>
+              <label className="grid min-w-0 gap-1 text-[10px] font-black uppercase tracking-wide text-[#4B2818]/60">Abono<input type="text" inputMode="numeric" value={liquidacion.abono || ''} onChange={(event) => { setCambiosPendientes(true); setLiquidacion((actual) => ({ ...actual, abono: Math.max(0, numero(event.target.value)) })); }} className="h-14 min-w-0 w-full rounded-lg border-2 border-[#D9C4A7] bg-white px-4 text-right text-lg font-black outline-none focus:border-[#A51F2B]" /></label>
+              <div className="rounded-lg bg-[#2A1710] px-4 py-3 text-white shadow-md"><p className="text-[10px] font-black uppercase tracking-wide text-white/65">Total</p><p className="mt-1 text-xl font-black">{dinero(totalLiquidacion)}</p></div>
+            </div>
           </div>
         </section>
       )}
