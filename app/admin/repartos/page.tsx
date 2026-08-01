@@ -373,6 +373,7 @@ export default function RepartosPage() {
   const [textoImportacion, setTextoImportacion] = useState('');
   const [resultadoImportacion, setResultadoImportacion] =
     useState<ResultadoImportacion | null>(null);
+  const [errorImportacion, setErrorImportacion] = useState('');
   const grillaIngresoRef = useRef<HTMLDivElement | null>(null);
   const planillaDesplazadaRef = useRef('');
   const anioActual = hoy.getFullYear();
@@ -1077,7 +1078,16 @@ export default function RepartosPage() {
   }
 
   function analizarImportacion() {
-    if (!planilla || filas.length === 0) return;
+    setErrorImportacion('');
+    setResultadoImportacion(null);
+    if (!planilla) {
+      setErrorImportacion('La planilla del reparto todavía no está cargada.');
+      return;
+    }
+    if (filas.length === 0) {
+      setErrorImportacion('Este reparto no tiene clientes disponibles para importar.');
+      return;
+    }
 
     const lineas = textoImportacion
       .split(/\r?\n/)
@@ -1150,7 +1160,9 @@ export default function RepartosPage() {
     const filasNumericas = filasImportables.map(({ valores }) => valores);
 
     if (filasNumericas.length === 0) {
-      alert('No se detectaron filas numéricas para importar.');
+      setErrorImportacion(
+        'No se reconocieron filas de clientes. Copia desde la columna Cliente hasta el último día.'
+      );
       return;
     }
 
@@ -1247,6 +1259,7 @@ export default function RepartosPage() {
       kilosVendidos,
       kilosDevueltos,
     });
+    setErrorImportacion('');
   }
 
   function aplicarImportacion() {
@@ -1438,10 +1451,16 @@ export default function RepartosPage() {
             onChange={(event) => {
               setTextoImportacion(event.target.value);
               setResultadoImportacion(null);
+              setErrorImportacion('');
             }}
             placeholder="Pega aqui las filas copiadas desde Excel..."
             className="mt-4 min-h-40 w-full rounded-md border border-[#4B2818]/20 bg-[#FFFDF8] p-3 font-mono text-xs outline-none focus:border-[#A51F2B]"
           />
+          {errorImportacion && (
+            <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-800">
+              {errorImportacion}
+            </div>
+          )}
           {resultadoImportacion && (
             <div className="mt-3 grid gap-2 rounded-md bg-[#FFF3DF] p-3 text-sm font-bold text-[#4B2818] sm:grid-cols-4">
               <span>{resultadoImportacion.filasLeidas} filas importadas</span>
@@ -1458,7 +1477,18 @@ export default function RepartosPage() {
           <div className="mt-4 flex flex-wrap justify-end gap-2">
             <button
               type="button"
-              onClick={analizarImportacion}
+              onClick={() => {
+                try {
+                  analizarImportacion();
+                } catch (error) {
+                  setResultadoImportacion(null);
+                  setErrorImportacion(
+                    error instanceof Error
+                      ? `No se pudieron revisar los datos: ${error.message}`
+                      : 'No se pudieron revisar los datos pegados.'
+                  );
+                }
+              }}
               disabled={!textoImportacion.trim()}
               className="h-10 rounded-md border border-[#A51F2B] px-4 text-sm font-black text-[#A51F2B] disabled:opacity-50"
             >
