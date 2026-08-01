@@ -1084,7 +1084,7 @@ export default function RepartosPage() {
       .map((linea) => linea.split('\t'))
       .filter((celdas) => celdas.some((celda) => celda.trim()));
     const cantidadColumnasDias = dias.length * 2;
-    const filasNumericas = lineas
+    const filasImportables = lineas
       .filter((celdas) => {
         const noVacios = celdas.map((celda) => celda.trim()).filter(Boolean);
         const esEncabezadoDias =
@@ -1122,6 +1122,8 @@ export default function RepartosPage() {
           return {
             valores,
             esFilaCliente,
+            nombre: primeraCelda,
+            precio: numero(segundaCelda),
           };
         }
         const valores = celdas.slice(0, cantidadColumnasDias);
@@ -1129,6 +1131,8 @@ export default function RepartosPage() {
         return {
           valores,
           esFilaCliente: false,
+          nombre: '',
+          precio: 0,
         };
       })
       .filter(
@@ -1142,8 +1146,8 @@ export default function RepartosPage() {
             !noVacios.every((valor) => valor.toUpperCase() === 'K')
           );
         }
-      )
-      .map(({ valores }) => valores);
+      );
+    const filasNumericas = filasImportables.map(({ valores }) => valores);
 
     if (filasNumericas.length === 0) {
       alert('No se detectaron filas numéricas para importar.');
@@ -1170,21 +1174,55 @@ export default function RepartosPage() {
       filasAnteriores.length > 0 &&
       columnasTotalConValor > 0 &&
       coincidenciasTotal >= Math.max(3, Math.ceil(columnasTotalConValor * 0.6));
-    const filasSinTotal = tieneFilaTotal ? filasAnteriores : filasNumericas;
-    const datosClientes = filasSinTotal.slice(0, filas.length);
-    const siguientes = filas.map((fila, indice) => {
-      const celdas = datosClientes[indice];
-      const diasImportados = Object.fromEntries(
-        dias.map((dia, indiceDia) => [
-          dia,
-          {
-            vendidos: kilos(celdas?.[indiceDia * 2]),
-            devueltos: kilos(celdas?.[indiceDia * 2 + 1]),
-            ajuste: 0,
-          },
-        ])
-      );
-      return { ...fila, dias: diasImportados };
+    const datosClientes = tieneFilaTotal
+      ? filasImportables.slice(0, -1)
+      : filasImportables;
+    const siguientes = filas.map((fila) => ({ ...fila, dias: {} }));
+    const indicesUtilizados = new Set<number>();
+
+    datosClientes.forEach((origen, indiceOrigen) => {
+      const nombreOrigen = normalizarNombre(origen.nombre);
+      let indiceDestino = nombreOrigen
+        ? siguientes.findIndex(
+            (fila, indice) =>
+              !indicesUtilizados.has(indice) &&
+              [fila.sigla, fila.nombre].some(
+                (nombre) => normalizarNombre(nombre) === nombreOrigen
+              )
+          )
+        : -1;
+
+      if (indiceDestino < 0 && origen.precio > 0) {
+        indiceDestino = siguientes.findIndex(
+          (fila, indice) =>
+            !indicesUtilizados.has(indice) && fila.precio === origen.precio
+        );
+      }
+      if (indiceDestino < 0 && origen.precio > 0) {
+        indiceDestino = siguientes.findIndex(
+          (fila) => fila.precio === origen.precio
+        );
+      }
+      if (indiceDestino < 0) {
+        indiceDestino = Math.min(indiceOrigen, siguientes.length - 1);
+      }
+      if (indiceDestino < 0) return;
+
+      indicesUtilizados.add(indiceDestino);
+      const destino = siguientes[indiceDestino];
+      dias.forEach((dia, indiceDia) => {
+        const anterior = destino.dias[dia] || {
+          vendidos: 0,
+          devueltos: 0,
+          ajuste: 0,
+        };
+        destino.dias[dia] = {
+          vendidos: anterior.vendidos + kilos(origen.valores[indiceDia * 2]),
+          devueltos:
+            anterior.devueltos + kilos(origen.valores[indiceDia * 2 + 1]),
+          ajuste: anterior.ajuste,
+        };
+      });
     });
     const diasConDatos = dias.filter((dia) =>
       siguientes.some(
@@ -1204,7 +1242,7 @@ export default function RepartosPage() {
     setResultadoImportacion({
       filas: siguientes,
       filasLeidas: datosClientes.length,
-      clientesSinDatos: Math.max(0, filas.length - datosClientes.length),
+      clientesSinDatos: Math.max(0, filas.length - indicesUtilizados.size),
       diasConDatos,
       kilosVendidos,
       kilosDevueltos,
