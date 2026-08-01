@@ -25,7 +25,11 @@ type Funcionario = {
   id: string;
   nombre_completo: string;
   cargo: string;
+  trabaja_comision: boolean;
+  porcentaje_comision: number;
 };
+
+type Liquidacion = { diasLibres: number; anticipo: number; abono: number };
 
 type Planilla = {
   id: string;
@@ -64,6 +68,7 @@ type BorradorPlanilla = {
   abonos: Record<number, number>;
   pasteles?: Record<number, number>;
   saldoInicial: number;
+  liquidacion?: Liquidacion;
   actualizadoEn: string;
 };
 
@@ -322,12 +327,27 @@ function pastelesGuardados(
 
 function observacionesPlanilla(
   ordenClientes: string[],
-  pasteles: Record<number, number>
+  pasteles: Record<number, number>,
+  liquidacion: Liquidacion = { diasLibres: 0, anticipo: 0, abono: 0 }
 ) {
   return JSON.stringify({
     orden_clientes: ordenClientes,
     pasteles_por_dia: pasteles,
+    liquidacion,
   });
+}
+
+function liquidacionGuardada(valor: string | null | undefined): Liquidacion {
+  try {
+    const liquidacion = JSON.parse(valor || '{}')?.liquidacion;
+    return {
+      diasLibres: numero(liquidacion?.diasLibres),
+      anticipo: numero(liquidacion?.anticipo),
+      abono: numero(liquidacion?.abono),
+    };
+  } catch {
+    return { diasLibres: 0, anticipo: 0, abono: 0 };
+  }
 }
 
 function claveBorradorPlanilla(planillaId: string) {
@@ -360,6 +380,11 @@ export default function RepartosPage() {
   const [filas, setFilas] = useState<Fila[]>([]);
   const [abonos, setAbonos] = useState<Record<number, number>>({});
   const [pasteles, setPasteles] = useState<Record<number, number>>({});
+  const [liquidacion, setLiquidacion] = useState<Liquidacion>({
+    diasLibres: 0,
+    anticipo: 0,
+    abono: 0,
+  });
   const [vistaPlanilla, setVistaPlanilla] = useState<'ingreso' | 'totales'>(
     'ingreso'
   );
@@ -387,6 +412,7 @@ export default function RepartosPage() {
     setFilas([]);
     setAbonos({});
     setPasteles({});
+    setLiquidacion({ diasLibres: 0, anticipo: 0, abono: 0 });
     setSaldoInicial(0);
     setCambiosPendientes(false);
   }
@@ -399,6 +425,7 @@ export default function RepartosPage() {
       abonos,
       pasteles,
       saldoInicial,
+      liquidacion,
       actualizadoEn: new Date().toISOString(),
     };
 
@@ -426,7 +453,7 @@ export default function RepartosPage() {
       await Promise.all([
         supabase
           .from('funcionarios')
-          .select('id,nombre_completo,cargo')
+          .select('*')
           .eq('empresa_id', perfil.empresa_id)
           .eq('activo', true)
           .order('nombre_completo'),
@@ -670,6 +697,9 @@ export default function RepartosPage() {
     setPasteles(
       borrador?.pasteles || pastelesGuardados(planillaData.observaciones)
     );
+    setLiquidacion(
+      borrador?.liquidacion || liquidacionGuardada(planillaData.observaciones)
+    );
     if (borrador) setSaldoInicial(Number(borrador.saldoInicial || 0));
     setCambiosPendientes(Boolean(borrador));
     setCargando(false);
@@ -809,7 +839,7 @@ export default function RepartosPage() {
       window.removeEventListener('beforeunload', advertirCierre);
       document.removeEventListener('click', advertirNavegacion, true);
     };
-  }, [abonos, cambiosPendientes, filas, pasteles, planilla, saldoInicial]);
+  }, [abonos, cambiosPendientes, filas, liquidacion, pasteles, planilla, saldoInicial]);
 
   function actualizarCelda(
     filaKey: string,
@@ -866,7 +896,8 @@ export default function RepartosPage() {
       .update({
         observaciones: observacionesPlanilla(
           siguientes.map((fila) => fila.key),
-          pasteles
+          pasteles,
+          liquidacion
         ),
       })
       .eq('id', planilla.id);
@@ -897,7 +928,8 @@ export default function RepartosPage() {
               .update({
                 observaciones: observacionesPlanilla(
                   filas.map((fila) => fila.key),
-                  pastelesGuardados(item.observaciones)
+                  pastelesGuardados(item.observaciones),
+                  liquidacionGuardada(item.observaciones)
                 ),
               })
               .eq('id', item.id)
@@ -913,7 +945,8 @@ export default function RepartosPage() {
 
     const observacionesActuales = observacionesPlanilla(
       filas.map((fila) => fila.key),
-      pasteles
+      pasteles,
+      liquidacion
     );
     setPlanilla((actual) =>
       actual ? { ...actual, observaciones: observacionesActuales } : actual
@@ -937,7 +970,8 @@ export default function RepartosPage() {
         saldo_inicial: saldoInicial,
         observaciones: observacionesPlanilla(
           filas.map((fila) => fila.key),
-          pasteles
+          pasteles,
+          liquidacion
         ),
       })
       .eq('id', planilla.id);
@@ -1326,6 +1360,34 @@ export default function RepartosPage() {
       return resultado;
     });
   }, [abonos, dias, filas, pasteles, saldoInicial]);
+
+  const funcionarioActual = funcionarios.find(
+    (funcionario) => funcionario.nombre_completo === repartidor
+  );
+  const totalMensual = useMemo(
+    () => ({
+      venta: totalesDiarios.reduce((total, item) => total + item.venta, 0),
+      cacho: totalesDiarios.reduce((total, item) => total + item.cacho, 0),
+      pasteles: totalesDiarios.reduce((total, item) => total + item.pasteles, 0),
+      total: totalesDiarios.reduce((total, item) => total + item.total, 0),
+      kilos: totalesDiarios.reduce((total, item) => total + item.kilos, 0),
+      entregado: totalesDiarios.reduce(
+        (total, item) => total + item.entregado,
+        0
+      ),
+      saldo: totalesDiarios.at(-1)?.saldo || 0,
+    }),
+    [totalesDiarios]
+  );
+  const porcentajeComision = numero(funcionarioActual?.porcentaje_comision);
+  const montoComision = funcionarioActual?.trabaja_comision
+    ? (totalMensual.entregado * porcentajeComision) / 100
+    : 0;
+  const valorDiaComision = montoComision / 30;
+  const montoLiquidacion =
+    montoComision + valorDiaComision * liquidacion.diasLibres;
+  const subtotalLiquidacion = liquidacion.anticipo - montoLiquidacion;
+  const totalLiquidacion = subtotalLiquidacion - liquidacion.abono;
 
   return (
     <div className="space-y-5 pb-12" onWheel={evitarCambioNumeroConRueda}>
@@ -1860,10 +1922,43 @@ export default function RepartosPage() {
                   </tr>
                 ))}
               </tbody>
+              <tfoot className="border-t-2 border-[#A51F2B] bg-[#FFF3DF] font-black text-[#2A1710]">
+                <tr>
+                  <td className="px-3 py-3">TOTAL MES</td>
+                  <td className="px-3 py-3 text-right">{dinero(totalMensual.venta)}</td>
+                  <td className="px-3 py-3 text-right text-red-700">{dinero(totalMensual.cacho)}</td>
+                  <td className="px-3 py-3 text-right">{dinero(totalMensual.pasteles)}</td>
+                  <td className="px-3 py-3 text-right">{dinero(totalMensual.total)}</td>
+                  <td className="px-3 py-3 text-right">{totalMensual.kilos.toLocaleString('es-CL', { maximumFractionDigits: 2 })}</td>
+                  <td />
+                  <td />
+                  <td />
+                  <td className="px-3 py-3 text-right text-emerald-800">{dinero(totalMensual.entregado)}</td>
+                  <td className="px-3 py-3 text-right">{dinero(totalMensual.saldo)}</td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         )}
       </section>
+
+      {vistaPlanilla === 'totales' && planilla && funcionarioActual?.trabaja_comision && (
+        <section className="rounded-lg border border-[#4B2818]/15 bg-white p-4 shadow-sm">
+          <h3 className="font-black text-[#2A1710]">Liquidación · {funcionarioActual.nombre_completo}</h3>
+          <div className="mt-3 grid gap-2 md:grid-cols-5 xl:grid-cols-10">
+            <div className="rounded-md bg-[#FFF3DF] p-3"><p className="text-[10px] font-black uppercase text-[#4B2818]/60">Comisión</p><p className="font-black">{porcentajeComision.toLocaleString('es-CL')}%</p></div>
+            <div className="rounded-md bg-[#FFF3DF] p-3"><p className="text-[10px] font-black uppercase text-[#4B2818]/60">Monto comisión</p><p className="font-black">{dinero(montoComision)}</p></div>
+            <label className="grid gap-1 text-[10px] font-black uppercase text-[#4B2818]/60">Libres<input type="number" value={liquidacion.diasLibres || ''} onChange={(event) => { setCambiosPendientes(true); setLiquidacion((actual) => ({ ...actual, diasLibres: Math.max(0, numero(event.target.value)) })); }} className="h-11 rounded-md border px-3 text-right text-sm font-black text-[#2A1710]" /></label>
+            <div className="rounded-md bg-[#FFF3DF] p-3"><p className="text-[10px] font-black uppercase text-[#4B2818]/60">Días base</p><p className="font-black">30</p></div>
+            <div className="rounded-md bg-[#FFF3DF] p-3"><p className="text-[10px] font-black uppercase text-[#4B2818]/60">Valor día</p><p className="font-black">{dinero(valorDiaComision)}</p></div>
+            <div className="rounded-md bg-[#FFF3DF] p-3"><p className="text-[10px] font-black uppercase text-[#4B2818]/60">Liquidación</p><p className="font-black">{dinero(montoLiquidacion)}</p></div>
+            <label className="grid gap-1 text-[10px] font-black uppercase text-red-700">Anticipo<input type="text" inputMode="numeric" value={liquidacion.anticipo || ''} onChange={(event) => { setCambiosPendientes(true); setLiquidacion((actual) => ({ ...actual, anticipo: Math.max(0, numero(event.target.value)) })); }} className="h-11 rounded-md border border-red-200 px-3 text-right text-sm font-black" /></label>
+            <div className="rounded-md bg-red-50 p-3"><p className="text-[10px] font-black uppercase text-red-700">Sub-Total</p><p className="font-black text-red-700">{dinero(subtotalLiquidacion)}</p></div>
+            <label className="grid gap-1 text-[10px] font-black uppercase text-[#4B2818]/60">Abono<input type="text" inputMode="numeric" value={liquidacion.abono || ''} onChange={(event) => { setCambiosPendientes(true); setLiquidacion((actual) => ({ ...actual, abono: Math.max(0, numero(event.target.value)) })); }} className="h-11 rounded-md border px-3 text-right text-sm font-black" /></label>
+            <div className="rounded-md bg-[#2A1710] p-3 text-white"><p className="text-[10px] font-black uppercase text-white/70">Total</p><p className="font-black">{dinero(totalLiquidacion)}</p></div>
+          </div>
+        </section>
+      )}
 
       <nav className="!mt-0 flex w-full gap-1 overflow-x-auto rounded-b-lg border border-t-0 border-[#4B2818]/20 bg-[#F2E3CC] p-2 shadow-sm">
         {funcionarios.flatMap((funcionario) => {

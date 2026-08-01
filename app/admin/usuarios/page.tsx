@@ -23,6 +23,8 @@ type Funcionario = {
   fecha_nacimiento: string | null;
   cargo: string;
   activo: boolean;
+  trabaja_comision: boolean;
+  porcentaje_comision: number;
 };
 
 type Usuario = {
@@ -57,6 +59,8 @@ const funcionarioInicial = {
   telefono: '',
   fecha_nacimiento: '',
   cargo: '',
+  trabaja_comision: false,
+  porcentaje_comision: '3',
 };
 
 function fechaCorta(fecha: string | null) {
@@ -201,6 +205,8 @@ export default function UsuariosPage() {
         telefono: formFuncionario.telefono || null,
         fecha_nacimiento: formFuncionario.fecha_nacimiento || null,
         cargo: formFuncionario.cargo,
+        trabaja_comision: formFuncionario.trabaja_comision,
+        porcentaje_comision: Number(formFuncionario.porcentaje_comision || 0),
         activo: true,
       })
       .select('id')
@@ -287,6 +293,35 @@ export default function UsuariosPage() {
     setGuardando(false);
   }
 
+  async function actualizarComision(
+    funcionario: Funcionario,
+    trabajaComision: boolean,
+    porcentaje = funcionario.porcentaje_comision || 3
+  ) {
+    const { error } = await supabase
+      .from('funcionarios')
+      .update({
+        trabaja_comision: trabajaComision,
+        porcentaje_comision: porcentaje,
+      })
+      .eq('id', funcionario.id);
+    if (error) {
+      alert(error.message);
+      return;
+    }
+    setFuncionarios((actuales) =>
+      actuales.map((item) =>
+        item.id === funcionario.id
+          ? {
+              ...item,
+              trabaja_comision: trabajaComision,
+              porcentaje_comision: porcentaje,
+            }
+          : item
+      )
+    );
+  }
+
   if (!esAdmin) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 p-6 font-black text-red-800">
@@ -350,7 +385,7 @@ export default function UsuariosPage() {
                   <input
                     type={campo === 'fecha_nacimiento' ? 'date' : 'text'}
                     required={campo === 'nombre_completo' || campo === 'cargo'}
-                    value={formFuncionario[campo as keyof typeof formFuncionario]}
+                    value={String(formFuncionario[campo as keyof typeof formFuncionario] ?? '')}
                     onChange={(event) =>
                       setFormFuncionario({
                         ...formFuncionario,
@@ -361,6 +396,15 @@ export default function UsuariosPage() {
                   />
                 </label>
               ))}
+              <label className="flex items-center gap-3 rounded-md border border-[#4B2818]/15 bg-[#FFF3DF] px-3 py-2 text-sm font-black text-[#4B2818]">
+                <input type="checkbox" checked={formFuncionario.trabaja_comision} onChange={(event) => setFormFuncionario({ ...formFuncionario, trabaja_comision: event.target.checked })} className="h-5 w-5 accent-[#A51F2B]" />
+                Trabaja a comisión
+              </label>
+              {formFuncionario.trabaja_comision && (
+                <label className="grid gap-1 text-xs font-black text-[#4B2818]">Porcentaje de comisión
+                  <input type="number" step="0.1" min="0" value={formFuncionario.porcentaje_comision} onChange={(event) => setFormFuncionario({ ...formFuncionario, porcentaje_comision: event.target.value })} className="h-10 rounded-md border border-[#4B2818]/20 px-3 font-bold" />
+                </label>
+              )}
             </div>
             <button
               disabled={guardando}
@@ -396,6 +440,15 @@ export default function UsuariosPage() {
                         Cumpleanos: {fechaCorta(funcionario.fecha_nacimiento)}
                       </p>
                     )}
+                    <div className="mt-2 flex items-center gap-2">
+                      <label className="flex items-center gap-2 text-xs font-black text-[#4B2818]">
+                        <input type="checkbox" checked={funcionario.trabaja_comision || false} onChange={(event) => void actualizarComision(funcionario, event.target.checked)} className="h-4 w-4 accent-[#A51F2B]" />
+                        Comisión
+                      </label>
+                      {funcionario.trabaja_comision && (
+                        <input type="number" step="0.1" min="0" value={funcionario.porcentaje_comision || 3} onChange={(event) => setFuncionarios((actuales) => actuales.map((item) => item.id === funcionario.id ? { ...item, porcentaje_comision: Number(event.target.value) } : item))} onBlur={(event) => void actualizarComision(funcionario, true, Number(event.target.value))} className="h-8 w-20 rounded border px-2 text-right text-xs font-black" aria-label={`Porcentaje de comisión de ${funcionario.nombre_completo}`} />
+                      )}
+                    </div>
                   </div>
                   <span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${funcionario.activo ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
                     {funcionario.activo ? 'Activo' : 'Inactivo'}
