@@ -1085,22 +1085,52 @@ export default function RepartosPage() {
       .filter((celdas) => celdas.some((celda) => celda.trim()));
     const cantidadColumnasDias = dias.length * 2;
     const filasNumericas = lineas
-      .map((celdas) => celdas.slice(-cantidadColumnasDias))
+      .filter((celdas) => {
+        const noVacios = celdas.map((celda) => celda.trim()).filter(Boolean);
+        const esEncabezadoDias =
+          noVacios.length >= dias.length &&
+          noVacios.slice(0, dias.length).every(
+            (valor, indice) => Number(valor) === dias[indice]
+          );
+        return (
+          !esEncabezadoDias &&
+          !noVacios.every((valor) => valor.toUpperCase() === 'K')
+        );
+      })
+      .map((celdas) => {
+        // Las dos primeras columnas son Cliente y Precio. Aunque el archivo
+        // mantenga los 31 días, en meses cortos se toman desde el día 1.
+        const tieneColumnasCliente = celdas.length >= cantidadColumnasDias + 2;
+        const esFilaCliente =
+          tieneColumnasCliente &&
+          Boolean(
+            celdas[0]?.trim() ||
+              /^\d+(?:[.,]\d+)?$/.test(celdas[1]?.trim() || '')
+          );
+        if (celdas.length >= cantidadColumnasDias + 2) {
+          return {
+            valores: celdas.slice(2, 2 + cantidadColumnasDias),
+            esFilaCliente,
+          };
+        }
+        return {
+          valores: celdas.slice(0, cantidadColumnasDias),
+          esFilaCliente: false,
+        };
+      })
       .filter(
-        (celdas) => {
+        ({ valores: celdas, esFilaCliente }) => {
           const valores = celdas.map((celda) => celda.trim());
           const noVacios = valores.filter(Boolean);
-          const esEncabezadoDias =
-            noVacios.length === dias.length &&
-            noVacios.every((valor, indice) => Number(valor) === dias[indice]);
           return (
             celdas.length === cantidadColumnasDias &&
-            !esEncabezadoDias &&
-            valores.some((valor) => /^-?\d+(?:[.,]\d+)?$/.test(valor)) &&
+            (esFilaCliente ||
+              valores.some((valor) => /^-?\d+(?:[.,]\d+)?$/.test(valor))) &&
             !noVacios.every((valor) => valor.toUpperCase() === 'K')
           );
         }
-      );
+      )
+      .map(({ valores }) => valores);
 
     if (filasNumericas.length === 0) {
       alert('No se detectaron filas numéricas para importar.');
