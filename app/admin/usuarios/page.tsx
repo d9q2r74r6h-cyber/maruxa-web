@@ -28,7 +28,8 @@ type Funcionario = {
   porcentaje_comision: number;
   funcionario_cargos?: { cargo_id: string; cargos_empresa?: { id: string; nombre: string }[] | null }[];
 };
-type CargoEmpresa = { id: string; nombre: string; activo: boolean };
+type ModalidadPago = 'diaria' | 'mensual' | 'panadero';
+type CargoEmpresa = { id: string; nombre: string; activo: boolean; modalidad_pago: ModalidadPago; remuneracion: number };
 
 type Usuario = {
   id: string;
@@ -83,7 +84,7 @@ export default function UsuariosPage() {
   const [vista, setVista] = useState<'funcionarios' | 'usuarios'>('funcionarios');
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [cargosEmpresa, setCargosEmpresa] = useState<CargoEmpresa[]>([]);
-  const [nuevoCargo, setNuevoCargo] = useState('');
+  const [nuevoCargo, setNuevoCargo] = useState({ nombre: '', modalidad_pago: 'mensual' as ModalidadPago, remuneracion: 0 });
   const [funcionarioEditando, setFuncionarioEditando] = useState<(Funcionario & { cargo_ids: string[] }) | null>(null);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [modulos, setModulos] = useState<Modulo[]>([]);
@@ -143,7 +144,7 @@ export default function UsuariosPage() {
           .select('codigo, nombre, grupo')
           .eq('activo', true)
           .order('orden'),
-        supabase.from('cargos_empresa').select('id,nombre,activo').eq('empresa_id', perfil.empresa_id).eq('activo', true).order('nombre'),
+        supabase.from('cargos_empresa').select('id,nombre,activo,modalidad_pago,remuneracion').eq('empresa_id', perfil.empresa_id).eq('activo', true).order('nombre'),
       ]);
 
     setFuncionarios((respuestaFuncionarios.data || []) as Funcionario[]);
@@ -240,9 +241,16 @@ export default function UsuariosPage() {
   }
 
   async function crearCargo() {
-    if (!perfil || !nuevoCargo.trim()) return;
-    const { error } = await supabase.from('cargos_empresa').insert({ empresa_id: perfil.empresa_id, nombre: nuevoCargo.trim() });
-    if (error) return alert(error.message); setNuevoCargo(''); await cargar();
+    if (!perfil || !nuevoCargo.nombre.trim()) return;
+    const configuracion_pago = nuevoCargo.modalidad_pago === 'panadero' ? { normal: { casa: { batea: 26800, cocedor: 25700, oficial: 22500 }, externo: { batea: 31300, cocedor: 29000, oficial: 26000 } }, festivo: { casa: { batea: 36600, cocedor: 35000, oficial: 30000 }, externo: { batea: 43400, cocedor: 41400, oficial: 35400 } }, demasia_normal_qq: 8000, demasia_festivo_qq: 12000 } : {};
+    const { error } = await supabase.from('cargos_empresa').insert({ empresa_id: perfil.empresa_id, nombre: nuevoCargo.nombre.trim(), modalidad_pago: nuevoCargo.modalidad_pago, remuneracion: nuevoCargo.modalidad_pago === 'panadero' ? 0 : nuevoCargo.remuneracion, configuracion_pago });
+    if (error) return alert(error.message); setNuevoCargo({ nombre: '', modalidad_pago: 'mensual', remuneracion: 0 }); await cargar();
+  }
+
+  async function actualizarCargo(cargo: CargoEmpresa, cambios: Partial<CargoEmpresa>) {
+    const actualizado = { ...cargo, ...cambios };
+    const { error } = await supabase.from('cargos_empresa').update({ nombre: actualizado.nombre, modalidad_pago: actualizado.modalidad_pago, remuneracion: actualizado.modalidad_pago === 'panadero' ? 0 : actualizado.remuneracion }).eq('id', cargo.id);
+    if (error) return alert(error.message); setCargosEmpresa((lista) => lista.map((item) => item.id === cargo.id ? actualizado : item));
   }
 
   async function alternarCargo(funcionario: Funcionario, cargoId: string, activo: boolean) {
@@ -405,7 +413,7 @@ export default function UsuariosPage() {
         </div>
       ) : vista === 'funcionarios' ? (
         <div className="space-y-5">
-          <section className="rounded-lg border border-[#4B2818]/15 bg-white p-5"><h2 className="font-black text-[#2A1710]">Cargos de la empresa</h2><p className="mt-1 text-xs font-bold text-[#4B2818]/60">Crea aquí los cargos disponibles para asignarlos a uno o más funcionarios.</p><div className="mt-3 flex gap-2"><input value={nuevoCargo} onChange={(event) => setNuevoCargo(event.target.value)} placeholder="Ej: Panadero · Batea" className="h-10 min-w-0 flex-1 rounded-md border px-3 font-bold" /><button type="button" onClick={() => void crearCargo()} className="rounded-md bg-[#2A1710] px-4 text-sm font-black text-white">Agregar cargo</button></div><div className="mt-3 flex flex-wrap gap-2">{cargosEmpresa.map((cargo) => <span key={cargo.id} className="rounded-full bg-[#FFF3DF] px-3 py-1 text-xs font-black text-[#A51F2B]">{cargo.nombre}</span>)}</div></section>
+          <section className="rounded-lg border border-[#4B2818]/15 bg-white p-5"><h2 className="font-black text-[#2A1710]">Cargos y remuneraciones de la empresa</h2><p className="mt-1 text-xs font-bold text-[#4B2818]/60">La remuneración se configura en el cargo. Panadero utiliza su tabla especial por función, origen y tipo de día.</p><div className="mt-3 grid gap-2 md:grid-cols-[1fr_180px_160px_auto]"><input value={nuevoCargo.nombre} onChange={(event) => setNuevoCargo({ ...nuevoCargo, nombre: event.target.value })} placeholder="Nombre del cargo" className="h-10 min-w-0 rounded-md border px-3 font-bold" /><select value={nuevoCargo.modalidad_pago} onChange={(event) => setNuevoCargo({ ...nuevoCargo, modalidad_pago: event.target.value as ModalidadPago })} className="h-10 rounded-md border bg-white px-2 text-sm font-bold"><option value="mensual">Pago mensual</option><option value="diaria">Pago por día</option><option value="panadero">Especial Panadero</option></select>{nuevoCargo.modalidad_pago !== 'panadero' ? <input type="number" min="0" value={nuevoCargo.remuneracion || ''} onChange={(event) => setNuevoCargo({ ...nuevoCargo, remuneracion: Number(event.target.value) })} placeholder="$ Remuneración" className="h-10 rounded-md border px-3 text-right font-black" /> : <div className="grid h-10 place-items-center rounded-md bg-[#FFF3DF] text-xs font-black text-[#A51F2B]">Tabla especial</div>}<button type="button" onClick={() => void crearCargo()} className="rounded-md bg-[#2A1710] px-4 text-sm font-black text-white">Agregar cargo</button></div><div className="mt-4 grid gap-2 md:grid-cols-2">{cargosEmpresa.map((cargo) => <div key={cargo.id} className="grid grid-cols-[1fr_145px_120px] items-center gap-2 rounded-lg border bg-[#FFF9EF] p-2"><input value={cargo.nombre} onChange={(event) => setCargosEmpresa((lista) => lista.map((item) => item.id === cargo.id ? { ...item, nombre: event.target.value } : item))} onBlur={(event) => void actualizarCargo(cargo,{ nombre:event.target.value })} className="h-9 min-w-0 rounded border bg-white px-2 text-sm font-black" /><select value={cargo.modalidad_pago} onChange={(event) => void actualizarCargo(cargo,{ modalidad_pago:event.target.value as ModalidadPago })} className="h-9 rounded border bg-white px-1 text-xs font-bold"><option value="mensual">Mensual</option><option value="diaria">Por día</option><option value="panadero">Esp. Panadero</option></select>{cargo.modalidad_pago === 'panadero' ? <span className="text-center text-xs font-black text-[#A51F2B]">Tabla especial</span> : <input type="number" min="0" value={cargo.remuneracion || ''} onChange={(event) => setCargosEmpresa((lista) => lista.map((item) => item.id === cargo.id ? { ...item, remuneracion:Number(event.target.value) } : item))} onBlur={(event) => void actualizarCargo(cargo,{ remuneracion:Number(event.target.value) })} className="h-9 rounded border bg-white px-2 text-right text-xs font-black" />}</div>)}</div></section>
         <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
           <form
             onSubmit={crearFuncionario}
