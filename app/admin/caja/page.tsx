@@ -11,6 +11,7 @@ type Funcion = 'batea' | 'cocedor' | 'oficial';
 type Linea = { id: string; nombre: string; monto: number; funcionario_id?: string; origen?: Origen; funcion?: Funcion };
 type Turno = { id: string; nombre: string; qq?: number; lineas: Linea[] };
 type TurnoPlan = { id: string; nombre: string; panaderos: Array<{ id: string; funcionario_id: string; nombre: string; origen: Origen; funcion: Funcion }> };
+type Plantilla = { id: string; nombre: string; turnos: TurnoPlan[] };
 type Funcionario = { id: string; nombre_completo: string; cargo: string };
 type Cierre = {
   id: string;
@@ -27,6 +28,7 @@ type Cierre = {
   observacion: string | null;
   estado: 'borrador' | 'cerrada';
   es_festivo?: boolean;
+  dotacion_id?: string | null;
 };
 
 const hoy = new Date().toISOString().slice(0, 10);
@@ -52,7 +54,9 @@ function lineasCalculadas(turno: Turno, esFestivo: boolean) {
   const demasia = activas.length ? numero(turno.qq) * (esFestivo ? 12000 : 8000) / activas.length : 0;
   return turno.lineas.map((item) => ({ ...item, monto: montoLinea(item, esFestivo, demasia) }));
 }
-function lunesDe(fecha: string) { const valor = new Date(`${fecha}T12:00:00`); const dia = valor.getDay() || 7; valor.setDate(valor.getDate() - dia + 1); return valor.toISOString().slice(0, 10); }
+function pascua(anio: number) { const a=anio%19,b=Math.floor(anio/100),c=anio%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mes=Math.floor((h+l-7*m+114)/31),dia=(h+l-7*m+114)%31+1; return new Date(anio,mes-1,dia,12); }
+function feriadoTrasladable(anio: number, mes: number, dia: number) { const base=new Date(anio,mes-1,dia,12), semana=base.getDay(); if(semana>=2&&semana<=4) base.setDate(base.getDate()-(semana-1)); else if(semana===5) base.setDate(base.getDate()+3); return base.toISOString().slice(0,10); }
+function esFeriadoChile(fecha: string) { const valor=new Date(`${fecha}T12:00:00`); if(valor.getDay()===0) return true; const anio=valor.getFullYear(), clave=fecha.slice(5), fijos=new Set(['01-01','05-01','05-21','06-21','07-16','08-15','09-18','09-19','10-31','11-01','12-08','12-25']); const domingo=pascua(anio), viernes=new Date(domingo), sabado=new Date(domingo); viernes.setDate(domingo.getDate()-2); sabado.setDate(domingo.getDate()-1); return fijos.has(clave)||fecha===feriadoTrasladable(anio,6,29)||fecha===feriadoTrasladable(anio,10,12)||fecha===viernes.toISOString().slice(0,10)||fecha===sabado.toISOString().slice(0,10); }
 
 function EditorLineas({ titulo, lineas, onChange, onRemove, panaderos, qq = 0, esFestivo = false, onQq }: { titulo: string; lineas: Linea[]; onChange: (lineas: Linea[]) => void; onRemove?: () => void; panaderos?: boolean; qq?: number; esFestivo?: boolean; onQq?: (valor: number) => void }) {
   const cantidad = lineas.filter((linea) => linea.nombre.trim()).length;
@@ -83,6 +87,8 @@ export default function CajaDiariaPage() {
   const { perfil } = useAdminSession();
   const [fecha, setFecha] = useState(hoy);
   const [cajeras, setCajeras] = useState<Funcionario[]>([]);
+  const [plantillas, setPlantillas] = useState<Plantilla[]>([]);
+  const [dotacionId, setDotacionId] = useState('');
   const [cajeraId, setCajeraId] = useState('');
   const [turnos, setTurnos] = useState<Turno[]>([nuevoTurno(1), nuevoTurno(2)]);
   const [gastos, setGastos] = useState<Linea[]>([nuevaLinea()]);
@@ -104,16 +110,26 @@ export default function CajaDiariaPage() {
   const diferencia = totalVentas - totalComprobado;
   const cuadrada = Math.abs(diferencia) < 0.5;
   const bloqueada = cierre?.estado === 'cerrada';
+  const festivoObligatorio = esFeriadoChile(fecha);
+
+  function aplicarDotacion(id: string) {
+    setDotacionId(id);
+    const plantilla = plantillas.find((item) => item.id === id);
+    if (!plantilla) return;
+    setTurnos(plantilla.turnos.map((turno) => ({ id: crypto.randomUUID(), nombre: turno.nombre, qq: 0, lineas: turno.panaderos.map((item) => ({ ...item, id: crypto.randomUUID(), monto: 0 })) })));
+  }
 
   async function cargarBase() {
     if (!perfil) return;
-    const [{ data: funcionarios }, { data: cierres }] = await Promise.all([
+    const [{ data: funcionarios }, { data: cierres }, { data: dotaciones }] = await Promise.all([
       supabase.from('funcionarios').select('id,nombre_completo,cargo').eq('empresa_id', perfil.empresa_id).eq('activo', true).order('nombre_completo'),
       supabase.from('caja_cierres').select('*').eq('empresa_id', perfil.empresa_id).order('fecha', { ascending: false }).limit(31),
+      supabase.from('caja_dotaciones_semanales').select('id,nombre,turnos').eq('empresa_id', perfil.empresa_id).not('nombre', 'is', null).order('nombre'),
     ]);
     const lista = (funcionarios || []) as Funcionario[];
     setCajeras(lista);
     setHistorial((cierres || []) as Cierre[]);
+    setPlantillas((dotaciones || []) as Plantilla[]);
     const predeterminada = perfil.funcionario_id || lista[0]?.id || '';
     setCajeraId((actual) => actual || predeterminada);
     setCargando(false);
@@ -135,6 +151,7 @@ export default function CajaDiariaPage() {
     setEfectivo(numero(item?.efectivo));
     setTarjetas(numero(item?.tarjetas));
     setEsFestivo(Boolean(item?.es_festivo));
+    setDotacionId(item?.dotacion_id || '');
     setObservacion(item?.observacion || '');
   }
 
@@ -143,13 +160,8 @@ export default function CajaDiariaPage() {
     if (cargando || !perfil) return;
     const existente = historial.find((item) => item.fecha === fecha) || null;
     if (existente) return cargarCierre(existente);
-    void (async () => {
-      const { data } = await supabase.from('caja_dotaciones_semanales').select('dotacion').eq('empresa_id', perfil.empresa_id).eq('semana_desde', lunesDe(fecha)).maybeSingle();
-      cargarCierre(null);
-      const plan = ((data?.dotacion || {}) as Record<string, TurnoPlan[]>)[fecha];
-      if (plan?.length) setTurnos(plan.map((turno) => ({ id: crypto.randomUUID(), nombre: turno.nombre, qq: 0, lineas: turno.panaderos.map((item) => ({ ...item, id: crypto.randomUUID(), monto: 0 })) })));
-      setEsFestivo(new Date(`${fecha}T12:00:00`).getDay() === 0);
-    })();
+    cargarCierre(null);
+    setEsFestivo(esFeriadoChile(fecha));
   }, [fecha, cargando, historial, perfil]);
 
   async function guardar(estado: 'borrador' | 'cerrada') {
@@ -173,6 +185,7 @@ export default function CajaDiariaPage() {
       observacion: observacion.trim() || null,
       estado,
       es_festivo: esFestivo,
+      dotacion_id: dotacionId || null,
       cerrado_en: estado === 'cerrada' ? new Date().toISOString() : null,
     };
     const { error } = await supabase.from('caja_cierres').upsert(datos, { onConflict: 'empresa_id,fecha' });
@@ -191,10 +204,11 @@ export default function CajaDiariaPage() {
         <div className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-black ${cuadrada ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>{cuadrada ? <CheckCircle2 className="h-4 w-4" /> : <WalletCards className="h-4 w-4" />}{cuadrada ? 'Caja cuadrada' : `Diferencia ${dinero(diferencia)}`}</div>
       </header>
 
-      <section className="grid gap-3 rounded-xl border border-[#4B2818]/15 bg-white p-4 shadow-sm md:grid-cols-3">
+      <section className="grid gap-3 rounded-xl border border-[#4B2818]/15 bg-white p-4 shadow-sm md:grid-cols-2 xl:grid-cols-4">
         <label className="grid gap-1 text-xs font-black uppercase text-[#4B2818]/60">Fecha<input type="date" value={fecha} onChange={(event) => setFecha(event.target.value)} className="h-11 rounded-md border px-3 text-sm font-bold normal-case" /></label>
         <label className="grid gap-1 text-xs font-black uppercase text-[#4B2818]/60">Cajera responsable<select value={cajeraId} disabled={bloqueada} onChange={(event) => setCajeraId(event.target.value)} className="h-11 rounded-md border bg-white px-3 text-sm font-bold normal-case disabled:bg-stone-100"><option value="">Seleccionar</option>{cajeras.map((item) => <option key={item.id} value={item.id}>{item.nombre_completo}</option>)}</select></label>
-        <label className="flex h-11 items-center gap-3 self-end rounded-md border px-3 text-sm font-black"><input type="checkbox" checked={esFestivo} disabled={bloqueada} onChange={(event) => setEsFestivo(event.target.checked)} className="h-4 w-4 accent-[#A51F2B]" />Día festivo</label>
+        <label className="grid gap-1 text-xs font-black uppercase text-[#4B2818]/60">Dotación del día<select value={dotacionId} disabled={bloqueada} onChange={(event) => aplicarDotacion(event.target.value)} className="h-11 rounded-md border bg-white px-3 text-sm font-bold normal-case disabled:bg-stone-100"><option value="">Seleccionar dotación</option>{plantillas.map((item) => <option key={item.id} value={item.id}>{item.nombre}</option>)}</select></label>
+        <label className="flex h-11 items-center gap-3 self-end rounded-md border px-3 text-sm font-black"><input type="checkbox" checked={esFestivo} disabled={bloqueada || festivoObligatorio} onChange={(event) => setEsFestivo(event.target.checked)} className="h-4 w-4 accent-[#A51F2B]" />{festivoObligatorio ? 'Festivo automático' : 'Día festivo'}</label>
       </section>
 
       <fieldset disabled={bloqueada} className="space-y-5 disabled:opacity-75">
