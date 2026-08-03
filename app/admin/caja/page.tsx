@@ -1,12 +1,16 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { CheckCircle2, Loader2, Plus, Save, Trash2, WalletCards } from 'lucide-react';
 import { useAdminSession } from '@/components/AdminSession';
 import { supabase } from '@/lib/supabase';
 
-type Linea = { id: string; nombre: string; monto: number };
-type Turno = { id: string; nombre: string; lineas: Linea[] };
+type Origen = 'casa' | 'externo';
+type Funcion = 'batea' | 'cocedor' | 'oficial';
+type Linea = { id: string; nombre: string; monto: number; funcionario_id?: string; origen?: Origen; funcion?: Funcion };
+type Turno = { id: string; nombre: string; qq?: number; lineas: Linea[] };
+type TurnoPlan = { id: string; nombre: string; panaderos: Array<{ id: string; funcionario_id: string; nombre: string; origen: Origen; funcion: Funcion }> };
 type Funcionario = { id: string; nombre_completo: string; cargo: string };
 type Cierre = {
   id: string;
@@ -22,36 +26,55 @@ type Cierre = {
   tarjetas: number;
   observacion: string | null;
   estado: 'borrador' | 'cerrada';
+  es_festivo?: boolean;
 };
 
 const hoy = new Date().toISOString().slice(0, 10);
-const nuevaLinea = (): Linea => ({ id: crypto.randomUUID(), nombre: '', monto: 0 });
+const nuevaLinea = (panadero = false): Linea => ({ id: crypto.randomUUID(), nombre: '', monto: 0, ...(panadero ? { origen: 'casa' as Origen, funcion: 'oficial' as Funcion } : {}) });
 const nuevoTurno = (numeroTurno: number): Turno => ({
   id: crypto.randomUUID(),
   nombre: `${numeroTurno}° turno`,
-  lineas: [nuevaLinea()],
+  qq: 0,
+  lineas: [nuevaLinea(true)],
 });
 const dinero = (valor: number) => `$${Math.round(valor || 0).toLocaleString('es-CL')}`;
 const numero = (valor: unknown) => Number(String(valor ?? '').replace(/\./g, '').replace(',', '.')) || 0;
+const TARIFAS = {
+  normal: { casa: { batea: 26800, cocedor: 25700, oficial: 22500 }, externo: { batea: 31300, cocedor: 29000, oficial: 26000 } },
+  festivo: { casa: { batea: 36600, cocedor: 35000, oficial: 30000 }, externo: { batea: 43400, cocedor: 41400, oficial: 35400 } },
+};
+function montoLinea(linea: Linea, esFestivo: boolean, demasia: number) {
+  if (!linea.origen || !linea.funcion) return numero(linea.monto);
+  return TARIFAS[esFestivo ? 'festivo' : 'normal'][linea.origen][linea.funcion] + demasia;
+}
+function lineasCalculadas(turno: Turno, esFestivo: boolean) {
+  const activas = turno.lineas.filter((item) => item.nombre.trim());
+  const demasia = activas.length ? numero(turno.qq) * (esFestivo ? 12000 : 8000) / activas.length : 0;
+  return turno.lineas.map((item) => ({ ...item, monto: montoLinea(item, esFestivo, demasia) }));
+}
+function lunesDe(fecha: string) { const valor = new Date(`${fecha}T12:00:00`); const dia = valor.getDay() || 7; valor.setDate(valor.getDate() - dia + 1); return valor.toISOString().slice(0, 10); }
 
-function EditorLineas({ titulo, lineas, onChange, onRemove }: { titulo: string; lineas: Linea[]; onChange: (lineas: Linea[]) => void; onRemove?: () => void }) {
-  const total = lineas.reduce((suma, linea) => suma + numero(linea.monto), 0);
+function EditorLineas({ titulo, lineas, onChange, onRemove, panaderos, qq = 0, esFestivo = false, onQq }: { titulo: string; lineas: Linea[]; onChange: (lineas: Linea[]) => void; onRemove?: () => void; panaderos?: boolean; qq?: number; esFestivo?: boolean; onQq?: (valor: number) => void }) {
+  const cantidad = lineas.filter((linea) => linea.nombre.trim()).length;
+  const demasia = cantidad ? qq * (esFestivo ? 12000 : 8000) / cantidad : 0;
+  const total = lineas.reduce((suma, linea) => suma + montoLinea(linea, esFestivo, demasia), 0);
   return (
     <section className="rounded-xl border border-[#4B2818]/15 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <h2 className="font-black text-[#2A1710]">{titulo}</h2>
-        <div className="flex items-center gap-2"><span className="rounded-full bg-[#FFF3DF] px-3 py-1 text-sm font-black text-[#A51F2B]">{dinero(total)}</span>{onRemove && <button type="button" onClick={onRemove} className="grid h-8 w-8 place-items-center rounded-md text-red-700 hover:bg-red-50" aria-label={`Eliminar ${titulo}`}><Trash2 className="h-4 w-4" /></button>}</div>
+        <div className="flex items-center gap-2">{panaderos && <label className="flex items-center gap-2 text-xs font-black">QQ<input value={qq || ''} inputMode="decimal" onChange={(event) => onQq?.(Math.max(0, numero(event.target.value)))} className="h-8 w-20 rounded border px-2 text-right" /></label>}<span className="rounded-full bg-[#FFF3DF] px-3 py-1 text-sm font-black text-[#A51F2B]">{dinero(total)}</span>{onRemove && <button type="button" onClick={onRemove} className="grid h-8 w-8 place-items-center rounded-md text-red-700 hover:bg-red-50" aria-label={`Eliminar ${titulo}`}><Trash2 className="h-4 w-4" /></button>}</div>
       </div>
       <div className="mt-3 space-y-2">
         {lineas.map((linea, indice) => (
-          <div key={linea.id} className="grid grid-cols-[minmax(0,1fr)_130px_36px] gap-2">
+          <div key={linea.id} className={`grid gap-2 ${panaderos ? 'grid-cols-[minmax(150px,1fr)_90px_100px_110px_36px]' : 'grid-cols-[minmax(0,1fr)_130px_36px]'}`}>
             <input value={linea.nombre} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, nombre: event.target.value } : item))} placeholder={titulo.includes('Gastos') ? 'Detalle del gasto' : 'Nombre del panadero'} className="h-10 min-w-0 rounded-md border border-[#4B2818]/20 px-3 text-sm font-bold" />
-            <input type="text" inputMode="numeric" value={linea.monto || ''} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, monto: Math.max(0, numero(event.target.value)) } : item))} placeholder="$0" className="h-10 rounded-md border border-[#4B2818]/20 px-3 text-right text-sm font-black" />
+            {panaderos && <><select value={linea.origen || 'casa'} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, origen: event.target.value as Origen } : item))} className="h-10 rounded-md border bg-white px-2 text-xs font-black"><option value="casa">Casa</option><option value="externo">Externo</option></select><select value={linea.funcion || 'oficial'} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, funcion: event.target.value as Funcion } : item))} className="h-10 rounded-md border bg-white px-2 text-xs font-black"><option value="batea">Batea</option><option value="cocedor">Cocedor</option><option value="oficial">Oficial</option></select></>}
+            {panaderos ? <div className="grid h-10 place-items-center rounded-md bg-[#FFF3DF] px-2 text-sm font-black">{dinero(montoLinea(linea, esFestivo, demasia))}</div> : <input type="text" inputMode="numeric" value={linea.monto || ''} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, monto: Math.max(0, numero(event.target.value)) } : item))} placeholder="$0" className="h-10 rounded-md border border-[#4B2818]/20 px-3 text-right text-sm font-black" />}
             <button type="button" aria-label="Eliminar fila" onClick={() => onChange(lineas.filter((_, posicion) => posicion !== indice))} className="grid h-10 place-items-center rounded-md text-red-700 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button>
           </div>
         ))}
       </div>
-      <button type="button" onClick={() => onChange([...lineas, nuevaLinea()])} className="mt-3 inline-flex items-center gap-2 rounded-md border border-[#A51F2B]/30 px-3 py-2 text-xs font-black text-[#A51F2B]"><Plus className="h-4 w-4" />Agregar fila</button>
+      <button type="button" onClick={() => onChange([...lineas, nuevaLinea(Boolean(panaderos))])} className="mt-3 inline-flex items-center gap-2 rounded-md border border-[#A51F2B]/30 px-3 py-2 text-xs font-black text-[#A51F2B]"><Plus className="h-4 w-4" />Agregar fila</button>
     </section>
   );
 }
@@ -66,13 +89,14 @@ export default function CajaDiariaPage() {
   const [totalVentas, setTotalVentas] = useState(0);
   const [efectivo, setEfectivo] = useState(0);
   const [tarjetas, setTarjetas] = useState(0);
+  const [esFestivo, setEsFestivo] = useState(false);
   const [observacion, setObservacion] = useState('');
   const [cierre, setCierre] = useState<Cierre | null>(null);
   const [historial, setHistorial] = useState<Cierre[]>([]);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
 
-  const totalesTurnos = turnos.map((turno) => turno.lineas.reduce((suma, item) => suma + numero(item.monto), 0));
+  const totalesTurnos = turnos.map((turno) => lineasCalculadas(turno, esFestivo).reduce((suma, item) => suma + numero(item.monto), 0));
   const totalPanaderos = totalesTurnos.reduce((suma, monto) => suma + monto, 0);
   const totalComprasGastos = gastos.reduce((suma, item) => suma + numero(item.monto), 0);
   const totalGastos = totalPanaderos + totalComprasGastos;
@@ -101,8 +125,8 @@ export default function CajaDiariaPage() {
       item?.turnos_panaderos?.length
         ? item.turnos_panaderos
         : [
-            { id: crypto.randomUUID(), nombre: '1° turno', lineas: item?.panaderos_primer_turno?.length ? item.panaderos_primer_turno : [nuevaLinea()] },
-            { id: crypto.randomUUID(), nombre: '2° turno', lineas: item?.panaderos_segundo_turno?.length ? item.panaderos_segundo_turno : [nuevaLinea()] },
+            { id: crypto.randomUUID(), nombre: '1° turno', qq: 0, lineas: item?.panaderos_primer_turno?.length ? item.panaderos_primer_turno : [nuevaLinea(true)] },
+            { id: crypto.randomUUID(), nombre: '2° turno', qq: 0, lineas: item?.panaderos_segundo_turno?.length ? item.panaderos_segundo_turno : [nuevaLinea(true)] },
           ]
     );
     setGastos(item?.compras_gastos?.length ? item.compras_gastos : [nuevaLinea()]);
@@ -110,14 +134,23 @@ export default function CajaDiariaPage() {
     setTotalVentas(numero(item?.total_ventas));
     setEfectivo(numero(item?.efectivo));
     setTarjetas(numero(item?.tarjetas));
+    setEsFestivo(Boolean(item?.es_festivo));
     setObservacion(item?.observacion || '');
   }
 
   useEffect(() => { void cargarBase(); }, [perfil]);
   useEffect(() => {
-    if (cargando) return;
-    cargarCierre(historial.find((item) => item.fecha === fecha) || null);
-  }, [fecha, cargando, historial]);
+    if (cargando || !perfil) return;
+    const existente = historial.find((item) => item.fecha === fecha) || null;
+    if (existente) return cargarCierre(existente);
+    void (async () => {
+      const { data } = await supabase.from('caja_dotaciones_semanales').select('dotacion').eq('empresa_id', perfil.empresa_id).eq('semana_desde', lunesDe(fecha)).maybeSingle();
+      cargarCierre(null);
+      const plan = ((data?.dotacion || {}) as Record<string, TurnoPlan[]>)[fecha];
+      if (plan?.length) setTurnos(plan.map((turno) => ({ id: crypto.randomUUID(), nombre: turno.nombre, qq: 0, lineas: turno.panaderos.map((item) => ({ ...item, id: crypto.randomUUID(), monto: 0 })) })));
+      setEsFestivo(new Date(`${fecha}T12:00:00`).getDay() === 0);
+    })();
+  }, [fecha, cargando, historial, perfil]);
 
   async function guardar(estado: 'borrador' | 'cerrada') {
     if (!perfil || !cajeraId) return alert('Selecciona la cajera responsable.');
@@ -130,15 +163,16 @@ export default function CajaDiariaPage() {
       fecha,
       cajera_id: cajeraId,
       cajera_nombre: cajera?.nombre_completo || perfil.nombre_visible,
-      turnos_panaderos: turnos.map((turno) => ({ ...turno, lineas: turno.lineas.filter((item) => item.nombre.trim() || item.monto) })),
-      panaderos_primer_turno: (turnos[0]?.lineas || []).filter((item) => item.nombre.trim() || item.monto),
-      panaderos_segundo_turno: (turnos[1]?.lineas || []).filter((item) => item.nombre.trim() || item.monto),
+      turnos_panaderos: turnos.map((turno) => ({ ...turno, lineas: lineasCalculadas(turno, esFestivo).filter((item) => item.nombre.trim() || item.monto) })),
+      panaderos_primer_turno: lineasCalculadas(turnos[0] || nuevoTurno(1), esFestivo).filter((item) => item.nombre.trim() || item.monto),
+      panaderos_segundo_turno: lineasCalculadas(turnos[1] || nuevoTurno(2), esFestivo).filter((item) => item.nombre.trim() || item.monto),
       compras_gastos: gastos.filter((item) => item.nombre.trim() || item.monto),
       total_ventas: totalVentas,
       efectivo,
       tarjetas,
       observacion: observacion.trim() || null,
       estado,
+      es_festivo: esFestivo,
       cerrado_en: estado === 'cerrada' ? new Date().toISOString() : null,
     };
     const { error } = await supabase.from('caja_cierres').upsert(datos, { onConflict: 'empresa_id,fecha' });
@@ -153,19 +187,20 @@ export default function CajaDiariaPage() {
   return (
     <div className="space-y-5 pb-12">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div><p className="text-xs font-black uppercase tracking-widest text-[#A51F2B]">Comercial</p><h1 className="mt-1 text-3xl font-black text-[#2A1710]">Caja diaria</h1><p className="mt-2 text-sm font-bold text-[#4B2818]/65">Cuadre manual de ventas, pagos a panaderos y gastos del día.</p></div>
+        <div><p className="text-xs font-black uppercase tracking-widest text-[#A51F2B]">Comercial</p><h1 className="mt-1 text-3xl font-black text-[#2A1710]">Caja diaria</h1><p className="mt-2 text-sm font-bold text-[#4B2818]/65">Cuadre manual de ventas, pagos a panaderos y gastos del día.</p><Link href="/admin/caja/dotacion" className="mt-3 inline-flex text-sm font-black text-[#A51F2B] underline">Configurar dotación semanal</Link></div>
         <div className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-black ${cuadrada ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>{cuadrada ? <CheckCircle2 className="h-4 w-4" /> : <WalletCards className="h-4 w-4" />}{cuadrada ? 'Caja cuadrada' : `Diferencia ${dinero(diferencia)}`}</div>
       </header>
 
-      <section className="grid gap-3 rounded-xl border border-[#4B2818]/15 bg-white p-4 shadow-sm md:grid-cols-2">
+      <section className="grid gap-3 rounded-xl border border-[#4B2818]/15 bg-white p-4 shadow-sm md:grid-cols-3">
         <label className="grid gap-1 text-xs font-black uppercase text-[#4B2818]/60">Fecha<input type="date" value={fecha} onChange={(event) => setFecha(event.target.value)} className="h-11 rounded-md border px-3 text-sm font-bold normal-case" /></label>
         <label className="grid gap-1 text-xs font-black uppercase text-[#4B2818]/60">Cajera responsable<select value={cajeraId} disabled={bloqueada} onChange={(event) => setCajeraId(event.target.value)} className="h-11 rounded-md border bg-white px-3 text-sm font-bold normal-case disabled:bg-stone-100"><option value="">Seleccionar</option>{cajeras.map((item) => <option key={item.id} value={item.id}>{item.nombre_completo}</option>)}</select></label>
+        <label className="flex h-11 items-center gap-3 self-end rounded-md border px-3 text-sm font-black"><input type="checkbox" checked={esFestivo} disabled={bloqueada} onChange={(event) => setEsFestivo(event.target.checked)} className="h-4 w-4 accent-[#A51F2B]" />Día festivo</label>
       </section>
 
       <fieldset disabled={bloqueada} className="space-y-5 disabled:opacity-75">
         <div className="grid gap-5 xl:grid-cols-2">
           <div className="space-y-5">
-            {turnos.map((turno, indice) => <EditorLineas key={turno.id} titulo={`Panaderos · ${turno.nombre}`} lineas={turno.lineas} onChange={(lineas) => setTurnos((actuales) => actuales.map((item) => item.id === turno.id ? { ...item, lineas } : item))} onRemove={turnos.length > 1 ? () => setTurnos((actuales) => actuales.filter((item) => item.id !== turno.id)) : undefined} />)}
+            {turnos.map((turno) => <EditorLineas key={turno.id} titulo={`Panaderos · ${turno.nombre}`} lineas={turno.lineas} panaderos qq={turno.qq || 0} esFestivo={esFestivo} onQq={(qq) => setTurnos((actuales) => actuales.map((item) => item.id === turno.id ? { ...item, qq } : item))} onChange={(lineas) => setTurnos((actuales) => actuales.map((item) => item.id === turno.id ? { ...item, lineas } : item))} onRemove={turnos.length > 1 ? () => setTurnos((actuales) => actuales.filter((item) => item.id !== turno.id)) : undefined} />)}
             <button type="button" onClick={() => setTurnos((actuales) => [...actuales, nuevoTurno(actuales.length + 1)])} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-[#A51F2B]/35 bg-white text-sm font-black text-[#A51F2B] hover:bg-[#FFF3DF]"><Plus className="h-4 w-4" />Agregar turno de panaderos</button>
           </div>
           <EditorLineas titulo="Compras y Gastos" lineas={gastos} onChange={setGastos} />
