@@ -6,7 +6,7 @@ import { ArrowLeft, Loader2, Plus, Save, Trash2 } from 'lucide-react';
 import { useAdminSession } from '@/components/AdminSession';
 import { supabase } from '@/lib/supabase';
 
-type Funcionario = { id: string; nombre_completo: string };
+type Funcionario = { id: string; nombre_completo: string; funcionario_cargos?: { cargos_empresa?: { nombre: string }[] | null }[] };
 type Asignacion = { id: string; funcionario_id: string; nombre: string; origen: 'casa' | 'externo'; funcion: 'batea' | 'cocedor' | 'oficial' };
 type Turno = { id: string; nombre: string; panaderos: Asignacion[] };
 type Plantilla = { id: string; nombre: string; turnos: Turno[] };
@@ -26,11 +26,11 @@ export default function DotacionesPage() {
   async function cargar(preferida?: string) {
     if (!perfil) return;
     const [{ data: personas }, { data: datos }] = await Promise.all([
-      supabase.from('funcionarios').select('id,nombre_completo').eq('empresa_id', perfil.empresa_id).eq('activo', true).order('nombre_completo'),
+      supabase.from('funcionarios').select('id,nombre_completo,funcionario_cargos(cargos_empresa(nombre))').eq('empresa_id', perfil.empresa_id).eq('activo', true).order('nombre_completo'),
       supabase.from('caja_dotaciones_semanales').select('id,nombre,turnos').eq('empresa_id', perfil.empresa_id).not('nombre', 'is', null).order('nombre'),
     ]);
     const lista = (datos || []) as Plantilla[];
-    setFuncionarios((personas || []) as Funcionario[]); setPlantillas(lista); setCargando(false);
+    setFuncionarios(((personas || []) as Funcionario[]).filter((persona) => (persona.funcionario_cargos || []).some((relacion) => relacion.cargos_empresa?.some((cargo) => cargo.nombre.toLocaleLowerCase('es').includes('panadero'))))); setPlantillas(lista); setCargando(false);
     const actual = lista.find((item) => item.id === (preferida || seleccionada));
     if (actual) { setSeleccionada(actual.id); setNombre(actual.nombre); setTurnos(actual.turnos?.length ? actual.turnos : [nuevoTurno(1)]); }
   }

@@ -25,7 +25,9 @@ type Funcionario = {
   activo: boolean;
   trabaja_comision: boolean;
   porcentaje_comision: number;
+  funcionario_cargos?: { cargo_id: string; cargos_empresa?: { id: string; nombre: string }[] | null }[];
 };
+type CargoEmpresa = { id: string; nombre: string; activo: boolean };
 
 type Usuario = {
   id: string;
@@ -59,6 +61,7 @@ const funcionarioInicial = {
   telefono: '',
   fecha_nacimiento: '',
   cargo: '',
+  cargo_ids: [] as string[],
   trabaja_comision: false,
   porcentaje_comision: '3',
 };
@@ -78,6 +81,8 @@ export default function UsuariosPage() {
   const { perfil, esAdmin } = useAdminSession();
   const [vista, setVista] = useState<'funcionarios' | 'usuarios'>('funcionarios');
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
+  const [cargosEmpresa, setCargosEmpresa] = useState<CargoEmpresa[]>([]);
+  const [nuevoCargo, setNuevoCargo] = useState('');
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [modulos, setModulos] = useState<Modulo[]>([]);
   const [permisos, setPermisos] = useState<Permiso[]>([]);
@@ -108,11 +113,11 @@ export default function UsuariosPage() {
     if (!perfil) return;
     setCargando(true);
 
-    const [respuestaFuncionarios, respuestaUsuarios, respuestaModulos] =
+    const [respuestaFuncionarios, respuestaUsuarios, respuestaModulos, respuestaCargos] =
       await Promise.all([
         supabase
           .from('funcionarios')
-          .select('*')
+          .select('*, funcionario_cargos(cargo_id,cargos_empresa(id,nombre))')
           .eq('empresa_id', perfil.empresa_id)
           .order('nombre_completo'),
         supabase
@@ -136,6 +141,7 @@ export default function UsuariosPage() {
           .select('codigo, nombre, grupo')
           .eq('activo', true)
           .order('orden'),
+        supabase.from('cargos_empresa').select('id,nombre,activo').eq('empresa_id', perfil.empresa_id).eq('activo', true).order('nombre'),
       ]);
 
     setFuncionarios((respuestaFuncionarios.data || []) as Funcionario[]);
@@ -148,6 +154,7 @@ export default function UsuariosPage() {
       })) as Usuario[]
     );
     setModulos((respuestaModulos.data || []) as Modulo[]);
+    setCargosEmpresa((respuestaCargos.data || []) as CargoEmpresa[]);
     setCargando(false);
   }
 
@@ -190,7 +197,7 @@ export default function UsuariosPage() {
 
   async function crearFuncionario(event: React.FormEvent) {
     event.preventDefault();
-    if (!perfil || !formFuncionario.nombre_completo || !formFuncionario.cargo)
+    if (!perfil || !formFuncionario.nombre_completo || !formFuncionario.cargo_ids.length)
       return;
 
     setGuardando(true);
@@ -204,7 +211,7 @@ export default function UsuariosPage() {
         email: formFuncionario.email || null,
         telefono: formFuncionario.telefono || null,
         fecha_nacimiento: formFuncionario.fecha_nacimiento || null,
-        cargo: formFuncionario.cargo,
+        cargo: cargosEmpresa.find((cargo) => cargo.id === formFuncionario.cargo_ids[0])?.nombre || 'Funcionario',
         trabaja_comision: formFuncionario.trabaja_comision,
         porcentaje_comision: Number(formFuncionario.porcentaje_comision || 0),
         activo: true,
@@ -214,6 +221,8 @@ export default function UsuariosPage() {
 
     if (error) alert(error.message);
     else {
+      const { error: errorCargos } = await supabase.from('funcionario_cargos').insert(formFuncionario.cargo_ids.map((cargo_id) => ({ funcionario_id: data.id, cargo_id })));
+      if (errorCargos) { setGuardando(false); return alert(errorCargos.message); }
       await registrarAuditoria({
         modulo: 'usuarios',
         accion: 'crear',
@@ -226,6 +235,17 @@ export default function UsuariosPage() {
       await cargar();
     }
     setGuardando(false);
+  }
+
+  async function crearCargo() {
+    if (!perfil || !nuevoCargo.trim()) return;
+    const { error } = await supabase.from('cargos_empresa').insert({ empresa_id: perfil.empresa_id, nombre: nuevoCargo.trim() });
+    if (error) return alert(error.message); setNuevoCargo(''); await cargar();
+  }
+
+  async function alternarCargo(funcionario: Funcionario, cargoId: string, activo: boolean) {
+    const consulta = activo ? supabase.from('funcionario_cargos').insert({ funcionario_id: funcionario.id, cargo_id: cargoId }) : supabase.from('funcionario_cargos').delete().eq('funcionario_id', funcionario.id).eq('cargo_id', cargoId);
+    const { error } = await consulta; if (error) return alert(error.message); await cargar();
   }
 
   async function invitarUsuario(event: React.FormEvent) {
@@ -361,6 +381,8 @@ export default function UsuariosPage() {
           <Loader2 className="h-6 w-6 animate-spin text-[#A51F2B]" />
         </div>
       ) : vista === 'funcionarios' ? (
+        <div className="space-y-5">
+          <section className="rounded-lg border border-[#4B2818]/15 bg-white p-5"><h2 className="font-black text-[#2A1710]">Cargos de la empresa</h2><p className="mt-1 text-xs font-bold text-[#4B2818]/60">Crea aquí los cargos disponibles para asignarlos a uno o más funcionarios.</p><div className="mt-3 flex gap-2"><input value={nuevoCargo} onChange={(event) => setNuevoCargo(event.target.value)} placeholder="Ej: Panadero · Batea" className="h-10 min-w-0 flex-1 rounded-md border px-3 font-bold" /><button type="button" onClick={() => void crearCargo()} className="rounded-md bg-[#2A1710] px-4 text-sm font-black text-white">Agregar cargo</button></div><div className="mt-3 flex flex-wrap gap-2">{cargosEmpresa.map((cargo) => <span key={cargo.id} className="rounded-full bg-[#FFF3DF] px-3 py-1 text-xs font-black text-[#A51F2B]">{cargo.nombre}</span>)}</div></section>
         <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
           <form
             onSubmit={crearFuncionario}
@@ -378,13 +400,12 @@ export default function UsuariosPage() {
                 ['email', 'Correo'],
                 ['telefono', 'Teléfono'],
                 ['fecha_nacimiento', 'Fecha de nacimiento'],
-                ['cargo', 'Cargo'],
               ].map(([campo, etiqueta]) => (
                 <label key={campo} className="grid gap-1 text-xs font-black text-[#4B2818]">
                   {etiqueta}
                   <input
                     type={campo === 'fecha_nacimiento' ? 'date' : 'text'}
-                    required={campo === 'nombre_completo' || campo === 'cargo'}
+                    required={campo === 'nombre_completo'}
                     value={String(formFuncionario[campo as keyof typeof formFuncionario] ?? '')}
                     onChange={(event) =>
                       setFormFuncionario({
@@ -396,6 +417,7 @@ export default function UsuariosPage() {
                   />
                 </label>
               ))}
+              <fieldset className="rounded-md border border-[#4B2818]/15 p-3"><legend className="px-1 text-xs font-black text-[#4B2818]">Cargos</legend><div className="grid gap-2">{cargosEmpresa.map((cargo) => <label key={cargo.id} className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" checked={formFuncionario.cargo_ids.includes(cargo.id)} onChange={(event) => setFormFuncionario({ ...formFuncionario, cargo_ids: event.target.checked ? [...formFuncionario.cargo_ids, cargo.id] : formFuncionario.cargo_ids.filter((id) => id !== cargo.id) })} className="accent-[#A51F2B]" />{cargo.nombre}</label>)}</div></fieldset>
               <label className="flex items-center gap-3 rounded-md border border-[#4B2818]/15 bg-[#FFF3DF] px-3 py-2 text-sm font-black text-[#4B2818]">
                 <input type="checkbox" checked={formFuncionario.trabaja_comision} onChange={(event) => setFormFuncionario({ ...formFuncionario, trabaja_comision: event.target.checked })} className="h-5 w-5 accent-[#A51F2B]" />
                 Trabaja a comisión
@@ -435,9 +457,8 @@ export default function UsuariosPage() {
                     <p className="font-black text-[#2A1710]">
                       {funcionario.nombre_completo}
                     </p>
-                    <p className="text-xs font-bold uppercase text-[#A51F2B]">
-                      {funcionario.cargo}
-                    </p>
+                    <div className="mt-1 flex flex-wrap gap-1">{(funcionario.funcionario_cargos || []).map((relacion) => <span key={relacion.cargo_id} className="rounded-full bg-[#FFF3DF] px-2 py-1 text-[10px] font-black uppercase text-[#A51F2B]">{relacion.cargos_empresa?.[0]?.nombre}</span>)}</div>
+                    <details className="mt-2"><summary className="cursor-pointer text-xs font-black text-[#4B2818]/70">Editar cargos</summary><div className="mt-2 grid gap-1">{cargosEmpresa.map((cargo) => { const asignado=(funcionario.funcionario_cargos || []).some((r) => r.cargo_id===cargo.id); return <label key={cargo.id} className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={asignado} onChange={(event) => void alternarCargo(funcionario,cargo.id,event.target.checked)} />{cargo.nombre}</label>; })}</div></details>
                     {fechaCorta(funcionario.fecha_nacimiento) && (
                       <p className="mt-1 text-xs font-semibold text-[#4B2818]/60">
                         Cumpleanos: {fechaCorta(funcionario.fecha_nacimiento)}
@@ -463,7 +484,7 @@ export default function UsuariosPage() {
               ))}
             </div>
           </section>
-        </div>
+        </div></div>
       ) : (
         <div className="space-y-5">
           <form
