@@ -1779,31 +1779,6 @@ export default function RepartosPage() {
                   <td />
                 </tr>
 
-                <tr className="bg-emerald-50 font-black">
-                  <td className="sticky left-0 z-[5] bg-emerald-50 px-2 py-2">Abono</td>
-                  <td className="sticky left-[170px] z-[5] bg-emerald-50" />
-                  {dias.map((dia) => (
-                    <>
-                      <td key={`${dia}-ab`} className={`border-l border-[#4B2818]/10 px-1 py-1 ${esDomingo(anio, mes, dia) ? 'bg-amber-100' : ''}`} colSpan={2}>
-                        <input
-                          type="number"
-                          data-columna={`${dia}-abono`}
-                          value={abonos[dia] || ''}
-                          onChange={(e) => {
-                            setCambiosPendientes(true);
-                            setAbonos((actual) => ({
-                              ...actual,
-                              [dia]: numero(e.target.value),
-                            }));
-                          }}
-                          onKeyDown={moverEnGrilla}
-                          className="sin-spinner h-8 w-28 rounded border border-emerald-200 bg-white px-2 text-right font-bold text-emerald-800"
-                        />
-                      </td>
-                    </>
-                  ))}
-                  <td className="px-2 py-2 text-right">{dinero(resumen.totalAbonos)}</td>
-                </tr>
               </tbody>
             </table>
           </div>
