@@ -6,6 +6,7 @@ import { useAdminSession } from '@/components/AdminSession';
 import { supabase } from '@/lib/supabase';
 
 type Linea = { id: string; nombre: string; monto: number };
+type Turno = { id: string; nombre: string; lineas: Linea[] };
 type Funcionario = { id: string; nombre_completo: string; cargo: string };
 type Cierre = {
   id: string;
@@ -14,6 +15,7 @@ type Cierre = {
   cajera_nombre: string;
   panaderos_primer_turno: Linea[];
   panaderos_segundo_turno: Linea[];
+  turnos_panaderos?: Turno[];
   compras_gastos: Linea[];
   total_ventas: number;
   efectivo: number;
@@ -24,16 +26,21 @@ type Cierre = {
 
 const hoy = new Date().toISOString().slice(0, 10);
 const nuevaLinea = (): Linea => ({ id: crypto.randomUUID(), nombre: '', monto: 0 });
+const nuevoTurno = (numeroTurno: number): Turno => ({
+  id: crypto.randomUUID(),
+  nombre: `${numeroTurno}° turno`,
+  lineas: [nuevaLinea()],
+});
 const dinero = (valor: number) => `$${Math.round(valor || 0).toLocaleString('es-CL')}`;
 const numero = (valor: unknown) => Number(String(valor ?? '').replace(/\./g, '').replace(',', '.')) || 0;
 
-function EditorLineas({ titulo, lineas, onChange }: { titulo: string; lineas: Linea[]; onChange: (lineas: Linea[]) => void }) {
+function EditorLineas({ titulo, lineas, onChange, onRemove }: { titulo: string; lineas: Linea[]; onChange: (lineas: Linea[]) => void; onRemove?: () => void }) {
   const total = lineas.reduce((suma, linea) => suma + numero(linea.monto), 0);
   return (
     <section className="rounded-xl border border-[#4B2818]/15 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <h2 className="font-black text-[#2A1710]">{titulo}</h2>
-        <span className="rounded-full bg-[#FFF3DF] px-3 py-1 text-sm font-black text-[#A51F2B]">{dinero(total)}</span>
+        <div className="flex items-center gap-2"><span className="rounded-full bg-[#FFF3DF] px-3 py-1 text-sm font-black text-[#A51F2B]">{dinero(total)}</span>{onRemove && <button type="button" onClick={onRemove} className="grid h-8 w-8 place-items-center rounded-md text-red-700 hover:bg-red-50" aria-label={`Eliminar ${titulo}`}><Trash2 className="h-4 w-4" /></button>}</div>
       </div>
       <div className="mt-3 space-y-2">
         {lineas.map((linea, indice) => (
@@ -54,8 +61,7 @@ export default function CajaDiariaPage() {
   const [fecha, setFecha] = useState(hoy);
   const [cajeras, setCajeras] = useState<Funcionario[]>([]);
   const [cajeraId, setCajeraId] = useState('');
-  const [primerTurno, setPrimerTurno] = useState<Linea[]>([nuevaLinea()]);
-  const [segundoTurno, setSegundoTurno] = useState<Linea[]>([nuevaLinea()]);
+  const [turnos, setTurnos] = useState<Turno[]>([nuevoTurno(1), nuevoTurno(2)]);
   const [gastos, setGastos] = useState<Linea[]>([nuevaLinea()]);
   const [totalVentas, setTotalVentas] = useState(0);
   const [efectivo, setEfectivo] = useState(0);
@@ -66,10 +72,10 @@ export default function CajaDiariaPage() {
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
 
-  const totalPrimerTurno = primerTurno.reduce((suma, item) => suma + numero(item.monto), 0);
-  const totalSegundoTurno = segundoTurno.reduce((suma, item) => suma + numero(item.monto), 0);
+  const totalesTurnos = turnos.map((turno) => turno.lineas.reduce((suma, item) => suma + numero(item.monto), 0));
+  const totalPanaderos = totalesTurnos.reduce((suma, monto) => suma + monto, 0);
   const totalComprasGastos = gastos.reduce((suma, item) => suma + numero(item.monto), 0);
-  const totalGastos = totalPrimerTurno + totalSegundoTurno + totalComprasGastos;
+  const totalGastos = totalPanaderos + totalComprasGastos;
   const totalComprobado = efectivo + tarjetas + totalGastos;
   const diferencia = totalVentas - totalComprobado;
   const cuadrada = Math.abs(diferencia) < 0.5;
@@ -91,8 +97,14 @@ export default function CajaDiariaPage() {
 
   function cargarCierre(item: Cierre | null) {
     setCierre(item);
-    setPrimerTurno(item?.panaderos_primer_turno?.length ? item.panaderos_primer_turno : [nuevaLinea()]);
-    setSegundoTurno(item?.panaderos_segundo_turno?.length ? item.panaderos_segundo_turno : [nuevaLinea()]);
+    setTurnos(
+      item?.turnos_panaderos?.length
+        ? item.turnos_panaderos
+        : [
+            { id: crypto.randomUUID(), nombre: '1° turno', lineas: item?.panaderos_primer_turno?.length ? item.panaderos_primer_turno : [nuevaLinea()] },
+            { id: crypto.randomUUID(), nombre: '2° turno', lineas: item?.panaderos_segundo_turno?.length ? item.panaderos_segundo_turno : [nuevaLinea()] },
+          ]
+    );
     setGastos(item?.compras_gastos?.length ? item.compras_gastos : [nuevaLinea()]);
     setCajeraId(item?.cajera_id || perfil?.funcionario_id || '');
     setTotalVentas(numero(item?.total_ventas));
@@ -118,8 +130,9 @@ export default function CajaDiariaPage() {
       fecha,
       cajera_id: cajeraId,
       cajera_nombre: cajera?.nombre_completo || perfil.nombre_visible,
-      panaderos_primer_turno: primerTurno.filter((item) => item.nombre.trim() || item.monto),
-      panaderos_segundo_turno: segundoTurno.filter((item) => item.nombre.trim() || item.monto),
+      turnos_panaderos: turnos.map((turno) => ({ ...turno, lineas: turno.lineas.filter((item) => item.nombre.trim() || item.monto) })),
+      panaderos_primer_turno: (turnos[0]?.lineas || []).filter((item) => item.nombre.trim() || item.monto),
+      panaderos_segundo_turno: (turnos[1]?.lineas || []).filter((item) => item.nombre.trim() || item.monto),
       compras_gastos: gastos.filter((item) => item.nombre.trim() || item.monto),
       total_ventas: totalVentas,
       efectivo,
@@ -151,7 +164,10 @@ export default function CajaDiariaPage() {
 
       <fieldset disabled={bloqueada} className="space-y-5 disabled:opacity-75">
         <div className="grid gap-5 xl:grid-cols-2">
-          <div className="space-y-5"><EditorLineas titulo="Panaderos · 1er turno" lineas={primerTurno} onChange={setPrimerTurno} /><EditorLineas titulo="Panaderos · 2do turno" lineas={segundoTurno} onChange={setSegundoTurno} /></div>
+          <div className="space-y-5">
+            {turnos.map((turno, indice) => <EditorLineas key={turno.id} titulo={`Panaderos · ${turno.nombre}`} lineas={turno.lineas} onChange={(lineas) => setTurnos((actuales) => actuales.map((item) => item.id === turno.id ? { ...item, lineas } : item))} onRemove={turnos.length > 1 ? () => setTurnos((actuales) => actuales.filter((item) => item.id !== turno.id)) : undefined} />)}
+            <button type="button" onClick={() => setTurnos((actuales) => [...actuales, nuevoTurno(actuales.length + 1)])} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-[#A51F2B]/35 bg-white text-sm font-black text-[#A51F2B] hover:bg-[#FFF3DF]"><Plus className="h-4 w-4" />Agregar turno de panaderos</button>
+          </div>
           <EditorLineas titulo="Compras y Gastos" lineas={gastos} onChange={setGastos} />
         </div>
 
@@ -160,9 +176,8 @@ export default function CajaDiariaPage() {
           <div className="grid gap-4 p-5 lg:grid-cols-3">
             {[['Total ventas', totalVentas, setTotalVentas], ['Efectivo', efectivo, setEfectivo], ['Tarjetas', tarjetas, setTarjetas]].map(([etiqueta, valor, setter]) => <label key={String(etiqueta)} className="grid gap-1 text-xs font-black uppercase text-[#4B2818]/60">{String(etiqueta)}<input type="text" inputMode="numeric" value={Number(valor) || ''} onChange={(event) => (setter as (valor: number) => void)(Math.max(0, numero(event.target.value)))} className="h-14 rounded-lg border-2 border-[#D9C4A7] px-4 text-right text-xl font-black text-[#2A1710] outline-none focus:border-[#A51F2B]" /></label>)}
           </div>
-          <div className="grid gap-3 border-t border-[#4B2818]/10 bg-[#FFF9EF] p-5 sm:grid-cols-2 lg:grid-cols-5">
-            <div><p className="text-[10px] font-black uppercase text-[#4B2818]/55">1er turno</p><p className="text-lg font-black">{dinero(totalPrimerTurno)}</p></div>
-            <div><p className="text-[10px] font-black uppercase text-[#4B2818]/55">2do turno</p><p className="text-lg font-black">{dinero(totalSegundoTurno)}</p></div>
+          <div className="grid gap-3 border-t border-[#4B2818]/10 bg-[#FFF9EF] p-5 sm:grid-cols-2 lg:grid-cols-4">
+            <div><p className="text-[10px] font-black uppercase text-[#4B2818]/55">Panaderos · {turnos.length} turno(s)</p><p className="text-lg font-black">{dinero(totalPanaderos)}</p></div>
             <div><p className="text-[10px] font-black uppercase text-[#4B2818]/55">Compras/Gastos</p><p className="text-lg font-black">{dinero(totalComprasGastos)}</p></div>
             <div><p className="text-[10px] font-black uppercase text-[#4B2818]/55">Total comprobado</p><p className="text-lg font-black">{dinero(totalComprobado)}</p></div>
             <div className={`rounded-lg px-4 py-3 ${cuadrada ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}><p className="text-[10px] font-black uppercase">Diferencia</p><p className="text-xl font-black">{dinero(diferencia)}</p></div>
