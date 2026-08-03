@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   BadgePlus,
+  Pencil,
   Loader2,
   Save,
   ShieldCheck,
@@ -83,6 +84,7 @@ export default function UsuariosPage() {
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [cargosEmpresa, setCargosEmpresa] = useState<CargoEmpresa[]>([]);
   const [nuevoCargo, setNuevoCargo] = useState('');
+  const [funcionarioEditando, setFuncionarioEditando] = useState<(Funcionario & { cargo_ids: string[] }) | null>(null);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [modulos, setModulos] = useState<Modulo[]>([]);
   const [permisos, setPermisos] = useState<Permiso[]>([]);
@@ -248,6 +250,26 @@ export default function UsuariosPage() {
     const { error } = await consulta; if (error) return alert(error.message); await cargar();
   }
 
+  function abrirEdicion(funcionario: Funcionario) {
+    setFuncionarioEditando({ ...funcionario, cargo_ids: (funcionario.funcionario_cargos || []).map((item) => item.cargo_id) });
+  }
+
+  async function guardarFuncionarioEditado(event: React.FormEvent) {
+    event.preventDefault();
+    if (!funcionarioEditando?.nombre_completo.trim() || !funcionarioEditando.cargo_ids.length) return alert('Ingresa el nombre y al menos un cargo.');
+    setGuardando(true);
+    const cargoPrincipal = cargosEmpresa.find((cargo) => cargo.id === funcionarioEditando.cargo_ids[0])?.nombre || 'Funcionario';
+    const { error } = await supabase.from('funcionarios').update({ codigo: funcionarioEditando.codigo || null, nombre_completo: funcionarioEditando.nombre_completo.trim(), rut: funcionarioEditando.rut || null, email: funcionarioEditando.email || null, telefono: funcionarioEditando.telefono || null, fecha_nacimiento: funcionarioEditando.fecha_nacimiento || null, cargo: cargoPrincipal, activo: funcionarioEditando.activo, trabaja_comision: funcionarioEditando.trabaja_comision, porcentaje_comision: funcionarioEditando.porcentaje_comision || 0 }).eq('id', funcionarioEditando.id);
+    if (!error) {
+      const { error: errorBorrar } = await supabase.from('funcionario_cargos').delete().eq('funcionario_id', funcionarioEditando.id);
+      const { error: errorInsertar } = errorBorrar ? { error: errorBorrar } : await supabase.from('funcionario_cargos').insert(funcionarioEditando.cargo_ids.map((cargo_id) => ({ funcionario_id: funcionarioEditando.id, cargo_id })));
+      if (errorInsertar) { setGuardando(false); return alert(errorInsertar.message); }
+    }
+    setGuardando(false); if (error) return alert(error.message);
+    await registrarAuditoria({ modulo: 'usuarios', accion: 'editar', tabla: 'funcionarios', registroId: funcionarioEditando.id, descripcion: `Funcionario actualizado: ${funcionarioEditando.nombre_completo}` });
+    setFuncionarioEditando(null); await cargar(); alert('Funcionario actualizado.');
+  }
+
   async function invitarUsuario(event: React.FormEvent) {
     event.preventDefault();
     const {
@@ -352,6 +374,7 @@ export default function UsuariosPage() {
 
   return (
     <div className="space-y-6 pb-12">
+      {funcionarioEditando && <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/45 p-4"><form onSubmit={guardarFuncionarioEditado} className="my-6 w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl"><div className="flex items-center justify-between"><div><p className="text-xs font-black uppercase text-[#A51F2B]">Funcionario</p><h2 className="text-2xl font-black text-[#2A1710]">Editar datos</h2></div><button type="button" onClick={() => setFuncionarioEditando(null)} className="rounded-md px-3 py-2 font-black">Cerrar</button></div><div className="mt-5 grid gap-3 md:grid-cols-2">{([['codigo','Código','text'],['nombre_completo','Nombre completo','text'],['rut','RUT','text'],['email','Correo','email'],['telefono','Teléfono','text'],['fecha_nacimiento','Fecha de nacimiento','date']] as const).map(([campo,etiqueta,tipo]) => <label key={campo} className="grid gap-1 text-xs font-black text-[#4B2818]">{etiqueta}<input type={tipo} required={campo==='nombre_completo'} value={funcionarioEditando[campo] || ''} onChange={(event) => setFuncionarioEditando({ ...funcionarioEditando, [campo]: event.target.value })} className="h-11 rounded-md border px-3 text-sm font-bold" /></label>)}</div><fieldset className="mt-4 rounded-lg border p-4"><legend className="px-2 text-sm font-black">Cargos</legend><div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">{cargosEmpresa.map((cargo) => <label key={cargo.id} className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" checked={funcionarioEditando.cargo_ids.includes(cargo.id)} onChange={(event) => setFuncionarioEditando({ ...funcionarioEditando, cargo_ids: event.target.checked ? [...funcionarioEditando.cargo_ids,cargo.id] : funcionarioEditando.cargo_ids.filter((id) => id!==cargo.id) })} />{cargo.nombre}</label>)}</div></fieldset><div className="mt-4 grid gap-3 sm:grid-cols-3"><label className="flex h-11 items-center gap-2 rounded-md border px-3 text-sm font-black"><input type="checkbox" checked={funcionarioEditando.activo} onChange={(event) => setFuncionarioEditando({ ...funcionarioEditando, activo: event.target.checked })} />Funcionario activo</label><label className="flex h-11 items-center gap-2 rounded-md border px-3 text-sm font-black"><input type="checkbox" checked={funcionarioEditando.trabaja_comision} onChange={(event) => setFuncionarioEditando({ ...funcionarioEditando, trabaja_comision: event.target.checked })} />Trabaja a comisión</label>{funcionarioEditando.trabaja_comision && <label className="grid gap-1 text-xs font-black">Comisión %<input type="number" min="0" step="0.1" value={funcionarioEditando.porcentaje_comision || 0} onChange={(event) => setFuncionarioEditando({ ...funcionarioEditando, porcentaje_comision: Number(event.target.value) })} className="h-11 rounded-md border px-3 text-right text-sm font-black" /></label>}</div><div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setFuncionarioEditando(null)} className="h-11 rounded-md border px-5 font-black">Cancelar</button><button disabled={guardando} className="inline-flex h-11 items-center gap-2 rounded-md bg-[#A51F2B] px-6 font-black text-white"><Save className="h-4 w-4" />Guardar cambios</button></div></form></div>}
       <header>
         <p className="text-xs font-black uppercase tracking-wide text-[#A51F2B]">
           Personas y seguridad
@@ -477,9 +500,7 @@ export default function UsuariosPage() {
                       )}
                     </div>
                   </div>
-                  <span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${funcionario.activo ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
-                    {funcionario.activo ? 'Activo' : 'Inactivo'}
-                  </span>
+                  <div className="flex items-center gap-2"><span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${funcionario.activo ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>{funcionario.activo ? 'Activo' : 'Inactivo'}</span><button type="button" onClick={() => abrirEdicion(funcionario)} className="inline-flex h-9 items-center gap-2 rounded-md border border-[#A51F2B]/30 px-3 text-xs font-black text-[#A51F2B]"><Pencil className="h-4 w-4" />Editar</button></div>
                 </div>
               ))}
             </div>
