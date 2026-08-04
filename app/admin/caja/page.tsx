@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase';
 
 type Origen = 'casa' | 'externo';
 type Funcion = 'batea' | 'cocedor' | 'oficial';
-type Linea = { id: string; nombre: string; monto: number; monto_manual?: boolean; funcionario_id?: string; origen?: Origen; funcion?: Funcion };
+type Linea = { id: string; nombre: string; monto: number; monto_manual?: boolean; funcionario_id?: string; origen?: Origen; funcion?: Funcion; tipo_eventual?: 'externo' | 'aprendiz'; participa_demasia?: boolean };
 type Turno = { id: string; nombre: string; qq?: number; lineas: Linea[] };
 type TurnoPlan = { id: string; nombre: string; panaderos: Array<{ id: string; funcionario_id: string; nombre: string; origen: Origen; funcion: Funcion }> };
 type Plantilla = { id: string; nombre: string; turnos: TurnoPlan[] };
@@ -34,7 +34,7 @@ type Cierre = {
 };
 
 const hoy = new Date().toISOString().slice(0, 10);
-const nuevaLinea = (panadero = false): Linea => ({ id: crypto.randomUUID(), nombre: '', monto: 0, ...(panadero ? { origen: 'casa' as Origen, funcion: 'oficial' as Funcion } : {}) });
+const nuevaLinea = (panadero = false): Linea => ({ id: crypto.randomUUID(), nombre: '', monto: 0, ...(panadero ? { origen: 'casa' as Origen, funcion: 'oficial' as Funcion, participa_demasia: true } : {}) });
 const nuevoTurno = (numeroTurno: number): Turno => ({
   id: crypto.randomUUID(),
   nombre: `${numeroTurno}° turno`,
@@ -54,10 +54,11 @@ function montoLinea(linea: Linea, esFestivo: boolean, demasia: number, config: C
   if (!linea.origen || !linea.funcion) return numero(linea.monto);
   return config[esFestivo ? 'festivo' : 'normal'][linea.origen][linea.funcion] + demasia;
 }
+const recibeDemasia = (linea: Linea) => linea.participa_demasia !== false;
 function lineasCalculadas(turno: Turno, esFestivo: boolean, config: ConfigPago = CONFIG_PAGO_BASE) {
-  const activas = turno.lineas.filter((item) => item.nombre.trim());
-  const demasia = activas.length ? numero(turno.qq) * (esFestivo ? config.demasia_festivo_qq : config.demasia_normal_qq) / activas.length : 0;
-  return turno.lineas.map((item) => ({ ...item, monto: item.nombre.trim() ? montoLinea(item, esFestivo, demasia, config) : 0 }));
+  const participantes = turno.lineas.filter((item) => item.nombre.trim() && recibeDemasia(item));
+  const demasia = participantes.length ? numero(turno.qq) * (esFestivo ? config.demasia_festivo_qq : config.demasia_normal_qq) / participantes.length : 0;
+  return turno.lineas.map((item) => ({ ...item, monto: item.nombre.trim() ? montoLinea(item, esFestivo, recibeDemasia(item) ? demasia : 0, config) : 0 }));
 }
 function pascua(anio: number) { const a=anio%19,b=Math.floor(anio/100),c=anio%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mes=Math.floor((h+l-7*m+114)/31),dia=(h+l-7*m+114)%31+1; return new Date(anio,mes-1,dia,12); }
 function feriadoTrasladable(anio: number, mes: number, dia: number) { const base=new Date(anio,mes-1,dia,12), semana=base.getDay(); if(semana>=2&&semana<=4) base.setDate(base.getDate()-(semana-1)); else if(semana===5) base.setDate(base.getDate()+3); return base.toISOString().slice(0,10); }
@@ -145,10 +146,10 @@ function SueldoInput({ valor, nombre, manual, onCommit }: { valor: number; nombr
 function EditorLineas({ titulo, lineas, onChange, onRemove, panaderos, qq = 0, esFestivo = false, onQq, configPago = CONFIG_PAGO_BASE, funcionariosPanaderos = [] }: { titulo: string; lineas: Linea[]; onChange: (lineas: Linea[]) => void; onRemove?: () => void; panaderos?: boolean; qq?: number; esFestivo?: boolean; onQq?: (valor: number) => void; configPago?: ConfigPago; funcionariosPanaderos?: Funcionario[] }) {
   const [qqTexto, setQqTexto] = useState(qq ? String(qq).replace('.', ',') : '');
   useEffect(() => { setQqTexto(qq ? String(qq).replace('.', ',') : ''); }, [qq]);
-  const cantidad = lineas.filter((linea) => linea.nombre.trim()).length;
+  const cantidad = lineas.filter((linea) => linea.nombre.trim() && recibeDemasia(linea)).length;
   const demasiaTotal = qq * (esFestivo ? configPago.demasia_festivo_qq : configPago.demasia_normal_qq);
   const demasia = cantidad ? demasiaTotal / cantidad : 0;
-  const total = lineas.reduce((suma, linea) => suma + (panaderos && !linea.nombre.trim() ? 0 : montoLinea(linea, esFestivo, demasia, configPago)), 0);
+  const total = lineas.reduce((suma, linea) => suma + (panaderos && !linea.nombre.trim() ? 0 : montoLinea(linea, esFestivo, recibeDemasia(linea) ? demasia : 0, configPago)), 0);
   return (
     <section className="rounded-xl border border-[#4B2818]/15 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
@@ -157,15 +158,16 @@ function EditorLineas({ titulo, lineas, onChange, onRemove, panaderos, qq = 0, e
       </div>
       <div className="mt-3 space-y-2">
         {lineas.map((linea, indice) => (
-          <div key={linea.id} className={`grid gap-2 ${panaderos ? 'grid-cols-[minmax(150px,1fr)_90px_100px_110px_36px]' : 'grid-cols-[minmax(0,1fr)_130px_36px]'}`}>
-            {panaderos ? <select value={linea.funcionario_id || ''} onChange={(event) => { const funcionario=funcionariosPanaderos.find((item)=>item.id===event.target.value); const funcion=funcionPanadero(funcionario); onChange(lineas.map((item,posicion)=>posicion===indice?{...item,funcionario_id:event.target.value,nombre:funcionario?.nombre_completo||'',...(funcion ? { funcion } : {}),monto_manual:false}:item)); }} className="h-10 min-w-0 rounded-md border border-[#4B2818]/20 bg-white px-3 text-sm font-bold"><option value="">Seleccionar panadero</option>{funcionariosPanaderos.map((item)=><option key={item.id} value={item.id}>{item.nombre_completo}</option>)}</select> : <input value={linea.nombre} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, nombre: event.target.value } : item))} placeholder="Detalle del gasto" className="h-10 min-w-0 rounded-md border border-[#4B2818]/20 px-3 text-sm font-bold" />}
-            {panaderos && <><select value={linea.origen || 'casa'} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, origen: event.target.value as Origen, monto_manual: false } : item))} className="h-10 rounded-md border bg-white px-2 text-xs font-black"><option value="casa">Casa</option><option value="externo">Externo</option></select><select value={linea.funcion || 'oficial'} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, funcion: event.target.value as Funcion, monto_manual: false } : item))} className="h-10 rounded-md border bg-white px-2 text-xs font-black"><option value="batea">Batea</option><option value="cocedor">Cocedor</option><option value="oficial">Oficial</option></select></>}
-            {panaderos ? <SueldoInput valor={linea.nombre.trim() ? montoLinea(linea, esFestivo, demasia, configPago) : 0} nombre={linea.nombre} manual={linea.monto_manual} onCommit={(monto) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, monto, monto_manual: true } : item))} /> : <input type="text" inputMode="numeric" value={linea.monto || ''} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, monto: Math.max(0, numero(event.target.value)) } : item))} placeholder="$0" className="h-10 rounded-md border border-[#4B2818]/20 px-3 text-right text-sm font-black" />}
+          <div key={linea.id} className={`grid gap-2 ${panaderos ? 'grid-cols-[minmax(180px,1fr)_90px_100px_105px_110px_36px]' : 'grid-cols-[minmax(0,1fr)_130px_36px]'}`}>
+            {panaderos ? <div className="min-w-0 space-y-2"><select value={linea.tipo_eventual ? `__${linea.tipo_eventual}__` : linea.funcionario_id || ''} onChange={(event) => { const valor=event.target.value; const funcionario=funcionariosPanaderos.find((item)=>item.id===valor); const funcion=funcionPanadero(funcionario); const eventual=valor==='__externo__'?'externo':valor==='__aprendiz__'?'aprendiz':undefined; onChange(lineas.map((item,posicion)=>posicion===indice?{...item,funcionario_id:eventual?undefined:valor,nombre:funcionario?.nombre_completo||'',tipo_eventual:eventual,origen:eventual==='externo'?'externo':'casa',participa_demasia:eventual==='aprendiz'?false:true,monto:eventual==='aprendiz'?0:item.monto,monto_manual:eventual==='aprendiz',...(funcion ? { funcion } : {})}:item)); }} className="h-10 w-full min-w-0 rounded-md border border-[#4B2818]/20 bg-white px-3 text-sm font-bold"><option value="">Seleccionar panadero</option>{funcionariosPanaderos.map((item)=><option key={item.id} value={item.id}>{item.nombre_completo}</option>)}<option value="__externo__">+ Externo por el día</option><option value="__aprendiz__">+ Panadero en aprendizaje</option></select>{linea.tipo_eventual&&<input value={linea.nombre} onChange={(event)=>onChange(lineas.map((item,posicion)=>posicion===indice?{...item,nombre:event.target.value}:item))} placeholder={linea.tipo_eventual==='externo'?'Nombre del externo':'Nombre del aprendiz'} className="h-9 w-full min-w-0 rounded-md border border-[#4B2818]/20 px-3 text-sm font-bold"/>}</div> : <input value={linea.nombre} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, nombre: event.target.value } : item))} placeholder="Detalle del gasto" className="h-10 min-w-0 rounded-md border border-[#4B2818]/20 px-3 text-sm font-bold" />}
+            {panaderos && <><select value={linea.origen || 'casa'} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, origen: event.target.value as Origen, monto_manual: item.tipo_eventual === 'aprendiz' } : item))} className="h-10 rounded-md border bg-white px-2 text-xs font-black"><option value="casa">Casa</option><option value="externo">Externo</option></select><select value={linea.funcion || 'oficial'} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, funcion: event.target.value as Funcion, monto_manual: item.tipo_eventual === 'aprendiz' } : item))} className="h-10 rounded-md border bg-white px-2 text-xs font-black"><option value="batea">Batea</option><option value="cocedor">Cocedor</option><option value="oficial">Oficial</option></select></>}
+            {panaderos&&<label className={`flex h-10 items-center justify-center gap-2 rounded-md border px-2 text-[10px] font-black uppercase ${recibeDemasia(linea)?'border-emerald-300 bg-emerald-50 text-emerald-800':'border-stone-300 bg-stone-50 text-stone-500'}`} title="Define si participa en la división de la demasía"><input type="checkbox" checked={recibeDemasia(linea)} onChange={(event)=>onChange(lineas.map((item,posicion)=>posicion===indice?{...item,participa_demasia:event.target.checked}:item))} className="h-4 w-4 accent-emerald-700"/>Demasía</label>}
+            {panaderos ? <SueldoInput valor={linea.nombre.trim() ? montoLinea(linea, esFestivo, recibeDemasia(linea) ? demasia : 0, configPago) : 0} nombre={linea.nombre} manual={linea.monto_manual} onCommit={(monto) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, monto, monto_manual: true } : item))} /> : <input type="text" inputMode="numeric" value={linea.monto || ''} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, monto: Math.max(0, numero(event.target.value)) } : item))} placeholder="$0" className="h-10 rounded-md border border-[#4B2818]/20 px-3 text-right text-sm font-black" />}
             <button type="button" aria-label="Eliminar fila" onClick={() => onChange(lineas.filter((_, posicion) => posicion !== indice))} className="grid h-10 place-items-center rounded-md text-red-700 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button>
           </div>
         ))}
       </div>
-      {panaderos && <div className="mt-3 ml-auto w-full max-w-xs overflow-hidden rounded-lg border border-[#E9D7BC]"><div className="flex items-center justify-between bg-[#FFF9EF] px-4 py-2 text-sm"><span className="font-black text-[#4B2818]/70">Demasía</span><span className="font-black text-[#A51F2B]">{dinero(demasiaTotal)}</span></div><div className="flex items-center justify-between border-t border-[#E9D7BC] bg-[#2A1710] px-4 py-3 text-white"><span className="font-black">Total</span><span className="text-lg font-black">{dinero(total)}</span></div></div>}
+      {panaderos && <div className="mt-3 ml-auto w-full max-w-xs overflow-hidden rounded-lg border border-[#E9D7BC]"><div className="flex items-center justify-between bg-[#FFF9EF] px-4 py-2 text-sm"><span className="font-black text-[#4B2818]/70">Demasía distribuida</span><span className="font-black text-[#A51F2B]">{dinero(cantidad ? demasiaTotal : 0)}</span></div><div className="flex items-center justify-between border-t border-[#E9D7BC] bg-[#2A1710] px-4 py-3 text-white"><span className="font-black">Total</span><span className="text-lg font-black">{dinero(total)}</span></div></div>}
       <button type="button" onClick={() => onChange([...lineas, nuevaLinea(Boolean(panaderos))])} className="mt-3 inline-flex items-center gap-2 rounded-md border border-[#A51F2B]/30 px-3 py-2 text-xs font-black text-[#A51F2B]"><Plus className="h-4 w-4" />Agregar fila</button>
     </section>
   );
