@@ -53,7 +53,7 @@ function montoLinea(linea: Linea, esFestivo: boolean, demasia: number) {
 function lineasCalculadas(turno: Turno, esFestivo: boolean) {
   const activas = turno.lineas.filter((item) => item.nombre.trim());
   const demasia = activas.length ? numero(turno.qq) * (esFestivo ? 12000 : 8000) / activas.length : 0;
-  return turno.lineas.map((item) => ({ ...item, monto: montoLinea(item, esFestivo, demasia) }));
+  return turno.lineas.map((item) => ({ ...item, monto: item.nombre.trim() ? montoLinea(item, esFestivo, demasia) : 0 }));
 }
 function pascua(anio: number) { const a=anio%19,b=Math.floor(anio/100),c=anio%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mes=Math.floor((h+l-7*m+114)/31),dia=(h+l-7*m+114)%31+1; return new Date(anio,mes-1,dia,12); }
 function feriadoTrasladable(anio: number, mes: number, dia: number) { const base=new Date(anio,mes-1,dia,12), semana=base.getDay(); if(semana>=2&&semana<=4) base.setDate(base.getDate()-(semana-1)); else if(semana===5) base.setDate(base.getDate()+3); return base.toISOString().slice(0,10); }
@@ -62,24 +62,26 @@ function normalizarPlantilla(item: PlantillaDb): Plantilla { const anteriores=it
 
 function EditorLineas({ titulo, lineas, onChange, onRemove, panaderos, qq = 0, esFestivo = false, onQq }: { titulo: string; lineas: Linea[]; onChange: (lineas: Linea[]) => void; onRemove?: () => void; panaderos?: boolean; qq?: number; esFestivo?: boolean; onQq?: (valor: number) => void }) {
   const cantidad = lineas.filter((linea) => linea.nombre.trim()).length;
-  const demasia = cantidad ? qq * (esFestivo ? 12000 : 8000) / cantidad : 0;
-  const total = lineas.reduce((suma, linea) => suma + montoLinea(linea, esFestivo, demasia), 0);
+  const demasiaTotal = qq * (esFestivo ? 12000 : 8000);
+  const demasia = cantidad ? demasiaTotal / cantidad : 0;
+  const total = lineas.reduce((suma, linea) => suma + (panaderos && !linea.nombre.trim() ? 0 : montoLinea(linea, esFestivo, demasia)), 0);
   return (
     <section className="rounded-xl border border-[#4B2818]/15 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <h2 className="font-black text-[#2A1710]">{titulo}</h2>
-        <div className="flex items-center gap-2">{panaderos && <label className="flex items-center gap-2 text-xs font-black">QQ<input value={qq || ''} inputMode="decimal" onChange={(event) => onQq?.(Math.max(0, numero(event.target.value)))} className="h-8 w-20 rounded border px-2 text-right" /></label>}<span className="rounded-full bg-[#FFF3DF] px-3 py-1 text-sm font-black text-[#A51F2B]">{dinero(total)}</span>{onRemove && <button type="button" onClick={onRemove} className="grid h-8 w-8 place-items-center rounded-md text-red-700 hover:bg-red-50" aria-label={`Eliminar ${titulo}`}><Trash2 className="h-4 w-4" /></button>}</div>
+        <div className="flex items-center gap-2">{panaderos && <label className="flex items-center gap-2 text-xs font-black">QQ<input value={qq || ''} inputMode="decimal" onChange={(event) => onQq?.(Math.max(0, numero(event.target.value)))} className="h-8 w-20 rounded border px-2 text-right" /></label>}{!panaderos && <span className="rounded-full bg-[#FFF3DF] px-3 py-1 text-sm font-black text-[#A51F2B]">{dinero(total)}</span>}{onRemove && <button type="button" onClick={onRemove} className="grid h-8 w-8 place-items-center rounded-md text-red-700 hover:bg-red-50" aria-label={`Eliminar ${titulo}`}><Trash2 className="h-4 w-4" /></button>}</div>
       </div>
       <div className="mt-3 space-y-2">
         {lineas.map((linea, indice) => (
           <div key={linea.id} className={`grid gap-2 ${panaderos ? 'grid-cols-[minmax(150px,1fr)_90px_100px_110px_36px]' : 'grid-cols-[minmax(0,1fr)_130px_36px]'}`}>
             <input value={linea.nombre} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, nombre: event.target.value } : item))} placeholder={titulo.includes('Gastos') ? 'Detalle del gasto' : 'Nombre del panadero'} className="h-10 min-w-0 rounded-md border border-[#4B2818]/20 px-3 text-sm font-bold" />
             {panaderos && <><select value={linea.origen || 'casa'} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, origen: event.target.value as Origen } : item))} className="h-10 rounded-md border bg-white px-2 text-xs font-black"><option value="casa">Casa</option><option value="externo">Externo</option></select><select value={linea.funcion || 'oficial'} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, funcion: event.target.value as Funcion } : item))} className="h-10 rounded-md border bg-white px-2 text-xs font-black"><option value="batea">Batea</option><option value="cocedor">Cocedor</option><option value="oficial">Oficial</option></select></>}
-            {panaderos ? <div className="grid h-10 place-items-center rounded-md bg-[#FFF3DF] px-2 text-sm font-black">{dinero(montoLinea(linea, esFestivo, demasia))}</div> : <input type="text" inputMode="numeric" value={linea.monto || ''} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, monto: Math.max(0, numero(event.target.value)) } : item))} placeholder="$0" className="h-10 rounded-md border border-[#4B2818]/20 px-3 text-right text-sm font-black" />}
+            {panaderos ? <div className="grid h-10 place-items-center rounded-md bg-[#FFF3DF] px-2 text-sm font-black">{linea.nombre.trim() ? dinero(montoLinea(linea, esFestivo, demasia)) : dinero(0)}</div> : <input type="text" inputMode="numeric" value={linea.monto || ''} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, monto: Math.max(0, numero(event.target.value)) } : item))} placeholder="$0" className="h-10 rounded-md border border-[#4B2818]/20 px-3 text-right text-sm font-black" />}
             <button type="button" aria-label="Eliminar fila" onClick={() => onChange(lineas.filter((_, posicion) => posicion !== indice))} className="grid h-10 place-items-center rounded-md text-red-700 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button>
           </div>
         ))}
       </div>
+      {panaderos && <div className="mt-3 ml-auto w-full max-w-xs overflow-hidden rounded-lg border border-[#E9D7BC]"><div className="flex items-center justify-between bg-[#FFF9EF] px-4 py-2 text-sm"><span className="font-black text-[#4B2818]/70">Demasía</span><span className="font-black text-[#A51F2B]">{dinero(demasiaTotal)}</span></div><div className="flex items-center justify-between border-t border-[#E9D7BC] bg-[#2A1710] px-4 py-3 text-white"><span className="font-black">Total</span><span className="text-lg font-black">{dinero(total)}</span></div></div>}
       <button type="button" onClick={() => onChange([...lineas, nuevaLinea(Boolean(panaderos))])} className="mt-3 inline-flex items-center gap-2 rounded-md border border-[#A51F2B]/30 px-3 py-2 text-xs font-black text-[#A51F2B]"><Plus className="h-4 w-4" />Agregar fila</button>
     </section>
   );
