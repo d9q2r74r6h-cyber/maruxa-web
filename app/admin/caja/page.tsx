@@ -13,7 +13,8 @@ type Turno = { id: string; nombre: string; qq?: number; lineas: Linea[] };
 type TurnoPlan = { id: string; nombre: string; panaderos: Array<{ id: string; funcionario_id: string; nombre: string; origen: Origen; funcion: Funcion }> };
 type Plantilla = { id: string; nombre: string; turnos: TurnoPlan[] };
 type PlantillaDb = Partial<Plantilla> & { id: string; semana_desde?: string | null; dotacion?: Record<string, TurnoPlan[]> };
-type Funcionario = { id: string; nombre_completo: string; cargo: string };
+type CargoRelacionado = { nombre: string };
+type Funcionario = { id: string; nombre_completo: string; cargo: string; funcionario_cargos?: { cargos_empresa?: CargoRelacionado | CargoRelacionado[] | null }[] };
 type Cierre = {
   id: string;
   fecha: string;
@@ -61,8 +62,9 @@ function pascua(anio: number) { const a=anio%19,b=Math.floor(anio/100),c=anio%10
 function feriadoTrasladable(anio: number, mes: number, dia: number) { const base=new Date(anio,mes-1,dia,12), semana=base.getDay(); if(semana>=2&&semana<=4) base.setDate(base.getDate()-(semana-1)); else if(semana===5) base.setDate(base.getDate()+3); return base.toISOString().slice(0,10); }
 function esFeriadoChile(fecha: string) { const valor=new Date(`${fecha}T12:00:00`); if(valor.getDay()===0) return true; const anio=valor.getFullYear(), clave=fecha.slice(5), fijos=new Set(['01-01','05-01','05-21','06-21','07-16','08-15','09-18','09-19','10-31','11-01','12-08','12-25']); const domingo=pascua(anio), viernes=new Date(domingo), sabado=new Date(domingo); viernes.setDate(domingo.getDate()-2); sabado.setDate(domingo.getDate()-1); return fijos.has(clave)||fecha===feriadoTrasladable(anio,6,29)||fecha===feriadoTrasladable(anio,10,12)||fecha===viernes.toISOString().slice(0,10)||fecha===sabado.toISOString().slice(0,10); }
 function normalizarPlantilla(item: PlantillaDb): Plantilla { const anteriores=item.dotacion ? Object.values(item.dotacion).find((turnos) => Array.isArray(turnos)&&turnos.length) : undefined; return { id:item.id, nombre:item.nombre || `DOTACIÓN ${item.semana_desde || ''}`.trim(), turnos:item.turnos?.length ? item.turnos : anteriores || [] }; }
+function esFuncionarioPanadero(funcionario: Funcionario) { return (funcionario.funcionario_cargos || []).some((relacion) => { const cargos=Array.isArray(relacion.cargos_empresa) ? relacion.cargos_empresa : relacion.cargos_empresa ? [relacion.cargos_empresa] : []; return cargos.some((cargo) => cargo.nombre.toLocaleLowerCase('es').includes('panadero')); }); }
 
-function EditorLineas({ titulo, lineas, onChange, onRemove, panaderos, qq = 0, esFestivo = false, onQq, configPago = CONFIG_PAGO_BASE }: { titulo: string; lineas: Linea[]; onChange: (lineas: Linea[]) => void; onRemove?: () => void; panaderos?: boolean; qq?: number; esFestivo?: boolean; onQq?: (valor: number) => void; configPago?: ConfigPago }) {
+function EditorLineas({ titulo, lineas, onChange, onRemove, panaderos, qq = 0, esFestivo = false, onQq, configPago = CONFIG_PAGO_BASE, funcionariosPanaderos = [] }: { titulo: string; lineas: Linea[]; onChange: (lineas: Linea[]) => void; onRemove?: () => void; panaderos?: boolean; qq?: number; esFestivo?: boolean; onQq?: (valor: number) => void; configPago?: ConfigPago; funcionariosPanaderos?: Funcionario[] }) {
   const cantidad = lineas.filter((linea) => linea.nombre.trim()).length;
   const demasiaTotal = qq * (esFestivo ? configPago.demasia_festivo_qq : configPago.demasia_normal_qq);
   const demasia = cantidad ? demasiaTotal / cantidad : 0;
@@ -76,7 +78,7 @@ function EditorLineas({ titulo, lineas, onChange, onRemove, panaderos, qq = 0, e
       <div className="mt-3 space-y-2">
         {lineas.map((linea, indice) => (
           <div key={linea.id} className={`grid gap-2 ${panaderos ? 'grid-cols-[minmax(150px,1fr)_90px_100px_110px_36px]' : 'grid-cols-[minmax(0,1fr)_130px_36px]'}`}>
-            <input value={linea.nombre} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, nombre: event.target.value } : item))} placeholder={titulo.includes('Gastos') ? 'Detalle del gasto' : 'Nombre del panadero'} className="h-10 min-w-0 rounded-md border border-[#4B2818]/20 px-3 text-sm font-bold" />
+            {panaderos ? <select value={linea.funcionario_id || ''} onChange={(event) => { const funcionario=funcionariosPanaderos.find((item)=>item.id===event.target.value); onChange(lineas.map((item,posicion)=>posicion===indice?{...item,funcionario_id:event.target.value,nombre:funcionario?.nombre_completo||''}:item)); }} className="h-10 min-w-0 rounded-md border border-[#4B2818]/20 bg-white px-3 text-sm font-bold"><option value="">Seleccionar panadero</option>{funcionariosPanaderos.map((item)=><option key={item.id} value={item.id}>{item.nombre_completo}</option>)}</select> : <input value={linea.nombre} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, nombre: event.target.value } : item))} placeholder="Detalle del gasto" className="h-10 min-w-0 rounded-md border border-[#4B2818]/20 px-3 text-sm font-bold" />}
             {panaderos && <><select value={linea.origen || 'casa'} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, origen: event.target.value as Origen } : item))} className="h-10 rounded-md border bg-white px-2 text-xs font-black"><option value="casa">Casa</option><option value="externo">Externo</option></select><select value={linea.funcion || 'oficial'} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, funcion: event.target.value as Funcion } : item))} className="h-10 rounded-md border bg-white px-2 text-xs font-black"><option value="batea">Batea</option><option value="cocedor">Cocedor</option><option value="oficial">Oficial</option></select></>}
             {panaderos ? <div className="grid h-10 place-items-center rounded-md bg-[#FFF3DF] px-2 text-sm font-black">{linea.nombre.trim() ? dinero(montoLinea(linea, esFestivo, demasia, configPago)) : dinero(0)}</div> : <input type="text" inputMode="numeric" value={linea.monto || ''} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, monto: Math.max(0, numero(event.target.value)) } : item))} placeholder="$0" className="h-10 rounded-md border border-[#4B2818]/20 px-3 text-right text-sm font-black" />}
             <button type="button" aria-label="Eliminar fila" onClick={() => onChange(lineas.filter((_, posicion) => posicion !== indice))} className="grid h-10 place-items-center rounded-md text-red-700 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button>
@@ -93,6 +95,7 @@ export default function CajaDiariaPage() {
   const { perfil } = useAdminSession();
   const [fecha, setFecha] = useState(hoy);
   const [cajeras, setCajeras] = useState<Funcionario[]>([]);
+  const [funcionariosPanaderos, setFuncionariosPanaderos] = useState<Funcionario[]>([]);
   const [plantillas, setPlantillas] = useState<Plantilla[]>([]);
   const [errorDotaciones, setErrorDotaciones] = useState('');
   const [dotacionId, setDotacionId] = useState('');
@@ -130,13 +133,14 @@ export default function CajaDiariaPage() {
   async function cargarBase() {
     if (!perfil) return;
     const [{ data: funcionarios }, { data: cierres }, respuestaDotaciones] = await Promise.all([
-      supabase.from('funcionarios').select('id,nombre_completo,cargo').eq('empresa_id', perfil.empresa_id).eq('activo', true).order('nombre_completo'),
+      supabase.from('funcionarios').select('id,nombre_completo,cargo,funcionario_cargos(cargos_empresa(nombre))').eq('empresa_id', perfil.empresa_id).eq('activo', true).order('nombre_completo'),
       supabase.from('caja_cierres').select('*').eq('empresa_id', perfil.empresa_id).order('fecha', { ascending: false }).limit(31),
       supabase.from('caja_dotaciones_semanales').select('*').eq('empresa_id', perfil.empresa_id).order('created_at'),
     ]);
     const { data: dotaciones, error: errorDotacion } = respuestaDotaciones;
-    const lista = (funcionarios || []) as Funcionario[];
+    const lista = (funcionarios || []) as unknown as Funcionario[];
     setCajeras(lista);
+    setFuncionariosPanaderos(lista.filter(esFuncionarioPanadero));
     setHistorial((cierres || []) as Cierre[]);
     setPlantillas(((dotaciones || []) as PlantillaDb[]).map(normalizarPlantilla));
     setErrorDotaciones(errorDotacion?.message || '');
@@ -226,7 +230,7 @@ export default function CajaDiariaPage() {
       <fieldset disabled={bloqueada} className="space-y-5 disabled:opacity-75">
         <div className="grid gap-5 xl:grid-cols-2">
           <div className="space-y-5">
-            {turnos.map((turno) => <EditorLineas key={turno.id} titulo={`Panaderos · ${turno.nombre}`} lineas={turno.lineas} panaderos qq={turno.qq || 0} esFestivo={esFestivo} configPago={configPago} onQq={(qq) => setTurnos((actuales) => actuales.map((item) => item.id === turno.id ? { ...item, qq } : item))} onChange={(lineas) => setTurnos((actuales) => actuales.map((item) => item.id === turno.id ? { ...item, lineas } : item))} onRemove={turnos.length > 1 ? () => setTurnos((actuales) => actuales.filter((item) => item.id !== turno.id)) : undefined} />)}
+            {turnos.map((turno) => <EditorLineas key={turno.id} titulo={`Panaderos · ${turno.nombre}`} lineas={turno.lineas} panaderos qq={turno.qq || 0} esFestivo={esFestivo} configPago={configPago} funcionariosPanaderos={funcionariosPanaderos} onQq={(qq) => setTurnos((actuales) => actuales.map((item) => item.id === turno.id ? { ...item, qq } : item))} onChange={(lineas) => setTurnos((actuales) => actuales.map((item) => item.id === turno.id ? { ...item, lineas } : item))} onRemove={turnos.length > 1 ? () => setTurnos((actuales) => actuales.filter((item) => item.id !== turno.id)) : undefined} />)}
             <button type="button" onClick={() => setTurnos((actuales) => [...actuales, nuevoTurno(actuales.length + 1)])} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-[#A51F2B]/35 bg-white text-sm font-black text-[#A51F2B] hover:bg-[#FFF3DF]"><Plus className="h-4 w-4" />Agregar turno de panaderos</button>
           </div>
           <EditorLineas titulo="Compras y Gastos" lineas={gastos} onChange={setGastos} />
