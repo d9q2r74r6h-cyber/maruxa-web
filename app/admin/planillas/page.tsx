@@ -813,13 +813,14 @@ export default function AdminPlanillasPage() {
         nombre_producto: string;
         kilos_total: number | null;
         merma: number | null;
+        repartidor_id: string | null;
       }[] = [];
 
       for (let desde = 0; ; desde += 1000) {
         const { data: bloqueDetalles, error: errorDetallesMensuales } =
           await supabase
             .from('planilla_detalles')
-            .select('planilla_id,producto_id,nombre_producto,kilos_total,merma')
+            .select('planilla_id,producto_id,nombre_producto,kilos_total,merma,repartidor_id')
             .in('planilla_id', ids)
             .range(desde, desde + 999);
 
@@ -886,7 +887,8 @@ export default function AdminPlanillasPage() {
             nombre = nombre.slice(0, separadorTurno).trim();
           }
 
-          const clave = normalizar(referenciaRepartidor(nombre));
+          const repartidorActual = item.repartidor_id ? repartidoresConfigurados.find((repartidor) => repartidor.id === item.repartidor_id) : null;
+          const clave = normalizar(repartidorActual ? referenciaRepartidor(repartidorActual.nombre_completo) : referenciaRepartidor(nombre));
           detalleTurno.repartos[clave] =
             (detalleTurno.repartos[clave] || 0) + kilosDetalle;
         }
@@ -2290,7 +2292,7 @@ export default function AdminPlanillasPage() {
     const [{ data: detallesData }, { data: insumosData }] = await Promise.all([
       supabase
         .from('planilla_detalles')
-        .select('producto_id,nombre_producto,kilos_total,merma')
+        .select('producto_id,nombre_producto,kilos_total,merma,repartidor_id')
         .eq('planilla_id', planilla.id)
         .like('nombre_producto', `% [turno:${turnoConfig.orden}]`),
       turnoDb
@@ -2306,6 +2308,7 @@ export default function AdminPlanillasPage() {
       nombre_producto: string;
       kilos_total: number;
       merma: number;
+      repartidor_id?: string | null;
     }[];
     const insumosGuardados = (insumosData || []) as {
       id: string;
@@ -2350,12 +2353,14 @@ export default function AdminPlanillasPage() {
       0
     );
     const repartosPorNombre = new Map<string, number>();
+    const repartosPorId = new Map<string, number>();
     for (const item of detalleRepartos) {
         let nombre = item.nombre_producto.replace(marcadorTurno, '').trim();
         if (nombre.endsWith(sufijoTurno)) {
           nombre = nombre.slice(0, -sufijoTurno.length).trim();
         }
       const kilos = Number(item.kilos_total || 0);
+      if (item.repartidor_id) repartosPorId.set(item.repartidor_id, kilos);
       repartosPorNombre.set(normalizar(nombre), kilos);
       repartosPorNombre.set(normalizar(referenciaRepartidor(nombre)), kilos);
     }
@@ -2370,7 +2375,7 @@ export default function AdminPlanillasPage() {
 
     const baseRepartos = repartosBase().map((item) => ({
       ...item,
-      kilos: repartosPorNombre.get(normalizar(item.nombre)) || 0,
+      kilos: repartosPorId.get(item.id) ?? repartosPorNombre.get(normalizar(item.nombre)) ?? 0,
     }));
     const repartosExtras = detalleRepartos
       .map((item) => {
@@ -2379,7 +2384,7 @@ export default function AdminPlanillasPage() {
           nombre = nombre.slice(0, -sufijoTurno.length).trim();
         }
         return {
-          id: `guardado-${nombre}`,
+          id: item.repartidor_id || `guardado-${nombre}`,
           nombre: referenciaRepartidor(nombre),
           kilos: Number(item.kilos_total || 0),
         };
@@ -2387,9 +2392,7 @@ export default function AdminPlanillasPage() {
       .filter(
         (item) =>
           item.kilos > 0 &&
-          !baseRepartos.some(
-            (base) => normalizar(base.nombre) === normalizar(item.nombre)
-          )
+          !baseRepartos.some((base) => base.id === item.id || normalizar(base.nombre) === normalizar(item.nombre))
       );
 
     const productosPorId = new Map(
@@ -2933,6 +2936,7 @@ export default function AdminPlanillasPage() {
       .filter((item) => item.kilos > 0)
       .map((item) => ({
         planilla_id: planillaId,
+        repartidor_id: /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(item.id) ? item.id : null,
         producto_id: null,
         nombre_producto: `${item.nombre.trim()} - ${turnoConfig.nombre} [turno:${turnoConfig.orden}]`,
         cantidad: 1,
@@ -2946,6 +2950,7 @@ export default function AdminPlanillasPage() {
       .forEach((item) => {
         filasRepartos.push({
           planilla_id: planillaId,
+          repartidor_id: null,
           producto_id: item.producto_id,
           nombre_producto: `${item.nombre.trim()} - ${turnoConfig.nombre} [turno:${turnoConfig.orden}]`,
           cantidad: 1,
@@ -2960,6 +2965,7 @@ export default function AdminPlanillasPage() {
       .forEach((item) => {
         filasRepartos.push({
           planilla_id: planillaId,
+          repartidor_id: null,
           producto_id: item.producto_id,
           nombre_producto: `Merma/Otro: ${item.cliente_nombre.trim()} / ${item.producto_nombre.trim()} - ${turnoConfig.nombre} [turno:${turnoConfig.orden}]`,
           cantidad: 0,
@@ -2972,6 +2978,7 @@ export default function AdminPlanillasPage() {
     if (Number(borrador.turno.merma || 0) > 0 && borrador.otrosTurno.length === 0) {
       filasRepartos.push({
         planilla_id: planillaId,
+        repartidor_id: null,
         producto_id: null,
         nombre_producto: `Merma - ${turnoConfig.nombre} [turno:${turnoConfig.orden}]`,
         cantidad: 0,
