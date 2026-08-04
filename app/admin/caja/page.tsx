@@ -14,7 +14,7 @@ type TurnoPlan = { id: string; nombre: string; panaderos: Array<{ id: string; fu
 type Plantilla = { id: string; nombre: string; turnos: TurnoPlan[] };
 type PlantillaDb = Partial<Plantilla> & { id: string; semana_desde?: string | null; dotacion?: Record<string, TurnoPlan[]> };
 type CargoRelacionado = { nombre: string };
-type Funcionario = { id: string; nombre_completo: string; cargo: string; funcionario_cargos?: { cargos_empresa?: CargoRelacionado | CargoRelacionado[] | null }[] };
+type Funcionario = { id: string; nombre_completo: string; nombre_corto?: string | null; cargo: string; funcionario_cargos?: { cargos_empresa?: CargoRelacionado | CargoRelacionado[] | null }[] };
 type Cierre = {
   id: string;
   fecha: string;
@@ -65,6 +65,8 @@ function feriadoTrasladable(anio: number, mes: number, dia: number) { const base
 function esFeriadoChile(fecha: string) { const valor=new Date(`${fecha}T12:00:00`); if(valor.getDay()===0) return true; const anio=valor.getFullYear(), clave=fecha.slice(5), fijos=new Set(['01-01','05-01','05-21','06-21','07-16','08-15','09-18','09-19','10-31','11-01','12-08','12-25']); const domingo=pascua(anio), viernes=new Date(domingo), sabado=new Date(domingo); viernes.setDate(domingo.getDate()-2); sabado.setDate(domingo.getDate()-1); return fijos.has(clave)||fecha===feriadoTrasladable(anio,6,29)||fecha===feriadoTrasladable(anio,10,12)||fecha===viernes.toISOString().slice(0,10)||fecha===sabado.toISOString().slice(0,10); }
 function normalizarPlantilla(item: PlantillaDb): Plantilla { const anteriores=item.dotacion ? Object.values(item.dotacion).find((turnos) => Array.isArray(turnos)&&turnos.length) : undefined; return { id:item.id, nombre:item.nombre || `DOTACIÓN ${item.semana_desde || ''}`.trim(), turnos:item.turnos?.length ? item.turnos : anteriores || [] }; }
 function esFuncionarioPanadero(funcionario: Funcionario) { return (funcionario.funcionario_cargos || []).some((relacion) => { const cargos=Array.isArray(relacion.cargos_empresa) ? relacion.cargos_empresa : relacion.cargos_empresa ? [relacion.cargos_empresa] : []; return cargos.some((cargo) => cargo.nombre.toLocaleLowerCase('es').includes('panadero')); }); }
+function esFuncionarioCajera(funcionario: Funcionario) { return (funcionario.funcionario_cargos || []).some((relacion) => { const cargos=Array.isArray(relacion.cargos_empresa) ? relacion.cargos_empresa : relacion.cargos_empresa ? [relacion.cargos_empresa] : []; return cargos.some((cargo) => cargo.nombre.toLocaleLowerCase('es').includes('cajera')); }); }
+const nombreBreve = (funcionario: Funcionario) => funcionario.nombre_corto?.trim() || funcionario.nombre_completo.split(/\s+/)[0];
 const DIAS_SEMANA = ['DOMINGO', 'LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO'];
 function textoComparable(valor: string) { return valor.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase(); }
 function dotacionParaFecha(plantillas: Plantilla[], fecha: string) {
@@ -158,10 +160,10 @@ function EditorLineas({ titulo, lineas, onChange, onRemove, panaderos, qq = 0, e
       </div>
       <div className="mt-3 space-y-2">
         {lineas.map((linea, indice) => (
-          <div key={linea.id} className={`grid gap-2 ${panaderos ? 'grid-cols-[minmax(180px,1fr)_90px_100px_105px_110px_36px]' : 'grid-cols-[minmax(0,1fr)_130px_36px]'}`}>
-            {panaderos ? <div className="min-w-0 space-y-2"><select value={linea.tipo_eventual ? `__${linea.tipo_eventual}__` : linea.funcionario_id || ''} onChange={(event) => { const valor=event.target.value; const funcionario=funcionariosPanaderos.find((item)=>item.id===valor); const funcion=funcionPanadero(funcionario); const eventual=valor==='__externo__'?'externo':valor==='__aprendiz__'?'aprendiz':undefined; onChange(lineas.map((item,posicion)=>posicion===indice?{...item,funcionario_id:eventual?undefined:valor,nombre:funcionario?.nombre_completo||'',tipo_eventual:eventual,origen:eventual==='externo'?'externo':'casa',participa_demasia:eventual==='aprendiz'?false:true,monto:eventual==='aprendiz'?0:item.monto,monto_manual:eventual==='aprendiz',...(funcion ? { funcion } : {})}:item)); }} className="h-10 w-full min-w-0 rounded-md border border-[#4B2818]/20 bg-white px-3 text-sm font-bold"><option value="">Seleccionar panadero</option>{funcionariosPanaderos.map((item)=><option key={item.id} value={item.id}>{item.nombre_completo}</option>)}<option value="__externo__">+ Externo por el día</option><option value="__aprendiz__">+ Panadero en aprendizaje</option></select>{linea.tipo_eventual&&<input value={linea.nombre} onChange={(event)=>onChange(lineas.map((item,posicion)=>posicion===indice?{...item,nombre:event.target.value}:item))} placeholder={linea.tipo_eventual==='externo'?'Nombre del externo':'Nombre del aprendiz'} className="h-9 w-full min-w-0 rounded-md border border-[#4B2818]/20 px-3 text-sm font-bold"/>}</div> : <input value={linea.nombre} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, nombre: event.target.value } : item))} placeholder="Detalle del gasto" className="h-10 min-w-0 rounded-md border border-[#4B2818]/20 px-3 text-sm font-bold" />}
+          <div key={linea.id} className={`grid gap-1.5 ${panaderos ? 'grid-cols-[minmax(120px,1fr)_72px_82px_88px_96px_28px]' : 'grid-cols-[minmax(0,1fr)_130px_36px]'}`}>
+            {panaderos ? <div className="min-w-0 space-y-2"><select value={linea.tipo_eventual ? `__${linea.tipo_eventual}__` : linea.funcionario_id || ''} onChange={(event) => { const valor=event.target.value; const funcionario=funcionariosPanaderos.find((item)=>item.id===valor); const funcion=funcionPanadero(funcionario); const eventual=valor==='__externo__'?'externo':valor==='__aprendiz__'?'aprendiz':undefined; onChange(lineas.map((item,posicion)=>posicion===indice?{...item,funcionario_id:eventual?undefined:valor,nombre:funcionario?.nombre_completo||'',tipo_eventual:eventual,origen:eventual==='externo'?'externo':'casa',participa_demasia:eventual==='aprendiz'?false:true,monto:eventual==='aprendiz'?0:item.monto,monto_manual:eventual==='aprendiz',...(funcion ? { funcion } : {})}:item)); }} className="h-10 w-full min-w-0 rounded-md border border-[#4B2818]/20 bg-white px-2 text-xs font-bold"><option value="">Seleccionar</option>{funcionariosPanaderos.map((item)=><option key={item.id} value={item.id}>{nombreBreve(item)}</option>)}<option value="__externo__">+ Externo por el día</option><option value="__aprendiz__">+ En aprendizaje</option></select>{linea.tipo_eventual&&<input value={linea.nombre} onChange={(event)=>onChange(lineas.map((item,posicion)=>posicion===indice?{...item,nombre:event.target.value}:item))} placeholder={linea.tipo_eventual==='externo'?'Nombre del externo':'Nombre del aprendiz'} className="h-9 w-full min-w-0 rounded-md border border-[#4B2818]/20 px-2 text-xs font-bold"/>}</div> : <input value={linea.nombre} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, nombre: event.target.value } : item))} placeholder="Detalle del gasto" className="h-10 min-w-0 rounded-md border border-[#4B2818]/20 px-3 text-sm font-bold" />}
             {panaderos && <><select value={linea.origen || 'casa'} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, origen: event.target.value as Origen, monto_manual: item.tipo_eventual === 'aprendiz' } : item))} className="h-10 rounded-md border bg-white px-2 text-xs font-black"><option value="casa">Casa</option><option value="externo">Externo</option></select><select value={linea.funcion || 'oficial'} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, funcion: event.target.value as Funcion, monto_manual: item.tipo_eventual === 'aprendiz' } : item))} className="h-10 rounded-md border bg-white px-2 text-xs font-black"><option value="batea">Batea</option><option value="cocedor">Cocedor</option><option value="oficial">Oficial</option></select></>}
-            {panaderos&&<label className={`flex h-10 items-center justify-center gap-2 rounded-md border px-2 text-[10px] font-black uppercase ${recibeDemasia(linea)?'border-emerald-300 bg-emerald-50 text-emerald-800':'border-stone-300 bg-stone-50 text-stone-500'}`} title="Define si participa en la división de la demasía"><input type="checkbox" checked={recibeDemasia(linea)} onChange={(event)=>onChange(lineas.map((item,posicion)=>posicion===indice?{...item,participa_demasia:event.target.checked}:item))} className="h-4 w-4 accent-emerald-700"/>Demasía</label>}
+            {panaderos&&<label className={`flex h-10 items-center justify-center gap-1 rounded-md border px-1 text-[9px] font-black uppercase ${recibeDemasia(linea)?'border-emerald-300 bg-emerald-50 text-emerald-800':'border-stone-300 bg-stone-50 text-stone-500'}`} title="Define si participa en la división de la demasía"><input type="checkbox" checked={recibeDemasia(linea)} onChange={(event)=>onChange(lineas.map((item,posicion)=>posicion===indice?{...item,participa_demasia:event.target.checked}:item))} className="h-4 w-4 shrink-0 accent-emerald-700"/>Demasía</label>}
             {panaderos ? <SueldoInput valor={linea.nombre.trim() ? montoLinea(linea, esFestivo, recibeDemasia(linea) ? demasia : 0, configPago) : 0} nombre={linea.nombre} manual={linea.monto_manual} onCommit={(monto) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, monto, monto_manual: true } : item))} /> : <input type="text" inputMode="numeric" value={linea.monto || ''} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, monto: Math.max(0, numero(event.target.value)) } : item))} placeholder="$0" className="h-10 rounded-md border border-[#4B2818]/20 px-3 text-right text-sm font-black" />}
             <button type="button" aria-label="Eliminar fila" onClick={() => onChange(lineas.filter((_, posicion) => posicion !== indice))} className="grid h-10 place-items-center rounded-md text-red-700 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button>
           </div>
@@ -215,18 +217,19 @@ export default function CajaDiariaPage() {
   async function cargarBase() {
     if (!perfil) return;
     const [{ data: funcionarios }, { data: cierres }, respuestaDotaciones] = await Promise.all([
-      supabase.from('funcionarios').select('id,nombre_completo,cargo,funcionario_cargos(cargos_empresa(nombre))').eq('empresa_id', perfil.empresa_id).eq('activo', true).order('nombre_completo'),
+      supabase.from('funcionarios').select('id,nombre_completo,nombre_corto,cargo,funcionario_cargos(cargos_empresa(nombre))').eq('empresa_id', perfil.empresa_id).eq('activo', true).order('nombre_completo'),
       supabase.from('caja_cierres').select('*').eq('empresa_id', perfil.empresa_id).order('fecha', { ascending: false }).limit(31),
       supabase.from('caja_dotaciones_semanales').select('*').eq('empresa_id', perfil.empresa_id).order('created_at'),
     ]);
     const { data: dotaciones, error: errorDotacion } = respuestaDotaciones;
     const lista = (funcionarios || []) as unknown as Funcionario[];
-    setCajeras(lista);
+    const listaCajeras = lista.filter(esFuncionarioCajera);
+    setCajeras(listaCajeras);
     setFuncionariosPanaderos(lista.filter(esFuncionarioPanadero));
     setHistorial((cierres || []) as Cierre[]);
     setPlantillas(((dotaciones || []) as PlantillaDb[]).map(normalizarPlantilla));
     setErrorDotaciones(errorDotacion?.message || '');
-    const predeterminada = perfil.funcionario_id || lista[0]?.id || '';
+    const predeterminada = listaCajeras.some((item) => item.id === perfil.funcionario_id) ? perfil.funcionario_id : listaCajeras[0]?.id || '';
     setCajeraId((actual) => actual || predeterminada);
     setCargando(false);
   }
@@ -242,7 +245,12 @@ export default function CajaDiariaPage() {
           ]
     );
     setGastos(item?.compras_gastos?.length ? item.compras_gastos : [nuevaLinea()]);
-    setCajeraId(item?.cajera_id || perfil?.funcionario_id || '');
+    setCajeraId((actual) => {
+      if (item?.cajera_id) return item.cajera_id;
+      if (cajeras.some((cajera) => cajera.id === actual)) return actual;
+      if (cajeras.some((cajera) => cajera.id === perfil?.funcionario_id)) return perfil?.funcionario_id || '';
+      return cajeras[0]?.id || '';
+    });
     setTotalVentas(numero(item?.total_ventas));
     setEfectivo(numero(item?.efectivo));
     setTarjetas(numero(item?.tarjetas));
