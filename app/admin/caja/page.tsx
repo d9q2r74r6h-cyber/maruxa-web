@@ -8,7 +8,9 @@ import { supabase } from '@/lib/supabase';
 
 type Origen = 'casa' | 'externo';
 type Funcion = 'batea' | 'cocedor' | 'oficial';
-type Linea = { id: string; nombre: string; monto: number; monto_manual?: boolean; funcionario_id?: string; origen?: Origen; funcion?: Funcion; tipo_eventual?: 'externo' | 'aprendiz'; participa_demasia?: boolean };
+type ConceptoBono = { id: string; nombre: string; monto: number; activo: boolean };
+type BonoAsignado = { id: string; concepto_id: string; nombre: string; monto: number };
+type Linea = { id: string; nombre: string; monto: number; total_pago?: number; bonos?: BonoAsignado[]; monto_manual?: boolean; funcionario_id?: string; origen?: Origen; funcion?: Funcion; tipo_eventual?: 'externo' | 'aprendiz'; participa_demasia?: boolean };
 type Turno = { id: string; nombre: string; qq?: number; lineas: Linea[] };
 type TurnoPlan = { id: string; nombre: string; panaderos: Array<{ id: string; funcionario_id: string; nombre: string; origen: Origen; funcion: Funcion }> };
 type Plantilla = { id: string; nombre: string; turnos: TurnoPlan[] };
@@ -61,10 +63,14 @@ function montoLinea(linea: Linea, esFestivo: boolean, demasia: number, config: C
   return config[esFestivo ? 'festivo' : 'normal'][linea.origen][linea.funcion] + demasia;
 }
 const recibeDemasia = (linea: Linea) => linea.participa_demasia !== false;
+const totalBonos = (linea: Linea) => (linea.bonos || []).reduce((suma, bono) => suma + numero(bono.monto), 0);
 function lineasCalculadas(turno: Turno, esFestivo: boolean, config: ConfigPago = CONFIG_PAGO_BASE) {
   const participantes = turno.lineas.filter((item) => item.nombre.trim() && recibeDemasia(item));
   const demasia = participantes.length ? numeroDecimal(turno.qq) * (esFestivo ? config.demasia_festivo_qq : config.demasia_normal_qq) / participantes.length : 0;
-  return turno.lineas.map((item) => ({ ...item, monto: item.nombre.trim() ? montoLinea(item, esFestivo, recibeDemasia(item) ? demasia : 0, config) : 0 }));
+  return turno.lineas.map((item) => {
+    const monto = item.nombre.trim() ? montoLinea(item, esFestivo, recibeDemasia(item) ? demasia : 0, config) : 0;
+    return { ...item, monto, total_pago: monto + totalBonos(item) };
+  });
 }
 function pascua(anio: number) { const a=anio%19,b=Math.floor(anio/100),c=anio%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mes=Math.floor((h+l-7*m+114)/31),dia=(h+l-7*m+114)%31+1; return new Date(anio,mes-1,dia,12); }
 function feriadoTrasladable(anio: number, mes: number, dia: number) { const base=new Date(anio,mes-1,dia,12), semana=base.getDay(); if(semana>=2&&semana<=4) base.setDate(base.getDate()-(semana-1)); else if(semana===5) base.setDate(base.getDate()+3); return base.toISOString().slice(0,10); }
@@ -163,20 +169,22 @@ function imprimirHojaTurno(titulo: string, fecha: string, qq: number, lineas: Li
   const filas = calculadas.map((linea) => {
     const demasia = recibeDemasia(linea) ? demasiaIndividual : 0;
     const base = Math.max(0, numero(linea.monto) - demasia);
-    return `<tr><td>${escaparHtml(linea.nombre)}</td><td>${escaparHtml((linea.funcion || '').toUpperCase())}</td><td class="monto">${dinero(base)}</td><td class="signo">+</td><td class="monto">${dinero(demasia)}</td><td class="signo">=</td><td class="monto total-fila">${dinero(linea.monto)}</td><td class="flecha">→</td><td class="firma"></td></tr>`;
+    const bonos = totalBonos(linea);
+    const detalleBonos = (linea.bonos || []).map((bono) => escaparHtml(`${bono.nombre} ${dinero(bono.monto)}`)).join('<br>');
+    return `<tr><td>${escaparHtml(linea.nombre)}</td><td>${escaparHtml((linea.funcion || '').toUpperCase())}</td><td class="monto">${dinero(base)}</td><td class="signo">+</td><td class="monto">${dinero(demasia)}</td><td class="signo">+</td><td class="monto bonos">${dinero(bonos)}${detalleBonos ? `<small>${detalleBonos}</small>` : ''}</td><td class="signo">=</td><td class="monto total-fila">${dinero(linea.total_pago ?? linea.monto)}</td><td class="flecha">→</td><td class="firma"></td></tr>`;
   }).join('');
-  const total = calculadas.reduce((suma, linea) => suma + numero(linea.monto), 0);
-  ventana.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Hoja de pago ${escaparHtml(titulo)}</title><style>@page{size:A4 landscape;margin:14mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#24150f;margin:0}header{border-bottom:3px solid #9f1d2b;padding-bottom:12px;margin-bottom:18px}h1{font-family:Georgia,serif;margin:0 0 8px;font-size:25px}.datos{display:flex;gap:28px;font-weight:700;font-size:13px}table{width:100%;border-collapse:collapse;font-size:13px}th{background:#2a1710;color:#fff;text-align:left;padding:10px 8px}td{border:1px solid #bcae9e;padding:12px 8px;height:58px}.monto{text-align:right;font-size:15px;font-weight:700}.total-fila{color:#9f1d2b;font-size:17px}.signo,.flecha{text-align:center;border-left:0;border-right:0;font-size:18px;font-weight:700}.firma{min-width:180px}tfoot td{height:auto;background:#fff4df;font-weight:700}.declaracion{margin-top:20px;font-size:12px;line-height:1.5}.pie{display:flex;justify-content:space-between;margin-top:42px}.linea{width:260px;border-top:1px solid #222;padding-top:6px;text-align:center;font-size:11px}@media print{button{display:none}}</style></head><body><header><h1>Panadería Maruxa · Hoja de pago y recepción</h1><div class="datos"><span>Fecha: ${new Date(`${fecha}T12:00:00`).toLocaleDateString('es-CL')}</span><span>${escaparHtml(titulo)}</span><span>QQ: ${String(qq).replace('.', ',')}</span><span>${esFestivo ? 'Día festivo' : 'Día normal'}</span></div></header><table><thead><tr><th>Panadero</th><th>Función</th><th>Sueldo base</th><th></th><th>Demasía</th><th></th><th>Total recibido</th><th></th><th>Firma de conformidad</th></tr></thead><tbody>${filas}</tbody><tfoot><tr><td colspan="6">TOTAL PAGADO DEL TURNO</td><td class="monto">${dinero(total)}</td><td colspan="2"></td></tr></tfoot></table><p class="declaracion">Cada trabajador declara haber recibido conforme el monto indicado en esta hoja por el turno señalado.</p><div class="pie"><div class="linea">Nombre y firma de la cajera responsable</div><div class="linea">Fecha y hora de entrega</div></div><script>window.onload=()=>{window.print()}<\/script></body></html>`);
+  const total = calculadas.reduce((suma, linea) => suma + numero(linea.total_pago ?? linea.monto), 0);
+  ventana.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Hoja de pago ${escaparHtml(titulo)}</title><style>@page{size:A4 landscape;margin:10mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#24150f;margin:0}header{border-bottom:3px solid #9f1d2b;padding-bottom:10px;margin-bottom:14px}h1{font-family:Georgia,serif;margin:0 0 8px;font-size:23px}.datos{display:flex;gap:24px;font-weight:700;font-size:12px}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#2a1710;color:#fff;text-align:left;padding:8px 6px}td{border:1px solid #bcae9e;padding:9px 6px;height:58px}.monto{text-align:right;font-size:14px;font-weight:700}.bonos small{display:block;margin-top:4px;font-size:8px;font-weight:400;line-height:1.3}.total-fila{color:#9f1d2b;font-size:16px}.signo,.flecha{text-align:center;border-left:0;border-right:0;font-size:17px;font-weight:700}.firma{min-width:150px}tfoot td{height:auto;background:#fff4df;font-weight:700}.declaracion{margin-top:16px;font-size:11px;line-height:1.5}.pie{display:flex;justify-content:space-between;margin-top:36px}.linea{width:250px;border-top:1px solid #222;padding-top:6px;text-align:center;font-size:10px}@media print{button{display:none}}</style></head><body><header><h1>Panadería Maruxa · Hoja de pago y recepción</h1><div class="datos"><span>Fecha: ${new Date(`${fecha}T12:00:00`).toLocaleDateString('es-CL')}</span><span>${escaparHtml(titulo)}</span><span>QQ: ${String(qq).replace('.', ',')}</span><span>${esFestivo ? 'Día festivo' : 'Día normal'}</span></div></header><table><thead><tr><th>Panadero</th><th>Función</th><th>Base</th><th></th><th>Demasía</th><th></th><th>Bonos</th><th></th><th>Total</th><th></th><th>Firma</th></tr></thead><tbody>${filas}</tbody><tfoot><tr><td colspan="8">TOTAL PAGADO DEL TURNO</td><td class="monto">${dinero(total)}</td><td colspan="2"></td></tr></tfoot></table><p class="declaracion">Cada trabajador declara haber recibido conforme el monto indicado en esta hoja por el turno señalado.</p><div class="pie"><div class="linea">Nombre y firma de la cajera responsable</div><div class="linea">Fecha y hora de entrega</div></div><script>window.onload=()=>{window.print()}<\/script></body></html>`);
   ventana.document.close();
 }
 
-function EditorLineas({ titulo, fecha, lineas, onChange, onRemove, panaderos, qq = 0, esFestivo = false, onQq, configPago = CONFIG_PAGO_BASE, funcionariosPanaderos = [] }: { titulo: string; fecha?: string; lineas: Linea[]; onChange: (lineas: Linea[]) => void; onRemove?: () => void; panaderos?: boolean; qq?: number; esFestivo?: boolean; onQq?: (valor: number) => void; configPago?: ConfigPago; funcionariosPanaderos?: Funcionario[] }) {
+function EditorLineas({ titulo, fecha, lineas, onChange, onRemove, panaderos, qq = 0, esFestivo = false, onQq, configPago = CONFIG_PAGO_BASE, funcionariosPanaderos = [], conceptosBono = [] }: { titulo: string; fecha?: string; lineas: Linea[]; onChange: (lineas: Linea[]) => void; onRemove?: () => void; panaderos?: boolean; qq?: number; esFestivo?: boolean; onQq?: (valor: number) => void; configPago?: ConfigPago; funcionariosPanaderos?: Funcionario[]; conceptosBono?: ConceptoBono[] }) {
   const [qqTexto, setQqTexto] = useState(qq ? String(qq).replace('.', ',') : '');
   useEffect(() => { setQqTexto(qq ? String(qq).replace('.', ',') : ''); }, [qq]);
   const cantidad = lineas.filter((linea) => linea.nombre.trim() && recibeDemasia(linea)).length;
   const demasiaTotal = qq * (esFestivo ? configPago.demasia_festivo_qq : configPago.demasia_normal_qq);
   const demasia = cantidad ? demasiaTotal / cantidad : 0;
-  const total = lineas.reduce((suma, linea) => suma + (panaderos && !linea.nombre.trim() ? 0 : montoLinea(linea, esFestivo, recibeDemasia(linea) ? demasia : 0, configPago)), 0);
+  const total = lineas.reduce((suma, linea) => suma + (panaderos && !linea.nombre.trim() ? 0 : montoLinea(linea, esFestivo, recibeDemasia(linea) ? demasia : 0, configPago) + totalBonos(linea)), 0);
   return (
     <section className="rounded-xl border border-[#4B2818]/15 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
@@ -194,6 +202,7 @@ function EditorLineas({ titulo, fecha, lineas, onChange, onRemove, panaderos, qq
           </div>
         ))}
       </div>
+      {panaderos && lineas.some((linea) => linea.nombre.trim()) && <div className="mt-3 rounded-lg border border-[#E9D7BC] bg-[#FFF9EF] p-3"><p className="text-[10px] font-black uppercase tracking-wide text-[#4B2818]/60">Bonos pagados por Caja</p><div className="mt-2 space-y-2">{lineas.filter((linea) => linea.nombre.trim()).map((linea) => <div key={linea.id} className="grid items-center gap-2 sm:grid-cols-[120px_160px_1fr]"><span className="truncate text-xs font-black">{linea.nombre}</span><select value="" onChange={(event) => { const concepto=conceptosBono.find((item)=>item.id===event.target.value); if(!concepto || (linea.bonos||[]).some((bono)=>bono.concepto_id===concepto.id)) return; onChange(lineas.map((item)=>item.id===linea.id?{...item,bonos:[...(item.bonos||[]),{id:crypto.randomUUID(),concepto_id:concepto.id,nombre:concepto.nombre,monto:concepto.monto}]}:item)); }} className="h-8 rounded-md border bg-white px-2 text-xs font-bold"><option value="">+ Asignar bono</option>{conceptosBono.filter((concepto)=>concepto.activo).map((concepto)=><option key={concepto.id} value={concepto.id}>{concepto.nombre} · {dinero(concepto.monto)}</option>)}</select><div className="flex flex-wrap gap-1">{(linea.bonos||[]).map((bono)=><span key={bono.id} className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-1 text-[10px] font-black text-[#A51F2B]">{bono.nombre} {dinero(bono.monto)}<button type="button" onClick={()=>onChange(lineas.map((item)=>item.id===linea.id?{...item,bonos:(item.bonos||[]).filter((actual)=>actual.id!==bono.id)}:item))} aria-label={`Quitar ${bono.nombre}`}>×</button></span>)}</div></div>)}</div></div>}
       {panaderos && <div className="mt-3 ml-auto w-full max-w-xs overflow-hidden rounded-lg border border-[#E9D7BC]"><div className="flex items-center justify-between bg-[#FFF9EF] px-4 py-2 text-sm"><span className="font-black text-[#4B2818]/70">Demasía distribuida</span><span className="font-black text-[#A51F2B]">{dinero(cantidad ? demasiaTotal : 0)}</span></div><div className="flex items-center justify-between border-t border-[#E9D7BC] bg-[#2A1710] px-4 py-3 text-white"><span className="font-black">Total</span><span className="text-lg font-black">{dinero(total)}</span></div></div>}
       <button type="button" onClick={() => onChange([...lineas, nuevaLinea(Boolean(panaderos))])} className="mt-3 inline-flex items-center gap-2 rounded-md border border-[#A51F2B]/30 px-3 py-2 text-xs font-black text-[#A51F2B]"><Plus className="h-4 w-4" />Agregar fila</button>
     </section>
@@ -205,6 +214,7 @@ export default function CajaDiariaPage() {
   const [fecha, setFecha] = useState(hoy);
   const [cajeras, setCajeras] = useState<Funcionario[]>([]);
   const [funcionariosPanaderos, setFuncionariosPanaderos] = useState<Funcionario[]>([]);
+  const [conceptosBono, setConceptosBono] = useState<ConceptoBono[]>([]);
   const [plantillas, setPlantillas] = useState<Plantilla[]>([]);
   const [errorDotaciones, setErrorDotaciones] = useState('');
   const [dotacionId, setDotacionId] = useState('');
@@ -222,7 +232,7 @@ export default function CajaDiariaPage() {
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
 
-  const totalesTurnos = turnos.map((turno) => lineasCalculadas(turno, esFestivo, configPago).reduce((suma, item) => suma + numero(item.monto), 0));
+  const totalesTurnos = turnos.map((turno) => lineasCalculadas(turno, esFestivo, configPago).reduce((suma, item) => suma + numero(item.total_pago ?? item.monto), 0));
   const totalPanaderos = totalesTurnos.reduce((suma, monto) => suma + monto, 0);
   const totalComprasGastos = gastos.reduce((suma, item) => suma + numero(item.monto), 0);
   const totalGastos = totalPanaderos + totalComprasGastos;
@@ -241,16 +251,18 @@ export default function CajaDiariaPage() {
 
   async function cargarBase() {
     if (!perfil) return;
-    const [{ data: funcionarios }, { data: cierres }, respuestaDotaciones] = await Promise.all([
+    const [{ data: funcionarios }, { data: cierres }, respuestaDotaciones, { data: bonos }] = await Promise.all([
       supabase.from('funcionarios').select('id,nombre_completo,nombre_corto,cargo,funcionario_cargos(cargos_empresa(nombre))').eq('empresa_id', perfil.empresa_id).eq('activo', true).order('nombre_completo'),
       supabase.from('caja_cierres').select('*').eq('empresa_id', perfil.empresa_id).order('fecha', { ascending: false }).limit(31),
       supabase.from('caja_dotaciones_semanales').select('*').eq('empresa_id', perfil.empresa_id).order('created_at'),
+      supabase.from('caja_conceptos_bono').select('id,nombre,monto,activo').eq('empresa_id', perfil.empresa_id).eq('activo', true).order('nombre'),
     ]);
     const { data: dotaciones, error: errorDotacion } = respuestaDotaciones;
     const lista = (funcionarios || []) as unknown as Funcionario[];
     const listaCajeras = lista.filter(esFuncionarioCajera);
     setCajeras(listaCajeras);
     setFuncionariosPanaderos(lista.filter(esFuncionarioPanadero));
+    setConceptosBono((bonos || []) as ConceptoBono[]);
     setHistorial((cierres || []) as Cierre[]);
     setPlantillas(((dotaciones || []) as PlantillaDb[]).map(normalizarPlantilla));
     setErrorDotaciones(errorDotacion?.message || '');
@@ -347,7 +359,7 @@ export default function CajaDiariaPage() {
       <fieldset disabled={bloqueada} className="space-y-5 disabled:opacity-75">
         <div className="grid gap-5 xl:grid-cols-2">
           <div className="space-y-5">
-            {turnos.map((turno) => <EditorLineas key={turno.id} titulo={`Panaderos · ${turno.nombre}`} fecha={fecha} lineas={turno.lineas} panaderos qq={turno.qq || 0} esFestivo={esFestivo} configPago={configPago} funcionariosPanaderos={funcionariosPanaderos} onQq={(qq) => setTurnos((actuales) => actuales.map((item) => item.id === turno.id ? { ...item, qq } : item))} onChange={(lineas) => setTurnos((actuales) => actuales.map((item) => item.id === turno.id ? { ...item, lineas } : item))} onRemove={turnos.length > 1 ? () => setTurnos((actuales) => actuales.filter((item) => item.id !== turno.id)) : undefined} />)}
+            {turnos.map((turno) => <EditorLineas key={turno.id} titulo={`Panaderos · ${turno.nombre}`} fecha={fecha} lineas={turno.lineas} panaderos qq={turno.qq || 0} esFestivo={esFestivo} configPago={configPago} funcionariosPanaderos={funcionariosPanaderos} conceptosBono={conceptosBono} onQq={(qq) => setTurnos((actuales) => actuales.map((item) => item.id === turno.id ? { ...item, qq } : item))} onChange={(lineas) => setTurnos((actuales) => actuales.map((item) => item.id === turno.id ? { ...item, lineas } : item))} onRemove={turnos.length > 1 ? () => setTurnos((actuales) => actuales.filter((item) => item.id !== turno.id)) : undefined} />)}
             <button type="button" onClick={() => setTurnos((actuales) => [...actuales, nuevoTurno(actuales.length + 1)])} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-[#A51F2B]/35 bg-white text-sm font-black text-[#A51F2B] hover:bg-[#FFF3DF]"><Plus className="h-4 w-4" />Agregar turno de panaderos</button>
           </div>
           <EditorLineas titulo="Compras y Gastos" lineas={gastos} onChange={setGastos} />

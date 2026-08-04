@@ -65,6 +65,8 @@ type PoliticaAlertaVehiculo = {
   activo: boolean;
 };
 
+type ConceptoBonoCaja = { id: string; nombre: string; monto: number; activo: boolean };
+
 function normalizarDatoCuenta(valor: string | null | undefined) {
   return (valor || '').trim().toLocaleLowerCase('es-CL').replace(/\s+/g, ' ');
 }
@@ -75,6 +77,7 @@ export default function ConfiguracionPage() {
   const [impuestos, setImpuestos] = useState<ImpuestoAdicional[]>([]);
   const [cuentasBancarias, setCuentasBancarias] = useState<CuentaBancaria[]>([]);
   const [politicasVehiculos, setPoliticasVehiculos] = useState<PoliticaAlertaVehiculo[]>([]);
+  const [conceptosBonoCaja, setConceptosBonoCaja] = useState<ConceptoBonoCaja[]>([]);
   const [cuentaEditando, setCuentaEditando] = useState<CuentaBancaria | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -103,6 +106,7 @@ export default function ConfiguracionPage() {
     dias_anticipacion: '30',
     km_anticipacion: '500',
   });
+  const [nuevoConceptoBono, setNuevoConceptoBono] = useState({ nombre: '', monto: '' });
 
   async function cargarDatos() {
     setLoading(true);
@@ -174,6 +178,13 @@ export default function ConfiguracionPage() {
       setCuentasBancarias((cuentasData as CuentaBancaria[]) || []);
     }
 
+    const { data: bonosData } = await supabase
+      .from('caja_conceptos_bono')
+      .select('id,nombre,monto,activo')
+      .eq('empresa_id', empresaActual.id)
+      .order('nombre');
+    setConceptosBonoCaja((bonosData as ConceptoBonoCaja[]) || []);
+
     const { data: politicasData } = await supabase
       .from('vehiculo_alerta_politicas')
       .select('id,codigo,nombre,dias_anticipacion,km_anticipacion,activo')
@@ -222,6 +233,21 @@ export default function ConfiguracionPage() {
     });
     if (error) return alert(error.code === '23505' ? 'Ya existe una alerta con ese nombre.' : error.message);
     setNuevaPoliticaVehiculo({ nombre: '', dias_anticipacion: '30', km_anticipacion: '500' });
+    await cargarDatos();
+  }
+
+  async function agregarConceptoBono() {
+    if (!empresa || !nuevoConceptoBono.nombre.trim()) return alert('Escribe el nombre del bono.');
+    const monto = Number(nuevoConceptoBono.monto.replace(/\./g, '').replace(',', '.')) || 0;
+    const { error } = await supabase.from('caja_conceptos_bono').insert({ empresa_id: empresa.id, nombre: nuevoConceptoBono.nombre.trim(), monto, activo: true });
+    if (error) return alert(error.code === '23505' ? 'Ya existe un bono con ese nombre.' : error.message);
+    setNuevoConceptoBono({ nombre: '', monto: '' });
+    await cargarDatos();
+  }
+
+  async function guardarConceptoBono(concepto: ConceptoBonoCaja) {
+    const { error } = await supabase.from('caja_conceptos_bono').update({ nombre: concepto.nombre.trim(), monto: Number(concepto.monto) || 0, activo: concepto.activo }).eq('id', concepto.id);
+    if (error) return alert(error.message);
     await cargarDatos();
   }
 
@@ -1222,6 +1248,24 @@ export default function ConfiguracionPage() {
                 </button>
               </div>
             ))}
+          </div>
+        </section>
+
+        <section className="mt-8 rounded-[2rem] border border-[#4B2818]/15 bg-white p-6 shadow-sm">
+          <h2 className="text-2xl font-black text-maruxa-chocolate">Bonos pagados por Caja</h2>
+          <p className="mt-1 text-sm font-bold text-maruxa-cafe/65">Estos conceptos pueden asignarse a un panadero específico en el cierre diario.</p>
+          <div className="mt-5 grid gap-3 md:grid-cols-[1fr_180px_auto]">
+            <input value={nuevoConceptoBono.nombre} onChange={(e) => setNuevoConceptoBono({ ...nuevoConceptoBono, nombre: e.target.value })} placeholder="Ej: Cocer noche" className="h-11 rounded-xl border px-4 font-bold" />
+            <input value={nuevoConceptoBono.monto} onChange={(e) => setNuevoConceptoBono({ ...nuevoConceptoBono, monto: e.target.value })} inputMode="numeric" placeholder="$0" className="h-11 rounded-xl border px-4 text-right font-black" />
+            <button type="button" onClick={() => void agregarConceptoBono()} className="h-11 rounded-xl bg-[#A51F2B] px-5 font-black text-white">Agregar bono</button>
+          </div>
+          <div className="mt-5 space-y-2">
+            {conceptosBonoCaja.map((concepto) => <div key={concepto.id} className="grid gap-2 rounded-xl bg-[#FFF9EF] p-3 md:grid-cols-[1fr_180px_120px_auto]">
+              <input value={concepto.nombre} onChange={(e) => setConceptosBonoCaja((lista) => lista.map((item) => item.id === concepto.id ? { ...item, nombre: e.target.value } : item))} className="h-10 rounded-lg border px-3 font-bold" />
+              <input value={concepto.monto || ''} onChange={(e) => setConceptosBonoCaja((lista) => lista.map((item) => item.id === concepto.id ? { ...item, monto: Number(e.target.value.replace(/\D/g, '')) || 0 } : item))} inputMode="numeric" className="h-10 rounded-lg border px-3 text-right font-black" />
+              <label className="flex h-10 items-center gap-2 rounded-lg border bg-white px-3 text-xs font-black"><input type="checkbox" checked={concepto.activo} onChange={(e) => setConceptosBonoCaja((lista) => lista.map((item) => item.id === concepto.id ? { ...item, activo: e.target.checked } : item))} />Activo</label>
+              <button type="button" onClick={() => void guardarConceptoBono(concepto)} className="h-10 rounded-lg border border-[#A51F2B] px-4 text-xs font-black text-[#A51F2B]">Guardar</button>
+            </div>)}
           </div>
         </section>
 
