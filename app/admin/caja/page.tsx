@@ -90,6 +90,7 @@ export default function CajaDiariaPage() {
   const [fecha, setFecha] = useState(hoy);
   const [cajeras, setCajeras] = useState<Funcionario[]>([]);
   const [plantillas, setPlantillas] = useState<Plantilla[]>([]);
+  const [errorDotaciones, setErrorDotaciones] = useState('');
   const [dotacionId, setDotacionId] = useState('');
   const [cajeraId, setCajeraId] = useState('');
   const [turnos, setTurnos] = useState<Turno[]>([nuevoTurno(1), nuevoTurno(2)]);
@@ -123,15 +124,17 @@ export default function CajaDiariaPage() {
 
   async function cargarBase() {
     if (!perfil) return;
-    const [{ data: funcionarios }, { data: cierres }, { data: dotaciones }] = await Promise.all([
+    const [{ data: funcionarios }, { data: cierres }, respuestaDotaciones] = await Promise.all([
       supabase.from('funcionarios').select('id,nombre_completo,cargo').eq('empresa_id', perfil.empresa_id).eq('activo', true).order('nombre_completo'),
       supabase.from('caja_cierres').select('*').eq('empresa_id', perfil.empresa_id).order('fecha', { ascending: false }).limit(31),
       supabase.from('caja_dotaciones_semanales').select('*').eq('empresa_id', perfil.empresa_id).order('created_at'),
     ]);
+    const { data: dotaciones, error: errorDotacion } = respuestaDotaciones;
     const lista = (funcionarios || []) as Funcionario[];
     setCajeras(lista);
     setHistorial((cierres || []) as Cierre[]);
-    setPlantillas(((dotaciones || []) as PlantillaDb[]).map(normalizarPlantilla).filter((item) => item.turnos.length));
+    setPlantillas(((dotaciones || []) as PlantillaDb[]).map(normalizarPlantilla));
+    setErrorDotaciones(errorDotacion?.message || '');
     const predeterminada = perfil.funcionario_id || lista[0]?.id || '';
     setCajeraId((actual) => actual || predeterminada);
     setCargando(false);
@@ -212,6 +215,7 @@ export default function CajaDiariaPage() {
         <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-[#4B2818]/60">Dotación del día<select value={dotacionId} disabled={bloqueada} onChange={(event) => aplicarDotacion(event.target.value)} className="h-11 w-full min-w-0 rounded-md border bg-white px-3 text-sm font-bold normal-case disabled:bg-stone-100"><option value="">Seleccionar dotación</option>{plantillas.map((item) => <option key={item.id} value={item.id}>{item.nombre}</option>)}</select></label>
         <label className="flex h-11 items-center gap-3 self-end rounded-md border px-3 text-sm font-black"><input type="checkbox" checked={esFestivo} disabled={bloqueada || festivoObligatorio} onChange={(event) => setEsFestivo(event.target.checked)} className="h-4 w-4 accent-[#A51F2B]" />{festivoObligatorio ? 'Festivo automático' : 'Día festivo'}</label>
       </section>
+      {errorDotaciones && <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm font-black text-red-800">No se pudieron cargar las dotaciones: {errorDotaciones}. Ejecuta la migración 20260803_dotaciones_por_nombre_feriados.sql.</div>}
 
       <fieldset disabled={bloqueada} className="space-y-5 disabled:opacity-75">
         <div className="grid gap-5 xl:grid-cols-2">
