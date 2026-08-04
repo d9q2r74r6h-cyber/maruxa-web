@@ -18,10 +18,12 @@ type Funcionario = {
   id: string;
   codigo: string | null;
   nombre_completo: string;
+  nombre_corto: string | null;
   rut: string | null;
   email: string | null;
   telefono: string | null;
   fecha_nacimiento: string | null;
+  dia_descanso: string | null;
   cargo: string;
   activo: boolean;
   trabaja_comision: boolean;
@@ -58,10 +60,12 @@ type Permiso = {
 const funcionarioInicial = {
   codigo: '',
   nombre_completo: '',
+  nombre_corto: '',
   rut: '',
   email: '',
   telefono: '',
   fecha_nacimiento: '',
+  dia_descanso: '',
   cargo: '',
   cargo_ids: [] as string[],
   trabaja_comision: false,
@@ -214,10 +218,12 @@ export default function UsuariosPage() {
         empresa_id: perfil.empresa_id,
         codigo: formFuncionario.codigo || null,
         nombre_completo: formFuncionario.nombre_completo,
+        nombre_corto: formFuncionario.nombre_corto.trim() || formFuncionario.nombre_completo.trim().split(/\s+/)[0],
         rut: formFuncionario.rut || null,
         email: formFuncionario.email || null,
         telefono: formFuncionario.telefono || null,
         fecha_nacimiento: formFuncionario.fecha_nacimiento || null,
+        dia_descanso: formFuncionario.dia_descanso || null,
         cargo: cargosEmpresa.find((cargo) => cargo.id === formFuncionario.cargo_ids[0])?.nombre || 'Funcionario',
         trabaja_comision: formFuncionario.trabaja_comision,
         porcentaje_comision: Number(formFuncionario.porcentaje_comision || 0),
@@ -271,7 +277,7 @@ export default function UsuariosPage() {
     if (!funcionarioEditando?.nombre_completo.trim() || !funcionarioEditando.cargo_ids.length) return alert('Ingresa el nombre y al menos un cargo.');
     setGuardando(true);
     const cargoPrincipal = cargosEmpresa.find((cargo) => cargo.id === funcionarioEditando.cargo_ids[0])?.nombre || 'Funcionario';
-    const { error } = await supabase.from('funcionarios').update({ codigo: funcionarioEditando.codigo || null, nombre_completo: funcionarioEditando.nombre_completo.trim(), rut: funcionarioEditando.rut || null, email: funcionarioEditando.email || null, telefono: funcionarioEditando.telefono || null, fecha_nacimiento: funcionarioEditando.fecha_nacimiento || null, cargo: cargoPrincipal, activo: funcionarioEditando.activo, trabaja_comision: funcionarioEditando.trabaja_comision, porcentaje_comision: funcionarioEditando.porcentaje_comision || 0 }).eq('id', funcionarioEditando.id);
+    const { error } = await supabase.from('funcionarios').update({ codigo: funcionarioEditando.codigo || null, nombre_completo: funcionarioEditando.nombre_completo.trim(), nombre_corto: funcionarioEditando.nombre_corto?.trim() || funcionarioEditando.nombre_completo.trim().split(/\s+/)[0], rut: funcionarioEditando.rut || null, email: funcionarioEditando.email || null, telefono: funcionarioEditando.telefono || null, fecha_nacimiento: funcionarioEditando.fecha_nacimiento || null, dia_descanso: funcionarioEditando.dia_descanso || null, cargo: cargoPrincipal, activo: funcionarioEditando.activo, trabaja_comision: funcionarioEditando.trabaja_comision, porcentaje_comision: funcionarioEditando.porcentaje_comision || 0 }).eq('id', funcionarioEditando.id);
     if (!error) {
       const { error: errorBorrar } = await supabase.from('funcionario_cargos').delete().eq('funcionario_id', funcionarioEditando.id);
       const { error: errorInsertar } = errorBorrar ? { error: errorBorrar } : await supabase.from('funcionario_cargos').insert(funcionarioEditando.cargo_ids.map((cargo_id) => ({ funcionario_id: funcionarioEditando.id, cargo_id })));
@@ -376,6 +382,12 @@ export default function UsuariosPage() {
     );
   }
 
+  async function actualizarDatosBreves(funcionario: Funcionario, cambios: { nombre_corto?: string; dia_descanso?: string | null }) {
+    const { error } = await supabase.from('funcionarios').update(cambios).eq('id', funcionario.id);
+    if (error) return alert(error.message);
+    setFuncionarios((lista) => lista.map((item) => item.id === funcionario.id ? { ...item, ...cambios } : item));
+  }
+
   if (!esAdmin) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 p-6 font-black text-red-800">
@@ -432,6 +444,7 @@ export default function UsuariosPage() {
               {[
                 ['codigo', 'Código'],
                 ['nombre_completo', 'Nombre completo'],
+                ['nombre_corto', 'Nombre corto'],
                 ['rut', 'RUT'],
                 ['email', 'Correo'],
                 ['telefono', 'Teléfono'],
@@ -443,16 +456,12 @@ export default function UsuariosPage() {
                     type={campo === 'fecha_nacimiento' ? 'date' : 'text'}
                     required={campo === 'nombre_completo'}
                     value={String(formFuncionario[campo as keyof typeof formFuncionario] ?? '')}
-                    onChange={(event) =>
-                      setFormFuncionario({
-                        ...formFuncionario,
-                        [campo]: event.target.value,
-                      })
-                    }
+                    onChange={(event) => setFormFuncionario({ ...formFuncionario, [campo]: event.target.value, ...(campo === 'nombre_completo' && !formFuncionario.nombre_corto ? { nombre_corto: event.target.value.trim().split(/\s+/)[0] } : {}) })}
                     className="h-10 rounded-md border border-[#4B2818]/20 px-3 font-bold outline-none focus:border-[#A51F2B]"
                   />
                 </label>
               ))}
+              <label className="grid gap-1 text-xs font-black text-[#4B2818]">Día de descanso<select value={formFuncionario.dia_descanso} onChange={(event) => setFormFuncionario({ ...formFuncionario, dia_descanso: event.target.value })} className="h-10 rounded-md border bg-white px-3 font-bold"><option value="">Sin asignar</option>{['lunes','martes','miércoles','jueves','viernes','sábado','domingo'].map((dia) => <option key={dia} value={dia} className="capitalize">{dia}</option>)}</select></label>
               <fieldset className="rounded-md border border-[#4B2818]/15 p-3"><legend className="px-1 text-xs font-black text-[#4B2818]">Cargos</legend><div className="grid gap-2">{cargosEmpresa.map((cargo) => <label key={cargo.id} className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" checked={formFuncionario.cargo_ids.includes(cargo.id)} onChange={(event) => setFormFuncionario({ ...formFuncionario, cargo_ids: event.target.checked ? [...formFuncionario.cargo_ids, cargo.id] : formFuncionario.cargo_ids.filter((id) => id !== cargo.id) })} className="accent-[#A51F2B]" />{cargo.nombre}</label>)}</div></fieldset>
               <label className="flex items-center gap-3 rounded-md border border-[#4B2818]/15 bg-[#FFF3DF] px-3 py-2 text-sm font-black text-[#4B2818]">
                 <input type="checkbox" checked={formFuncionario.trabaja_comision} onChange={(event) => setFormFuncionario({ ...formFuncionario, trabaja_comision: event.target.checked })} className="h-5 w-5 accent-[#A51F2B]" />
@@ -493,6 +502,7 @@ export default function UsuariosPage() {
                     <p className="font-black text-[#2A1710]">
                       {funcionario.nombre_completo}
                     </p>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2"><label className="grid gap-1 text-[10px] font-black uppercase text-[#4B2818]/60">Nombre corto<input value={funcionario.nombre_corto || ''} onChange={(event) => setFuncionarios((lista) => lista.map((item) => item.id === funcionario.id ? { ...item, nombre_corto: event.target.value } : item))} onBlur={(event) => void actualizarDatosBreves(funcionario,{ nombre_corto:event.target.value.trim() || funcionario.nombre_completo.split(/\s+/)[0] })} className="h-8 rounded border px-2 text-xs font-bold normal-case" /></label><label className="grid gap-1 text-[10px] font-black uppercase text-[#4B2818]/60">Día de descanso<select value={funcionario.dia_descanso || ''} onChange={(event) => void actualizarDatosBreves(funcionario,{ dia_descanso:event.target.value || null })} className="h-8 rounded border bg-white px-2 text-xs font-bold normal-case"><option value="">Sin asignar</option>{['lunes','martes','miércoles','jueves','viernes','sábado','domingo'].map((dia) => <option key={dia} value={dia}>{dia}</option>)}</select></label></div>
                     <div className="mt-1 flex flex-wrap gap-1">{(funcionario.funcionario_cargos || []).map((relacion) => <span key={relacion.cargo_id} className="rounded-full bg-[#FFF3DF] px-2 py-1 text-[10px] font-black uppercase text-[#A51F2B]">{nombreCargoRelacionado(relacion.cargos_empresa)}</span>)}</div>
                     <details className="mt-2"><summary className="cursor-pointer text-xs font-black text-[#4B2818]/70">Editar cargos</summary><div className="mt-2 grid gap-1">{cargosEmpresa.map((cargo) => { const asignado=(funcionario.funcionario_cargos || []).some((r) => r.cargo_id===cargo.id); return <label key={cargo.id} className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={asignado} onChange={(event) => void alternarCargo(funcionario,cargo.id,event.target.checked)} />{cargo.nombre}</label>; })}</div></details>
                     {fechaCorta(funcionario.fecha_nacimiento) && (
