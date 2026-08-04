@@ -46,25 +46,27 @@ const TARIFAS = {
   normal: { casa: { batea: 26800, cocedor: 25700, oficial: 22500 }, externo: { batea: 31300, cocedor: 29000, oficial: 26000 } },
   festivo: { casa: { batea: 36600, cocedor: 35000, oficial: 30000 }, externo: { batea: 43400, cocedor: 41400, oficial: 35400 } },
 };
-function montoLinea(linea: Linea, esFestivo: boolean, demasia: number) {
+type ConfigPago = { normal: typeof TARIFAS.normal; festivo: typeof TARIFAS.festivo; demasia_normal_qq: number; demasia_festivo_qq: number };
+const CONFIG_PAGO_BASE: ConfigPago = { ...TARIFAS, demasia_normal_qq: 8000, demasia_festivo_qq: 12000 };
+function montoLinea(linea: Linea, esFestivo: boolean, demasia: number, config: ConfigPago = CONFIG_PAGO_BASE) {
   if (!linea.origen || !linea.funcion) return numero(linea.monto);
-  return TARIFAS[esFestivo ? 'festivo' : 'normal'][linea.origen][linea.funcion] + demasia;
+  return config[esFestivo ? 'festivo' : 'normal'][linea.origen][linea.funcion] + demasia;
 }
-function lineasCalculadas(turno: Turno, esFestivo: boolean) {
+function lineasCalculadas(turno: Turno, esFestivo: boolean, config: ConfigPago = CONFIG_PAGO_BASE) {
   const activas = turno.lineas.filter((item) => item.nombre.trim());
-  const demasia = activas.length ? numero(turno.qq) * (esFestivo ? 12000 : 8000) / activas.length : 0;
-  return turno.lineas.map((item) => ({ ...item, monto: item.nombre.trim() ? montoLinea(item, esFestivo, demasia) : 0 }));
+  const demasia = activas.length ? numero(turno.qq) * (esFestivo ? config.demasia_festivo_qq : config.demasia_normal_qq) / activas.length : 0;
+  return turno.lineas.map((item) => ({ ...item, monto: item.nombre.trim() ? montoLinea(item, esFestivo, demasia, config) : 0 }));
 }
 function pascua(anio: number) { const a=anio%19,b=Math.floor(anio/100),c=anio%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mes=Math.floor((h+l-7*m+114)/31),dia=(h+l-7*m+114)%31+1; return new Date(anio,mes-1,dia,12); }
 function feriadoTrasladable(anio: number, mes: number, dia: number) { const base=new Date(anio,mes-1,dia,12), semana=base.getDay(); if(semana>=2&&semana<=4) base.setDate(base.getDate()-(semana-1)); else if(semana===5) base.setDate(base.getDate()+3); return base.toISOString().slice(0,10); }
 function esFeriadoChile(fecha: string) { const valor=new Date(`${fecha}T12:00:00`); if(valor.getDay()===0) return true; const anio=valor.getFullYear(), clave=fecha.slice(5), fijos=new Set(['01-01','05-01','05-21','06-21','07-16','08-15','09-18','09-19','10-31','11-01','12-08','12-25']); const domingo=pascua(anio), viernes=new Date(domingo), sabado=new Date(domingo); viernes.setDate(domingo.getDate()-2); sabado.setDate(domingo.getDate()-1); return fijos.has(clave)||fecha===feriadoTrasladable(anio,6,29)||fecha===feriadoTrasladable(anio,10,12)||fecha===viernes.toISOString().slice(0,10)||fecha===sabado.toISOString().slice(0,10); }
 function normalizarPlantilla(item: PlantillaDb): Plantilla { const anteriores=item.dotacion ? Object.values(item.dotacion).find((turnos) => Array.isArray(turnos)&&turnos.length) : undefined; return { id:item.id, nombre:item.nombre || `DOTACIÓN ${item.semana_desde || ''}`.trim(), turnos:item.turnos?.length ? item.turnos : anteriores || [] }; }
 
-function EditorLineas({ titulo, lineas, onChange, onRemove, panaderos, qq = 0, esFestivo = false, onQq }: { titulo: string; lineas: Linea[]; onChange: (lineas: Linea[]) => void; onRemove?: () => void; panaderos?: boolean; qq?: number; esFestivo?: boolean; onQq?: (valor: number) => void }) {
+function EditorLineas({ titulo, lineas, onChange, onRemove, panaderos, qq = 0, esFestivo = false, onQq, configPago = CONFIG_PAGO_BASE }: { titulo: string; lineas: Linea[]; onChange: (lineas: Linea[]) => void; onRemove?: () => void; panaderos?: boolean; qq?: number; esFestivo?: boolean; onQq?: (valor: number) => void; configPago?: ConfigPago }) {
   const cantidad = lineas.filter((linea) => linea.nombre.trim()).length;
-  const demasiaTotal = qq * (esFestivo ? 12000 : 8000);
+  const demasiaTotal = qq * (esFestivo ? configPago.demasia_festivo_qq : configPago.demasia_normal_qq);
   const demasia = cantidad ? demasiaTotal / cantidad : 0;
-  const total = lineas.reduce((suma, linea) => suma + (panaderos && !linea.nombre.trim() ? 0 : montoLinea(linea, esFestivo, demasia)), 0);
+  const total = lineas.reduce((suma, linea) => suma + (panaderos && !linea.nombre.trim() ? 0 : montoLinea(linea, esFestivo, demasia, configPago)), 0);
   return (
     <section className="rounded-xl border border-[#4B2818]/15 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
@@ -76,7 +78,7 @@ function EditorLineas({ titulo, lineas, onChange, onRemove, panaderos, qq = 0, e
           <div key={linea.id} className={`grid gap-2 ${panaderos ? 'grid-cols-[minmax(150px,1fr)_90px_100px_110px_36px]' : 'grid-cols-[minmax(0,1fr)_130px_36px]'}`}>
             <input value={linea.nombre} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, nombre: event.target.value } : item))} placeholder={titulo.includes('Gastos') ? 'Detalle del gasto' : 'Nombre del panadero'} className="h-10 min-w-0 rounded-md border border-[#4B2818]/20 px-3 text-sm font-bold" />
             {panaderos && <><select value={linea.origen || 'casa'} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, origen: event.target.value as Origen } : item))} className="h-10 rounded-md border bg-white px-2 text-xs font-black"><option value="casa">Casa</option><option value="externo">Externo</option></select><select value={linea.funcion || 'oficial'} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, funcion: event.target.value as Funcion } : item))} className="h-10 rounded-md border bg-white px-2 text-xs font-black"><option value="batea">Batea</option><option value="cocedor">Cocedor</option><option value="oficial">Oficial</option></select></>}
-            {panaderos ? <div className="grid h-10 place-items-center rounded-md bg-[#FFF3DF] px-2 text-sm font-black">{linea.nombre.trim() ? dinero(montoLinea(linea, esFestivo, demasia)) : dinero(0)}</div> : <input type="text" inputMode="numeric" value={linea.monto || ''} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, monto: Math.max(0, numero(event.target.value)) } : item))} placeholder="$0" className="h-10 rounded-md border border-[#4B2818]/20 px-3 text-right text-sm font-black" />}
+            {panaderos ? <div className="grid h-10 place-items-center rounded-md bg-[#FFF3DF] px-2 text-sm font-black">{linea.nombre.trim() ? dinero(montoLinea(linea, esFestivo, demasia, configPago)) : dinero(0)}</div> : <input type="text" inputMode="numeric" value={linea.monto || ''} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, monto: Math.max(0, numero(event.target.value)) } : item))} placeholder="$0" className="h-10 rounded-md border border-[#4B2818]/20 px-3 text-right text-sm font-black" />}
             <button type="button" aria-label="Eliminar fila" onClick={() => onChange(lineas.filter((_, posicion) => posicion !== indice))} className="grid h-10 place-items-center rounded-md text-red-700 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button>
           </div>
         ))}
@@ -101,13 +103,14 @@ export default function CajaDiariaPage() {
   const [efectivo, setEfectivo] = useState(0);
   const [tarjetas, setTarjetas] = useState(0);
   const [esFestivo, setEsFestivo] = useState(false);
+  const [configPago, setConfigPago] = useState<ConfigPago>(CONFIG_PAGO_BASE);
   const [observacion, setObservacion] = useState('');
   const [cierre, setCierre] = useState<Cierre | null>(null);
   const [historial, setHistorial] = useState<Cierre[]>([]);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
 
-  const totalesTurnos = turnos.map((turno) => lineasCalculadas(turno, esFestivo).reduce((suma, item) => suma + numero(item.monto), 0));
+  const totalesTurnos = turnos.map((turno) => lineasCalculadas(turno, esFestivo, configPago).reduce((suma, item) => suma + numero(item.monto), 0));
   const totalPanaderos = totalesTurnos.reduce((suma, monto) => suma + monto, 0);
   const totalComprasGastos = gastos.reduce((suma, item) => suma + numero(item.monto), 0);
   const totalGastos = totalPanaderos + totalComprasGastos;
@@ -163,6 +166,7 @@ export default function CajaDiariaPage() {
   }
 
   useEffect(() => { void cargarBase(); }, [perfil]);
+  useEffect(() => { if (!perfil) return; void (async()=>{ const { data }=await supabase.from('cargo_remuneraciones_especiales').select('configuracion').eq('empresa_id',perfil.empresa_id).lte('vigente_desde',fecha).order('vigente_desde',{ascending:false}).limit(1).maybeSingle(); setConfigPago((data?.configuracion as ConfigPago)||CONFIG_PAGO_BASE); })(); }, [perfil,fecha]);
   useEffect(() => {
     if (cargando || !perfil) return;
     const existente = historial.find((item) => item.fecha === fecha) || null;
@@ -182,9 +186,9 @@ export default function CajaDiariaPage() {
       fecha,
       cajera_id: cajeraId,
       cajera_nombre: cajera?.nombre_completo || perfil.nombre_visible,
-      turnos_panaderos: turnos.map((turno) => ({ ...turno, lineas: lineasCalculadas(turno, esFestivo).filter((item) => item.nombre.trim() || item.monto) })),
-      panaderos_primer_turno: lineasCalculadas(turnos[0] || nuevoTurno(1), esFestivo).filter((item) => item.nombre.trim() || item.monto),
-      panaderos_segundo_turno: lineasCalculadas(turnos[1] || nuevoTurno(2), esFestivo).filter((item) => item.nombre.trim() || item.monto),
+      turnos_panaderos: turnos.map((turno) => ({ ...turno, lineas: lineasCalculadas(turno, esFestivo, configPago).filter((item) => item.nombre.trim() || item.monto) })),
+      panaderos_primer_turno: lineasCalculadas(turnos[0] || nuevoTurno(1), esFestivo, configPago).filter((item) => item.nombre.trim() || item.monto),
+      panaderos_segundo_turno: lineasCalculadas(turnos[1] || nuevoTurno(2), esFestivo, configPago).filter((item) => item.nombre.trim() || item.monto),
       compras_gastos: gastos.filter((item) => item.nombre.trim() || item.monto),
       total_ventas: totalVentas,
       efectivo,
@@ -222,7 +226,7 @@ export default function CajaDiariaPage() {
       <fieldset disabled={bloqueada} className="space-y-5 disabled:opacity-75">
         <div className="grid gap-5 xl:grid-cols-2">
           <div className="space-y-5">
-            {turnos.map((turno) => <EditorLineas key={turno.id} titulo={`Panaderos · ${turno.nombre}`} lineas={turno.lineas} panaderos qq={turno.qq || 0} esFestivo={esFestivo} onQq={(qq) => setTurnos((actuales) => actuales.map((item) => item.id === turno.id ? { ...item, qq } : item))} onChange={(lineas) => setTurnos((actuales) => actuales.map((item) => item.id === turno.id ? { ...item, lineas } : item))} onRemove={turnos.length > 1 ? () => setTurnos((actuales) => actuales.filter((item) => item.id !== turno.id)) : undefined} />)}
+            {turnos.map((turno) => <EditorLineas key={turno.id} titulo={`Panaderos · ${turno.nombre}`} lineas={turno.lineas} panaderos qq={turno.qq || 0} esFestivo={esFestivo} configPago={configPago} onQq={(qq) => setTurnos((actuales) => actuales.map((item) => item.id === turno.id ? { ...item, qq } : item))} onChange={(lineas) => setTurnos((actuales) => actuales.map((item) => item.id === turno.id ? { ...item, lineas } : item))} onRemove={turnos.length > 1 ? () => setTurnos((actuales) => actuales.filter((item) => item.id !== turno.id)) : undefined} />)}
             <button type="button" onClick={() => setTurnos((actuales) => [...actuales, nuevoTurno(actuales.length + 1)])} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-[#A51F2B]/35 bg-white text-sm font-black text-[#A51F2B] hover:bg-[#FFF3DF]"><Plus className="h-4 w-4" />Agregar turno de panaderos</button>
           </div>
           <EditorLineas titulo="Compras y Gastos" lineas={gastos} onChange={setGastos} />
