@@ -29,6 +29,8 @@ type Funcionario = {
   activo: boolean;
   trabaja_comision: boolean;
   porcentaje_comision: number;
+  recibe_dominical: boolean;
+  ciclo_dominical: 'impar' | 'par' | null;
   funcionario_cargos?: { cargo_id: string; cargos_empresa?: { id: string; nombre: string } | { id: string; nombre: string }[] | null }[];
 };
 type ModalidadPago = 'diaria' | 'mensual' | 'panadero';
@@ -383,7 +385,7 @@ export default function UsuariosPage() {
     );
   }
 
-  async function actualizarDatosBreves(funcionario: Funcionario, cambios: { nombre_corto?: string; dia_descanso?: string | null }) {
+  async function actualizarDatosBreves(funcionario: Funcionario, cambios: { nombre_corto?: string; dia_descanso?: string | null; recibe_dominical?: boolean; ciclo_dominical?: 'impar' | 'par' | null }) {
     const { error } = await supabase.from('funcionarios').update(cambios).eq('id', funcionario.id);
     if (error) return alert(error.message);
     setFuncionarios((lista) => lista.map((item) => item.id === funcionario.id ? { ...item, ...cambios } : item));
@@ -504,7 +506,7 @@ export default function UsuariosPage() {
                     <p className="font-black text-[#2A1710]">
                       {funcionario.nombre_completo}
                     </p>
-                    <div className="mt-2 grid gap-2 sm:grid-cols-2"><label className="grid gap-1 text-[10px] font-black uppercase text-[#4B2818]/60">Nombre corto<input value={funcionario.nombre_corto || ''} onChange={(event) => setFuncionarios((lista) => lista.map((item) => item.id === funcionario.id ? { ...item, nombre_corto: event.target.value } : item))} onBlur={(event) => void actualizarDatosBreves(funcionario,{ nombre_corto:event.target.value.trim() || funcionario.nombre_completo.split(/\s+/)[0] })} className="h-8 rounded border px-2 text-xs font-bold normal-case" /></label><label className="grid gap-1 text-[10px] font-black uppercase text-[#4B2818]/60">Día de descanso<select value={funcionario.dia_descanso || ''} onChange={(event) => void actualizarDatosBreves(funcionario,{ dia_descanso:event.target.value || null })} className="h-8 rounded border bg-white px-2 text-xs font-bold normal-case"><option value="">Sin asignar</option>{['lunes','martes','miércoles','jueves','viernes','sábado','domingo'].map((dia) => <option key={dia} value={dia}>{dia}</option>)}</select></label></div>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2"><label className="grid gap-1 text-[10px] font-black uppercase text-[#4B2818]/60">Nombre corto<input value={funcionario.nombre_corto || ''} onChange={(event) => setFuncionarios((lista) => lista.map((item) => item.id === funcionario.id ? { ...item, nombre_corto: event.target.value } : item))} onBlur={(event) => void actualizarDatosBreves(funcionario,{ nombre_corto:event.target.value.trim() || funcionario.nombre_completo.split(/\s+/)[0] })} className="h-8 rounded border px-2 text-xs font-bold normal-case" /></label><label className="grid gap-1 text-[10px] font-black uppercase text-[#4B2818]/60">Día de descanso<select value={funcionario.dia_descanso || ''} onChange={(event) => void actualizarDatosBreves(funcionario,{ dia_descanso:event.target.value || null })} className="h-8 rounded border bg-white px-2 text-xs font-bold normal-case"><option value="">Sin asignar</option>{['lunes','martes','miércoles','jueves','viernes','sábado','domingo'].map((dia) => <option key={dia} value={dia}>{dia}</option>)}</select></label><label className="flex h-8 items-center gap-2 rounded border px-2 text-[10px] font-black uppercase"><input type="checkbox" checked={funcionario.recibe_dominical || false} onChange={(event)=>void actualizarDatosBreves(funcionario,{recibe_dominical:event.target.checked,ciclo_dominical:event.target.checked?(funcionario.ciclo_dominical||'impar'):null})}/>Recibe dominical</label>{funcionario.recibe_dominical&&<label className="grid gap-1 text-[10px] font-black uppercase text-[#4B2818]/60">Ciclo<select value={funcionario.ciclo_dominical||'impar'} onChange={(event)=>void actualizarDatosBreves(funcionario,{ciclo_dominical:event.target.value as 'impar'|'par'})} className="h-8 rounded border bg-white px-2 text-xs font-bold normal-case"><option value="impar">Ene, Mar, May, Jul, Sep, Nov</option><option value="par">Feb, Abr, Jun, Ago, Oct, Dic</option></select></label>}</div>
                     <div className="mt-1 flex flex-wrap gap-1">{(funcionario.funcionario_cargos || []).map((relacion) => <span key={relacion.cargo_id} className="rounded-full bg-[#FFF3DF] px-2 py-1 text-[10px] font-black uppercase text-[#A51F2B]">{nombreCargoRelacionado(relacion.cargos_empresa)}</span>)}</div>
                     <details className="mt-2"><summary className="cursor-pointer text-xs font-black text-[#4B2818]/70">Editar cargos</summary><div className="mt-2 grid gap-1">{cargosEmpresa.map((cargo) => { const asignado=(funcionario.funcionario_cargos || []).some((r) => r.cargo_id===cargo.id); return <label key={cargo.id} className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={asignado} onChange={(event) => void alternarCargo(funcionario,cargo.id,event.target.checked)} />{cargo.nombre}</label>; })}</div></details>
                     {fechaCorta(funcionario.fecha_nacimiento) && (
