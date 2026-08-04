@@ -10,8 +10,10 @@ type Funcionario = { id: string; nombre_completo: string; funcionario_cargos?: {
 type Asignacion = { id: string; funcionario_id: string; nombre: string; origen: 'casa' | 'externo'; funcion: 'batea' | 'cocedor' | 'oficial' };
 type Turno = { id: string; nombre: string; panaderos: Asignacion[] };
 type Plantilla = { id: string; nombre: string; turnos: Turno[] };
+type PlantillaDb = Partial<Plantilla> & { id: string; semana_desde?: string | null; dotacion?: Record<string, Turno[]> };
 const nuevaAsignacion = (): Asignacion => ({ id: crypto.randomUUID(), funcionario_id: '', nombre: '', origen: 'casa', funcion: 'oficial' });
 const nuevoTurno = (numero: number): Turno => ({ id: crypto.randomUUID(), nombre: `${numero}° turno`, panaderos: [nuevaAsignacion()] });
+function normalizarPlantilla(item: PlantillaDb): Plantilla { const anteriores=item.dotacion ? Object.values(item.dotacion).find((turnos) => Array.isArray(turnos)&&turnos.length) : undefined; return { id:item.id, nombre:item.nombre || `DOTACIÓN ${item.semana_desde || ''}`.trim(), turnos:item.turnos?.length ? item.turnos : anteriores || [] }; }
 
 export default function DotacionesPage() {
   const { perfil } = useAdminSession();
@@ -27,9 +29,9 @@ export default function DotacionesPage() {
     if (!perfil) return;
     const [{ data: personas }, { data: datos }] = await Promise.all([
       supabase.from('funcionarios').select('id,nombre_completo,funcionario_cargos(cargos_empresa(nombre))').eq('empresa_id', perfil.empresa_id).eq('activo', true).order('nombre_completo'),
-      supabase.from('caja_dotaciones_semanales').select('id,nombre,turnos').eq('empresa_id', perfil.empresa_id).not('nombre', 'is', null).order('nombre'),
+      supabase.from('caja_dotaciones_semanales').select('*').eq('empresa_id', perfil.empresa_id).order('created_at'),
     ]);
-    const lista = (datos || []) as Plantilla[];
+    const lista = ((datos || []) as PlantillaDb[]).map(normalizarPlantilla);
     setFuncionarios(((personas || []) as Funcionario[]).filter((persona) => (persona.funcionario_cargos || []).some((relacion) => relacion.cargos_empresa?.some((cargo) => cargo.nombre.toLocaleLowerCase('es').includes('panadero'))))); setPlantillas(lista); setCargando(false);
     const actual = lista.find((item) => item.id === (preferida || seleccionada));
     if (actual) { setSeleccionada(actual.id); setNombre(actual.nombre); setTurnos(actual.turnos?.length ? actual.turnos : [nuevoTurno(1)]); }

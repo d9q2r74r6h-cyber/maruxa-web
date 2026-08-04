@@ -12,6 +12,7 @@ type Linea = { id: string; nombre: string; monto: number; funcionario_id?: strin
 type Turno = { id: string; nombre: string; qq?: number; lineas: Linea[] };
 type TurnoPlan = { id: string; nombre: string; panaderos: Array<{ id: string; funcionario_id: string; nombre: string; origen: Origen; funcion: Funcion }> };
 type Plantilla = { id: string; nombre: string; turnos: TurnoPlan[] };
+type PlantillaDb = Partial<Plantilla> & { id: string; semana_desde?: string | null; dotacion?: Record<string, TurnoPlan[]> };
 type Funcionario = { id: string; nombre_completo: string; cargo: string };
 type Cierre = {
   id: string;
@@ -57,6 +58,7 @@ function lineasCalculadas(turno: Turno, esFestivo: boolean) {
 function pascua(anio: number) { const a=anio%19,b=Math.floor(anio/100),c=anio%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mes=Math.floor((h+l-7*m+114)/31),dia=(h+l-7*m+114)%31+1; return new Date(anio,mes-1,dia,12); }
 function feriadoTrasladable(anio: number, mes: number, dia: number) { const base=new Date(anio,mes-1,dia,12), semana=base.getDay(); if(semana>=2&&semana<=4) base.setDate(base.getDate()-(semana-1)); else if(semana===5) base.setDate(base.getDate()+3); return base.toISOString().slice(0,10); }
 function esFeriadoChile(fecha: string) { const valor=new Date(`${fecha}T12:00:00`); if(valor.getDay()===0) return true; const anio=valor.getFullYear(), clave=fecha.slice(5), fijos=new Set(['01-01','05-01','05-21','06-21','07-16','08-15','09-18','09-19','10-31','11-01','12-08','12-25']); const domingo=pascua(anio), viernes=new Date(domingo), sabado=new Date(domingo); viernes.setDate(domingo.getDate()-2); sabado.setDate(domingo.getDate()-1); return fijos.has(clave)||fecha===feriadoTrasladable(anio,6,29)||fecha===feriadoTrasladable(anio,10,12)||fecha===viernes.toISOString().slice(0,10)||fecha===sabado.toISOString().slice(0,10); }
+function normalizarPlantilla(item: PlantillaDb): Plantilla { const anteriores=item.dotacion ? Object.values(item.dotacion).find((turnos) => Array.isArray(turnos)&&turnos.length) : undefined; return { id:item.id, nombre:item.nombre || `DOTACIÓN ${item.semana_desde || ''}`.trim(), turnos:item.turnos?.length ? item.turnos : anteriores || [] }; }
 
 function EditorLineas({ titulo, lineas, onChange, onRemove, panaderos, qq = 0, esFestivo = false, onQq }: { titulo: string; lineas: Linea[]; onChange: (lineas: Linea[]) => void; onRemove?: () => void; panaderos?: boolean; qq?: number; esFestivo?: boolean; onQq?: (valor: number) => void }) {
   const cantidad = lineas.filter((linea) => linea.nombre.trim()).length;
@@ -124,12 +126,12 @@ export default function CajaDiariaPage() {
     const [{ data: funcionarios }, { data: cierres }, { data: dotaciones }] = await Promise.all([
       supabase.from('funcionarios').select('id,nombre_completo,cargo').eq('empresa_id', perfil.empresa_id).eq('activo', true).order('nombre_completo'),
       supabase.from('caja_cierres').select('*').eq('empresa_id', perfil.empresa_id).order('fecha', { ascending: false }).limit(31),
-      supabase.from('caja_dotaciones_semanales').select('id,nombre,turnos').eq('empresa_id', perfil.empresa_id).not('nombre', 'is', null).order('nombre'),
+      supabase.from('caja_dotaciones_semanales').select('*').eq('empresa_id', perfil.empresa_id).order('created_at'),
     ]);
     const lista = (funcionarios || []) as Funcionario[];
     setCajeras(lista);
     setHistorial((cierres || []) as Cierre[]);
-    setPlantillas((dotaciones || []) as Plantilla[]);
+    setPlantillas(((dotaciones || []) as PlantillaDb[]).map(normalizarPlantilla).filter((item) => item.turnos.length));
     const predeterminada = perfil.funcionario_id || lista[0]?.id || '';
     setCajeraId((actual) => actual || predeterminada);
     setCargando(false);
