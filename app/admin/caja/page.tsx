@@ -64,6 +64,36 @@ function feriadoTrasladable(anio: number, mes: number, dia: number) { const base
 function esFeriadoChile(fecha: string) { const valor=new Date(`${fecha}T12:00:00`); if(valor.getDay()===0) return true; const anio=valor.getFullYear(), clave=fecha.slice(5), fijos=new Set(['01-01','05-01','05-21','06-21','07-16','08-15','09-18','09-19','10-31','11-01','12-08','12-25']); const domingo=pascua(anio), viernes=new Date(domingo), sabado=new Date(domingo); viernes.setDate(domingo.getDate()-2); sabado.setDate(domingo.getDate()-1); return fijos.has(clave)||fecha===feriadoTrasladable(anio,6,29)||fecha===feriadoTrasladable(anio,10,12)||fecha===viernes.toISOString().slice(0,10)||fecha===sabado.toISOString().slice(0,10); }
 function normalizarPlantilla(item: PlantillaDb): Plantilla { const anteriores=item.dotacion ? Object.values(item.dotacion).find((turnos) => Array.isArray(turnos)&&turnos.length) : undefined; return { id:item.id, nombre:item.nombre || `DOTACIÓN ${item.semana_desde || ''}`.trim(), turnos:item.turnos?.length ? item.turnos : anteriores || [] }; }
 function esFuncionarioPanadero(funcionario: Funcionario) { return (funcionario.funcionario_cargos || []).some((relacion) => { const cargos=Array.isArray(relacion.cargos_empresa) ? relacion.cargos_empresa : relacion.cargos_empresa ? [relacion.cargos_empresa] : []; return cargos.some((cargo) => cargo.nombre.toLocaleLowerCase('es').includes('panadero')); }); }
+const DIAS_SEMANA = ['DOMINGO', 'LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO'];
+function textoComparable(valor: string) { return valor.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase(); }
+function dotacionParaFecha(plantillas: Plantilla[], fecha: string) {
+  const dia = new Date(`${fecha}T12:00:00`).getDay();
+  const nombreDia = DIAS_SEMANA[dia];
+  const festivo = esFeriadoChile(fecha);
+  const datos = plantillas.map((plantilla) => ({ plantilla, nombre: textoComparable(plantilla.nombre) }));
+
+  if (festivo) {
+    const especial = datos.find(({ nombre }) => /FESTIV|FERIAD/.test(nombre))
+      || (dia === 0 ? datos.find(({ nombre }) => /DOMINGO/.test(nombre)) : undefined);
+    if (especial) return especial.plantilla;
+  }
+
+  const rango = datos.find(({ nombre }) => {
+    for (let inicio = 0; inicio < DIAS_SEMANA.length; inicio += 1) {
+      for (let fin = 0; fin < DIAS_SEMANA.length; fin += 1) {
+        if (!new RegExp(`${DIAS_SEMANA[inicio]}\\s*(?:A|AL|-)\\s*${DIAS_SEMANA[fin]}`).test(nombre)) continue;
+        const dias = inicio <= fin
+          ? Array.from({ length: fin - inicio + 1 }, (_, indice) => inicio + indice)
+          : [...Array.from({ length: 7 - inicio }, (_, indice) => inicio + indice), ...Array.from({ length: fin + 1 }, (_, indice) => indice)];
+        if (dias.includes(dia)) return true;
+      }
+    }
+    return false;
+  });
+  if (rango) return rango.plantilla;
+
+  return datos.find(({ nombre }) => new RegExp(`(^|[^A-Z])${nombreDia}S?([^A-Z]|$)`).test(nombre))?.plantilla;
+}
 function funcionPanadero(funcionario?: Funcionario): Funcion | undefined {
   if (!funcionario) return undefined;
   const nombres = (funcionario.funcionario_cargos || []).flatMap((relacion) => {
@@ -191,7 +221,9 @@ export default function CajaDiariaPage() {
     if (existente) return cargarCierre(existente);
     cargarCierre(null);
     setEsFestivo(esFeriadoChile(fecha));
-  }, [fecha, cargando, historial, perfil]);
+    const sugerida = dotacionParaFecha(plantillas, fecha);
+    if (sugerida) aplicarDotacion(sugerida.id);
+  }, [fecha, cargando, historial, perfil, plantillas]);
 
   async function guardar(estado: 'borrador' | 'cerrada') {
     if (!perfil || !cajeraId) return alert('Selecciona la cajera responsable.');
