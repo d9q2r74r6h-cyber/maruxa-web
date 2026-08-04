@@ -43,6 +43,12 @@ const nuevoTurno = (numeroTurno: number): Turno => ({
 });
 const dinero = (valor: number) => `$${Math.round(valor || 0).toLocaleString('es-CL')}`;
 const numero = (valor: unknown) => Number(String(valor ?? '').replace(/\./g, '').replace(',', '.')) || 0;
+const numeroDecimal = (valor: unknown) => {
+  if (typeof valor === 'number') return Number.isFinite(valor) ? valor : 0;
+  const texto = String(valor ?? '').trim().replace(/\s/g, '');
+  if (!texto) return 0;
+  return Number(texto.replace(',', '.')) || 0;
+};
 const TARIFAS = {
   normal: { casa: { batea: 26800, cocedor: 25700, oficial: 22500 }, externo: { batea: 31300, cocedor: 29000, oficial: 26000 } },
   festivo: { casa: { batea: 36600, cocedor: 35000, oficial: 30000 }, externo: { batea: 43400, cocedor: 41400, oficial: 35400 } },
@@ -57,7 +63,7 @@ function montoLinea(linea: Linea, esFestivo: boolean, demasia: number, config: C
 const recibeDemasia = (linea: Linea) => linea.participa_demasia !== false;
 function lineasCalculadas(turno: Turno, esFestivo: boolean, config: ConfigPago = CONFIG_PAGO_BASE) {
   const participantes = turno.lineas.filter((item) => item.nombre.trim() && recibeDemasia(item));
-  const demasia = participantes.length ? numero(turno.qq) * (esFestivo ? config.demasia_festivo_qq : config.demasia_normal_qq) / participantes.length : 0;
+  const demasia = participantes.length ? numeroDecimal(turno.qq) * (esFestivo ? config.demasia_festivo_qq : config.demasia_normal_qq) / participantes.length : 0;
   return turno.lineas.map((item) => ({ ...item, monto: item.nombre.trim() ? montoLinea(item, esFestivo, recibeDemasia(item) ? demasia : 0, config) : 0 }));
 }
 function pascua(anio: number) { const a=anio%19,b=Math.floor(anio/100),c=anio%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mes=Math.floor((h+l-7*m+114)/31),dia=(h+l-7*m+114)%31+1; return new Date(anio,mes-1,dia,12); }
@@ -168,7 +174,7 @@ function EditorLineas({ titulo, fecha, lineas, onChange, onRemove, panaderos, qq
     <section className="rounded-xl border border-[#4B2818]/15 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <h2 className="font-black text-[#2A1710]">{titulo}</h2>
-        <div className="flex items-center gap-2">{panaderos && <><label className="flex items-center gap-2 text-xs font-black">QQ<input value={qqTexto} inputMode="decimal" onChange={(event) => { if (/^\d*(?:[.,]\d*)?$/.test(event.target.value)) setQqTexto(event.target.value); }} onBlur={() => onQq?.(Math.max(0, numero(qqTexto)))} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} placeholder="Ej: 1,5" className="h-8 w-20 rounded border px-2 text-right" /></label><button type="button" onClick={() => imprimirHojaTurno(titulo, fecha || hoy, qq, lineas, esFestivo, configPago)} className="inline-flex h-8 items-center gap-1 rounded-md border border-[#A51F2B]/30 px-2 text-[10px] font-black uppercase text-[#A51F2B]" title="Imprimir hoja para firma"><Printer className="h-3.5 w-3.5" />Firmas</button></>}{!panaderos && <span className="rounded-full bg-[#FFF3DF] px-3 py-1 text-sm font-black text-[#A51F2B]">{dinero(total)}</span>}{onRemove && <button type="button" onClick={onRemove} className="grid h-8 w-8 place-items-center rounded-md text-red-700 hover:bg-red-50" aria-label={`Eliminar ${titulo}`}><Trash2 className="h-4 w-4" /></button>}</div>
+        <div className="flex items-center gap-2">{panaderos && <><label className="flex items-center gap-2 text-xs font-black">QQ<input value={qqTexto} inputMode="decimal" onChange={(event) => { if (/^\d*(?:[.,]\d*)?$/.test(event.target.value)) setQqTexto(event.target.value); }} onBlur={() => onQq?.(Math.max(0, numeroDecimal(qqTexto)))} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} placeholder="Ej: 1,5" className="h-8 w-20 rounded border px-2 text-right" /></label><button type="button" onClick={() => imprimirHojaTurno(titulo, fecha || hoy, qq, lineas, esFestivo, configPago)} className="inline-flex h-8 items-center gap-1 rounded-md border border-[#A51F2B]/30 px-2 text-[10px] font-black uppercase text-[#A51F2B]" title="Imprimir hoja para firma"><Printer className="h-3.5 w-3.5" />Firmas</button></>}{!panaderos && <span className="rounded-full bg-[#FFF3DF] px-3 py-1 text-sm font-black text-[#A51F2B]">{dinero(total)}</span>}{onRemove && <button type="button" onClick={onRemove} className="grid h-8 w-8 place-items-center rounded-md text-red-700 hover:bg-red-50" aria-label={`Eliminar ${titulo}`}><Trash2 className="h-4 w-4" /></button>}</div>
       </div>
       <div className="mt-3 space-y-2">
         {lineas.map((linea, indice) => (
