@@ -106,6 +106,42 @@ function funcionPanadero(funcionario?: Funcionario): Funcion | undefined {
   return undefined;
 }
 
+function SueldoInput({ valor, nombre, manual, onCommit }: { valor: number; nombre: string; manual?: boolean; onCommit: (valor: number) => void }) {
+  const [editando, setEditando] = useState(false);
+  const [texto, setTexto] = useState('');
+
+  useEffect(() => {
+    if (!editando) setTexto(String(Math.round(valor || 0)));
+  }, [valor, editando]);
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      disabled={!nombre.trim()}
+      aria-label={`Sueldo de ${nombre || 'panadero'}`}
+      title="Sueldo editable"
+      value={editando ? texto : nombre.trim() ? dinero(valor) : ''}
+      onFocus={(event) => {
+        const input = event.currentTarget;
+        setTexto(String(Math.round(valor || 0)));
+        setEditando(true);
+        requestAnimationFrame(() => input.select());
+      }}
+      onChange={(event) => {
+        if (/^[\d.]*$/.test(event.target.value)) setTexto(event.target.value);
+      }}
+      onBlur={() => {
+        onCommit(Math.max(0, numero(texto)));
+        setEditando(false);
+      }}
+      onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }}
+      placeholder="$0"
+      className={`h-10 rounded-md border px-2 text-right text-sm font-black outline-none focus:border-[#A51F2B] focus:ring-2 focus:ring-[#A51F2B]/15 disabled:cursor-not-allowed disabled:opacity-60 ${manual ? 'border-[#A51F2B]/45 bg-[#FFF1F2] text-[#A51F2B]' : 'border-[#E9D7BC] bg-[#FFF3DF]'}`}
+    />
+  );
+}
+
 function EditorLineas({ titulo, lineas, onChange, onRemove, panaderos, qq = 0, esFestivo = false, onQq, configPago = CONFIG_PAGO_BASE, funcionariosPanaderos = [] }: { titulo: string; lineas: Linea[]; onChange: (lineas: Linea[]) => void; onRemove?: () => void; panaderos?: boolean; qq?: number; esFestivo?: boolean; onQq?: (valor: number) => void; configPago?: ConfigPago; funcionariosPanaderos?: Funcionario[] }) {
   const [qqTexto, setQqTexto] = useState(qq ? String(qq).replace('.', ',') : '');
   useEffect(() => { setQqTexto(qq ? String(qq).replace('.', ',') : ''); }, [qq]);
@@ -124,7 +160,7 @@ function EditorLineas({ titulo, lineas, onChange, onRemove, panaderos, qq = 0, e
           <div key={linea.id} className={`grid gap-2 ${panaderos ? 'grid-cols-[minmax(150px,1fr)_90px_100px_110px_36px]' : 'grid-cols-[minmax(0,1fr)_130px_36px]'}`}>
             {panaderos ? <select value={linea.funcionario_id || ''} onChange={(event) => { const funcionario=funcionariosPanaderos.find((item)=>item.id===event.target.value); const funcion=funcionPanadero(funcionario); onChange(lineas.map((item,posicion)=>posicion===indice?{...item,funcionario_id:event.target.value,nombre:funcionario?.nombre_completo||'',...(funcion ? { funcion } : {}),monto_manual:false}:item)); }} className="h-10 min-w-0 rounded-md border border-[#4B2818]/20 bg-white px-3 text-sm font-bold"><option value="">Seleccionar panadero</option>{funcionariosPanaderos.map((item)=><option key={item.id} value={item.id}>{item.nombre_completo}</option>)}</select> : <input value={linea.nombre} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, nombre: event.target.value } : item))} placeholder="Detalle del gasto" className="h-10 min-w-0 rounded-md border border-[#4B2818]/20 px-3 text-sm font-bold" />}
             {panaderos && <><select value={linea.origen || 'casa'} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, origen: event.target.value as Origen, monto_manual: false } : item))} className="h-10 rounded-md border bg-white px-2 text-xs font-black"><option value="casa">Casa</option><option value="externo">Externo</option></select><select value={linea.funcion || 'oficial'} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, funcion: event.target.value as Funcion, monto_manual: false } : item))} className="h-10 rounded-md border bg-white px-2 text-xs font-black"><option value="batea">Batea</option><option value="cocedor">Cocedor</option><option value="oficial">Oficial</option></select></>}
-            {panaderos ? <input type="text" inputMode="numeric" aria-label={`Sueldo de ${linea.nombre || 'panadero'}`} title="Sueldo editable" value={linea.nombre.trim() ? dinero(montoLinea(linea, esFestivo, demasia, configPago)) : ''} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, monto: Math.max(0, numero(event.target.value)), monto_manual: true } : item))} placeholder="$0" className={`h-10 rounded-md border px-2 text-right text-sm font-black outline-none focus:border-[#A51F2B] focus:ring-2 focus:ring-[#A51F2B]/15 ${linea.monto_manual ? 'border-[#A51F2B]/45 bg-[#FFF1F2] text-[#A51F2B]' : 'border-[#E9D7BC] bg-[#FFF3DF]'}`} /> : <input type="text" inputMode="numeric" value={linea.monto || ''} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, monto: Math.max(0, numero(event.target.value)) } : item))} placeholder="$0" className="h-10 rounded-md border border-[#4B2818]/20 px-3 text-right text-sm font-black" />}
+            {panaderos ? <SueldoInput valor={linea.nombre.trim() ? montoLinea(linea, esFestivo, demasia, configPago) : 0} nombre={linea.nombre} manual={linea.monto_manual} onCommit={(monto) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, monto, monto_manual: true } : item))} /> : <input type="text" inputMode="numeric" value={linea.monto || ''} onChange={(event) => onChange(lineas.map((item, posicion) => posicion === indice ? { ...item, monto: Math.max(0, numero(event.target.value)) } : item))} placeholder="$0" className="h-10 rounded-md border border-[#4B2818]/20 px-3 text-right text-sm font-black" />}
             <button type="button" aria-label="Eliminar fila" onClick={() => onChange(lineas.filter((_, posicion) => posicion !== indice))} className="grid h-10 place-items-center rounded-md text-red-700 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button>
           </div>
         ))}
