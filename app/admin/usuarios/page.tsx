@@ -26,7 +26,7 @@ type Funcionario = {
   activo: boolean;
   trabaja_comision: boolean;
   porcentaje_comision: number;
-  funcionario_cargos?: { cargo_id: string; cargos_empresa?: { id: string; nombre: string }[] | null }[];
+  funcionario_cargos?: { cargo_id: string; cargos_empresa?: { id: string; nombre: string } | { id: string; nombre: string }[] | null }[];
 };
 type ModalidadPago = 'diaria' | 'mensual' | 'panadero';
 type CargoEmpresa = { id: string; nombre: string; activo: boolean; modalidad_pago: ModalidadPago; remuneracion: number };
@@ -81,6 +81,7 @@ function fechaCorta(fecha: string | null) {
 
 const formatoPesos = (valor: number) => valor ? `$${Math.round(valor).toLocaleString('es-CL')}` : '';
 const leerPesos = (valor: string) => Number(valor.replace(/[^0-9-]/g, '')) || 0;
+const nombreCargoRelacionado = (valor: { nombre: string } | { nombre: string }[] | null | undefined) => Array.isArray(valor) ? valor[0]?.nombre || '' : valor?.nombre || '';
 
 export default function UsuariosPage() {
   const { perfil, esAdmin } = useAdminSession();
@@ -492,7 +493,7 @@ export default function UsuariosPage() {
                     <p className="font-black text-[#2A1710]">
                       {funcionario.nombre_completo}
                     </p>
-                    <div className="mt-1 flex flex-wrap gap-1">{(funcionario.funcionario_cargos || []).map((relacion) => <span key={relacion.cargo_id} className="rounded-full bg-[#FFF3DF] px-2 py-1 text-[10px] font-black uppercase text-[#A51F2B]">{relacion.cargos_empresa?.[0]?.nombre}</span>)}</div>
+                    <div className="mt-1 flex flex-wrap gap-1">{(funcionario.funcionario_cargos || []).map((relacion) => <span key={relacion.cargo_id} className="rounded-full bg-[#FFF3DF] px-2 py-1 text-[10px] font-black uppercase text-[#A51F2B]">{nombreCargoRelacionado(relacion.cargos_empresa)}</span>)}</div>
                     <details className="mt-2"><summary className="cursor-pointer text-xs font-black text-[#4B2818]/70">Editar cargos</summary><div className="mt-2 grid gap-1">{cargosEmpresa.map((cargo) => { const asignado=(funcionario.funcionario_cargos || []).some((r) => r.cargo_id===cargo.id); return <label key={cargo.id} className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={asignado} onChange={(event) => void alternarCargo(funcionario,cargo.id,event.target.checked)} />{cargo.nombre}</label>; })}</div></details>
                     {fechaCorta(funcionario.fecha_nacimiento) && (
                       <p className="mt-1 text-xs font-semibold text-[#4B2818]/60">
