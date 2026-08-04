@@ -42,6 +42,7 @@ type Funcionario = {
   id: string;
   nombre_completo: string;
   cargo: string;
+  funcionario_cargos?: { cargos_empresa?: { nombre: string } | { nombre: string }[] | null }[];
 };
 
 type Reparto = {
@@ -355,6 +356,15 @@ function normalizar(texto: string | null | undefined) {
     .trim();
 }
 
+function funcionarioTieneCargo(funcionario: Funcionario, cargoBuscado: string) {
+  const relaciones = funcionario.funcionario_cargos || [];
+  const porRelacion = relaciones.some((relacion) => {
+    const cargos = Array.isArray(relacion.cargos_empresa) ? relacion.cargos_empresa : relacion.cargos_empresa ? [relacion.cargos_empresa] : [];
+    return cargos.some((cargo) => normalizar(cargo.nombre) === normalizar(cargoBuscado));
+  });
+  return porRelacion || normalizar(funcionario.cargo) === normalizar(cargoBuscado);
+}
+
 function referenciaRepartidor(nombre: string) {
   const limpio = nombre.trim();
   if (!limpio) return '';
@@ -364,6 +374,7 @@ function referenciaRepartidor(nombre: string) {
 
   const partes = limpio.split(/\s+/);
   if (partes.length >= 4) return partes[partes.length - 2];
+  if (partes.length === 3) return partes[1];
   if (partes.length >= 2) return partes[partes.length - 1];
   return limpio;
 }
@@ -1437,18 +1448,18 @@ export default function AdminPlanillasPage() {
 
       const { data: funcionariosData, error: funcionariosError } = await supabase
         .from('funcionarios')
-        .select('id, nombre_completo, cargo')
+        .select('id, nombre_completo, cargo, funcionario_cargos(cargos_empresa(nombre))')
         .eq('empresa_id', empresa.id)
         .eq('activo', true)
         .order('nombre_completo', { ascending: true });
 
       if (!funcionariosError) {
-        const funcionarios = (funcionariosData || []) as Funcionario[];
+        const funcionarios = (funcionariosData || []) as unknown as Funcionario[];
         const mayordomosActivos = funcionarios.filter(
-          (item) => item.cargo.toLowerCase() === 'mayordomo'
+          (item) => funcionarioTieneCargo(item, 'mayordomo')
         );
         const repartidoresActivos = funcionarios.filter(
-          (item) => item.cargo.toLowerCase() === 'repartidor'
+          (item) => funcionarioTieneCargo(item, 'repartidor')
         );
 
         setMayordomos(mayordomosActivos);
