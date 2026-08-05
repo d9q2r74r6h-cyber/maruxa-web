@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Car, Printer, Save, Trash2 } from 'lucide-react';
+import { Car, Pencil, Printer, Save, Trash2, X } from 'lucide-react';
 import { useAdminSession } from '@/components/AdminSession';
 import { supabase } from '@/lib/supabase';
 
@@ -166,6 +166,7 @@ export default function RendimientoVehiculosPage() {
   const [anio, setAnio] = useState(new Date().getFullYear());
   const [vehiculoFiltro, setVehiculoFiltro] = useState('');
   const [mostrarVehiculo, setMostrarVehiculo] = useState(false);
+  const [cargaEditandoId, setCargaEditandoId] = useState<string | null>(null);
   const [formVehiculo, setFormVehiculo] = useState({ nombre: '', patente: '', repartidor_id: '' });
   const [form, setForm] = useState({
     vehiculo_id: '',
@@ -314,6 +315,7 @@ export default function RendimientoVehiculosPage() {
   const cargaAnteriorFormulario = [...cargasFiltradas]
     .filter(
       (carga) =>
+        carga.id !== cargaEditandoId &&
         carga.fecha <= form.fecha && carga.kilometraje !== null
     )
     .sort((a, b) => b.fecha.localeCompare(a.fecha))[0];
@@ -408,6 +410,7 @@ export default function RendimientoVehiculosPage() {
     const anteriores = cargas
       .filter(
         (carga) =>
+          carga.id !== cargaEditandoId &&
           carga.vehiculo_id === form.vehiculo_id &&
           carga.fecha <= form.fecha &&
           carga.kilometraje !== null
@@ -426,7 +429,7 @@ export default function RendimientoVehiculosPage() {
     const montoFinal = gastoIngresado || precioLitroIngresado * litrosCarga;
     const precioLitroFinal =
       precioLitroIngresado || montoFinal / litrosCarga;
-    const { error } = await supabase.from('combustible_cargas').insert({
+    const datosCarga = {
       empresa_id: perfil.empresa_id,
       vehiculo_id: form.vehiculo_id,
       fecha: form.fecha,
@@ -439,7 +442,11 @@ export default function RendimientoVehiculosPage() {
       litros: litrosCarga,
       kilometraje,
       observacion: form.observacion.trim() || null,
-    });
+    };
+    const consulta = cargaEditandoId
+      ? supabase.from('combustible_cargas').update(datosCarga).eq('id', cargaEditandoId)
+      : supabase.from('combustible_cargas').insert(datosCarga);
+    const { error } = await consulta;
     setGuardando(false);
     if (error) return alert(error.message);
     const vehiculoActual = vehiculos.find((item) => item.id === form.vehiculo_id);
@@ -458,7 +465,41 @@ export default function RendimientoVehiculosPage() {
       kilometraje: '',
       observacion: '',
     }));
+    setCargaEditandoId(null);
     await cargarDatos();
+  }
+
+  function editarCarga(carga: Carga) {
+    const [tipoDocumento, numeroDocumento] = carga.numero_guia?.includes('|')
+      ? carga.numero_guia.split('|', 2)
+      : ['guia', carga.numero_guia || ''];
+    setCargaEditandoId(carga.id);
+    setForm({
+      vehiculo_id: carga.vehiculo_id,
+      fecha: carga.fecha,
+      conductor_nombre: carga.conductor_nombre || '',
+      tipo_documento: tipoDocumento || 'guia',
+      numero_guia: numeroDocumento || '',
+      precio_litro: String(carga.precio_litro || ''),
+      monto_guia: String(carga.monto_guia || ''),
+      litros: String(carga.litros || '').replace('.', ','),
+      kilometraje: carga.kilometraje === null ? '' : String(carga.kilometraje),
+      observacion: carga.observacion || '',
+    });
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+  }
+
+  function cancelarEdicionCarga() {
+    setCargaEditandoId(null);
+    setForm((actual) => ({
+      ...actual,
+      numero_guia: '',
+      precio_litro: '',
+      monto_guia: '',
+      litros: '',
+      kilometraje: '',
+      observacion: '',
+    }));
   }
 
   async function eliminarCarga(id: string) {
@@ -595,10 +636,10 @@ export default function RendimientoVehiculosPage() {
                     <td className="px-2 py-3 text-right font-black text-emerald-800">{decimal(rendimientoEnFormulario)}</td>
                     <td className="px-2 py-3 text-right font-black text-emerald-800">{decimal(litrosDiaEnFormulario)}</td>
                     <td className="px-2 py-3 text-right font-black text-emerald-800">{gastoDiaEnFormulario === null ? '—' : dinero(gastoDiaEnFormulario)}</td>
-                    <td className="p-1"><button type="button" disabled={guardando} onClick={guardarCarga} className="flex h-11 items-center gap-1 rounded-lg bg-red-700 px-3 font-black text-white disabled:opacity-50"><Save className="h-4 w-4" />{guardando ? 'Guardando' : 'Guardar'}</button></td>
+                    <td className="p-1"><div className="flex items-center justify-end gap-1"><button type="button" disabled={guardando} onClick={guardarCarga} className="flex h-11 items-center gap-1 rounded-lg bg-red-700 px-3 font-black text-white disabled:opacity-50"><Save className="h-4 w-4" />{guardando ? 'Guardando' : cargaEditandoId ? 'Guardar cambios' : 'Guardar'}</button>{cargaEditandoId && <button type="button" onClick={cancelarEdicionCarga} title="Cancelar edicion" aria-label="Cancelar edicion" className="flex h-11 w-11 items-center justify-center rounded-lg border border-maruxa-cafe/25 bg-white text-maruxa-cafe hover:bg-maruxa-crema"><X className="h-4 w-4" /></button>}</div></td>
                   </tr>
                   {[...cargasFiltradas].sort((a, b) => b.fecha.localeCompare(a.fecha)).map((carga) => {
-                    return <tr key={carga.id} className={`border-b ${carga.alerta ? 'bg-red-50' : carga.origen.startsWith('excel_2024') ? 'bg-blue-50/40' : ''}`}><td className="px-2 py-2 font-bold">{fechaLocal(carga.fecha)}</td><td className="px-2 py-2 text-right">{documentoTexto(carga.numero_guia)}</td><td className="px-2 py-2 text-right">{dinero(carga.precio_litro)}</td><td className="px-2 py-2 text-right">{decimal(carga.litros, 3)}</td><td className="px-2 py-2 text-right">{dinero(carga.monto_guia)}</td><td className="px-2 py-2 text-right">{carga.kilometraje === null ? 'Pendiente' : numero(carga.kilometraje).toLocaleString('es-CL')}</td><td className="px-2 py-2 text-right">{carga.km_recorridos === null ? '—' : numero(carga.km_recorridos).toLocaleString('es-CL')}</td><td className="px-2 py-2 text-right font-black">{decimal(carga.rendimiento)}</td><td className="px-2 py-2 text-right">{decimal(carga.litros_diarios)}</td><td className="px-2 py-2 text-right">{carga.gasto_diario === null ? '—' : dinero(carga.gasto_diario)}</td><td className="no-print px-2 py-2 text-right"><button type="button" onClick={() => eliminarCarga(carga.id)} className="rounded-lg p-2 text-red-700 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button></td></tr>;
+                    return <tr key={carga.id} className={`border-b ${cargaEditandoId === carga.id ? 'bg-amber-100 ring-2 ring-inset ring-amber-400' : carga.alerta ? 'bg-red-50' : carga.origen.startsWith('excel_2024') ? 'bg-blue-50/40' : ''}`}><td className="px-2 py-2 font-bold">{fechaLocal(carga.fecha)}</td><td className="px-2 py-2 text-right">{documentoTexto(carga.numero_guia)}</td><td className="px-2 py-2 text-right">{dinero(carga.precio_litro)}</td><td className="px-2 py-2 text-right">{decimal(carga.litros, 3)}</td><td className="px-2 py-2 text-right">{dinero(carga.monto_guia)}</td><td className="px-2 py-2 text-right">{carga.kilometraje === null ? 'Pendiente' : numero(carga.kilometraje).toLocaleString('es-CL')}</td><td className="px-2 py-2 text-right">{carga.km_recorridos === null ? '—' : numero(carga.km_recorridos).toLocaleString('es-CL')}</td><td className="px-2 py-2 text-right font-black">{decimal(carga.rendimiento)}</td><td className="px-2 py-2 text-right">{decimal(carga.litros_diarios)}</td><td className="px-2 py-2 text-right">{carga.gasto_diario === null ? '—' : dinero(carga.gasto_diario)}</td><td className="no-print px-2 py-2 text-right"><div className="flex items-center justify-end gap-1"><button type="button" onClick={() => editarCarga(carga)} title="Modificar carga" aria-label={`Modificar carga del ${fechaLocal(carga.fecha)}`} className="rounded-lg p-2 text-maruxa-cafe hover:bg-amber-100"><Pencil className="h-4 w-4" /></button><button type="button" onClick={() => eliminarCarga(carga.id)} title="Eliminar carga" aria-label={`Eliminar carga del ${fechaLocal(carga.fecha)}`} className="rounded-lg p-2 text-red-700 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button></div></td></tr>;
                   })}
                 </tbody>
               </table>
