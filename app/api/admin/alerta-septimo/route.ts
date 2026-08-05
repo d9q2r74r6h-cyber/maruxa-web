@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 
 type Trabajador = { nombre: string; dias_trabajados: number; fechas: string[]; monto: number };
+const CORREO_ADMINISTRATIVO = 'panaderiamaruxa@hotmail.com';
 
 function dinero(valor: number) {
   return `$${Math.round(Number(valor || 0)).toLocaleString('es-CL')}`;
@@ -21,16 +22,14 @@ export async function POST(request: Request) {
   const supabase=createClient(url,anon,{global:{headers:{Authorization:`Bearer ${token}`}},auth:{persistSession:false}});
   const {data:{user}}=await supabase.auth.getUser(token);
   if(!user)return NextResponse.json({error:'No autorizado.'},{status:401});
-  const {data:perfil}=await supabase.from('perfiles_usuario').select('notificacion_email,nombre_visible').eq('id',user.id).maybeSingle();
-  const destino=perfil?.notificacion_email||user.email;
-  if(!destino||!process.env.RESEND_API_KEY)return NextResponse.json({error:'Correo administrativo no configurado.'},{status:503});
+  if(!process.env.RESEND_API_KEY)return NextResponse.json({error:'Correo administrativo no configurado.'},{status:503});
 
   const cuerpo=await request.json() as { fecha:string; cajera:string; trabajadores:Trabajador[] };
   const filas=(cuerpo.trabajadores||[]).map((item)=>`<tr><td>${escapar(item.nombre)}</td><td>${item.dias_trabajados} de 6</td><td>${escapar(item.fechas.join(', '))}</td><td style="text-align:right;font-weight:700">${dinero(item.monto)}</td></tr>`).join('');
   const resend=new Resend(process.env.RESEND_API_KEY);
   const {error}=await resend.emails.send({
     from:'Panaderia Maruxa <admin@panaderiamaruxa.cl>',
-    to:[destino],
+    to:[CORREO_ADMINISTRATIVO],
     subject:`Alerta: pago de 7mo excepcional ${cuerpo.fecha}`,
     html:`<h2>Pago de 7mo autorizado con menos de seis dias</h2><p><strong>Fecha de Caja:</strong> ${escapar(cuerpo.fecha)}<br><strong>Cajera:</strong> ${escapar(cuerpo.cajera)}</p><table style="border-collapse:collapse;width:100%"><thead><tr><th style="text-align:left">Panadero</th><th style="text-align:left">Dias</th><th style="text-align:left">Fechas trabajadas</th><th style="text-align:right">7mo</th></tr></thead><tbody>${filas}</tbody></table><p>El monto fue calculado dividiendo siempre por 6 y la cajera confirmo continuar con el pago.</p>`,
   });

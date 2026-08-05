@@ -5,6 +5,7 @@ import { Resend } from 'resend';
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
   : null;
+const CORREO_ADMINISTRATIVO = 'panaderiamaruxa@hotmail.com';
 
 type Funcionario = {
   id: string;
@@ -168,6 +169,8 @@ export async function GET(request: Request) {
       const errorEnvio = await enviarEmail(companero.email, `🎂 Mañana celebramos a ${cumpleanero.nombre_completo}`, avisoPrevio);
       if (errorEnvio) errores.push(errorEnvio);
     }
+    const errorCopiaAdmin = await enviarEmail(CORREO_ADMINISTRATIVO, `Copia administrativa: mañana celebramos a ${cumpleanero.nombre_completo}`, avisoPrevio);
+    if (errorCopiaAdmin) errores.push(errorCopiaAdmin);
     await admin.from('funcionarios').update({ ultimo_aviso_previo_cumpleanos: manana.anio }).eq('id', cumpleanero.id);
     avisosPrevios.push({ funcionario_id: cumpleanero.id, nombre: cumpleanero.nombre_completo, avisos_companeros: companeros.length, errores });
   }
@@ -192,6 +195,7 @@ export async function GET(request: Request) {
     const errores = [
       await enviarWhatsApp(cumpleanero.telefono, saludo),
       await enviarEmail(cumpleanero.email, '🎉 ¡Feliz cumpleaños!', saludo),
+      await enviarEmail(CORREO_ADMINISTRATIVO, `Copia administrativa: feliz cumpleaños ${cumpleanero.nombre_completo}`, saludo),
     ].filter(Boolean);
 
     for (const companero of companeros) {
