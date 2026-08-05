@@ -496,38 +496,25 @@ export default function UsuariosPage() {
                 Funcionarios registrados
               </h2>
             </div>
-            <div className="divide-y divide-[#4B2818]/10">
+            <div className="overflow-x-auto">
+              <div className="grid min-w-[1080px] grid-cols-[220px_115px_130px_190px_190px_110px_70px_85px] gap-2 border-b border-[#4B2818]/15 bg-[#2A1710] px-3 py-3 text-[10px] font-black uppercase tracking-wide text-white">
+                <span>Funcionario</span><span>Nombre corto</span><span>Descanso</span><span>Cargos</span><span>Dominical</span><span>Comisión</span><span>Estado</span><span></span>
+              </div>
               {funcionarios.map((funcionario) => (
                 <div
                   key={funcionario.id}
-                  className="flex items-center justify-between gap-4 px-5 py-4"
+                  className="grid min-w-[1080px] grid-cols-[220px_115px_130px_190px_190px_110px_70px_85px] items-start gap-2 border-b border-[#4B2818]/10 px-3 py-3 text-xs hover:bg-[#FFF9EF]"
                 >
-                  <div>
-                    <p className="font-black text-[#2A1710]">
-                      {funcionario.nombre_completo}
-                    </p>
-                    <div className="mt-2 grid gap-2 sm:grid-cols-2"><label className="grid gap-1 text-[10px] font-black uppercase text-[#4B2818]/60">Nombre corto<input value={funcionario.nombre_corto || ''} onChange={(event) => setFuncionarios((lista) => lista.map((item) => item.id === funcionario.id ? { ...item, nombre_corto: event.target.value } : item))} onBlur={(event) => void actualizarDatosBreves(funcionario,{ nombre_corto:event.target.value.trim() || funcionario.nombre_completo.split(/\s+/)[0] })} className="h-8 rounded border px-2 text-xs font-bold normal-case" /></label><label className="grid gap-1 text-[10px] font-black uppercase text-[#4B2818]/60">Día de descanso<select value={funcionario.dia_descanso || ''} onChange={(event) => void actualizarDatosBreves(funcionario,{ dia_descanso:event.target.value || null })} className="h-8 rounded border bg-white px-2 text-xs font-bold normal-case"><option value="">Sin asignar</option>{['lunes','martes','miércoles','jueves','viernes','sábado','domingo'].map((dia) => <option key={dia} value={dia}>{dia}</option>)}</select></label><label className="flex h-8 items-center gap-2 rounded border px-2 text-[10px] font-black uppercase"><input type="checkbox" checked={funcionario.recibe_dominical || false} onChange={(event)=>void actualizarDatosBreves(funcionario,{recibe_dominical:event.target.checked,ciclo_dominical:event.target.checked?(funcionario.ciclo_dominical||'impar'):null})}/>Recibe dominical</label>{funcionario.recibe_dominical&&<label className="grid gap-1 text-[10px] font-black uppercase text-[#4B2818]/60">Ciclo<select value={funcionario.ciclo_dominical||'impar'} onChange={(event)=>void actualizarDatosBreves(funcionario,{ciclo_dominical:event.target.value as 'impar'|'par'})} className="h-8 rounded border bg-white px-2 text-xs font-bold normal-case"><option value="impar">Ene, Mar, May, Jul, Sep, Nov</option><option value="par">Feb, Abr, Jun, Ago, Oct, Dic</option></select></label>}</div>
-                    <div className="mt-1 flex flex-wrap gap-1">{(funcionario.funcionario_cargos || []).map((relacion) => <span key={relacion.cargo_id} className="rounded-full bg-[#FFF3DF] px-2 py-1 text-[10px] font-black uppercase text-[#A51F2B]">{nombreCargoRelacionado(relacion.cargos_empresa)}</span>)}</div>
-                    <details className="mt-2"><summary className="cursor-pointer text-xs font-black text-[#4B2818]/70">Editar cargos</summary><div className="mt-2 grid gap-1">{cargosEmpresa.map((cargo) => { const asignado=(funcionario.funcionario_cargos || []).some((r) => r.cargo_id===cargo.id); return <label key={cargo.id} className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={asignado} onChange={(event) => void alternarCargo(funcionario,cargo.id,event.target.checked)} />{cargo.nombre}</label>; })}</div></details>
+                  <div className="min-w-0"><p className="truncate font-black text-[#2A1710]" title={funcionario.nombre_completo}>{funcionario.nombre_completo}</p>
                     {fechaCorta(funcionario.fecha_nacimiento) && (
-                      <p className="mt-1 text-xs font-semibold text-[#4B2818]/60">
-                        Cumpleanos: {fechaCorta(funcionario.fecha_nacimiento)}
-                      </p>
-                    )}
-                    <div className="mt-2 flex items-center gap-2">
-                      <label className="flex items-center gap-2 text-xs font-black text-[#4B2818]">
-                        <input type="checkbox" checked={funcionario.trabaja_comision || false} onChange={(event) => void actualizarComision(funcionario, event.target.checked)} className="h-4 w-4 accent-[#A51F2B]" />
-                        Comisión
-                      </label>
-                      {funcionario.trabaja_comision && (
-                        <span className="flex h-8 w-24 items-center rounded border bg-white pr-2">
-                          <input type="number" step="0.1" min="0" value={funcionario.porcentaje_comision || 3} onChange={(event) => setFuncionarios((actuales) => actuales.map((item) => item.id === funcionario.id ? { ...item, porcentaje_comision: Number(event.target.value) } : item))} onBlur={(event) => void actualizarComision(funcionario, true, Number(event.target.value))} className="h-full min-w-0 flex-1 px-2 text-right text-xs font-black outline-none" aria-label={`Porcentaje de comisión de ${funcionario.nombre_completo}`} />
-                          <span className="text-xs font-black text-[#A51F2B]">%</span>
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2"><span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${funcionario.activo ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>{funcionario.activo ? 'Activo' : 'Inactivo'}</span><button type="button" onClick={() => abrirEdicion(funcionario)} className="inline-flex h-9 items-center gap-2 rounded-md border border-[#A51F2B]/30 px-3 text-xs font-black text-[#A51F2B]"><Pencil className="h-4 w-4" />Editar</button></div>
+                      <p className="mt-1 text-[10px] font-semibold text-[#4B2818]/60">Cumpleaños: {fechaCorta(funcionario.fecha_nacimiento)}</p>)}</div>
+                  <input value={funcionario.nombre_corto || ''} onChange={(event) => setFuncionarios((lista) => lista.map((item) => item.id === funcionario.id ? { ...item, nombre_corto: event.target.value } : item))} onBlur={(event) => void actualizarDatosBreves(funcionario,{ nombre_corto:event.target.value.trim() || funcionario.nombre_completo.split(/\s+/)[0] })} className="h-8 min-w-0 rounded border px-2 font-bold" />
+                  <select value={funcionario.dia_descanso || ''} onChange={(event) => void actualizarDatosBreves(funcionario,{ dia_descanso:event.target.value || null })} className="h-8 min-w-0 rounded border bg-white px-2 font-bold"><option value="">Sin asignar</option>{['lunes','martes','miércoles','jueves','viernes','sábado','domingo'].map((dia) => <option key={dia} value={dia}>{dia}</option>)}</select>
+                  <div className="min-w-0"><div className="flex flex-wrap gap-1">{(funcionario.funcionario_cargos || []).map((relacion) => <span key={relacion.cargo_id} className="rounded-full bg-[#FFF3DF] px-2 py-1 text-[9px] font-black uppercase text-[#A51F2B]">{nombreCargoRelacionado(relacion.cargos_empresa)}</span>)}</div><details className="mt-1"><summary className="cursor-pointer text-[10px] font-black text-[#4B2818]/65">Editar cargos</summary><div className="absolute z-10 mt-1 grid rounded border bg-white p-2 shadow-lg">{cargosEmpresa.map((cargo) => { const asignado=(funcionario.funcionario_cargos || []).some((r) => r.cargo_id===cargo.id); return <label key={cargo.id} className="flex items-center gap-2 whitespace-nowrap py-1 text-[10px] font-bold"><input type="checkbox" checked={asignado} onChange={(event) => void alternarCargo(funcionario,cargo.id,event.target.checked)} />{cargo.nombre}</label>; })}</div></details></div>
+                  <div className="space-y-1"><label className="flex h-8 items-center gap-2 rounded border px-2 text-[9px] font-black uppercase"><input type="checkbox" checked={funcionario.recibe_dominical || false} onChange={(event)=>void actualizarDatosBreves(funcionario,{recibe_dominical:event.target.checked,ciclo_dominical:event.target.checked?(funcionario.ciclo_dominical||'impar'):null})}/>Recibe</label>{funcionario.recibe_dominical&&<select value={funcionario.ciclo_dominical||'impar'} onChange={(event)=>void actualizarDatosBreves(funcionario,{ciclo_dominical:event.target.value as 'impar'|'par'})} className="h-8 w-full rounded border bg-white px-1 text-[9px] font-bold"><option value="impar">Meses impares</option><option value="par">Meses pares</option></select>}</div>
+                  <div className="space-y-1"><label className="flex h-8 items-center gap-1 text-[10px] font-black"><input type="checkbox" checked={funcionario.trabaja_comision || false} onChange={(event) => void actualizarComision(funcionario, event.target.checked)} />Sí</label>{funcionario.trabaja_comision&&<span className="flex h-7 items-center rounded border pr-1"><input type="number" step="0.1" min="0" value={funcionario.porcentaje_comision || 3} onChange={(event) => setFuncionarios((actuales) => actuales.map((item) => item.id === funcionario.id ? { ...item, porcentaje_comision: Number(event.target.value) } : item))} onBlur={(event) => void actualizarComision(funcionario,true,Number(event.target.value))} className="min-w-0 flex-1 px-1 text-right text-[10px] font-black"/><span>%</span></span>}</div>
+                  <span className={`mt-1 rounded-full px-2 py-1 text-center text-[9px] font-black uppercase ${funcionario.activo ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>{funcionario.activo ? 'Activo' : 'Inactivo'}</span>
+                  <button type="button" onClick={() => abrirEdicion(funcionario)} className="inline-flex h-8 items-center justify-center gap-1 rounded-md border border-[#A51F2B]/30 px-2 text-[10px] font-black text-[#A51F2B]"><Pencil className="h-3.5 w-3.5" />Editar</button>
                 </div>
               ))}
             </div>
