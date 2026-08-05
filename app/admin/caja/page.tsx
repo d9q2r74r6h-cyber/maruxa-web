@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { CheckCircle2, Loader2, Plus, Printer, Save, Trash2, WalletCards } from 'lucide-react';
 import { useAdminSession } from '@/components/AdminSession';
@@ -10,13 +10,13 @@ type Origen = 'casa' | 'externo';
 type Funcion = 'batea' | 'cocedor' | 'oficial';
 type ConceptoBono = { id: string; nombre: string; monto: number; activo: boolean };
 type BonoAsignado = { id: string; concepto_id: string; nombre: string; monto: number };
-type Linea = { id: string; nombre: string; monto: number; monto_es_base?: boolean; total_pago?: number; dominical?: number; bonos?: BonoAsignado[]; monto_manual?: boolean; funcionario_id?: string; origen?: Origen; funcion?: Funcion; tipo_eventual?: 'externo' | 'aprendiz'; participa_demasia?: boolean };
+type Linea = { id: string; nombre: string; monto: number; monto_es_base?: boolean; total_pago?: number; dominical?: number; septimo?: number; base_demasia?: number; bonos?: BonoAsignado[]; monto_manual?: boolean; funcionario_id?: string; origen?: Origen; funcion?: Funcion; tipo_eventual?: 'externo' | 'aprendiz'; participa_demasia?: boolean };
 type Turno = { id: string; nombre: string; qq?: number; lineas: Linea[] };
 type TurnoPlan = { id: string; nombre: string; panaderos: Array<{ id: string; funcionario_id: string; nombre: string; origen: Origen; funcion: Funcion }> };
 type Plantilla = { id: string; nombre: string; turnos: TurnoPlan[] };
 type PlantillaDb = Partial<Plantilla> & { id: string; semana_desde?: string | null; dotacion?: Record<string, TurnoPlan[]> };
 type CargoRelacionado = { nombre: string };
-type Funcionario = { id: string; nombre_completo: string; nombre_corto?: string | null; cargo: string; recibe_dominical?: boolean; ciclo_dominical?: 'impar' | 'par' | null; funcionario_cargos?: { cargos_empresa?: CargoRelacionado | CargoRelacionado[] | null }[] };
+type Funcionario = { id: string; nombre_completo: string; nombre_corto?: string | null; dia_descanso?: string | null; cargo: string; recibe_dominical?: boolean; ciclo_dominical?: 'impar' | 'par' | null; funcionario_cargos?: { cargos_empresa?: CargoRelacionado | CargoRelacionado[] | null }[] };
 type Cierre = {
   id: string;
   fecha: string;
@@ -88,6 +88,10 @@ function esFuncionarioCajera(funcionario: Funcionario) { return (funcionario.fun
 const nombreBreve = (funcionario: Funcionario) => funcionario.nombre_corto?.trim() || funcionario.nombre_completo.split(/\s+/)[0];
 const DIAS_SEMANA = ['DOMINGO', 'LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO'];
 function textoComparable(valor: string) { return valor.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase(); }
+function desplazarFecha(fecha: string, dias: number) { const valor=new Date(`${fecha}T12:00:00`); valor.setDate(valor.getDate()+dias); return valor.toISOString().slice(0,10); }
+function esDiaPagoSeptimo(funcionario: Funcionario, fecha: string) { if(!funcionario.dia_descanso)return false; const siguiente=new Date(`${desplazarFecha(fecha,1)}T12:00:00`).getDay(); return DIAS_SEMANA[siguiente]===textoComparable(funcionario.dia_descanso); }
+function lineasDeCierre(cierre: Cierre) { return cierre.turnos_panaderos?.length ? cierre.turnos_panaderos.flatMap((turno)=>turno.lineas) : [...(cierre.panaderos_primer_turno||[]),...(cierre.panaderos_segundo_turno||[])]; }
+function baseMasDemasiaGuardada(linea: Linea) { if(linea.base_demasia!==undefined)return numero(linea.base_demasia); return Math.max(0,numero(linea.total_pago??linea.monto)-totalBonos(linea)-numero(linea.dominical)-numero(linea.septimo)); }
 function dotacionParaFecha(plantillas: Plantilla[], fecha: string) {
   const dia = new Date(`${fecha}T12:00:00`).getDay();
   const nombreDia = DIAS_SEMANA[dia];
@@ -241,8 +245,26 @@ export default function CajaDiariaPage() {
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
 
+  const septimos = useMemo(() => {
+    const resultado = new Map<string,{ monto:number; diasTrabajados:number; fechas:string[] }>();
+    const actuales = turnos.flatMap((turno)=>lineasCalculadas(turno,esFestivo,configPago,fecha,funcionariosPanaderos));
+    funcionariosPanaderos.filter((persona)=>esDiaPagoSeptimo(persona,fecha)).forEach((persona)=>{
+      let suma=0;
+      let diasTrabajados=0;
+      const fechas:string[]=[];
+      for(let desplazamiento=-5;desplazamiento<=0;desplazamiento+=1){
+        const dia=desplazarFecha(fecha,desplazamiento);
+        const lineas=dia===fecha ? actuales : lineasDeCierre(historial.find((item)=>item.fecha===dia&&item.estado==='cerrada') || { panaderos_primer_turno:[],panaderos_segundo_turno:[] } as Cierre);
+        const montoDia=lineas.filter((linea)=>linea.funcionario_id===persona.id).reduce((total,linea)=>total+(dia===fecha ? Math.max(0,numero(linea.total_pago)-totalBonos(linea)-numero(linea.dominical)) : baseMasDemasiaGuardada(linea)),0);
+        if(montoDia>0){diasTrabajados+=1;fechas.push(dia);suma+=montoDia;}
+      }
+      if(suma>0)resultado.set(persona.id,{monto:suma/6,diasTrabajados,fechas});
+    });
+    return resultado;
+  },[turnos,esFestivo,configPago,fecha,funcionariosPanaderos,historial]);
+  const totalSeptimos = [...septimos.values()].reduce((suma,item)=>suma+item.monto,0);
   const totalesTurnos = turnos.map((turno) => lineasCalculadas(turno, esFestivo, configPago, fecha, funcionariosPanaderos).reduce((suma, item) => suma + numero(item.total_pago ?? item.monto), 0));
-  const totalPanaderos = totalesTurnos.reduce((suma, monto) => suma + monto, 0);
+  const totalPanaderos = totalesTurnos.reduce((suma, monto) => suma + monto, 0) + totalSeptimos;
   const totalComprasGastos = gastos.reduce((suma, item) => suma + numero(item.monto), 0);
   const totalGastos = totalPanaderos + totalComprasGastos;
   const totalComprobado = efectivo + tarjetas + totalGastos;
@@ -261,7 +283,7 @@ export default function CajaDiariaPage() {
   async function cargarBase() {
     if (!perfil) return;
     const [{ data: funcionarios }, { data: cierres }, respuestaDotaciones, { data: bonos }] = await Promise.all([
-      supabase.from('funcionarios').select('id,nombre_completo,nombre_corto,cargo,recibe_dominical,ciclo_dominical,funcionario_cargos(cargos_empresa(nombre))').eq('empresa_id', perfil.empresa_id).eq('activo', true).order('nombre_completo'),
+      supabase.from('funcionarios').select('id,nombre_completo,nombre_corto,dia_descanso,cargo,recibe_dominical,ciclo_dominical,funcionario_cargos(cargos_empresa(nombre))').eq('empresa_id', perfil.empresa_id).eq('activo', true).order('nombre_completo'),
       supabase.from('caja_cierres').select('*').eq('empresa_id', perfil.empresa_id).order('fecha', { ascending: false }).limit(31),
       supabase.from('caja_dotaciones_semanales').select('*').eq('empresa_id', perfil.empresa_id).order('created_at'),
       supabase.from('caja_conceptos_bono').select('id,nombre,monto,activo').eq('empresa_id', perfil.empresa_id).eq('activo', true).order('nombre'),
@@ -320,17 +342,32 @@ export default function CajaDiariaPage() {
   async function guardar(estado: 'borrador' | 'cerrada') {
     if (!perfil || !cajeraId) return alert('Selecciona la cajera responsable.');
     if (estado === 'cerrada' && !cuadrada && !observacion.trim()) return alert('Explica la diferencia antes de cerrar la caja.');
+    const septimosIncompletos=[...septimos.entries()].filter(([,item])=>item.diasTrabajados<6);
+    if(estado==='cerrada'&&septimosIncompletos.length){
+      const detalle=septimosIncompletos.map(([id,item])=>`${nombreBreve(funcionariosPanaderos.find((persona)=>persona.id===id)!)}: ${item.diasTrabajados} de 6 dias`).join('\n');
+      if(!confirm(`Hay pagos de 7mo con menos de 6 dias trabajados:\n\n${detalle}\n\nEl calculo igualmente se divide por 6. Confirmas el pago?`))return;
+    }
     if (estado === 'cerrada' && !confirm(cuadrada ? '¿Cerrar y bloquear la caja del día?' : 'La caja tiene diferencia. ¿Cerrar igualmente con la observación ingresada?')) return;
     const cajera = cajeras.find((item) => item.id === cajeraId);
     setGuardando(true);
+    const septimosAsignados=new Set<string>();
+    const turnosCalculados=turnos.map((turno)=>({
+      ...turno,
+      lineas:lineasCalculadas(turno,esFestivo,configPago,fecha,funcionariosPanaderos).filter((item)=>item.nombre.trim()||item.monto).map((item)=>{
+        const baseDemasia=Math.max(0,numero(item.total_pago)-totalBonos(item)-numero(item.dominical));
+        const septimo=item.funcionario_id&&!septimosAsignados.has(item.funcionario_id)?numero(septimos.get(item.funcionario_id)?.monto):0;
+        if(septimo&&item.funcionario_id)septimosAsignados.add(item.funcionario_id);
+        return {...item,base_demasia:baseDemasia,septimo,total_pago:numero(item.total_pago)+septimo};
+      }),
+    }));
     const datos = {
       empresa_id: perfil.empresa_id,
       fecha,
       cajera_id: cajeraId,
       cajera_nombre: cajera?.nombre_completo || perfil.nombre_visible,
-      turnos_panaderos: turnos.map((turno) => ({ ...turno, lineas: lineasCalculadas(turno, esFestivo, configPago, fecha, funcionariosPanaderos).filter((item) => item.nombre.trim() || item.monto) })),
-      panaderos_primer_turno: lineasCalculadas(turnos[0] || nuevoTurno(1), esFestivo, configPago, fecha, funcionariosPanaderos).filter((item) => item.nombre.trim() || item.monto),
-      panaderos_segundo_turno: lineasCalculadas(turnos[1] || nuevoTurno(2), esFestivo, configPago, fecha, funcionariosPanaderos).filter((item) => item.nombre.trim() || item.monto),
+      turnos_panaderos: turnosCalculados,
+      panaderos_primer_turno: turnosCalculados[0]?.lineas||[],
+      panaderos_segundo_turno: turnosCalculados[1]?.lineas||[],
       compras_gastos: gastos.filter((item) => item.nombre.trim() || item.monto),
       total_ventas: totalVentas,
       efectivo,
@@ -344,6 +381,11 @@ export default function CajaDiariaPage() {
     const { error } = await supabase.from('caja_cierres').upsert(datos, { onConflict: 'empresa_id,fecha' });
     setGuardando(false);
     if (error) return alert(error.message);
+    if(estado==='cerrada'&&septimosIncompletos.length){
+      const token=(await supabase.auth.getSession()).data.session?.access_token;
+      const aviso=await fetch('/api/admin/alerta-septimo',{method:'POST',headers:{'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})},body:JSON.stringify({fecha,cajera:cajera?.nombre_completo||perfil.nombre_visible,trabajadores:septimosIncompletos.map(([id,item])=>({nombre:funcionariosPanaderos.find((persona)=>persona.id===id)?.nombre_completo||id,dias_trabajados:item.diasTrabajados,fechas:item.fechas,monto:item.monto}))})});
+      if(!aviso.ok)alert('La caja se cerro, pero no fue posible enviar el correo de alerta del 7mo. Revisa el email de notificaciones del perfil.');
+    }
     await cargarBase();
     alert(estado === 'cerrada' ? 'Caja cerrada.' : 'Borrador guardado.');
   }
@@ -373,6 +415,8 @@ export default function CajaDiariaPage() {
           </div>
           <EditorLineas titulo="Compras y Gastos" lineas={gastos} onChange={setGastos} />
         </div>
+
+        {septimos.size>0&&<section className="rounded-xl border border-amber-300 bg-amber-50 p-4 shadow-sm"><div className="flex items-center justify-between gap-3"><div><h2 className="font-black text-[#2A1710]">Pago de 7mo</h2><p className="text-xs font-bold text-[#4B2818]/60">Base + demasia de los dias trabajados, dividido siempre por 6.</p></div><span className="rounded-full bg-[#2A1710] px-4 py-2 text-sm font-black text-white">{dinero(totalSeptimos)}</span></div><div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">{[...septimos.entries()].map(([id,item])=>{const persona=funcionariosPanaderos.find((funcionario)=>funcionario.id===id);return <div key={id} className={`rounded-lg border bg-white p-3 ${item.diasTrabajados<6?'border-red-300':'border-emerald-200'}`}><div className="flex items-center justify-between gap-2"><span className="font-black">{persona?nombreBreve(persona):'Panadero'}</span><span className="font-black text-[#A51F2B]">{dinero(item.monto)}</span></div><p className={`mt-1 text-xs font-black ${item.diasTrabajados<6?'text-red-700':'text-emerald-700'}`}>{item.diasTrabajados} de 6 dias trabajados{item.diasTrabajados<6?' · requiere confirmacion':''}</p></div>})}</div></section>}
 
         <section className="overflow-hidden rounded-xl border border-[#4B2818]/15 bg-white shadow-sm">
           <div className="border-b border-[#4B2818]/10 bg-[#2A1710] px-5 py-4 text-white"><h2 className="text-lg font-black">Cuadre del día</h2><p className="text-xs font-bold text-white/65">Efectivo + Tarjetas + Panaderos + Compras/Gastos</p></div>
