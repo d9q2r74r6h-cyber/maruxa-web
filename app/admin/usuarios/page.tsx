@@ -497,13 +497,13 @@ export default function UsuariosPage() {
               </h2>
             </div>
             <div className="overflow-x-auto">
-              <div className="grid min-w-[1080px] grid-cols-[220px_115px_130px_190px_190px_110px_70px_85px] gap-2 border-b border-[#4B2818]/15 bg-[#2A1710] px-3 py-3 text-[10px] font-black uppercase tracking-wide text-white">
+              <div className="grid min-w-[940px] grid-cols-[170px_95px_110px_145px_150px_80px_65px_75px] gap-1 border-b border-[#4B2818]/15 bg-[#2A1710] px-2 py-3 text-[10px] font-black uppercase tracking-wide text-white">
                 <span>Funcionario</span><span>Nombre corto</span><span>Descanso</span><span>Cargos</span><span>Dominical</span><span>Comisión</span><span>Estado</span><span></span>
               </div>
               {funcionarios.map((funcionario) => (
                 <div
                   key={funcionario.id}
-                  className="grid min-w-[1080px] grid-cols-[220px_115px_130px_190px_190px_110px_70px_85px] items-start gap-2 border-b border-[#4B2818]/10 px-3 py-3 text-xs hover:bg-[#FFF9EF]"
+                  className="grid min-w-[940px] grid-cols-[170px_95px_110px_145px_150px_80px_65px_75px] items-start gap-1 border-b border-[#4B2818]/10 px-2 py-3 text-xs hover:bg-[#FFF9EF]"
                 >
                   <div className="min-w-0"><p className="truncate font-black text-[#2A1710]" title={funcionario.nombre_completo}>{funcionario.nombre_completo}</p>
                     {fechaCorta(funcionario.fecha_nacimiento) && (
@@ -514,7 +514,7 @@ export default function UsuariosPage() {
                   <div className="space-y-1"><label className="flex h-8 items-center gap-2 rounded border px-2 text-[9px] font-black uppercase"><input type="checkbox" checked={funcionario.recibe_dominical || false} onChange={(event)=>void actualizarDatosBreves(funcionario,{recibe_dominical:event.target.checked,ciclo_dominical:event.target.checked?(funcionario.ciclo_dominical||'impar'):null})}/>Recibe</label>{funcionario.recibe_dominical&&<select value={funcionario.ciclo_dominical||'impar'} onChange={(event)=>void actualizarDatosBreves(funcionario,{ciclo_dominical:event.target.value as 'impar'|'par'})} className="h-8 w-full rounded border bg-white px-1 text-[9px] font-bold"><option value="impar">Meses impares</option><option value="par">Meses pares</option></select>}</div>
                   <div className="space-y-1"><label className="flex h-8 items-center gap-1 text-[10px] font-black"><input type="checkbox" checked={funcionario.trabaja_comision || false} onChange={(event) => void actualizarComision(funcionario, event.target.checked)} />Sí</label>{funcionario.trabaja_comision&&<span className="flex h-7 items-center rounded border pr-1"><input type="number" step="0.1" min="0" value={funcionario.porcentaje_comision || 3} onChange={(event) => setFuncionarios((actuales) => actuales.map((item) => item.id === funcionario.id ? { ...item, porcentaje_comision: Number(event.target.value) } : item))} onBlur={(event) => void actualizarComision(funcionario,true,Number(event.target.value))} className="min-w-0 flex-1 px-1 text-right text-[10px] font-black"/><span>%</span></span>}</div>
                   <span className={`mt-1 rounded-full px-2 py-1 text-center text-[9px] font-black uppercase ${funcionario.activo ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>{funcionario.activo ? 'Activo' : 'Inactivo'}</span>
-                  <button type="button" onClick={() => abrirEdicion(funcionario)} className="inline-flex h-8 items-center justify-center gap-1 rounded-md border border-[#A51F2B]/30 px-2 text-[10px] font-black text-[#A51F2B]"><Pencil className="h-3.5 w-3.5" />Editar</button>
+                  <button type="button" onClick={() => abrirEdicion(funcionario)} className="inline-flex h-8 items-center justify-center gap-1 rounded-md border border-[#A51F2B]/30 px-1 text-[9px] font-black text-[#A51F2B]"><Pencil className="h-3.5 w-3.5" />Editar</button>
                 </div>
               ))}
             </div>
