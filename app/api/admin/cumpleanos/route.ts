@@ -14,6 +14,7 @@ type Funcionario = {
   telefono: string | null;
   fecha_nacimiento: string | null;
   ultimo_saludo_cumpleanos: number | null;
+  ultimo_aviso_previo_cumpleanos: number | null;
 };
 
 function crearAdmin() {
@@ -26,9 +27,15 @@ function crearAdmin() {
   });
 }
 
-function fechaChile() {
+function fechaChile(desplazamientoDias = 0) {
+  const ahora = new Date();
+  const basePartes = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Santiago', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(ahora);
+  const baseValor = (tipo: Intl.DateTimeFormatPartTypes) => basePartes.find((parte) => parte.type === tipo)?.value || '';
+  const fechaObjetivo = new Date(Date.UTC(Number(baseValor('year')), Number(baseValor('month')) - 1, Number(baseValor('day')) + desplazamientoDias, 12));
   const partes = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Santiago',
+    timeZone: 'UTC',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -94,7 +101,7 @@ async function enviarEmail(destino: string | null, asunto: string, mensaje: stri
   if (!resend || !destino) return null;
 
   const { error } = await resend.emails.send({
-    from: 'Panaderia Maruxa <pedidos@panaderiamaruxa.cl>',
+    from: 'Panadería Maruxa <admin@panaderiamaruxa.cl>',
     to: [destino],
     subject: asunto,
     html: `<p>${escaparHtml(mensaje).replace(/\n/g, '<br />')}</p>`,
@@ -133,7 +140,7 @@ export async function GET(request: Request) {
   const { data, error } = await admin
     .from('funcionarios')
     .select(
-      'id,empresa_id,nombre_completo,email,telefono,fecha_nacimiento,ultimo_saludo_cumpleanos'
+      'id,empresa_id,nombre_completo,email,telefono,fecha_nacimiento,ultimo_saludo_cumpleanos,ultimo_aviso_previo_cumpleanos'
     )
     .eq('activo', true)
     .not('fecha_nacimiento', 'is', null);
@@ -143,6 +150,28 @@ export async function GET(request: Request) {
   }
 
   const funcionarios = (data || []) as Funcionario[];
+  const manana = fechaChile(1);
+  const cumpleanerosManana = funcionarios.filter(
+    (funcionario) =>
+      mesDia(funcionario.fecha_nacimiento) === manana.mesDia &&
+      Number(funcionario.ultimo_aviso_previo_cumpleanos || 0) !== manana.anio
+  );
+  const avisosPrevios = [];
+
+  for (const cumpleanero of cumpleanerosManana) {
+    const companeros = funcionarios.filter(
+      (funcionario) => funcionario.empresa_id === cumpleanero.empresa_id && funcionario.id !== cumpleanero.id
+    );
+    const avisoPrevio = `🎈 ¡Mañana está de cumpleaños ${cumpleanero.nombre_completo}! 🎂\nPreparemos un saludo especial para celebrar y hacerle sentir todo el cariño del equipo de Panadería Maruxa. 🥳`;
+    const errores = [];
+    for (const companero of companeros) {
+      const errorEnvio = await enviarEmail(companero.email, `🎂 Mañana celebramos a ${cumpleanero.nombre_completo}`, avisoPrevio);
+      if (errorEnvio) errores.push(errorEnvio);
+    }
+    await admin.from('funcionarios').update({ ultimo_aviso_previo_cumpleanos: manana.anio }).eq('id', cumpleanero.id);
+    avisosPrevios.push({ funcionario_id: cumpleanero.id, nombre: cumpleanero.nombre_completo, avisos_companeros: companeros.length, errores });
+  }
+
   const cumpleaneros = funcionarios.filter(
     (funcionario) =>
       mesDia(funcionario.fecha_nacimiento) === hoy.mesDia &&
@@ -157,18 +186,18 @@ export async function GET(request: Request) {
         funcionario.empresa_id === cumpleanero.empresa_id &&
         funcionario.id !== cumpleanero.id
     );
-    const saludo = `Feliz cumpleanos, ${cumpleanero.nombre_completo}! Te deseamos un excelente dia de parte de Panaderia Maruxa.`;
-    const aviso = `Hoy es el cumpleanos de ${cumpleanero.nombre_completo}. No olvidemos saludarle y hacerle sentir parte importante del equipo.`;
+    const saludo = `🎉🎂 ¡Feliz cumpleaños, ${cumpleanero.nombre_completo}! 🥳\nQue tengas un día maravilloso, lleno de alegría y buenos momentos. Con mucho cariño, todo el equipo de Panadería Maruxa. ❤️`;
+    const aviso = `🎂🎉 ¡Hoy está de cumpleaños ${cumpleanero.nombre_completo}! 🥳\nNo olvidemos saludarle y hacerle sentir una parte muy especial de nuestro equipo. ¡Que sea un gran día! ❤️`;
 
     const errores = [
       await enviarWhatsApp(cumpleanero.telefono, saludo),
-      await enviarEmail(cumpleanero.email, 'Feliz cumpleanos', saludo),
+      await enviarEmail(cumpleanero.email, '🎉 ¡Feliz cumpleaños!', saludo),
     ].filter(Boolean);
 
     for (const companero of companeros) {
       const erroresCompanero = [
         await enviarWhatsApp(companero.telefono, aviso),
-        await enviarEmail(companero.email, 'Cumpleanos en el equipo Maruxa', aviso),
+        await enviarEmail(companero.email, `🎂 Hoy celebramos a ${cumpleanero.nombre_completo}`, aviso),
       ].filter(Boolean);
       errores.push(...erroresCompanero);
     }
@@ -188,6 +217,8 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     fecha: hoy.mesDia,
+    avisos_previos: avisosPrevios.length,
+    resultados_avisos_previos: avisosPrevios,
     cumpleanos: resultados.length,
     resultados,
   });
