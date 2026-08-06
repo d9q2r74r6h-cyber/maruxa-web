@@ -192,6 +192,31 @@ function imprimirHojaTurno(titulo: string, fecha: string, qq: number, lineas: Li
   ventana.document.close();
 }
 
+function imprimirHojaDiaria(fecha: string, turnos: Turno[], esFestivo: boolean, configPago: ConfigPago, funcionarios: Funcionario[], septimos: Map<string,{monto:number}>) {
+  const conPanaderos=turnos.map((turno)=>({...turno,lineas:lineasCalculadas(turno,esFestivo,configPago,fecha,funcionarios).filter((linea)=>linea.nombre.trim())})).filter((turno)=>turno.lineas.length);
+  if(!conPanaderos.length)return alert('Agrega al menos un panadero antes de imprimir la hoja.');
+  const ventana=window.open('','_blank','width=1000,height=750');
+  if(!ventana)return alert('El navegador bloqueo la ventana de impresion. Permite las ventanas emergentes para este sitio.');
+  const septimosUsados=new Set<string>();
+  const secciones=conPanaderos.map((turno)=>{
+    const participantes=turno.lineas.filter(recibeDemasia).length;
+    const demasiaTotal=numeroDecimal(turno.qq)*(esFestivo?configPago.demasia_festivo_qq:configPago.demasia_normal_qq);
+    const demasiaIndividual=participantes?demasiaTotal/participantes:0;
+    const filas=turno.lineas.map((linea)=>{
+      const demasia=recibeDemasia(linea)?demasiaIndividual:0;
+      const septimo=linea.funcionario_id&&!septimosUsados.has(linea.funcionario_id)?numero(septimos.get(linea.funcionario_id)?.monto):0;
+      if(septimo&&linea.funcionario_id)septimosUsados.add(linea.funcionario_id);
+      const total=numero(linea.total_pago)+septimo;
+      return `<tr><td>${escaparHtml(linea.nombre)}</td><td>${escaparHtml((linea.funcion||'').toUpperCase())}</td><td class="monto">${dinero(linea.monto)}</td><td class="monto">${dinero(demasia)}</td><td class="monto">${dinero(totalBonos(linea))}</td><td class="monto">${dinero(linea.dominical||0)}</td><td class="monto">${dinero(septimo)}</td><td class="monto total">${dinero(total)}</td><td class="firma"></td></tr>`;
+    }).join('');
+    return `<section class="turno"><div class="turno-titulo"><strong>Panaderos · ${escaparHtml(turno.nombre)}</strong><span>QQ: ${String(turno.qq||0).replace('.',',')}</span></div><table><thead><tr><th>Panadero</th><th>Funcion</th><th>Base</th><th>Demasia</th><th>Bonos</th><th>Dominical</th><th>7mo</th><th>Total</th><th>Firma</th></tr></thead><tbody>${filas}</tbody></table></section>`;
+  });
+  const paginas=[];
+  for(let indice=0;indice<secciones.length;indice+=2)paginas.push(`<div class="pagina"><header><h1>Panaderia Maruxa · Hoja diaria de pagos y firmas</h1><div><span>Fecha: ${new Date(`${fecha}T12:00:00`).toLocaleDateString('es-CL')}</span><span>${esFestivo?'Dia festivo':'Dia normal'}</span></div></header><main>${secciones.slice(indice,indice+2).join('')}</main></div>`);
+  ventana.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Firmas ${fecha}</title><style>@page{size:A4 landscape;margin:8mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#24150f;margin:0}.pagina{min-height:194mm;page-break-after:always}.pagina:last-child{page-break-after:auto}header{height:22mm;border-bottom:3px solid #9f1d2b;padding-bottom:7px}h1{font-family:Georgia,serif;font-size:20px;margin:0 0 6px}header div,.turno-titulo{display:flex;justify-content:space-between;font-size:11px;font-weight:700}main{display:grid;grid-template-rows:1fr 1fr;min-height:170mm}.turno{padding-top:7mm;min-height:85mm}.turno:first-child{border-bottom:1px dashed #9f8c7d}.turno-titulo{margin-bottom:5px;font-size:13px}table{width:100%;border-collapse:collapse;font-size:9px}th{background:#2a1710;color:#fff;text-align:left;padding:5px 4px}td{border:1px solid #bcae9e;padding:5px 4px;height:18mm}.monto{text-align:right;font-weight:700}.total{color:#9f1d2b;font-size:11px}.firma{min-width:42mm}</style></head><body>${paginas.join('')}<script>window.onload=()=>window.print()<\/script></body></html>`);
+  ventana.document.close();
+}
+
 function EditorLineas({ titulo, fecha, lineas, onChange, onRemove, panaderos, qq = 0, esFestivo = false, onQq, configPago = CONFIG_PAGO_BASE, funcionariosPanaderos = [], conceptosBono = [] }: { titulo: string; fecha?: string; lineas: Linea[]; onChange: (lineas: Linea[]) => void; onRemove?: () => void; panaderos?: boolean; qq?: number; esFestivo?: boolean; onQq?: (valor: number) => void; configPago?: ConfigPago; funcionariosPanaderos?: Funcionario[]; conceptosBono?: ConceptoBono[] }) {
   const [qqTexto, setQqTexto] = useState(qq ? String(qq).replace('.', ',') : '');
   useEffect(() => { setQqTexto(qq ? String(qq).replace('.', ',') : ''); }, [qq]);
@@ -205,7 +230,7 @@ function EditorLineas({ titulo, fecha, lineas, onChange, onRemove, panaderos, qq
     <section className="rounded-xl border border-[#4B2818]/15 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <h2 className="font-black text-[#2A1710]">{titulo}</h2>
-        <div className="flex items-center gap-2">{panaderos && <><label className="flex items-center gap-2 text-xs font-black">QQ<input value={qqTexto} inputMode="decimal" onChange={(event) => { if (/^\d*(?:[.,]\d*)?$/.test(event.target.value)) setQqTexto(event.target.value); }} onBlur={() => onQq?.(Math.max(0, numeroDecimal(qqTexto)))} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} placeholder="Ej: 1,5" className="h-8 w-20 rounded border px-2 text-right" /></label><button type="button" onClick={() => imprimirHojaTurno(titulo, fecha || hoy, qq, lineas, esFestivo, configPago, funcionariosPanaderos)} className="inline-flex h-8 items-center gap-1 rounded-md border border-[#A51F2B]/30 px-2 text-[10px] font-black uppercase text-[#A51F2B]" title="Imprimir hoja para firma"><Printer className="h-3.5 w-3.5" />Firmas</button></>}{!panaderos && <span className="rounded-full bg-[#FFF3DF] px-3 py-1 text-sm font-black text-[#A51F2B]">{dinero(total)}</span>}{onRemove && <button type="button" onClick={onRemove} className="grid h-8 w-8 place-items-center rounded-md text-red-700 hover:bg-red-50" aria-label={`Eliminar ${titulo}`}><Trash2 className="h-4 w-4" /></button>}</div>
+        <div className="flex items-center gap-2">{panaderos && <label className="flex items-center gap-2 text-xs font-black">QQ<input value={qqTexto} inputMode="decimal" onChange={(event) => { if (/^\d*(?:[.,]\d*)?$/.test(event.target.value)) setQqTexto(event.target.value); }} onBlur={() => onQq?.(Math.max(0, numeroDecimal(qqTexto)))} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} placeholder="Ej: 1,5" className="h-8 w-20 rounded border px-2 text-right" /></label>}{!panaderos && <span className="rounded-full bg-[#FFF3DF] px-3 py-1 text-sm font-black text-[#A51F2B]">{dinero(total)}</span>}{onRemove && <button type="button" onClick={onRemove} className="grid h-8 w-8 place-items-center rounded-md text-red-700 hover:bg-red-50" aria-label={`Eliminar ${titulo}`}><Trash2 className="h-4 w-4" /></button>}</div>
       </div>
       <div className="mt-3 space-y-2">
         {panaderos && <div className="grid grid-cols-[minmax(110px,1fr)_68px_78px_82px_88px_92px_26px] gap-1.5 px-1 text-[9px] font-black uppercase text-[#4B2818]/55"><span>Panadero</span><span>Origen</span><span>Función</span><span>Demasía</span><span className="text-right">Base</span><span className="text-right">Total</span><span></span></div>}
@@ -411,6 +436,7 @@ export default function CajaDiariaPage() {
       </section>
       {errorDotaciones && <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm font-black text-red-800">No se pudieron cargar las dotaciones: {errorDotaciones}. Ejecuta la migración 20260803_dotaciones_por_nombre_feriados.sql.</div>}
 
+      <div className="flex justify-end"><button type="button" onClick={()=>imprimirHojaDiaria(fecha,turnos,esFestivo,configPago,funcionariosPanaderos,septimos)} className="inline-flex h-10 items-center gap-2 rounded-md border border-[#A51F2B]/35 bg-white px-4 text-xs font-black uppercase text-[#A51F2B]" title="Imprimir una hoja diaria con todos los turnos"><Printer className="h-4 w-4" />Hoja de firmas del dia</button></div>
       <fieldset disabled={bloqueada} className="space-y-5 disabled:opacity-75">
         <div className="grid gap-5 xl:grid-cols-2">
           <div className="space-y-5">
