@@ -38,6 +38,7 @@ const grupos: {
       { label: 'Mensajes', href: '/admin/whatsapp', modulo: 'whatsapp' },
       { label: 'Documentos tributarios', href: '/admin/documentos', modulo: 'documentos' },
       { label: 'Clientes', href: '/admin/clientes', modulo: 'clientes' },
+      { label: 'Clientes mayoristas', href: '/admin/mayoristas', modulo: 'mayoristas' },
       { label: 'Repartos mensuales', href: '/admin/repartos', modulo: 'repartos' },
       { label: 'Caja diaria', href: '/admin/caja' },
     ],

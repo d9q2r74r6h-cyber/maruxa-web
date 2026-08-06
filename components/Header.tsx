@@ -50,6 +50,7 @@ export function Header() {
       label: 'Tortas',
     },
     { href: '/#retiro', label: 'Retiro' },
+    { href: '/mayoristas', label: 'Mayoristas' },
     { href: '/contacto', label: 'Contacto' },
   ];
 
