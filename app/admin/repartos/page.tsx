@@ -547,15 +547,44 @@ export default function RepartosPage() {
 
     setCargando(true);
 
-    let { data: planillaData, error: errorPlanilla } = await supabase
+    const { data: planillasPeriodo, error: errorBusqueda } = await supabase
       .from('reparto_planillas')
       .select('*')
       .eq('empresa_id', perfil.empresa_id)
       .eq('anio', anio)
       .eq('mes', mes)
-      .eq('repartidor_nombre', repartidor.trim())
-      .limit(1)
-      .maybeSingle();
+      .order('updated_at', { ascending: false });
+
+    let errorPlanilla = errorBusqueda;
+    const compatibles = (planillasPeriodo || []).filter(
+      (item) =>
+        (repartidorId && item.repartidor_id === repartidorId) ||
+        correspondeAlRepartidor(item.repartidor_nombre, repartidor)
+    );
+    let planillaData = compatibles[0] || null;
+
+    if (!errorPlanilla && compatibles.length > 1) {
+      const ids = compatibles.map((item) => item.id);
+      const { data: detallesCompatibles, error: errorConteo } = await supabase
+        .from('reparto_planilla_detalles')
+        .select('planilla_id')
+        .in('planilla_id', ids);
+      if (errorConteo) {
+        errorPlanilla = errorConteo;
+      } else {
+        const cantidades = new Map<string, number>();
+        (detallesCompatibles || []).forEach((detalle) =>
+          cantidades.set(
+            detalle.planilla_id,
+            (cantidades.get(detalle.planilla_id) || 0) + 1
+          )
+        );
+        planillaData = [...compatibles].sort(
+          (a, b) =>
+            (cantidades.get(b.id) || 0) - (cantidades.get(a.id) || 0)
+        )[0];
+      }
+    }
 
     if (!errorPlanilla && !planillaData) {
       const resultadoCreacion = await supabase
