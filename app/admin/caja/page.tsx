@@ -276,6 +276,7 @@ export default function CajaDiariaPage() {
   const [observacion, setObservacion] = useState('');
   const [cierre, setCierre] = useState<Cierre | null>(null);
   const [historial, setHistorial] = useState<Cierre[]>([]);
+  const [septimosManuales, setSeptimosManuales] = useState<Record<string, number>>({});
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
 
@@ -292,10 +293,16 @@ export default function CajaDiariaPage() {
         const montoDia=lineas.filter((linea)=>linea.funcionario_id===persona.id).reduce((total,linea)=>total+(dia===fecha ? Math.max(0,numero(linea.total_pago)-totalBonos(linea)-numero(linea.dominical)) : baseMasDemasiaGuardada(linea)),0);
         if(montoDia>0){diasTrabajados+=1;fechas.push(dia);suma+=montoDia;}
       }
-      if(suma>0)resultado.set(persona.id,{monto:suma/6,diasTrabajados,fechas});
+      if(suma>0){
+        const calculado=suma/6;
+        const monto=Object.prototype.hasOwnProperty.call(septimosManuales,persona.id)
+          ? Math.max(0,numero(septimosManuales[persona.id]))
+          : calculado;
+        resultado.set(persona.id,{monto,diasTrabajados,fechas});
+      }
     });
     return resultado;
-  },[turnos,esFestivo,configPago,fecha,funcionariosPanaderos,historial]);
+  },[turnos,esFestivo,configPago,fecha,funcionariosPanaderos,historial,septimosManuales]);
   const totalSeptimos = [...septimos.values()].reduce((suma,item)=>suma+item.monto,0);
   const totalesTurnos = turnos.map((turno) => lineasCalculadas(turno, esFestivo, configPago, fecha, funcionariosPanaderos).reduce((suma, item) => suma + numero(item.total_pago ?? item.monto), 0));
   const totalPanaderos = totalesTurnos.reduce((suma, monto) => suma + monto, 0) + totalSeptimos;
@@ -338,6 +345,15 @@ export default function CajaDiariaPage() {
 
   function cargarCierre(item: Cierre | null) {
     setCierre(item);
+    const septimosGuardados: Record<string, number> = {};
+    if (item) {
+      lineasDeCierre(item).forEach((linea) => {
+        if (linea.funcionario_id && linea.septimo !== undefined) {
+          septimosGuardados[linea.funcionario_id] = numero(linea.septimo);
+        }
+      });
+    }
+    setSeptimosManuales(septimosGuardados);
     setTurnos(
       item?.turnos_panaderos?.length
         ? item.turnos_panaderos
@@ -450,7 +466,7 @@ export default function CajaDiariaPage() {
           <EditorLineas titulo="Compras y Gastos" lineas={gastos} onChange={setGastos} />
         </div>
 
-        {septimos.size>0&&<section className="rounded-xl border border-amber-300 bg-amber-50 p-4 shadow-sm"><div className="flex items-center justify-between gap-3"><div><h2 className="font-black text-[#2A1710]">Pago de 7mo</h2><p className="text-xs font-bold text-[#4B2818]/60">Base + demasia de los dias trabajados, dividido siempre por 6.</p></div><span className="rounded-full bg-[#2A1710] px-4 py-2 text-sm font-black text-white">{dinero(totalSeptimos)}</span></div><div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">{[...septimos.entries()].map(([id,item])=>{const persona=funcionariosPanaderos.find((funcionario)=>funcionario.id===id);return <div key={id} className={`rounded-lg border bg-white p-3 ${item.diasTrabajados<6?'border-red-300':'border-emerald-200'}`}><div className="flex items-center justify-between gap-2"><span className="font-black">{persona?nombreBreve(persona):'Panadero'}</span><span className="font-black text-[#A51F2B]">{dinero(item.monto)}</span></div><p className={`mt-1 text-xs font-black ${item.diasTrabajados<6?'text-red-700':'text-emerald-700'}`}>{item.diasTrabajados} de 6 dias trabajados{item.diasTrabajados<6?' · requiere confirmacion':''}</p></div>})}</div></section>}
+        {septimos.size>0&&<section className="rounded-xl border border-amber-300 bg-amber-50 p-4 shadow-sm"><div className="flex items-center justify-between gap-3"><div><h2 className="font-black text-[#2A1710]">Pago de 7mo</h2><p className="text-xs font-bold text-[#4B2818]/60">El cálculo es sugerido. Puedes modificar el monto antes de cerrar la caja.</p></div><span className="rounded-full bg-[#2A1710] px-4 py-2 text-sm font-black text-white">{dinero(totalSeptimos)}</span></div><div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">{[...septimos.entries()].map(([id,item])=>{const persona=funcionariosPanaderos.find((funcionario)=>funcionario.id===id);return <div key={id} className={`rounded-lg border bg-white p-3 ${item.diasTrabajados<6?'border-red-300':'border-emerald-200'}`}><div className="flex items-center gap-3"><span className="min-w-0 flex-1 truncate font-black">{persona?nombreBreve(persona):'Panadero'}</span><label className="grid gap-1 text-[10px] font-black uppercase text-[#4B2818]/60"><span>Monto 7mo</span><input type="text" inputMode="numeric" value={Math.round(item.monto)||''} onFocus={(event)=>event.currentTarget.select()} onChange={(event)=>setSeptimosManuales((actuales)=>({...actuales,[id]:Math.max(0,numero(event.target.value))}))} className="h-10 w-32 rounded-lg border-2 border-amber-300 px-3 text-right text-base font-black text-[#A51F2B] outline-none focus:border-[#A51F2B]"/></label></div><p className={`mt-2 text-xs font-black ${item.diasTrabajados<6?'text-red-700':'text-emerald-700'}`}>{item.diasTrabajados} de 6 dias trabajados{item.diasTrabajados<6?' · requiere confirmacion':''}</p></div>})}</div></section>}
 
         <section className="overflow-hidden rounded-xl border border-[#4B2818]/15 bg-white shadow-sm">
           <div className="border-b border-[#4B2818]/10 bg-[#2A1710] px-5 py-4 text-white"><h2 className="text-lg font-black">Cuadre del día</h2><p className="text-xs font-bold text-white/65">Efectivo + Tarjetas + Panaderos + Compras/Gastos</p></div>
