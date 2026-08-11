@@ -3744,7 +3744,7 @@ export default function AdminPlanillasPage() {
     }, 80);
 
     return () => window.clearTimeout(timeout);
-  }, [focoGrillaPendiente, turnoSeleccionadoId, fecha]);
+  }, [focoGrillaPendiente, turnoSeleccionadoId, turnoCargadoClave, fecha]);
 
   if (cargandoTurnos) {
     return (
@@ -4146,11 +4146,18 @@ export default function AdminPlanillasPage() {
                     const esTurnoActivo =
                       !fila.editable?.turno ||
                       fila.editable.turno === turnoSeleccionado?.orden;
+                    const claveTurnoCelda = fila.editable?.turno
+                      ? claveBorrador(fechaCelda, fila.editable.turno)
+                      : '';
+                    const turnoCeldaCargado = Boolean(
+                      claveTurnoCelda && turnoCargadoClave === claveTurnoCelda
+                    );
                     const esEditable = Boolean(
                       fila.editable &&
                       esDiaActivo &&
                       columnaEditable === fechaCelda &&
                       esTurnoActivo &&
+                      turnoCeldaCargado &&
                       celdaEditable?.dia === dia &&
                       celdaEditable?.fila === indiceFilaMensual
                     );
@@ -4211,6 +4218,7 @@ export default function AdminPlanillasPage() {
                               ) || ''
                             }
                             onChange={(event) => {
+                              if (turnoCargadoClave !== claveTurnoCelda) return;
                               const valor = Number(event.target.value || 0);
                               cambiarCampoGrilla(
                                 fila.editable!.campo,
