@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   ArrowRight,
   Loader2,
+  Send,
   Scale,
 } from 'lucide-react';
 import { useAdminSession } from '@/components/AdminSession';
@@ -14,6 +15,7 @@ import { supabase } from '@/lib/supabase';
 type ComparativoDia = {
   claveRepartidor: string;
   repartidor: string;
+  funcionarioId: string | null;
   fecha: string;
   rinde: number;
   repartos: number;
@@ -73,6 +75,8 @@ export default function AlertasPage() {
   const [registros, setRegistros] = useState<ComparativoDia[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
+  const [enviando, setEnviando] = useState('');
+  const [resultadoEnvio, setResultadoEnvio] = useState<Record<string, string>>({});
 
   useEffect(() => {
     async function cargarComparativo() {
@@ -85,7 +89,7 @@ export default function AlertasPage() {
       const inicio = `${mes}-01`;
       const fin = `${mes}-${String(new Date(anio, numeroMes, 0).getDate()).padStart(2, '0')}`;
 
-      const [planillasRindeResp, planillasRepartoResp] = await Promise.all([
+      const [planillasRindeResp, planillasRepartoResp, funcionariosResp] = await Promise.all([
         supabase
           .from('planillas')
           .select('id,fecha')
@@ -94,18 +98,24 @@ export default function AlertasPage() {
           .lte('fecha', fin),
         supabase
           .from('reparto_planillas')
-          .select('id,repartidor_nombre')
+          .select('id,repartidor_id,repartidor_nombre')
           .eq('empresa_id', perfil.empresa_id)
           .eq('anio', anio)
           .eq('mes', numeroMes)
           .order('repartidor_nombre'),
+        supabase
+          .from('funcionarios')
+          .select('id,nombre_completo')
+          .eq('empresa_id', perfil.empresa_id)
+          .eq('activo', true),
       ]);
 
-      if (planillasRindeResp.error || planillasRepartoResp.error) {
+      if (planillasRindeResp.error || planillasRepartoResp.error || funcionariosResp.error) {
         setRegistros([]);
         setError(
           planillasRindeResp.error?.message ||
             planillasRepartoResp.error?.message ||
+            funcionariosResp.error?.message ||
             'No fue posible cargar el comparativo.'
         );
         setCargando(false);
@@ -124,12 +134,22 @@ export default function AlertasPage() {
       const idsPlanillasReparto = (planillasRepartoResp.data || []).map(
         (planilla) => planilla.id
       );
+      const funcionarioPorClave = new Map(
+        (funcionariosResp.data || []).map((funcionario) => [
+          claveRepartidor(funcionario.nombre_completo),
+          funcionario.id,
+        ])
+      );
       const repartidorPorPlanilla = new Map(
         (planillasRepartoResp.data || []).map((planilla) => [
           String(planilla.id),
           {
             clave: claveRepartidor(planilla.repartidor_nombre),
             nombre: planilla.repartidor_nombre,
+            funcionarioId:
+              planilla.repartidor_id ||
+              funcionarioPorClave.get(claveRepartidor(planilla.repartidor_nombre)) ||
+              null,
           },
         ])
       );
@@ -173,7 +193,8 @@ export default function AlertasPage() {
       const obtenerDia = (
         clave: string,
         nombre: string,
-        fecha: string
+        fecha: string,
+        funcionarioId: string | null = null
       ) => {
         const llave = `${clave}::${fecha}`;
         const existente = porRepartidorFecha.get(llave);
@@ -181,6 +202,7 @@ export default function AlertasPage() {
         const nuevo = {
           claveRepartidor: clave,
           repartidor: nombresPorClave.get(clave) || nombre,
+          funcionarioId,
           fecha,
           rinde: 0,
           repartos: 0,
@@ -205,7 +227,8 @@ export default function AlertasPage() {
         const dia = obtenerDia(
           planilla.clave,
           planilla.nombre,
-          detalle.fecha
+          detalle.fecha,
+          planilla.funcionarioId
         );
         dia.repartos += numero(detalle.kilos_vendidos);
       });
@@ -258,6 +281,35 @@ export default function AlertasPage() {
       ),
     [registros]
   );
+
+  async function enviarAviso(dia: ComparativoDia) {
+    const llave = `${dia.claveRepartidor}-${dia.fecha}`;
+    if (!dia.funcionarioId) {
+      setResultadoEnvio((actual) => ({ ...actual, [llave]: 'Este reparto no está vinculado a un funcionario.' }));
+      return;
+    }
+    setEnviando(llave);
+    setResultadoEnvio((actual) => ({ ...actual, [llave]: '' }));
+    const { data: sesion } = await supabase.auth.getSession();
+    const diferencia = dia.rinde - dia.repartos;
+    const respuesta = await fetch('/api/admin/alertas/notificar', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(sesion.session?.access_token ? { Authorization: `Bearer ${sesion.session.access_token}` } : {}),
+      },
+      body: JSON.stringify({
+        funcionario_id: dia.funcionarioId,
+        mensaje: `Aviso Panadería Maruxa: el ${formatoFecha(dia.fecha)} hay una diferencia de ${formatoKilos(diferencia)} entre Planilla (${formatoKilos(dia.rinde)}) y Repartos (${formatoKilos(dia.repartos)}). Por favor, revisa los datos ingresados.`,
+      }),
+    });
+    const datos = await respuesta.json().catch(() => ({}));
+    setResultadoEnvio((actual) => ({
+      ...actual,
+      [llave]: respuesta.ok ? `Aviso enviado a ${datos.destinatario || dia.repartidor}.` : datos.error || 'No fue posible enviar el aviso.',
+    }));
+    setEnviando('');
+  }
 
   return (
     <div className="space-y-6 pb-12">
@@ -382,11 +434,13 @@ export default function AlertasPage() {
                   <th className="px-3 py-3 text-right">Planilla</th>
                   <th className="px-3 py-3 text-right">Repartos</th>
                   <th className="px-5 py-3 text-right">Diferencia</th>
+                  <th className="px-5 py-3 text-right">Aviso</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#4B2818]/10">
                 {alertasConDiferencia.map((dia) => {
                   const diferencia = dia.rinde - dia.repartos;
+                  const llave = `${dia.claveRepartidor}-${dia.fecha}`;
                   return (
                     <tr key={`${dia.claveRepartidor}-${dia.fecha}`}>
                       <td className="px-5 py-3 font-black">
@@ -410,6 +464,18 @@ export default function AlertasPage() {
                       >
                         {diferencia > 0 ? '+' : ''}
                         {formatoKilos(diferencia)}
+                      </td>
+                      <td className="px-5 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => void enviarAviso(dia)}
+                          disabled={enviando === llave}
+                          className="inline-flex items-center gap-2 rounded-lg bg-[#A51F2B] px-3 py-2 text-xs font-black text-white disabled:opacity-60"
+                        >
+                          {enviando === llave ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                          Enviar aviso
+                        </button>
+                        {resultadoEnvio[llave] && <p className={`mt-1 max-w-56 text-xs font-bold ${resultadoEnvio[llave].startsWith('Aviso enviado') ? 'text-emerald-700' : 'text-red-700'}`}>{resultadoEnvio[llave]}</p>}
                       </td>
                     </tr>
                   );
