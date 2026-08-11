@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Building2, Loader2, Save, ShieldAlert, Truck } from 'lucide-react';
+import { Building2, Loader2, Save, ShieldAlert, Trash2, Truck } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAdminSession } from '@/components/AdminSession';
 
@@ -31,6 +31,7 @@ export default function MayoristasAdminPage() {
   const [eventos, setEventos] = useState<EventoSeguridad[]>([]);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState('');
+  const [limpiando, setLimpiando] = useState(false);
 
   async function cargar() {
     if (!perfil) return;
@@ -62,10 +63,22 @@ export default function MayoristasAdminPage() {
     await cargar();
   }
 
+  async function limpiarAutomatizadas() {
+    if (!confirm('Se eliminarán únicamente las solicitudes pendientes detectadas como automatizadas y sus cuentas de acceso. ¿Continuar?')) return;
+    setLimpiando(true);
+    const token = (await supabase.auth.getSession()).data.session?.access_token;
+    const respuesta = await fetch('/api/admin/mayoristas/limpiar-automatizadas', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+    const datos = await respuesta.json().catch(() => ({}));
+    setLimpiando(false);
+    if (!respuesta.ok) return alert(datos.error || 'No fue posible realizar la limpieza.');
+    alert(`Se eliminaron ${datos.eliminadas || 0} solicitudes automatizadas.`);
+    await cargar();
+  }
+
   if (cargando) return <div className="grid min-h-64 place-items-center"><Loader2 className="h-7 w-7 animate-spin text-[#A51F2B]" /></div>;
 
   return <div className="space-y-5 pb-12">
-    <header><p className="text-xs font-black uppercase tracking-widest text-[#A51F2B]">Comercial</p><h1 className="mt-1 text-3xl font-black text-[#2A1710]">Clientes mayoristas</h1><p className="mt-2 text-sm font-bold text-[#4B2818]/65">Valida solicitudes y configura precios, mínimos y despacho.</p></header>
+    <header className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-widest text-[#A51F2B]">Comercial</p><h1 className="mt-1 text-3xl font-black text-[#2A1710]">Clientes mayoristas</h1><p className="mt-2 text-sm font-bold text-[#4B2818]/65">Valida solicitudes y configura precios, mínimos y despacho.</p></div><button type="button" onClick={() => void limpiarAutomatizadas()} disabled={limpiando} className="inline-flex h-10 items-center gap-2 rounded-lg border border-red-300 bg-white px-4 text-sm font-black text-red-700 disabled:opacity-50">{limpiando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}Eliminar automatizadas</button></header>
 
     {eventos.length > 0 && <section className="overflow-hidden rounded-2xl border border-red-200 bg-white shadow-sm">
       <div className="flex items-center gap-2 bg-red-50 px-5 py-4"><ShieldAlert className="h-5 w-5 text-red-700" /><div><h2 className="font-black text-red-950">Intentos bloqueados</h2><p className="text-xs font-bold text-red-900/60">Últimos 50 envíos automatizados detectados.</p></div></div>
