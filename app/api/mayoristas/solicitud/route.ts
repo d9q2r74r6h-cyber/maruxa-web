@@ -11,6 +11,7 @@ const REGIONES_CHILE = new Set([
 ]);
 
 function texto(valor: unknown) { return String(valor ?? '').trim().replace(/\s+/g, ' '); }
+function decodificar(valor: string) { try { return decodeURIComponent(valor); } catch { return valor; } }
 function escapar(valor: unknown) { return texto(valor).replace(/[&<>"']/g,(caracter)=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[caracter] || caracter)); }
 function rutLimpio(valor: unknown) { return texto(valor).replace(/[^0-9kK]/g,'').toUpperCase(); }
 function rutValido(valor: unknown) {
@@ -56,6 +57,17 @@ export async function POST(request: Request) {
     const ipHash=ip?createHmac('sha256',key).update(`${empresa.id}:${ip}`).digest('hex'):null;
     const resumen={
       duracion_ms:Math.max(0,Date.now()-Number(datos.form_started_at||Date.now())),
+      ubicacion_conexion:{
+        pais:(request.headers.get('x-vercel-ip-country')||request.headers.get('cf-ipcountry')||'').slice(0,8)||null,
+        region:(request.headers.get('x-vercel-ip-country-region')||'').slice(0,80)||null,
+        ciudad:decodificar(request.headers.get('x-vercel-ip-city')||'').slice(0,100)||null,
+        zona_horaria:(request.headers.get('x-vercel-ip-timezone')||'').slice(0,80)||null,
+      },
+      ubicacion_declarada:{
+        pais:texto(datos.empresa_pais).slice(0,80)||null,
+        region:texto(datos.empresa_region).slice(0,100)||null,
+        comuna:texto(datos.empresa_comuna).slice(0,100)||null,
+      },
       razon_social_longitud:texto(datos.razon_social).length,
       contacto_palabras:texto(datos.contacto_nombre).split(/\s+/).filter(Boolean).length,
       direccion_longitud:texto(datos.empresa_direccion).length,
