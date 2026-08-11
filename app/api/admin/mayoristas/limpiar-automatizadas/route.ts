@@ -31,9 +31,9 @@ export async function POST(request: Request) {
   const { data: perfil } = await admin.from('perfiles_usuario').select('empresa_id,activo,rol').eq('id', autenticacion.user.id).maybeSingle();
   if (!perfil?.activo || !['superadmin', 'administrador'].includes(perfil.rol)) return NextResponse.json({ error: 'Acceso denegado.' }, { status: 403 });
 
-  const { data: pendientes, error } = await admin.from('clientes_mayoristas').select('id,auth_user_id,razon_social,contacto_nombre,empresa_direccion,empresa_comuna,empresa_ciudad').eq('empresa_id', perfil.empresa_id).eq('estado', 'pendiente');
+  const { data: candidatas, error } = await admin.from('clientes_mayoristas').select('id,auth_user_id,razon_social,contacto_nombre,empresa_direccion,empresa_comuna,empresa_ciudad').eq('empresa_id', perfil.empresa_id).neq('estado', 'aprobado');
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  const sucias = (pendientes || []).filter((item) =>
+  const sucias = (candidatas || []).filter((item) =>
     !pareceTextoHumano(item.razon_social, 3, 120) ||
     !pareceNombreCompleto(item.contacto_nombre) ||
     !pareceTextoHumano(item.empresa_direccion, 5, 160) ||
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
   if (!sucias.length) return NextResponse.json({ ok: true, eliminadas: 0 });
 
   const ids = sucias.map((item) => item.id);
-  const { error: errorBorrado } = await admin.from('clientes_mayoristas').delete().in('id', ids).eq('empresa_id', perfil.empresa_id).eq('estado', 'pendiente');
+  const { error: errorBorrado } = await admin.from('clientes_mayoristas').delete().in('id', ids).eq('empresa_id', perfil.empresa_id).neq('estado', 'aprobado');
   if (errorBorrado) return NextResponse.json({ error: errorBorrado.message }, { status: 500 });
   const cuentas = sucias.map((item) => item.auth_user_id).filter(Boolean) as string[];
   const resultados = await Promise.allSettled(cuentas.map((id) => admin.auth.admin.deleteUser(id)));
