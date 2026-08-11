@@ -86,6 +86,21 @@ function numero(valor: unknown) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function montoPesos(valor: unknown) {
+  const original = String(valor ?? '').trim();
+  const negativo = original.startsWith('-');
+  const digitos = original.replace(/\D/g, '');
+  if (!digitos) return 0;
+  const monto = Number(digitos);
+  return Number.isFinite(monto) ? (negativo ? -monto : monto) : 0;
+}
+
+function montoPesosGuardado(valor: unknown) {
+  const numerico = Number(valor || 0);
+  if (Number.isFinite(numerico) && Number.isInteger(numerico)) return numerico;
+  return montoPesos(valor);
+}
+
 function normalizarNombre(valor: string | null | undefined) {
   return String(valor || '')
     .normalize('NFD')
@@ -611,7 +626,7 @@ export default function RepartosPage() {
     }
 
     setPlanilla(planillaData as Planilla);
-    setSaldoInicial(Number(planillaData.saldo_inicial || 0));
+    setSaldoInicial(montoPesosGuardado(planillaData.saldo_inicial));
 
     const [detallesRespuesta, abonosRespuesta] = await Promise.all([
       supabase
@@ -729,7 +744,7 @@ export default function RepartosPage() {
     setLiquidacion(
       borrador?.liquidacion || liquidacionGuardada(planillaData.observaciones)
     );
-    if (borrador) setSaldoInicial(Number(borrador.saldoInicial || 0));
+    if (borrador) setSaldoInicial(montoPesosGuardado(borrador.saldoInicial));
     setCambiosPendientes(Boolean(borrador));
     setCargando(false);
   }
@@ -1492,13 +1507,16 @@ export default function RepartosPage() {
         <label className="grid gap-1 text-xs font-black text-[#4B2818]">
           Saldo inicial
           <input
-            type="number"
-            value={saldoInicial || ''}
+            type="text"
+            inputMode="numeric"
+            value={saldoInicial ? Math.round(saldoInicial).toLocaleString('es-CL') : ''}
+            placeholder="$0"
+            onFocus={(e) => e.currentTarget.select()}
             onChange={(e) => {
               setCambiosPendientes(true);
-              setSaldoInicial(numero(e.target.value));
+              setSaldoInicial(montoPesos(e.target.value));
             }}
-            className="sin-spinner h-10 rounded-md border border-[#4B2818]/20 px-3 font-bold"
+            className="h-10 rounded-md border border-[#4B2818]/20 px-3 text-right font-bold"
           />
         </label>
 
