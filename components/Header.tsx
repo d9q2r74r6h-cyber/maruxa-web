@@ -116,7 +116,7 @@ export function Header() {
               <ShoppingBag size={18} />
               Comprar
               {cantidad > 0 && (
-                <span className="absolute -right-2 -top-2 grid h-6 w-6 place-items-center rounded-full bg-white text-xs font-black text-maruxa-rojo">
+                <span className="absolute -right-2 -top-2 grid h-6 w-6 place-items-center rounded-full bg-white text-xs font-black text-[#A51F2B]">
                   {cantidad}
                 </span>
               )}
