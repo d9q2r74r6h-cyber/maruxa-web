@@ -200,7 +200,7 @@ export default function PerfilPage() {
           </div>
           <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-3">
             {perfil?.rol === 'superadmin' || perfil?.rol === 'administrador' ? (
-              <div className="rounded-md border border-emerald-200 bg-emerald-50 p-4 font-black text-emerald-800">
+              <div className="w-full rounded-md border border-emerald-200 bg-emerald-50 p-4 font-black text-emerald-800 sm:col-span-2 xl:col-span-3">
                 Acceso administrativo completo
               </div>
             ) : permisos.length === 0 ? (
