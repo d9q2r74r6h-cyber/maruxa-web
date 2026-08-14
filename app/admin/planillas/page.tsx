@@ -2253,10 +2253,19 @@ export default function AdminPlanillasPage() {
       .eq('fecha', fechaSeleccionada)
       .maybeSingle();
 
-    if (errorPlanilla || !planilla) {
+    if (errorPlanilla) {
       if (!cargaVigente()) return;
       limpiarTurno();
       setTurnoCargadoClave('');
+      return;
+    }
+
+    if (!planilla) {
+      if (!cargaVigente()) return;
+      limpiarTurno();
+      setTurnoCargadoClave(
+        claveBorrador(fechaSeleccionada, turnoConfig.orden)
+      );
       return;
     }
 
@@ -2355,7 +2364,9 @@ export default function AdminPlanillasPage() {
     if (!turnoDb && !turnoEnResumen && detalleRepartos.length === 0) {
       if (!cargaVigente()) return;
       limpiarTurno();
-      setTurnoCargadoClave('');
+      setTurnoCargadoClave(
+        claveBorrador(fechaSeleccionada, turnoConfig.orden)
+      );
       return;
     }
 
