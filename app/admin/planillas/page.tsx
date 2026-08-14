@@ -4157,8 +4157,10 @@ export default function AdminPlanillasPage() {
                     const esTurnoActivo =
                       !fila.editable?.turno ||
                       fila.editable.turno === turnoSeleccionado?.orden;
-                    const claveTurnoCelda = fila.editable?.turno
-                      ? claveBorrador(fechaCelda, fila.editable.turno)
+                    const ordenTurnoCelda =
+                      fila.editable?.turno ?? turnoSeleccionado?.orden;
+                    const claveTurnoCelda = fila.editable && ordenTurnoCelda
+                      ? claveBorrador(fechaCelda, ordenTurnoCelda)
                       : '';
                     const turnoCeldaCargado = Boolean(
                       claveTurnoCelda && turnoCargadoClave === claveTurnoCelda
