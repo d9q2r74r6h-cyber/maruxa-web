@@ -17,11 +17,35 @@ export default function CrearContrasenaPage() {
   useEffect(() => {
     let activo = true;
 
-    supabase.auth.getSession().then(({ data }) => {
+    async function prepararSesion() {
+      const parametros = new URLSearchParams(window.location.search);
+      const tokenHash = parametros.get('token_hash');
+      const tipo = parametros.get('type');
+
+      if (tokenHash && (tipo === 'invite' || tipo === 'recovery')) {
+        const { error: errorVerificacion } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: tipo,
+        });
+
+        if (!activo) return;
+        if (errorVerificacion) {
+          setError('La invitación venció o ya fue utilizada. Solicita una nueva invitación.');
+          setSesionDisponible(false);
+          setComprobando(false);
+          return;
+        }
+
+        window.history.replaceState({}, '', '/admin/crear-contrasena');
+      }
+
+      const { data } = await supabase.auth.getSession();
       if (!activo) return;
       setSesionDisponible(Boolean(data.session));
       setComprobando(false);
-    });
+    }
+
+    void prepararSesion();
 
     const { data: suscripcion } = supabase.auth.onAuthStateChange(
       (_evento, sesion) => {
@@ -97,7 +121,7 @@ export default function CrearContrasenaPage() {
         {!sesionDisponible ? (
           <div className="mt-6">
             <p className="rounded-md bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800">
-              Este enlace ya venció o no contiene una sesión válida. Solicita una nueva invitación o restablece la contraseña.
+              {error || 'Este enlace ya venció o no contiene una sesión válida. Solicita una nueva invitación o restablece la contraseña.'}
             </p>
             <button
               type="button"

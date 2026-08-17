@@ -3718,8 +3718,7 @@ export default function AdminComprasPage() {
                       <td className="px-4 py-3 text-right">
                         {item.cantidad.toLocaleString('es-CL', {
                           maximumFractionDigits: 4,
-                        })}{' '}
-                        {item.unidad_base || ''}
+                        })}{' UN'}
                       </td>
 
                       <td className="px-4 py-3 text-right">

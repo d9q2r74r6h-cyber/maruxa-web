@@ -40,7 +40,7 @@ function fechaChile(desplazamientoDias = 0) {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).formatToParts(new Date());
+  }).formatToParts(fechaObjetivo);
 
   const valor = (tipo: Intl.DateTimeFormatPartTypes) =>
     partes.find((parte) => parte.type === tipo)?.value || '';
