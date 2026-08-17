@@ -109,14 +109,20 @@ export async function POST(request: Request) {
     );
   }
 
-  let { data, error } = await admin.auth.admin.generateLink({
-    type: 'invite',
-    email,
-    options: { data: { nombre_visible: nombre } },
-  });
-  let usuarioNuevo = true;
+  const enlaceInicial = userId
+    ? await admin.auth.admin.generateLink({
+        type: 'recovery',
+        email,
+      })
+    : await admin.auth.admin.generateLink({
+        type: 'invite',
+        email,
+        options: { data: { nombre_visible: nombre } },
+      });
+  let { data, error } = enlaceInicial;
+  let usuarioNuevo = !userId;
 
-  if (error) {
+  if (error && !userId) {
     const { data: usuariosExistentes, error: errorUsuarios } =
       await admin.auth.admin.listUsers({ perPage: 1000 });
     const usuarios = (usuariosExistentes?.users || []) as User[];
