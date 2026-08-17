@@ -85,7 +85,10 @@ export function AdminSessionProvider({ children }: { children: ReactNode }) {
       usuarioSesionRef.current = null;
       setPerfil(null);
       setPermisos([]);
-      if (pathnameRef.current !== '/admin/login') {
+      if (
+        pathnameRef.current !== '/admin/login' &&
+        pathnameRef.current !== '/admin/crear-contrasena'
+      ) {
         router.replace('/admin/login');
       }
       setCargando(false);
@@ -215,7 +218,10 @@ export function AdminSessionProvider({ children }: { children: ReactNode }) {
     [cargando, esAdmin, perfil, permisos]
   );
 
-  if (pathname === '/admin/login') {
+  if (
+    pathname === '/admin/login' ||
+    pathname === '/admin/crear-contrasena'
+  ) {
     return (
       <AdminSessionContext.Provider value={valor}>
         {children}
