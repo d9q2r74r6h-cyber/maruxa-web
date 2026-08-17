@@ -68,7 +68,46 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Acceso denegado.' }, { status: 403 });
   }
 
-  const { email, nombre, funcionarioId, rol } = await request.json();
+  const {
+    email: emailSolicitado,
+    nombre: nombreSolicitado,
+    funcionarioId,
+    rol,
+    userId,
+  } = await request.json();
+  let email = String(emailSolicitado || '').trim();
+  let nombre = String(nombreSolicitado || '').trim();
+
+  if (userId) {
+    const [{ data: usuario }, { data: perfilDestino }] = await Promise.all([
+      admin.auth.admin.getUserById(userId),
+      admin
+        .from('perfiles_usuario')
+        .select('empresa_id,nombre_visible')
+        .eq('id', userId)
+        .maybeSingle(),
+    ]);
+
+    if (
+      !usuario.user?.email ||
+      perfilDestino?.empresa_id !== solicitante.empresa_id
+    ) {
+      return NextResponse.json(
+        { error: 'No se encontró una cuenta válida para reenviar el acceso.' },
+        { status: 404 }
+      );
+    }
+
+    email = usuario.user.email;
+    nombre = perfilDestino.nombre_visible || usuario.user.email;
+  }
+
+  if (!email || !nombre) {
+    return NextResponse.json(
+      { error: 'Correo y nombre son obligatorios.' },
+      { status: 400 }
+    );
+  }
 
   let { data, error } = await admin.auth.admin.generateLink({
     type: 'invite',

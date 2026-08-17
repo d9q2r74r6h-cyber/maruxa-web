@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   BadgePlus,
+  Mail,
   Pencil,
   Loader2,
   Save,
@@ -356,6 +357,36 @@ export default function UsuariosPage() {
     setGuardando(false);
   }
 
+  async function reenviarAcceso(usuario: Usuario) {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session) return;
+
+    setGuardando(true);
+    const respuesta = await fetch('/api/admin/invitar-usuario', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ userId: usuario.id }),
+    });
+    const resultado = await respuesta.json();
+    setGuardando(false);
+
+    if (!respuesta.ok) return alert(resultado.error);
+
+    await registrarAuditoria({
+      modulo: 'usuarios',
+      accion: 'invitar',
+      tabla: 'perfiles_usuario',
+      registroId: usuario.id,
+      descripcion: `Acceso reenviado: ${usuario.nombre_visible}`,
+    });
+    alert(`Correo de acceso reenviado a ${usuario.nombre_visible}.`);
+  }
+
   async function actualizarComision(
     funcionario: Funcionario,
     trabajaComision: boolean,
@@ -589,19 +620,33 @@ export default function UsuariosPage() {
               </div>
               <div className="mt-2 space-y-1">
                 {usuarios.map((usuario) => (
-                  <button
+                  <div
                     key={usuario.id}
-                    onClick={() => setUsuarioSeleccionado(usuario.id)}
-                    className={`w-full rounded-md px-3 py-3 text-left transition ${usuarioSeleccionado === usuario.id ? 'bg-[#2A1710] text-white' : 'hover:bg-[#FFF3DF]'}`}
+                    className={`flex items-center gap-1 rounded-md transition ${usuarioSeleccionado === usuario.id ? 'bg-[#2A1710] text-white' : 'hover:bg-[#FFF3DF]'}`}
                   >
-                    <p className="font-black">
-                      {usuario.funcionarios?.nombre_completo ||
-                        usuario.nombre_visible}
-                    </p>
-                    <p className="text-[10px] font-bold uppercase opacity-65">
-                      {usuario.rol}
-                    </p>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => setUsuarioSeleccionado(usuario.id)}
+                      className="min-w-0 flex-1 px-3 py-3 text-left"
+                    >
+                      <p className="truncate font-black">
+                        {usuario.funcionarios?.nombre_completo ||
+                          usuario.nombre_visible}
+                      </p>
+                      <p className="text-[10px] font-bold uppercase opacity-65">
+                        {usuario.rol}
+                      </p>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={guardando}
+                      onClick={() => void reenviarAcceso(usuario)}
+                      className="mr-2 grid h-8 w-8 shrink-0 place-items-center rounded-md border border-current/20 disabled:opacity-40"
+                      title={`Reenviar acceso a ${usuario.nombre_visible}`}
+                    >
+                      <Mail className="h-4 w-4" />
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>
