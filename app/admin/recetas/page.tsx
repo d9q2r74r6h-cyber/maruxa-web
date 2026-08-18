@@ -999,28 +999,6 @@ export default function AdminRecetasPage() {
           Recetas
         </h1>
 
-        <div className="mt-8 flex flex-wrap gap-2 rounded-2xl bg-white p-2 shadow-sm">
-  {[
-    { id: 'ingredientes', label: '🥣 Ingredientes' },
-    { id: 'insumos', label: '📦 Insumos' },
-    { id: 'resumen', label: '📊 Resumen' },
-    { id: 'subproductos', label: '🎂 Subproductos' },
-  ].map((tab) => (
-    <button
-      key={tab.id}
-      type="button"
-      onClick={() => setTabActiva(tab.id as typeof tabActiva)}
-      className={`rounded-xl border px-5 py-3 text-sm font-black transition ${
-        tabActiva === tab.id
-          ? 'border-maruxa-rojo bg-red-50 text-maruxa-rojo shadow-sm'
-          : 'border-transparent bg-maruxa-crema text-maruxa-chocolate hover:border-red-200 hover:bg-red-50 hover:text-maruxa-rojo'
-      }`}
-    >
-      {tab.label}
-    </button>
-  ))}
-</div>
-
         <section className="mt-10 rounded-[34px] bg-white p-6 shadow-premium">
           <h2 className="text-2xl font-black text-maruxa-chocolate">
             {recetaEditando ? 'Editar receta' : 'Nueva receta'}
@@ -1153,6 +1131,30 @@ export default function AdminRecetasPage() {
                 todos los costos del módulo son netos, sin IVA. Los precios de
                 venta y precios sugeridos son valores finales con IVA incluido
                 ({ivaVenta.toLocaleString('es-CL')}%).
+              </div>
+
+              <div className="mt-8 flex flex-wrap gap-2 rounded-2xl bg-white p-2 shadow-sm">
+                {[
+                  { id: 'ingredientes', label: '🥣 Ingredientes' },
+                  { id: 'insumos', label: '📦 Insumos' },
+                  { id: 'resumen', label: '📊 Resumen' },
+                  { id: 'subproductos', label: '🎂 Subproductos' },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() =>
+                      setTabActiva(tab.id as typeof tabActiva)
+                    }
+                    className={`rounded-xl border px-5 py-3 text-sm font-black transition ${
+                      tabActiva === tab.id
+                        ? 'border-maruxa-rojo bg-red-50 text-maruxa-rojo shadow-sm'
+                        : 'border-transparent bg-maruxa-crema text-maruxa-chocolate hover:border-red-200 hover:bg-red-50 hover:text-maruxa-rojo'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
               </div>
 
               {tabActiva === 'ingredientes' && (
