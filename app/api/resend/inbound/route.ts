@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 
 const correoPublico = 'contacto@panaderiamaruxa.cl';
+const correoRevisionMeta = 'meta.review@panaderiamaruxa.cl';
 const correoDestino = 'panaderiamaruxa@hotmail.com';
 
 function normalizarDireccion(valor: string) {
@@ -81,6 +82,10 @@ export async function GET() {
     acceso_api_recepcion: accesoApiRecepcion,
     prueba_recibida_en_resend: pruebaRecibidaEnResend,
     prueba_bandeja_recibida: pruebaBandeja,
+    alias_revision_meta: {
+      direccion: correoRevisionMeta,
+      reenvio: correoDestino,
+    },
   });
 }
 
@@ -128,19 +133,14 @@ export async function POST(request: NextRequest) {
       ...evento.data.bcc,
     ].map(normalizarDireccion);
 
-    if (!destinatarios.includes(correoPublico)) {
+    const dirigidoABandeja = destinatarios.includes(correoPublico);
+    const dirigidoARevisionMeta = destinatarios.includes(correoRevisionMeta);
+
+    if (!dirigidoABandeja && !dirigidoARevisionMeta) {
       return NextResponse.json({
         procesado: false,
         motivo: 'Destinatario no configurado',
       });
-    }
-
-    const empresaId = await obtenerEmpresaId(admin);
-    if (!empresaId) {
-      return NextResponse.json(
-        { error: 'No se pudo identificar la empresa receptora' },
-        { status: 503 }
-      );
     }
 
     const { data: correo, error: errorCorreo } =
@@ -151,6 +151,37 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'No se pudo obtener el contenido del correo' },
         { status: 502 }
+      );
+    }
+
+    if (dirigidoARevisionMeta) {
+      const { data, error } = await resend.emails.receiving.forward({
+        emailId: evento.data.email_id,
+        from: `Revisión Meta de Panadería Maruxa <${correoRevisionMeta}>`,
+        to: correoDestino,
+      });
+
+      if (error) {
+        console.error('No se pudo reenviar el correo de revisión Meta:', error);
+        return NextResponse.json(
+          { error: 'No se pudo reenviar el correo de revisión Meta' },
+          { status: 502 }
+        );
+      }
+
+      return NextResponse.json({
+        procesado: true,
+        tipo: 'alias_revision_meta',
+        id: data?.id,
+        email_id: evento.data.email_id,
+      });
+    }
+
+    const empresaId = await obtenerEmpresaId(admin);
+    if (!empresaId) {
+      return NextResponse.json(
+        { error: 'No se pudo identificar la empresa receptora' },
+        { status: 503 }
       );
     }
 
