@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { obtenerEmpresaActual } from '@/lib/empresa';
+import WhatsappCoexistencia from '@/components/WhatsappCoexistencia';
 
 type WhatsappEvento = {
   id: string;
@@ -762,6 +763,9 @@ export default function AdminWhatsappPage() {
   return (
     <main className="min-h-screen bg-maruxa-crema px-3 py-4 md:px-5 md:py-6">
       <div className="mx-auto max-w-5xl">
+        <div className="mb-4">
+          <WhatsappCoexistencia />
+        </div>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[.22em] text-maruxa-rojo">
