@@ -217,6 +217,18 @@ export function Home() {
             >
               Política de privacidad
             </a>
+            <a
+              href="/condiciones-del-servicio"
+              className="transition hover:text-maruxa-rojo"
+            >
+              Condiciones del servicio
+            </a>
+            <a
+              href="/eliminacion-de-datos"
+              className="transition hover:text-maruxa-rojo"
+            >
+              Eliminación de datos
+            </a>
           </div>
         </div>
       </footer>
