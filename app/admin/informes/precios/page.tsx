@@ -16,6 +16,7 @@ type ProductoPrecio = {
   id: number;
   nombre: string;
   precio: number | null;
+  precio_10: number | null;
   familia_id: string | null;
   proveedor_id: string | null;
   unidad_base: string | null;
@@ -162,7 +163,7 @@ export default function InformePreciosPage() {
         await Promise.all([
           supabase
             .from('productos')
-            .select('id,nombre,precio,familia_id,proveedor_id,unidad_base,created_at')
+            .select('id,nombre,precio,precio_10,familia_id,proveedor_id,unidad_base,created_at')
             .eq('empresa_id', perfil.empresa_id)
             .eq('activo', true)
             .eq('tipo_producto', 'producto')
@@ -189,9 +190,18 @@ export default function InformePreciosPage() {
         return;
       }
 
-      const productosConPrecio = ((productosData as ProductoPrecio[]) || []).filter(
-        (producto) => Number(producto.precio || 0) > 0
-      );
+      const productosConPrecio = ((productosData as ProductoPrecio[]) || [])
+        .map((producto) => ({
+          ...producto,
+          // En tortas, precio_10 es el precio comercial principal definido
+          // en Productos. El campo genérico precio puede contener el valor
+          // sugerido por la receta y no debe reemplazarlo en este informe.
+          precio:
+            Number(producto.precio_10 || 0) > 0
+              ? Number(producto.precio_10)
+              : Number(producto.precio || 0),
+        }))
+        .filter((producto) => Number(producto.precio || 0) > 0);
       const familiasActivas = (familiasData as Familia[]) || [];
       const productoIds = productosConPrecio.map((producto) => producto.id);
       const cambiosDetectados: Record<number, boolean> = {};
