@@ -133,6 +133,7 @@ export default function InformePreciosPage() {
   const [tamanoLinea2, setTamanoLinea2] = useState(24);
   const [mostrarCuarto, setMostrarCuarto] = useState(true);
   const [familiaId, setFamiliaId] = useState('');
+  const [proveedorId, setProveedorId] = useState('');
   const [busqueda, setBusqueda] = useState('');
   const [tipoFecha, setTipoFecha] = useState<
     'todos' | 'ingresados' | 'modificados' | 'ingresados_modificados'
@@ -263,6 +264,13 @@ export default function InformePreciosPage() {
     return productos.filter((producto) => {
       if (familiaId && producto.familia_id !== familiaId) return false;
       if (
+        proveedorId === 'sin-proveedor'
+          ? Boolean(producto.proveedor_id)
+          : proveedorId && producto.proveedor_id !== proveedorId
+      ) {
+        return false;
+      }
+      if (
         tipoFecha === 'ingresados' &&
         fechaChile(producto.created_at) !== fechaFiltro
       ) {
@@ -283,7 +291,15 @@ export default function InformePreciosPage() {
       }
       return !termino || normalizar(producto.nombre).includes(termino);
     });
-  }, [busqueda, familiaId, fechaFiltro, fechasModificacion, productos, tipoFecha]);
+  }, [
+    busqueda,
+    familiaId,
+    fechaFiltro,
+    fechasModificacion,
+    productos,
+    proveedorId,
+    tipoFecha,
+  ]);
 
   const productosSeleccionados = useMemo(
     () =>
@@ -432,7 +448,7 @@ export default function InformePreciosPage() {
         </button>
       </header>
 
-      <section className="no-print grid gap-4 rounded-3xl bg-white p-5 shadow-sm md:grid-cols-2 xl:grid-cols-7">
+      <section className="no-print grid gap-4 rounded-3xl bg-white p-5 shadow-sm md:grid-cols-2 xl:grid-cols-8">
         <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
           Formato
           <select
@@ -532,6 +548,22 @@ export default function InformePreciosPage() {
                 {familia.familia_padre_id
                   ? `${familias.find((item) => item.id === familia.familia_padre_id)?.nombre || 'Familia'} › ${familia.nombre}`
                   : familia.nombre}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
+          Proveedor
+          <select
+            value={proveedorId}
+            onChange={(event) => setProveedorId(event.target.value)}
+            className="h-11 min-w-0 w-full rounded-xl border bg-white px-3 text-sm font-bold normal-case text-maruxa-chocolate"
+          >
+            <option value="">Todos los proveedores</option>
+            <option value="sin-proveedor">Sin proveedor</option>
+            {proveedores.map((proveedor) => (
+              <option key={proveedor.id} value={proveedor.id}>
+                {proveedor.nombre_fantasia?.trim() || proveedor.razon_social}
               </option>
             ))}
           </select>
