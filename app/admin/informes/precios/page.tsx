@@ -135,7 +135,7 @@ export default function InformePreciosPage() {
   const [familiaId, setFamiliaId] = useState('');
   const [busqueda, setBusqueda] = useState('');
   const [tipoFecha, setTipoFecha] = useState<
-    'todos' | 'ingresados' | 'modificados'
+    'todos' | 'ingresados' | 'modificados' | 'ingresados_modificados'
   >('todos');
   const [fechaFiltro, setFechaFiltro] = useState(() =>
     fechaChile(new Date().toISOString())
@@ -274,13 +274,21 @@ export default function InformePreciosPage() {
       ) {
         return false;
       }
+      if (
+        tipoFecha === 'ingresados_modificados' &&
+        fechaChile(producto.created_at) !== fechaFiltro &&
+        fechaChile(fechasModificacion[producto.id]) !== fechaFiltro
+      ) {
+        return false;
+      }
       return !termino || normalizar(producto.nombre).includes(termino);
     });
   }, [busqueda, familiaId, fechaFiltro, fechasModificacion, productos, tipoFecha]);
 
   const productosSeleccionados = useMemo(
-    () => productos.filter((producto) => seleccionados[producto.id]),
-    [productos, seleccionados]
+    () =>
+      productosFiltrados.filter((producto) => seleccionados[producto.id]),
+    [productosFiltrados, seleccionados]
   );
 
   const gruposListado = useMemo(() => {
@@ -546,7 +554,11 @@ export default function InformePreciosPage() {
             value={tipoFecha}
             onChange={(event) =>
               setTipoFecha(
-                event.target.value as 'todos' | 'ingresados' | 'modificados'
+                event.target.value as
+                  | 'todos'
+                  | 'ingresados'
+                  | 'modificados'
+                  | 'ingresados_modificados'
               )
             }
             className="h-11 min-w-0 w-full rounded-xl border bg-white px-3 text-sm font-bold normal-case text-maruxa-chocolate"
@@ -554,6 +566,9 @@ export default function InformePreciosPage() {
             <option value="todos">Todos</option>
             <option value="ingresados">Ingresados</option>
             <option value="modificados">Modificados</option>
+            <option value="ingresados_modificados">
+              Ingresados y modificados
+            </option>
           </select>
         </label>
         <label className="grid min-w-0 gap-1 text-xs font-black uppercase text-maruxa-cafe/60">
