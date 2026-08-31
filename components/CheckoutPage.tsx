@@ -5,8 +5,6 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 import { useCart } from '@/lib/cart';
-import { supabasePublic } from '@/lib/supabase-public';
-import { obtenerEmpresaActual } from '@/lib/empresa';
 import { CalendarioRetiro } from '@/components/CalendarioRetiro';
 
 export function CheckoutPage() {
@@ -64,59 +62,35 @@ const fechaWhatsApp = format(fecha, 'dd/MM/yyyy', {
 
 const email = String(form.get('email'));
 
-const empresa = await obtenerEmpresaActual();
-
-if (!empresa) {
-  alert('No se pudo identificar la panadería.');
-  setLoading(false);
-  return;
-}
-
-const pedido = {
+const entradaPedido = {
   cliente,
   email,
   telefono,
-  productos: items,
-  total,
+  sitio_web: String(form.get('sitio_web') || ''),
   fecha_retiro: fechaTexto,
   hora_retiro: hora,
   observaciones,
-  estado: 'pendiente',
-  empresa_id: empresa.id,
+  items: items.map((item) => ({
+    id: item.id,
+    cantidad: item.cantidad,
+    tamano: item.tamano || null,
+  })),
 };
 
-const { data: pedidoCreado, error } = await supabasePublic
-  .from('pedidos')
-  .insert([pedido])
-  .select()
-  .single();
+const respuesta = await fetch('/api/pedidos', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(entradaPedido),
+});
+const resultado = await respuesta.json().catch(() => ({}));
 
-if (error) {
-  console.error('Error guardando pedido:', error);
-  alert(`No se pudo guardar el pedido: ${error.message}`);
+if (!respuesta.ok || !resultado.pedido) {
+  alert(resultado.error || 'No se pudo guardar el pedido.');
   setLoading(false);
   return;
 }
 
-await fetch('/api/enviar-pedido', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify(pedidoCreado),
-});
-
-try {
-  await fetch('/api/easypan/pedido', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(pedidoCreado),
-  });
-} catch (error) {
-  console.error('Error enviando pedido a EasyPan:', error);
-}
+const pedidoCreado = resultado.pedido as { total: number };
     
 
    
@@ -124,7 +98,7 @@ try {
     clearCart();
 
     window.location.href =
-    `/pedido-exitoso?total=${total}&cliente=${encodeURIComponent(
+    `/pedido-exitoso?total=${pedidoCreado.total}&cliente=${encodeURIComponent(
       cliente
     )}&telefono=${encodeURIComponent(
       telefono
@@ -196,6 +170,16 @@ try {
           )}
 
           <form onSubmit={finalizar} className="mt-10 space-y-6">
+            <div className="hidden" aria-hidden="true">
+              <label htmlFor="sitio_web">Sitio web</label>
+              <input
+                id="sitio_web"
+                name="sitio_web"
+                type="text"
+                tabIndex={-1}
+                autoComplete="off"
+              />
+            </div>
             <input
               name="cliente"
               required
