@@ -24,6 +24,7 @@ type EmpresaConfig = {
   tiene_meson: boolean;
   rinde_ideal: number;
   rinde_aceptable: number;
+  licitaciones_palabras_clave: string[] | null;
 };
 
 type Turno = {
@@ -275,6 +276,7 @@ export default function ConfiguracionPage() {
         tiene_meson: empresa.tiene_meson,
         rinde_ideal: empresa.rinde_ideal,
         rinde_aceptable: empresa.rinde_aceptable,
+        licitaciones_palabras_clave: (empresa.licitaciones_palabras_clave || []).map((palabra) => palabra.trim()).filter(Boolean),
       })
       .eq('id', empresa.id);
 
@@ -684,6 +686,27 @@ export default function ConfiguracionPage() {
               className="rounded-2xl border px-5 py-4 font-bold"
             />
           </div>
+        </section>
+
+        <section className="mt-8 rounded-[34px] bg-white p-6 shadow-premium">
+          <h2 className="text-2xl font-black text-maruxa-chocolate">
+            Filtro de licitaciones
+          </h2>
+          <p className="mt-2 text-sm font-bold text-maruxa-cafe/65">
+            Sólo se mostrarán oportunidades que contengan al menos una de estas palabras o frases. Escribe una por línea.
+          </p>
+          <textarea
+            value={(empresa.licitaciones_palabras_clave || []).join('\n')}
+            onChange={(e) =>
+              setEmpresa({
+                ...empresa,
+                licitaciones_palabras_clave: e.target.value.split('\n'),
+              })
+            }
+            rows={8}
+            placeholder={"panadería\npastelería\nrepostería\nproductos de panadería"}
+            className="mt-5 w-full rounded-2xl border px-5 py-4 font-bold"
+          />
         </section>
 
         <section className="mt-8 rounded-[34px] bg-white p-6 shadow-premium">

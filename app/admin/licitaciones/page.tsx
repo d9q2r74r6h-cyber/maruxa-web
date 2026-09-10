@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { ExternalLink, Loader2, RefreshCw, Search, Sparkles, Trophy } from 'lucide-react';
+import { useAdminSession } from '@/components/AdminSession';
+import { supabase } from '@/lib/supabase';
 
 type Licitacion = {
   codigo: string;
@@ -32,6 +34,8 @@ function fechaCorta(valor: string | null) {
 }
 
 export default function LicitacionesPage() {
+  const { perfil } = useAdminSession();
+  const [palabrasRubro, setPalabrasRubro] = useState<string[]>([]);
   const [licitaciones, setLicitaciones] = useState<Licitacion[]>([]);
   const [busqueda, setBusqueda] = useState('');
   const [region, setRegion] = useState('');
@@ -40,12 +44,22 @@ export default function LicitacionesPage() {
   const [requiereTicket, setRequiereTicket] = useState(false);
   const [actualizado, setActualizado] = useState('');
 
+  useEffect(() => {
+    async function cargarRubro() {
+      if (!perfil?.empresa_id) return;
+      const { data } = await supabase.from('empresas').select('licitaciones_palabras_clave').eq('id', perfil.empresa_id).maybeSingle();
+      setPalabrasRubro(data?.licitaciones_palabras_clave || []);
+    }
+    void cargarRubro();
+  }, [perfil?.empresa_id]);
+
   const cargar = useCallback(async () => {
     setCargando(true);
     setError('');
     const params = new URLSearchParams();
     if (busqueda.trim()) params.set('q', busqueda.trim());
     if (region) params.set('region', region);
+    if (palabrasRubro.length) params.set('rubros', palabrasRubro.join(','));
     try {
       const respuesta = await fetch(`/api/admin/licitaciones?${params}`, { cache: 'no-store' });
       const datos = await respuesta.json();
@@ -62,7 +76,7 @@ export default function LicitacionesPage() {
     } finally {
       setCargando(false);
     }
-  }, [busqueda, region]);
+  }, [busqueda, region, palabrasRubro]);
 
   useEffect(() => { void cargar(); }, [cargar]);
 
@@ -72,14 +86,23 @@ export default function LicitacionesPage() {
         <p className="text-xs font-black uppercase tracking-[0.22em] text-amber-200">Agente de oportunidades</p>
         <h1 className="mt-2 text-3xl font-black">Licitaciones para Maruxa</h1>
         <p className="mt-2 max-w-3xl text-sm font-semibold text-white/75">
-          Analiza procesos publicados en Mercado Público y prioriza los que mejor coinciden con panadería, pastelería, alimentación y servicios asociados.
+          Muestra únicamente procesos que coinciden con el rubro configurado para la empresa y recomienda los más convenientes.
         </p>
       </header>
+
+      {palabrasRubro.length > 0 && (
+        <section className="flex flex-wrap items-center gap-2 rounded-2xl bg-white p-4 shadow-sm">
+          <span className="text-xs font-black uppercase text-[#4B2818]/50">Rubro activo</span>
+          {palabrasRubro.map((palabra) => (
+            <span key={palabra} className="rounded-full bg-[#FFF3DF] px-3 py-1 text-xs font-bold text-[#7A3528]">{palabra}</span>
+          ))}
+        </section>
+      )}
 
       <section className="grid gap-3 rounded-2xl bg-white p-4 shadow-sm md:grid-cols-[1fr_220px_auto]">
         <label className="relative">
           <Search className="absolute left-3 top-3.5 h-4 w-4 text-[#4B2818]/45" />
-          <input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void cargar()} placeholder="Buscar: pan, coffee break, colaciones…" className="w-full rounded-xl border border-[#4B2818]/15 py-3 pl-10 pr-3 text-sm font-semibold outline-none focus:border-red-700" />
+          <input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void cargar()} placeholder="Filtrar dentro del rubro…" className="w-full rounded-xl border border-[#4B2818]/15 py-3 pl-10 pr-3 text-sm font-semibold outline-none focus:border-red-700" />
         </label>
         <select value={region} onChange={(e) => setRegion(e.target.value)} className="rounded-xl border border-[#4B2818]/15 px-3 text-sm font-bold outline-none">
           {regiones.map((r) => <option key={r} value={r}>{r || 'Todas las regiones'}</option>)}

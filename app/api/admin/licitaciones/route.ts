@@ -4,12 +4,9 @@ export const dynamic = 'force-dynamic';
 
 type Registro = Record<string, any>;
 
-const RUBRO: Array<[string, number]> = [
-  ['panaderia', 24], ['pan ', 20], ['panes', 20], ['pasteleria', 24],
-  ['reposteria', 22], ['torta', 20], ['dulces', 14], ['galleta', 15],
-  ['alimentos', 12], ['alimentacion', 14], ['colacion', 18],
-  ['coffee break', 22], ['cocteleria', 18], ['catering', 20],
-  ['harina', 12], ['amasado', 16], ['desayuno', 14], ['once', 10],
+const RUBRO_PREDETERMINADO = [
+  'panaderia', 'pasteleria', 'reposteria', 'productos de panaderia',
+  'productos de pasteleria', 'pan amasado', 'tortas',
 ];
 
 function normalizar(valor: unknown) {
@@ -32,14 +29,14 @@ function diasHasta(valor: unknown) {
   return Math.ceil((cierre.getTime() - Date.now()) / 86400000);
 }
 
-function puntuar(texto: string, monto: number, dias: number | null, region: string, regionPreferida: string) {
+function puntuar(texto: string, palabrasRubro: string[], monto: number, dias: number | null, region: string, regionPreferida: string) {
   const limpio = normalizar(texto);
   let afinidad = 0;
   const coincidencias: string[] = [];
-  for (const [palabra, puntos] of RUBRO) {
-    if (limpio.includes(palabra) && !coincidencias.includes(palabra.trim())) {
-      afinidad += puntos;
-      coincidencias.push(palabra.trim());
+  for (const palabra of palabrasRubro) {
+    if (limpio.includes(palabra) && !coincidencias.includes(palabra)) {
+      afinidad += 28;
+      coincidencias.push(palabra);
     }
   }
   afinidad = Math.min(afinidad, 65);
@@ -76,14 +73,20 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const busqueda = normalizar(url.searchParams.get('q'));
   const regionPreferida = url.searchParams.get('region') || '';
+  const palabrasConfiguradas = [...new Set(
+    (url.searchParams.get('rubros') || '').split(',').map(normalizar).filter((palabra) => palabra.length >= 3)
+  )].slice(0, 30);
+  const rubro = palabrasConfiguradas.length ? palabrasConfiguradas : RUBRO_PREDETERMINADO;
   try {
     const resumen = await mercado('?estado=publicada', ticket);
     const lista = (resumen?.Listado || []) as Registro[];
-    const terminos = busqueda ? busqueda.split(/\s+/).filter(Boolean) : RUBRO.map(([p]) => p.trim());
+    const terminosBusqueda = busqueda.split(/\s+/).filter(Boolean);
     const candidatos = lista
       .filter((item) => {
         const texto = normalizar(`${item.Nombre || ''} ${item.CodigoExterno || ''}`);
-        return terminos.some((termino) => texto.includes(termino));
+        const coincideRubro = rubro.some((termino) => texto.includes(termino));
+        const coincideBusqueda = !terminosBusqueda.length || terminosBusqueda.every((termino) => texto.includes(termino));
+        return coincideRubro && coincideBusqueda;
       })
       .slice(0, 45);
 
@@ -108,7 +111,7 @@ export async function GET(request: Request) {
       const cierre = fechas.FechaCierre || item.FechaCierre;
       const dias = diasHasta(cierre);
       const region = comprador.RegionUnidad || comprador.ComunaUnidad || '';
-      const analisis = puntuar(textoAnalisis, monto, dias, region, regionPreferida);
+      const analisis = puntuar(textoAnalisis, rubro, monto, dias, region, regionPreferida);
       const recomendacion =
         analisis.puntaje >= 60 ? 'Muy recomendada' :
         analisis.puntaje >= 40 ? 'Recomendada' :
@@ -130,7 +133,7 @@ export async function GET(request: Request) {
         recomendacion,
         url: `https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idlicitacion=${encodeURIComponent(item.CodigoExterno)}`,
       };
-    }).filter((item) => item.codigo && (busqueda || item.puntaje >= 12))
+    }).filter((item) => item.codigo && item.coincidencias.length > 0)
       .sort((a, b) => b.puntaje - a.puntaje || (a.dias_restantes ?? 999) - (b.dias_restantes ?? 999));
 
     return NextResponse.json({
@@ -138,7 +141,8 @@ export async function GET(request: Request) {
       total_publicadas: numero(resumen?.Cantidad),
       encontradas: licitaciones.length,
       licitaciones,
-      criterio: 'Afinidad con panadería y pastelería, plazo disponible, monto y cercanía regional.',
+      palabras_clave: rubro,
+      criterio: 'Coincidencia obligatoria con el rubro configurado, plazo disponible, monto y cercanía regional.',
     });
   } catch (error) {
     return NextResponse.json(
