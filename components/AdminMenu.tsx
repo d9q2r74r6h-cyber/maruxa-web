@@ -35,6 +35,7 @@ const grupos: {
     label: 'Comercial',
     items: [
       { label: 'Pedidos', href: '/admin/pedidos', modulo: 'pedidos' },
+      { label: 'Licitaciones', href: '/admin/licitaciones' },
       { label: 'Mensajes', href: '/admin/whatsapp', modulo: 'whatsapp' },
       { label: 'Documentos tributarios', href: '/admin/documentos', modulo: 'documentos' },
       { label: 'Clientes', href: '/admin/clientes', modulo: 'clientes' },
