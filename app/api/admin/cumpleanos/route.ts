@@ -166,8 +166,11 @@ export async function GET(request: Request) {
     const avisoPrevio = `🎈 ¡Mañana está de cumpleaños ${cumpleanero.nombre_completo}! 🎂\nPreparemos un saludo especial para celebrar y hacerle sentir todo el cariño del equipo de Panadería Maruxa. 🥳`;
     const errores = [];
     for (const companero of companeros) {
-      const errorEnvio = await enviarEmail(companero.email, `🎂 Mañana celebramos a ${cumpleanero.nombre_completo}`, avisoPrevio);
-      if (errorEnvio) errores.push(errorEnvio);
+      const erroresCompanero = [
+        await enviarWhatsApp(companero.telefono, avisoPrevio),
+        await enviarEmail(companero.email, `🎂 Mañana celebramos a ${cumpleanero.nombre_completo}`, avisoPrevio),
+      ].filter(Boolean);
+      errores.push(...erroresCompanero);
     }
     const errorCopiaAdmin = await enviarEmail(CORREO_ADMINISTRATIVO, `Copia administrativa: mañana celebramos a ${cumpleanero.nombre_completo}`, avisoPrevio);
     if (errorCopiaAdmin) errores.push(errorCopiaAdmin);
@@ -189,8 +192,21 @@ export async function GET(request: Request) {
         funcionario.empresa_id === cumpleanero.empresa_id &&
         funcionario.id !== cumpleanero.id
     );
-    const saludo = `🎉🎂 ¡Feliz cumpleaños, ${cumpleanero.nombre_completo}! 🥳\nQue tengas un día maravilloso, lleno de alegría y buenos momentos. Con mucho cariño, todo el equipo de Panadería Maruxa. ❤️`;
-    const aviso = `🎂🎉 ¡Hoy está de cumpleaños ${cumpleanero.nombre_completo}! 🥳\nNo olvidemos saludarle y hacerle sentir una parte muy especial de nuestro equipo. ¡Que sea un gran día! ❤️`;
+    const variante = (hoy.anio + Array.from(cumpleanero.id).reduce((total, caracter) => total + caracter.charCodeAt(0), 0)) % 4;
+    const saludos = [
+      `🎉🎂 ¡Feliz cumpleaños, ${cumpleanero.nombre_completo}! 🥳\nQue tengas un día maravilloso, lleno de alegría y buenos momentos. Con mucho cariño, todo el equipo de Panadería Maruxa. ❤️`,
+      `🥳 ¡Muchas felicidades en tu día, ${cumpleanero.nombre_completo}!\nDeseamos que este nuevo año venga lleno de alegrías y buenos momentos. Con cariño, el equipo de Panadería Maruxa. 🎂`,
+      `🎈 ¡Feliz cumpleaños, ${cumpleanero.nombre_completo}!\nQue disfrutes mucho tu día y recibas todo el cariño de quienes compartimos contigo en Panadería Maruxa. 🎉❤️`,
+      `✨ ¡Feliz cumpleaños, ${cumpleanero.nombre_completo}!\nGracias por ser parte de nuestro equipo. Que este día sea muy especial y esté lleno de alegría. 🎂❤️`,
+    ];
+    const avisos = [
+      `🎂🎉 ¡Hoy está de cumpleaños ${cumpleanero.nombre_completo}! 🥳\nNo olvidemos saludarle y hacerle sentir una parte muy especial de nuestro equipo. ¡Que sea un gran día! ❤️`,
+      `🥳 ¡Hoy celebramos a ${cumpleanero.nombre_completo}!\nAcompañémosle con un saludo y nuestros mejores deseos en este día especial. 🎂`,
+      `🎈 ${cumpleanero.nombre_completo} está de cumpleaños hoy.\n¡Hagamos que sienta todo el cariño del equipo de Panadería Maruxa! 🎉`,
+      `🎊 ¡Día de celebración en Maruxa! Hoy es el cumpleaños de ${cumpleanero.nombre_completo}.\nRecordemos compartirle nuestros buenos deseos y una gran sonrisa. 🎂`,
+    ];
+    const saludo = saludos[variante];
+    const aviso = avisos[variante];
 
     const errores = [
       await enviarWhatsApp(cumpleanero.telefono, saludo),
