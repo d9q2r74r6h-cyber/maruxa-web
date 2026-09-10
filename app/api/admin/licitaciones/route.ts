@@ -9,6 +9,11 @@ const RUBRO_PREDETERMINADO = [
   'productos de pasteleria', 'pan amasado', 'tortas',
 ];
 
+const SENALES_DESCUBRIMIENTO = [
+  'alimento', 'alimentacion', 'abarrote', 'economato', 'casino', 'colacion',
+  'coffee break', 'catering', 'insumo', 'comestible', 'productos alimenticios',
+];
+
 function normalizar(valor: unknown) {
   return String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
@@ -84,11 +89,11 @@ export async function GET(request: Request) {
     const candidatos = lista
       .filter((item) => {
         const texto = normalizar(`${item.Nombre || ''} ${item.CodigoExterno || ''}`);
-        const coincideRubro = rubro.some((termino) => texto.includes(termino));
+        const coincideDescubrimiento = [...rubro, ...SENALES_DESCUBRIMIENTO].some((termino) => texto.includes(termino));
         const coincideBusqueda = !terminosBusqueda.length || terminosBusqueda.every((termino) => texto.includes(termino));
-        return coincideRubro && coincideBusqueda;
+        return coincideDescubrimiento && coincideBusqueda;
       })
-      .slice(0, 45);
+      .slice(0, 100);
 
     const detalles = await Promise.all(
       candidatos.map(async (item) => {
