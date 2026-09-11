@@ -104,16 +104,7 @@ export async function GET(request: Request) {
       );
     }
 
-    const conDetalle = await Promise.all(
-      candidatos.slice(0, 30).map(async (item) => {
-        try {
-          const detalle = await consultar(`/v2/compra-agil/${encodeURIComponent(item.codigo)}`, ticket);
-          return { ...item, ...detalle, palabras_encontradas: item.palabras_encontradas };
-        } catch {
-          return item;
-        }
-      })
-    );
+    const conDetalle = candidatos.slice(0, 50);
 
     const oportunidades = conDetalle.map((item) => {
       const cierre = item.fechas?.fecha_cierre;
