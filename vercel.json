@@ -3,6 +3,10 @@
     {
       "path": "/api/admin/cumpleanos",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/admin/licitaciones/notificar",
+      "schedule": "0 13 * * *"
     }
   ]
 }
