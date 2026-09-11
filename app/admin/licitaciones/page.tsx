@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ExternalLink, Loader2, RefreshCw, Search, Sparkles, Trophy, Zap } from 'lucide-react';
 import { useAdminSession } from '@/components/AdminSession';
 import { supabase } from '@/lib/supabase';
@@ -40,6 +40,7 @@ function fechaCorta(valor: string | null) {
 export default function LicitacionesPage() {
   const { perfil } = useAdminSession();
   const [tipo, setTipo] = useState<'licitaciones' | 'compra-agil'>('compra-agil');
+  const solicitudActual = useRef(0);
   const [palabrasRubro, setPalabrasRubro] = useState<string[]>([]);
   const [oportunidades, setOportunidades] = useState<Oportunidad[]>([]);
   const [busqueda, setBusqueda] = useState('');
@@ -59,6 +60,9 @@ export default function LicitacionesPage() {
   }, [perfil?.empresa_id]);
 
   const cargar = useCallback(async () => {
+    const idSolicitud = ++solicitudActual.current;
+    setOportunidades([]);
+    setActualizado('');
     setCargando(true);
     setError('');
     const params = new URLSearchParams();
@@ -69,6 +73,7 @@ export default function LicitacionesPage() {
     try {
       const respuesta = await fetch(`${endpoint}?${params}`, { cache: 'no-store' });
       const datos = await respuesta.json();
+      if (idSolicitud !== solicitudActual.current) return;
       if (!respuesta.ok) {
         setRequiereTicket(Boolean(datos.requiere_ticket));
         throw new Error(datos.error || 'No fue posible buscar oportunidades.');
@@ -77,14 +82,25 @@ export default function LicitacionesPage() {
       setOportunidades(datos.oportunidades || datos.licitaciones || []);
       setActualizado(datos.actualizado_en || '');
     } catch (e) {
+      if (idSolicitud !== solicitudActual.current) return;
       setOportunidades([]);
       setError(e instanceof Error ? e.message : 'No fue posible buscar oportunidades.');
     } finally {
-      setCargando(false);
+      if (idSolicitud === solicitudActual.current) setCargando(false);
     }
   }, [busqueda, region, palabrasRubro, tipo]);
 
   useEffect(() => { void cargar(); }, [cargar]);
+
+  function cambiarTipo(nuevo: 'licitaciones' | 'compra-agil') {
+    if (nuevo === tipo) return;
+    solicitudActual.current += 1;
+    setOportunidades([]);
+    setActualizado('');
+    setError('');
+    setCargando(true);
+    setTipo(nuevo);
+  }
 
   return (
     <main className="space-y-6">
@@ -97,10 +113,10 @@ export default function LicitacionesPage() {
       </header>
 
       <div className="grid grid-cols-2 gap-2 rounded-2xl bg-white p-2 shadow-sm">
-        <button onClick={() => setTipo('compra-agil')} className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-black transition ${tipo === 'compra-agil' ? 'bg-red-700 text-white' : 'text-[#4B2818] hover:bg-[#FFF3DF]'}`}>
+        <button onClick={() => cambiarTipo('compra-agil')} className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-black transition ${tipo === 'compra-agil' ? 'bg-red-700 text-white' : 'text-[#4B2818] hover:bg-[#FFF3DF]'}`}>
           <Zap className="h-4 w-4" /> Compra Ágil
         </button>
-        <button onClick={() => setTipo('licitaciones')} className={`rounded-xl px-4 py-3 text-sm font-black transition ${tipo === 'licitaciones' ? 'bg-red-700 text-white' : 'text-[#4B2818] hover:bg-[#FFF3DF]'}`}>
+        <button onClick={() => cambiarTipo('licitaciones')} className={`rounded-xl px-4 py-3 text-sm font-black transition ${tipo === 'licitaciones' ? 'bg-red-700 text-white' : 'text-[#4B2818] hover:bg-[#FFF3DF]'}`}>
           Licitaciones públicas
         </button>
       </div>
