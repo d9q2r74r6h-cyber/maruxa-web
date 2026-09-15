@@ -473,14 +473,25 @@ export default function ConfiguracionPage() {
       return;
     }
 
-    const cuentaDuplicada = cuentasBancarias.find(
-      (cuenta) =>
-        cuenta.id !== cuentaEditando.id &&
-        normalizarDatoCuenta(cuenta.banco) ===
-          normalizarDatoCuenta(cuentaEditando.banco) &&
-        normalizarDatoCuenta(cuenta.numero_cuenta) ===
-          normalizarDatoCuenta(cuentaEditando.numero_cuenta)
+    const cuentaOriginal = cuentasBancarias.find(
+      (cuenta) => cuenta.id === cuentaEditando.id
     );
+    const cambioBancoOCuenta =
+      !cuentaOriginal ||
+      normalizarDatoCuenta(cuentaOriginal.banco) !==
+        normalizarDatoCuenta(cuentaEditando.banco) ||
+      normalizarDatoCuenta(cuentaOriginal.numero_cuenta) !==
+        normalizarDatoCuenta(cuentaEditando.numero_cuenta);
+    const cuentaDuplicada = cambioBancoOCuenta
+      ? cuentasBancarias.find(
+          (cuenta) =>
+            cuenta.id !== cuentaEditando.id &&
+            normalizarDatoCuenta(cuenta.banco) ===
+              normalizarDatoCuenta(cuentaEditando.banco) &&
+            normalizarDatoCuenta(cuenta.numero_cuenta) ===
+              normalizarDatoCuenta(cuentaEditando.numero_cuenta)
+        )
+      : undefined;
 
     if (cuentaDuplicada) {
       alert('Ya existe otra cuenta con el mismo banco y numero de cuenta.');
@@ -503,9 +514,13 @@ export default function ConfiguracionPage() {
     const { error } = await supabase
       .from('cuentas_bancarias')
       .update({
-        banco: cuentaEditando.banco.trim(),
+        ...(cambioBancoOCuenta
+          ? {
+              banco: cuentaEditando.banco.trim(),
+              numero_cuenta: cuentaEditando.numero_cuenta.trim(),
+            }
+          : {}),
         tipo_cuenta: cuentaEditando.tipo_cuenta,
-        numero_cuenta: cuentaEditando.numero_cuenta.trim(),
         titular: cuentaEditando.titular.trim(),
         rut_titular: cuentaEditando.rut_titular?.trim() || null,
         email_notificacion: cuentaEditando.email_notificacion?.trim() || null,
