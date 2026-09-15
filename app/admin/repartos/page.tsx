@@ -343,13 +343,23 @@ function pastelesGuardados(
 function observacionesPlanilla(
   ordenClientes: string[],
   pasteles: Record<number, number>,
-  liquidacion: Liquidacion = { diasLibres: 0, anticipo: 0, abono: 0 }
+  liquidacion: Liquidacion = { diasLibres: 0, anticipo: 0, abono: 0 },
+  saldoInicialDefinido = true
 ) {
   return JSON.stringify({
     orden_clientes: ordenClientes,
     pasteles_por_dia: pasteles,
     liquidacion,
+    saldo_inicial_definido: saldoInicialDefinido,
   });
+}
+
+function saldoInicialFueDefinido(valor: string | null | undefined) {
+  try {
+    return JSON.parse(valor || '{}')?.saldo_inicial_definido === true;
+  } catch {
+    return false;
+  }
 }
 
 function liquidacionGuardada(valor: string | null | undefined): Liquidacion {
@@ -554,6 +564,67 @@ export default function RepartosPage() {
     return filtrados.length > 0 ? filtrados : clientes;
   }
 
+  async function obtenerSaldoMesAnterior() {
+    if (!perfil || !repartidor.trim()) return 0;
+
+    const fechaAnterior = new Date(anio, mes - 2, 1);
+    const anioAnterior = fechaAnterior.getFullYear();
+    const mesAnterior = fechaAnterior.getMonth() + 1;
+    const { data: planillasAnteriores, error: errorPlanillas } = await supabase
+      .from('reparto_planillas')
+      .select('*')
+      .eq('empresa_id', perfil.empresa_id)
+      .eq('anio', anioAnterior)
+      .eq('mes', mesAnterior)
+      .order('updated_at', { ascending: false });
+
+    if (errorPlanillas) throw errorPlanillas;
+
+    const planillaAnterior = (planillasAnteriores || []).find(
+      (item) =>
+        (repartidorId && item.repartidor_id === repartidorId) ||
+        correspondeAlRepartidor(item.repartidor_nombre, repartidor)
+    ) as Planilla | undefined;
+    if (!planillaAnterior) return 0;
+
+    const [detallesRespuesta, abonosRespuesta] = await Promise.all([
+      supabase
+        .from('reparto_planilla_detalles')
+        .select('precio_unitario,kilos_vendidos,kilos_devueltos,monto_ajuste')
+        .eq('planilla_id', planillaAnterior.id),
+      supabase
+        .from('reparto_planilla_abonos')
+        .select('monto')
+        .eq('planilla_id', planillaAnterior.id),
+    ]);
+
+    if (detallesRespuesta.error) throw detallesRespuesta.error;
+    if (abonosRespuesta.error) throw abonosRespuesta.error;
+
+    const netoVentas = (detallesRespuesta.data || []).reduce(
+      (total, detalle) =>
+        total +
+        (numero(detalle.kilos_vendidos) - numero(detalle.kilos_devueltos)) *
+          numero(detalle.precio_unitario) +
+        numero(detalle.monto_ajuste),
+      0
+    );
+    const totalPasteles = Object.values(
+      pastelesGuardados(planillaAnterior.observaciones)
+    ).reduce((total, monto) => total + numero(monto), 0);
+    const totalAbonos = (abonosRespuesta.data || []).reduce(
+      (total, abono) => total + numero(abono.monto),
+      0
+    );
+
+    return Math.round(
+      montoPesosGuardado(planillaAnterior.saldo_inicial) +
+        netoVentas +
+        totalPasteles -
+        totalAbonos
+    );
+  }
+
   async function abrirPlanilla() {
     if (!perfil || !repartidor.trim()) {
       alert('Selecciona un repartidor.');
@@ -602,6 +673,17 @@ export default function RepartosPage() {
     }
 
     if (!errorPlanilla && !planillaData) {
+      let saldoMesAnterior = 0;
+      try {
+        saldoMesAnterior = await obtenerSaldoMesAnterior();
+      } catch (error) {
+        alert(
+          error instanceof Error
+            ? `No se pudo obtener el saldo del mes anterior: ${error.message}`
+            : 'No se pudo obtener el saldo del mes anterior.'
+        );
+      }
+
       const resultadoCreacion = await supabase
         .from('reparto_planillas')
         .insert({
@@ -610,7 +692,8 @@ export default function RepartosPage() {
           mes,
           repartidor_id: repartidorId,
           repartidor_nombre: repartidor.trim(),
-          saldo_inicial: 0,
+          saldo_inicial: saldoMesAnterior,
+          observaciones: observacionesPlanilla([], {}, undefined, true),
         })
         .select('*')
         .single();
@@ -625,8 +708,43 @@ export default function RepartosPage() {
       return;
     }
 
+    let saldoCargado = montoPesosGuardado(planillaData.saldo_inicial);
+    if (
+      saldoCargado === 0 &&
+      !saldoInicialFueDefinido(planillaData.observaciones)
+    ) {
+      try {
+        saldoCargado = await obtenerSaldoMesAnterior();
+        const observacionesActualizadas = observacionesPlanilla(
+          ordenClientesGuardado(planillaData.observaciones),
+          pastelesGuardados(planillaData.observaciones),
+          liquidacionGuardada(planillaData.observaciones),
+          true
+        );
+        const { error: errorSaldoInicial } = await supabase
+          .from('reparto_planillas')
+          .update({
+            saldo_inicial: saldoCargado,
+            observaciones: observacionesActualizadas,
+          })
+          .eq('id', planillaData.id);
+        if (errorSaldoInicial) throw errorSaldoInicial;
+        planillaData = {
+          ...planillaData,
+          saldo_inicial: saldoCargado,
+          observaciones: observacionesActualizadas,
+        };
+      } catch (error) {
+        alert(
+          error instanceof Error
+            ? `No se pudo obtener el saldo del mes anterior: ${error.message}`
+            : 'No se pudo obtener el saldo del mes anterior.'
+        );
+      }
+    }
+
     setPlanilla(planillaData as Planilla);
-    setSaldoInicial(montoPesosGuardado(planillaData.saldo_inicial));
+    setSaldoInicial(saldoCargado);
 
     const [detallesRespuesta, abonosRespuesta] = await Promise.all([
       supabase
@@ -959,7 +1077,7 @@ export default function RepartosPage() {
     setReplicandoOrden(true);
     const { data: planillasRepartidor, error: errorCarga } = await supabase
       .from('reparto_planillas')
-      .select('id,observaciones')
+      .select('id,observaciones,saldo_inicial')
       .eq('empresa_id', perfil.empresa_id)
       .eq('repartidor_nombre', repartidor.trim());
 
@@ -973,7 +1091,9 @@ export default function RepartosPage() {
                 observaciones: observacionesPlanilla(
                   filas.map((fila) => fila.key),
                   pastelesGuardados(item.observaciones),
-                  liquidacionGuardada(item.observaciones)
+                  liquidacionGuardada(item.observaciones),
+                  saldoInicialFueDefinido(item.observaciones) ||
+                    montoPesosGuardado(item.saldo_inicial) !== 0
                 ),
               })
               .eq('id', item.id)
