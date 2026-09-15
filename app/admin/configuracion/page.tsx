@@ -482,28 +482,22 @@ export default function ConfiguracionPage() {
         normalizarDatoCuenta(cuentaEditando.banco) ||
       normalizarDatoCuenta(cuentaOriginal.numero_cuenta) !==
         normalizarDatoCuenta(cuentaEditando.numero_cuenta);
-    const cuentaDuplicada = cambioBancoOCuenta
-      ? cuentasBancarias.find(
-          (cuenta) =>
-            cuenta.id !== cuentaEditando.id &&
-            normalizarDatoCuenta(cuenta.banco) ===
-              normalizarDatoCuenta(cuentaEditando.banco) &&
-            normalizarDatoCuenta(cuenta.numero_cuenta) ===
-              normalizarDatoCuenta(cuentaEditando.numero_cuenta)
-        )
-      : undefined;
-
-    if (cuentaDuplicada) {
-      alert('Ya existe otra cuenta con el mismo banco y numero de cuenta.');
-      return;
-    }
+    const cuentaDuplicada = cuentasBancarias.find(
+      (cuenta) =>
+        cuenta.id !== cuentaEditando.id &&
+        normalizarDatoCuenta(cuenta.banco) ===
+          normalizarDatoCuenta(cuentaEditando.banco) &&
+        normalizarDatoCuenta(cuenta.numero_cuenta) ===
+          normalizarDatoCuenta(cuentaEditando.numero_cuenta)
+    );
+    const idCuentaDestino = cuentaDuplicada?.id || cuentaEditando.id;
 
     if (cuentaEditando.es_principal) {
       const { error: errorReset } = await supabase
         .from('cuentas_bancarias')
         .update({ es_principal: false })
         .eq('empresa_id', empresa.id)
-        .neq('id', cuentaEditando.id);
+        .neq('id', idCuentaDestino);
 
       if (errorReset) {
         alert(errorReset.message);
@@ -514,7 +508,7 @@ export default function ConfiguracionPage() {
     const { error } = await supabase
       .from('cuentas_bancarias')
       .update({
-        ...(cambioBancoOCuenta
+        ...(cambioBancoOCuenta && !cuentaDuplicada
           ? {
               banco: cuentaEditando.banco.trim(),
               numero_cuenta: cuentaEditando.numero_cuenta.trim(),
@@ -528,7 +522,7 @@ export default function ConfiguracionPage() {
         es_principal: cuentaEditando.es_principal,
         activo: cuentaEditando.activo,
       })
-      .eq('id', cuentaEditando.id);
+      .eq('id', idCuentaDestino);
 
     if (error) {
       alert(
@@ -537,6 +531,20 @@ export default function ConfiguracionPage() {
           : error.message
       );
       return;
+    }
+
+    if (cuentaDuplicada) {
+      const { error: errorEliminar } = await supabase
+        .from('cuentas_bancarias')
+        .delete()
+        .eq('id', cuentaEditando.id);
+
+      if (errorEliminar) {
+        alert(`La cuenta se actualizo, pero no fue posible retirar el registro duplicado: ${errorEliminar.message}`);
+        setCuentaEditando(null);
+        cargarDatos();
+        return;
+      }
     }
 
     setCuentaEditando(null);
