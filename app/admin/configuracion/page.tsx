@@ -72,6 +72,33 @@ function normalizarDatoCuenta(valor: string | null | undefined) {
   return (valor || '').trim().toLocaleLowerCase('es-CL').replace(/\s+/g, ' ');
 }
 
+function bancosEquivalentes(a: string, b: string) {
+  const bancoA = normalizarDatoCuenta(a);
+  const bancoB = normalizarDatoCuenta(b);
+  if (bancoA === bancoB) return true;
+  if (Math.abs(bancoA.length - bancoB.length) > 1) return false;
+
+  let indiceA = 0;
+  let indiceB = 0;
+  let diferencias = 0;
+  while (indiceA < bancoA.length && indiceB < bancoB.length) {
+    if (bancoA[indiceA] === bancoB[indiceB]) {
+      indiceA += 1;
+      indiceB += 1;
+      continue;
+    }
+    diferencias += 1;
+    if (diferencias > 1) return false;
+    if (bancoA.length > bancoB.length) indiceA += 1;
+    else if (bancoB.length > bancoA.length) indiceB += 1;
+    else {
+      indiceA += 1;
+      indiceB += 1;
+    }
+  }
+  return diferencias + (indiceA < bancoA.length || indiceB < bancoB.length ? 1 : 0) <= 1;
+}
+
 export default function ConfiguracionPage() {
   const [empresa, setEmpresa] = useState<EmpresaConfig | null>(null);
   const [turnos, setTurnos] = useState<Turno[]>([]);
@@ -460,6 +487,31 @@ export default function ConfiguracionPage() {
     cargarDatos();
   }
 
+  async function eliminarCuentaBancaria(cuenta: CuentaBancaria) {
+    if (cuenta.es_principal) {
+      alert('Selecciona otra cuenta principal antes de eliminar esta cuenta.');
+      return;
+    }
+
+    const confirmar = window.confirm(
+      `¿Eliminar la cuenta ${cuenta.banco} - ${cuenta.numero_cuenta}?`
+    );
+    if (!confirmar) return;
+
+    const { error } = await supabase
+      .from('cuentas_bancarias')
+      .delete()
+      .eq('id', cuenta.id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    if (cuentaEditando?.id === cuenta.id) setCuentaEditando(null);
+    cargarDatos();
+  }
+
   async function guardarCuentaEditada() {
     if (!empresa || !cuentaEditando) return;
 
@@ -485,8 +537,7 @@ export default function ConfiguracionPage() {
     const cuentaDuplicada = cuentasBancarias.find(
       (cuenta) =>
         cuenta.id !== cuentaEditando.id &&
-        normalizarDatoCuenta(cuenta.banco) ===
-          normalizarDatoCuenta(cuentaEditando.banco) &&
+        bancosEquivalentes(cuenta.banco, cuentaEditando.banco) &&
         normalizarDatoCuenta(cuenta.numero_cuenta) ===
           normalizarDatoCuenta(cuentaEditando.numero_cuenta)
     );
@@ -1219,6 +1270,15 @@ export default function ConfiguracionPage() {
                       >
                         {cuenta.activo ? 'Desactivar' : 'Activar'}
                       </button>
+                      {!cuenta.es_principal && (
+                        <button
+                          type="button"
+                          onClick={() => eliminarCuentaBancaria(cuenta)}
+                          className="rounded-full bg-red-50 px-5 py-3 text-sm font-black text-red-700"
+                        >
+                          Eliminar
+                        </button>
+                      )}
                     </div>
                   </div>
                   )}
