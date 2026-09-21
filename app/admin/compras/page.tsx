@@ -2329,31 +2329,14 @@ export default function AdminComprasPage() {
       });
     }
 
-    const productosGuardados = new Set<string>();
-    setItems(
-      itemsConsolidados.flatMap((itemConsolidado) => {
-        const productoId = String(itemConsolidado.producto_id);
-        if (productosGuardados.has(productoId)) return [];
-        productosGuardados.add(productoId);
-
-        const itemOriginal = itemsTrabajo.find(
-          (item) => String(item.producto_id) === productoId
-        );
-        const producto = productosTrabajo.find((item) => String(item.id) === productoId);
-
-        return [
-          {
-            ...itemCompraVacio(),
-            producto_id: productoId,
-            busqueda_producto: producto
-              ? `${producto.nombre} - ${producto.tipo_producto}`
-              : itemOriginal?.busqueda_producto || '',
-            margen_porcentaje: itemOriginal?.margen_porcentaje || '',
-            tipo_margen: itemOriginal?.tipo_margen || 'markup',
-          },
-        ];
-      })
-    );
+    // El lote ya fue guardado: la siguiente carga debe empezar sin valores anteriores.
+    setItems([]);
+    setResultadosBusqueda({});
+    setIndiceBusquedaActivo(null);
+    setFocoPendiente(null);
+    setFamiliaGeneralId('');
+    setMargenGeneral('');
+    setTipoMargenGeneral('markup');
     setUltimasCompras((actuales) => {
       const siguientes = { ...actuales };
 
