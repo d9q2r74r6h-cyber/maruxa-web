@@ -1144,7 +1144,7 @@ export default function RepartosPage() {
     }
     if (abonosFueraDelMes.length > 0) {
       guardarBorradorActual();
-      alert('Hay abonos en días que no existen en este mes. Asigna su fecha en Abonos por revisar antes de guardar. Los montos se conservan en el borrador.');
+      alert('Hay abonos en días que no existen en este mes. Revisa su fecha o quítalos de esta planilla en Abonos por revisar antes de guardar. Los montos se conservan en el borrador.');
       return;
     }
     if (!planilla) {
@@ -1671,7 +1671,7 @@ export default function RepartosPage() {
       {abonosFueraDelMes.length > 0 && !cargando && (
         <section role="alert" className="rounded-lg border border-amber-400 bg-amber-50 p-4 text-[#4B2818]">
           <h2 className="font-black">Abonos por revisar</h2>
-          <p className="mt-1 text-sm">Estos abonos tienen un día que no existe en el mes seleccionado. Elige la fecha correcta; el monto se sumará a lo entregado ese día.</p>
+          <p className="mt-1 text-sm">Estos abonos tienen un día que no existe en este mes. Si un abono no pertenece a esta planilla, quítalo. Solo elige otra fecha si comprobaste que corresponde a este mes y repartidor.</p>
           {abonosFueraDelMes.map(([dia, monto]) => (
             <label key={dia} className="mt-3 flex flex-wrap items-center gap-3 text-sm font-bold">
               Día {dia}: {dinero(numero(monto))}
@@ -1694,6 +1694,20 @@ export default function RepartosPage() {
                 <option value="" disabled>Elegir día correcto</option>
                 {dias.map((diaValido) => <option key={diaValido} value={diaValido}>Día {diaValido}</option>)}
               </select>
+              <button
+                type="button"
+                className="rounded border border-red-700 px-3 py-2 font-bold text-red-700"
+                onClick={() => {
+                  setAbonos((actuales) => {
+                    const siguientes = { ...actuales };
+                    delete siguientes[Number(dia)];
+                    return siguientes;
+                  });
+                  setCambiosPendientes(true);
+                }}
+              >
+                No pertenece a esta planilla: quitar
+              </button>
             </label>
           ))}
         </section>
