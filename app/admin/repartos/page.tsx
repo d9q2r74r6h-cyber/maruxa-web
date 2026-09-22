@@ -432,7 +432,14 @@ export default function RepartosPage() {
     (_, indice) => Math.max(anioActual + 1, anio) - indice
   );
 
+  const cargaPlanillaRef = useRef(0);
+  const abonosFueraDelMes = Object.entries(abonos).filter(
+    ([dia, monto]) => numero(monto) !== 0 &&
+      (!Number.isInteger(Number(dia)) || Number(dia) < 1 || Number(dia) > diasDelMes(anio, mes))
+  );
+
   function limpiarPlanillaAbierta() {
+    cargaPlanillaRef.current += 1;
     setPlanilla(null);
     setFilas([]);
     setAbonos({});
@@ -465,6 +472,7 @@ export default function RepartosPage() {
   }
 
   function cambiarContexto(accion: () => void) {
+    if (guardando) return;
     if (cambiosPendientes) guardarBorradorActual();
     accion();
     limpiarPlanillaAbierta();
@@ -626,6 +634,8 @@ export default function RepartosPage() {
   }
 
   async function abrirPlanilla() {
+    const cargaActual = ++cargaPlanillaRef.current;
+    const cargaVigente = () => cargaActual === cargaPlanillaRef.current;
     if (!perfil || !repartidor.trim()) {
       alert('Selecciona un repartidor.');
       return;
@@ -641,6 +651,7 @@ export default function RepartosPage() {
       .eq('mes', mes)
       .order('updated_at', { ascending: false });
 
+    if (!cargaVigente()) return;
     let errorPlanilla = errorBusqueda;
     const compatibles = (planillasPeriodo || []).filter(
       (item) =>
@@ -655,6 +666,7 @@ export default function RepartosPage() {
         .from('reparto_planilla_detalles')
         .select('planilla_id')
         .in('planilla_id', ids);
+      if (!cargaVigente()) return;
       if (errorConteo) {
         errorPlanilla = errorConteo;
       } else {
@@ -684,6 +696,7 @@ export default function RepartosPage() {
         );
       }
 
+      if (!cargaVigente()) return;
       const resultadoCreacion = await supabase
         .from('reparto_planillas')
         .insert({
@@ -702,6 +715,7 @@ export default function RepartosPage() {
       errorPlanilla = resultadoCreacion.error;
     }
 
+    if (!cargaVigente()) return;
     if (errorPlanilla || !planillaData) {
       alert(errorPlanilla?.message || 'No se pudo cargar la planilla.');
       setCargando(false);
@@ -743,9 +757,7 @@ export default function RepartosPage() {
       }
     }
 
-    setPlanilla(planillaData as Planilla);
-    setSaldoInicial(saldoCargado);
-
+    if (!cargaVigente()) return;
     const [detallesRespuesta, abonosRespuesta] = await Promise.all([
       supabase
         .from('reparto_planilla_detalles')
@@ -757,6 +769,7 @@ export default function RepartosPage() {
         .eq('planilla_id', planillaData.id),
     ]);
 
+    if (!cargaVigente()) return;
     if (detallesRespuesta.error || abonosRespuesta.error) {
       alert(
         detallesRespuesta.error?.message ||
@@ -849,6 +862,9 @@ export default function RepartosPage() {
       return posicionA - posicionB;
     });
 
+    if (!cargaVigente()) return;
+    setPlanilla(planillaData as Planilla);
+    setSaldoInicial(saldoCargado);
     const borrador = leerBorradorPlanilla(planillaData.id);
     setFilas(
       borrador
@@ -1121,6 +1137,16 @@ export default function RepartosPage() {
   }
 
   async function guardarPlanilla() {
+    if (guardando || cargando) return;
+    if (planilla && (planilla.anio !== anio || planilla.mes !== mes)) {
+      alert('Espera a que termine de cargar el mes seleccionado.');
+      return;
+    }
+    if (abonosFueraDelMes.length > 0) {
+      guardarBorradorActual();
+      alert('Hay abonos en días que no existen en este mes. Asigna su fecha en Abonos por revisar antes de guardar. Los montos se conservan en el borrador.');
+      return;
+    }
     if (!planilla) {
       await abrirPlanilla();
       return;
@@ -1641,6 +1667,37 @@ export default function RepartosPage() {
         </label>
 
       </section>
+
+      {abonosFueraDelMes.length > 0 && !cargando && (
+        <section role="alert" className="rounded-lg border border-amber-400 bg-amber-50 p-4 text-[#4B2818]">
+          <h2 className="font-black">Abonos por revisar</h2>
+          <p className="mt-1 text-sm">Estos abonos tienen un día que no existe en el mes seleccionado. Elige la fecha correcta; el monto se sumará a lo entregado ese día.</p>
+          {abonosFueraDelMes.map(([dia, monto]) => (
+            <label key={dia} className="mt-3 flex flex-wrap items-center gap-3 text-sm font-bold">
+              Día {dia}: {dinero(numero(monto))}
+              <select
+                aria-label={'Fecha correcta del abono del día ' + dia}
+                value=""
+                className="rounded border bg-white p-2"
+                onChange={(event) => {
+                  const destino = Number(event.target.value);
+                  if (!dias.includes(destino)) return;
+                  setAbonos((actuales) => {
+                    const siguientes = { ...actuales };
+                    siguientes[destino] = numero(siguientes[destino]) + numero(siguientes[Number(dia)]);
+                    delete siguientes[Number(dia)];
+                    return siguientes;
+                  });
+                  setCambiosPendientes(true);
+                }}
+              >
+                <option value="" disabled>Elegir día correcto</option>
+                {dias.map((diaValido) => <option key={diaValido} value={diaValido}>Día {diaValido}</option>)}
+              </select>
+            </label>
+          ))}
+        </section>
+      )}
 
       <section className="grid gap-3 md:grid-cols-4">
         {[
