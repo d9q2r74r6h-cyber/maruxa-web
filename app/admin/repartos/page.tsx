@@ -572,10 +572,10 @@ export default function RepartosPage() {
     return filtrados.length > 0 ? filtrados : clientes;
   }
 
-  async function obtenerSaldoMesAnterior(): Promise<number | null> {
+  async function obtenerSaldoMesAnterior(anioConsulta = anio, mesConsulta = mes): Promise<number | null> {
     if (!perfil || !repartidor.trim()) return null;
 
-    const fechaAnterior = new Date(anio, mes - 2, 1);
+    const fechaAnterior = new Date(anioConsulta, mesConsulta - 2, 1);
     const anioAnterior = fechaAnterior.getFullYear();
     const mesAnterior = fechaAnterior.getMonth() + 1;
     const { data: planillasAnteriores, error: errorPlanillas } = await supabase
@@ -640,8 +640,10 @@ export default function RepartosPage() {
       0
     );
 
+    // Recalcula la cadena para no depender de haber abierto cada mes antes.
+    const saldoPrevio = await obtenerSaldoMesAnterior(anioAnterior, mesAnterior);
     return Math.round(
-      montoPesosGuardado(planillaAnterior.saldo_inicial) +
+      (saldoPrevio ?? montoPesosGuardado(planillaAnterior.saldo_inicial)) +
         netoVentas +
         totalPasteles -
         totalAbonos
