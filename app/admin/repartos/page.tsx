@@ -474,6 +474,7 @@ export default function RepartosPage() {
   function cambiarContexto(accion: () => void) {
     if (guardando) return;
     if (cambiosPendientes) guardarBorradorActual();
+    setCargando(true);
     accion();
     limpiarPlanillaAbierta();
   }
@@ -572,82 +573,78 @@ export default function RepartosPage() {
     return filtrados.length > 0 ? filtrados : clientes;
   }
 
-  async function obtenerSaldoMesAnterior(anioConsulta = anio, mesConsulta = mes): Promise<number | null> {
+  async function obtenerSaldoMesAnterior(): Promise<number | null> {
     if (!perfil || !repartidor.trim()) return null;
 
-    const fechaAnterior = new Date(anioConsulta, mesConsulta - 2, 1);
-    const anioAnterior = fechaAnterior.getFullYear();
-    const mesAnterior = fechaAnterior.getMonth() + 1;
-    const { data: planillasAnteriores, error: errorPlanillas } = await supabase
-      .from('reparto_planillas')
-      .select('*')
-      .eq('empresa_id', perfil.empresa_id)
-      .eq('anio', anioAnterior)
-      .eq('mes', mesAnterior)
-      .order('updated_at', { ascending: false });
+    // Leer páginas completas evita truncar meses con más de 1.000 movimientos.
+    async function leerTodas<T>(consulta: (desde: number, hasta: number) => PromiseLike<{ data: T[] | null; error: unknown }>): Promise<T[]> {
+      const resultado: T[] = [];
+      for (let desde = 0; ; desde += 1000) {
+        const { data, error } = await consulta(desde, desde + 999);
+        if (error) throw error;
+        resultado.push(...(data || []));
+        if (!data || data.length < 1000) return resultado;
+      }
+    }
 
-    if (errorPlanillas) throw errorPlanillas;
+    const anteriores = await leerTodas<Planilla>((desde, hasta) => supabase
+      .from('reparto_planillas').select('*')
+      .eq('empresa_id', perfil.empresa_id).lte('anio', anio)
+      .order('updated_at', { ascending: false }).order('id')
+      .range(desde, hasta));
+    const porMes = new Map<number, Planilla[]>();
+    for (const item of anteriores) {
+      const periodo = item.anio * 12 + item.mes - 1;
+      if (periodo >= anio * 12 + mes - 1) continue;
+      if (!((repartidorId && item.repartidor_id === repartidorId) ||
+        correspondeAlRepartidor(item.repartidor_nombre, repartidor))) continue;
+      porMes.set(periodo, [...(porMes.get(periodo) || []), item]);
+    }
+    const cadena: Planilla[][] = [];
+    for (let periodo = anio * 12 + mes - 2; porMes.has(periodo); periodo--) {
+      cadena.unshift(porMes.get(periodo)!);
+    }
+    if (!cadena.length) return null;
 
-    const compatibles = (planillasAnteriores || []).filter(
-      (item) =>
-        (repartidorId && item.repartidor_id === repartidorId) ||
-        correspondeAlRepartidor(item.repartidor_nombre, repartidor)
-    ) as Planilla[];
-    if (compatibles.length === 0) return null;
-
-    const idsCompatibles = compatibles.map((item) => item.id);
-    const { data: detallesAnteriores, error: errorDetalles } = await supabase
-      .from('reparto_planilla_detalles')
-      .select(
-        'planilla_id,precio_unitario,kilos_vendidos,kilos_devueltos,monto_ajuste'
-      )
-      .in('planilla_id', idsCompatibles);
-    if (errorDetalles) throw errorDetalles;
-
+    type MovimientoSaldo = { planilla_id: string; precio_unitario: number; kilos_vendidos: number; kilos_devueltos: number; monto_ajuste: number };
+    type AbonoSaldo = { planilla_id: string; monto: number };
+    // Agrupar meses limita las peticiones simultáneas y el tamaño de la URL.
+    const ids = cadena.flat().map((item) => item.id);
+    const detalles: MovimientoSaldo[] = [];
+    const abonos: AbonoSaldo[] = [];
+    for (let inicio = 0; inicio < ids.length; inicio += 40) {
+      const lote = ids.slice(inicio, inicio + 40);
+      const [movimientos, entregas] = await Promise.all([
+        leerTodas<MovimientoSaldo>((desde, hasta) => supabase.from('reparto_planilla_detalles')
+          .select('planilla_id,precio_unitario,kilos_vendidos,kilos_devueltos,monto_ajuste')
+          .in('planilla_id', lote).order('id').range(desde, hasta)),
+        leerTodas<AbonoSaldo>((desde, hasta) => supabase.from('reparto_planilla_abonos')
+          .select('planilla_id,monto').in('planilla_id', lote).order('id').range(desde, hasta)),
+      ]);
+      detalles.push(...movimientos);
+      abonos.push(...entregas);
+    }
     const cantidades = new Map<string, number>();
-    (detallesAnteriores || []).forEach((detalle) =>
-      cantidades.set(
-        detalle.planilla_id,
-        (cantidades.get(detalle.planilla_id) || 0) + 1
-      )
-    );
-    const planillaAnterior = [...compatibles].sort(
-      (a, b) => (cantidades.get(b.id) || 0) - (cantidades.get(a.id) || 0)
-    )[0];
-    const detallesPlanilla = (detallesAnteriores || []).filter(
-      (detalle) => detalle.planilla_id === planillaAnterior.id
-    );
-
-    const { data: abonosAnteriores, error: errorAbonos } = await supabase
-      .from('reparto_planilla_abonos')
-      .select('monto')
-      .eq('planilla_id', planillaAnterior.id);
-    if (errorAbonos) throw errorAbonos;
-
-    const netoVentas = detallesPlanilla.reduce(
-      (total, detalle) =>
-        total +
-        (numero(detalle.kilos_vendidos) - numero(detalle.kilos_devueltos)) *
-          numero(detalle.precio_unitario) +
-        numero(detalle.monto_ajuste),
-      0
-    );
-    const totalPasteles = Object.values(
-      pastelesGuardados(planillaAnterior.observaciones)
-    ).reduce((total, monto) => total + numero(monto), 0);
-    const totalAbonos = (abonosAnteriores || []).reduce(
-      (total, abono) => total + numero(abono.monto),
-      0
-    );
-
-    // Recalcula la cadena para no depender de haber abierto cada mes antes.
-    const saldoPrevio = await obtenerSaldoMesAnterior(anioAnterior, mesAnterior);
-    return Math.round(
-      (saldoPrevio ?? montoPesosGuardado(planillaAnterior.saldo_inicial)) +
-        netoVentas +
-        totalPasteles -
-        totalAbonos
-    );
+    const netos = new Map<string, number>();
+    const entregados = new Map<string, number>();
+    for (const item of detalles) {
+      cantidades.set(item.planilla_id, (cantidades.get(item.planilla_id) || 0) + 1);
+      netos.set(item.planilla_id, (netos.get(item.planilla_id) || 0) +
+        (numero(item.kilos_vendidos) - numero(item.kilos_devueltos)) * numero(item.precio_unitario) + numero(item.monto_ajuste));
+    }
+    for (const item of abonos) {
+      entregados.set(item.planilla_id, (entregados.get(item.planilla_id) || 0) + numero(item.monto));
+    }
+    let saldo: number | null = null;
+    for (const compatibles of cadena) {
+      const anterior = [...compatibles].sort((a, b) =>
+        (cantidades.get(b.id) || 0) - (cantidades.get(a.id) || 0))[0];
+      const pastelesMes = Object.values(pastelesGuardados(anterior.observaciones))
+        .reduce((total, monto) => total + numero(monto), 0);
+      saldo = Math.round((saldo ?? montoPesosGuardado(anterior.saldo_inicial)) +
+        (netos.get(anterior.id) || 0) + pastelesMes - (entregados.get(anterior.id) || 0));
+    }
+    return saldo;
   }
 
   async function abrirPlanilla() {
@@ -659,6 +656,8 @@ export default function RepartosPage() {
     }
 
     setCargando(true);
+    let saldoAnteriorConsulta: Promise<number | null> | undefined;
+    const consultarSaldoAnterior = () => saldoAnteriorConsulta ??= obtenerSaldoMesAnterior();
 
     const { data: planillasPeriodo, error: errorBusqueda } = await supabase
       .from('reparto_planillas')
@@ -704,7 +703,7 @@ export default function RepartosPage() {
     if (!errorPlanilla && !planillaData) {
       let saldoMesAnterior = 0;
       try {
-        saldoMesAnterior = (await obtenerSaldoMesAnterior()) ?? 0;
+        saldoMesAnterior = (await consultarSaldoAnterior()) ?? 0;
       } catch (error) {
         alert(
           error instanceof Error
@@ -742,7 +741,7 @@ export default function RepartosPage() {
     let saldoCargado = montoPesosGuardado(planillaData.saldo_inicial);
     let saldoArrastrado = false;
     try {
-      const saldoAnterior = await obtenerSaldoMesAnterior();
+      const saldoAnterior = await consultarSaldoAnterior();
       if (!cargaVigente()) return;
       // Sin planilla anterior se conserva el saldo de apertura ingresado.
       if (saldoAnterior !== null) {
@@ -1626,6 +1625,7 @@ export default function RepartosPage() {
               key={nombre}
               type="button"
               onClick={() => {
+                if (activo) return;
                 cambiarContexto(() => setMes(numeroMes));
               }}
               className={`min-w-max flex-1 rounded-md px-3 py-2 text-xs font-black transition ${
@@ -1647,6 +1647,7 @@ export default function RepartosPage() {
             value={anio}
             onChange={(e) => {
               const siguienteAnio = Number(e.target.value);
+              if (siguienteAnio === anio) return;
               cambiarContexto(() => setAnio(siguienteAnio));
             }}
             className="h-10 rounded-md border border-[#4B2818]/20 px-3 font-bold"
@@ -2035,7 +2036,7 @@ export default function RepartosPage() {
       <section className={vistaPlanilla === 'totales' ? 'min-w-0' : 'hidden'}>
         {!planilla ? (
           <p className="p-8 text-center text-sm font-bold text-[#4B2818]/60">
-            Selecciona un repartidor para consultar sus totales.
+            {cargando ? 'Cargando planilla y calculando saldo anterior...' : 'Selecciona un repartidor para consultar sus totales.'}
           </p>
         ) : (
           <div className="max-h-[620px] overflow-auto rounded-lg border border-[#4B2818]/15 bg-white">
