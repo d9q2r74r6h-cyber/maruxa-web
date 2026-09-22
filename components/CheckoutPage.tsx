@@ -6,6 +6,7 @@ import { es } from 'date-fns/locale';
 
 import { useCart } from '@/lib/cart';
 import { CalendarioRetiro } from '@/components/CalendarioRetiro';
+import { cumpleAnticipacionRetiro } from '@/lib/retiro';
 
 export function CheckoutPage() {
   const { items, clearCart } = useCart();
@@ -32,24 +33,18 @@ export function CheckoutPage() {
       return;
     }
 
-    if (tieneTortas) {
-      const ahora = new Date();
-      const diferencia = fecha.getTime() - ahora.getTime();
-      const horas = diferencia / (1000 * 60 * 60);
+    const form = new FormData(e.currentTarget);
+    const hora = String(form.get('hora') || '');
 
-      if (horas < 24) {
-        alert('Las tortas requieren mínimo 24 horas de anticipación.');
-        return;
-      }
+    if (tieneTortas && !cumpleAnticipacionRetiro(fecha, hora)) {
+      alert('La fecha y hora de retiro deben ser al menos 24 horas después de este momento. Elige una hora posterior o un día más adelante.');
+      return;
     }
 
     setLoading(true);
 
-    const form = new FormData(e.currentTarget);
-
     const cliente = String(form.get('cliente'));
     const telefono = String(form.get('telefono'));
-    const hora = String(form.get('hora'));
     const observaciones = String(form.get('observaciones'));
 
     const fechaTexto = format(fecha, 'yyyy-MM-dd');

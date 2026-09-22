@@ -10,9 +10,7 @@ type Props = {
 };
 
 export function CalendarioRetiro({ fecha, setFecha }: Props) {
-  const hoy = new Date();
-  const minimo = new Date();
-  minimo.setHours(minimo.getHours() + 24);
+  const minimo = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
   return (
     <div className="rounded-[30px] bg-white p-5 shadow-premium">
