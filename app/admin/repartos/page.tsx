@@ -1,6 +1,9 @@
 'use client';
 
 import {
+  memo,
+  Fragment,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -391,6 +394,103 @@ function leerBorradorPlanilla(planillaId: string): BorradorPlanilla | null {
     return null;
   }
 }
+
+type FilaKilosProps = {
+  fila: Fila; indice: number; cantidadFilas: number; dias: number[]; anio: number; mes: number; guardandoOrden: boolean;
+  actualizarCelda: (key: string, dia: number, campo: 'vendidos' | 'devueltos' | 'ajuste', valor: string) => void;
+  actualizarPrecio: (key: string, valor: string) => void;
+  moverFila: (key: string, direccion: -1 | 1) => void;
+};
+const FilaKilos = memo(function FilaKilos({ fila, indice, cantidadFilas, dias, anio, mes, guardandoOrden, actualizarCelda, actualizarPrecio, moverFila }: FilaKilosProps) {
+  return (
+                  <tr
+                    key={fila.key}
+                    className="group border-b border-[#4B2818]/10 hover:bg-[#FFF3DF]/45"
+                  >
+                    <td className="sticky left-0 z-[5] w-[170px] min-w-[170px] max-w-[170px] overflow-hidden bg-white px-2 py-1 font-black uppercase text-[#2A1710] transition-colors group-focus-within:bg-amber-200">
+                      <div className="flex items-center gap-1">
+                        <div className="no-print flex shrink-0 gap-0.5">
+                          <button type="button" disabled={guardandoOrden || indice === 0} onClick={() => void moverFila(fila.key, -1)} title="Subir cliente" aria-label={`Subir ${fila.nombre}`} className="rounded border border-[#4B2818]/15 p-1 text-[#A51F2B] disabled:opacity-25"><ArrowUp className="h-3.5 w-3.5" /></button>
+                          <button type="button" disabled={guardandoOrden || indice === cantidadFilas - 1} onClick={() => void moverFila(fila.key, 1)} title="Bajar cliente" aria-label={`Bajar ${fila.nombre}`} className="rounded border border-[#4B2818]/15 p-1 text-[#A51F2B] disabled:opacity-25"><ArrowDown className="h-3.5 w-3.5" /></button>
+                        </div>
+                        <div className="min-w-0 leading-tight" title={fila.nombre}>
+                          <span className="block truncate">{fila.sigla}</span>
+                          {normalizarNombre(fila.sigla) !==
+                            normalizarNombre(fila.nombre) && (
+                            <span className="block truncate text-[9px] font-bold normal-case text-[#4B2818]/60">
+                              {fila.nombre}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="sticky left-[170px] z-[5] w-[72px] min-w-[72px] max-w-[72px] bg-white px-1 py-1 transition-colors group-focus-within:bg-amber-200">
+                      <input
+                        type="number"
+                        data-columna="precio"
+                        value={fila.precio || ''}
+                        onChange={(e) => actualizarPrecio(fila.key, e.target.value)}
+                        onKeyDown={moverEnGrilla}
+                        className="sin-spinner h-8 w-16 rounded border border-[#4B2818]/15 px-1 text-right font-bold group-focus-within:bg-amber-50"
+                      />
+                    </td>
+                    {dias.map((dia) => {
+                      const celda = fila.dias[dia] || {
+                        vendidos: 0,
+                        devueltos: 0,
+                        ajuste: 0,
+                      };
+                      return (
+                        <Fragment key={dia}>
+                          <td key={`${fila.key}-${dia}-v`} className={`border-l border-[#4B2818]/10 px-1 py-1 transition-colors group-focus-within:!bg-amber-100 ${esDomingo(anio, mes, dia) ? 'bg-amber-100' : ''}`}>
+                            <input
+                              type="number"
+                              min="0"
+                              data-columna={`${dia}-vendidos`}
+                              value={celda.vendidos || ''}
+                              onChange={(e) =>
+                                actualizarCelda(fila.key, dia, 'vendidos', e.target.value)
+                              }
+                              onKeyDown={moverEnGrilla}
+                              className="sin-spinner h-8 w-14 rounded border border-[#4B2818]/15 px-1 text-right font-bold group-focus-within:bg-amber-50"
+                            />
+                          </td>
+                          <td key={`${fila.key}-${dia}-d`} className={`px-1 py-1 transition-colors group-focus-within:!bg-amber-100 ${esDomingo(anio, mes, dia) ? 'bg-amber-100' : ''}`}>
+                            <input
+                              type="number"
+                              min="0"
+                              data-columna={`${dia}-devueltos`}
+                              value={celda.devueltos || ''}
+                              onChange={(e) =>
+                                actualizarCelda(fila.key, dia, 'devueltos', e.target.value)
+                              }
+                              onKeyDown={moverEnGrilla}
+                              className="sin-spinner h-8 w-14 rounded border border-red-200 bg-red-50 px-1 text-right font-bold text-red-800 group-focus-within:bg-amber-50"
+                            />
+                          </td>
+                        </Fragment>
+                      );
+                    })}
+                    <td className="border-l border-[#4B2818]/10 px-2 py-1 text-right font-black text-[#A51F2B]">
+                      {dinero(
+                        dias.reduce((total, dia) => {
+                          const celda = fila.dias[dia] || {
+                            vendidos: 0,
+                            devueltos: 0,
+                            ajuste: 0,
+                          };
+                          return (
+                            total +
+                            celda.vendidos * fila.precio -
+                            celda.devueltos * fila.precio +
+                            celda.ajuste
+                          );
+                        }, 0)
+                      )}
+                    </td>
+                  </tr>
+  );
+});
 
 export default function RepartosPage() {
   const { perfil } = useAdminSession();
@@ -1027,7 +1127,7 @@ export default function RepartosPage() {
     };
   }, [abonos, cambiosPendientes, filas, liquidacion, pasteles, planilla, saldoInicial]);
 
-  function actualizarCelda(
+  const actualizarCelda = useCallback(function actualizarCelda(
     filaKey: string,
     dia: number,
     campo: 'vendidos' | 'devueltos' | 'ajuste',
@@ -1050,16 +1150,20 @@ export default function RepartosPage() {
         };
       })
     );
-  }
+  }, []);
 
-  function actualizarPrecio(filaKey: string, valor: string) {
+  const actualizarPrecio = useCallback(function actualizarPrecio(filaKey: string, valor: string) {
     setCambiosPendientes(true);
     setFilas((actuales) =>
       actuales.map((fila) =>
         fila.key === filaKey ? { ...fila, precio: numero(valor) } : fila
       )
     );
-  }
+  }, []);
+
+  const moverFilaRef = useRef(moverFila);
+  useEffect(() => { moverFilaRef.current = moverFila; });
+  const moverFilaEstable = useCallback((key: string, direccion: -1 | 1) => { void moverFilaRef.current(key, direccion); }, []);
 
   async function moverFila(filaKey: string, direccion: -1 | 1) {
     if (!planilla || guardandoOrden) return;
@@ -1907,94 +2011,10 @@ export default function RepartosPage() {
               </thead>
               <tbody>
                 {filas.map((fila, indice) => (
-                  <tr
-                    key={fila.key}
-                    className="group border-b border-[#4B2818]/10 hover:bg-[#FFF3DF]/45"
-                  >
-                    <td className="sticky left-0 z-[5] w-[170px] min-w-[170px] max-w-[170px] overflow-hidden bg-white px-2 py-1 font-black uppercase text-[#2A1710] transition-colors group-focus-within:bg-amber-200">
-                      <div className="flex items-center gap-1">
-                        <div className="no-print flex shrink-0 gap-0.5">
-                          <button type="button" disabled={guardandoOrden || indice === 0} onClick={() => void moverFila(fila.key, -1)} title="Subir cliente" aria-label={`Subir ${fila.nombre}`} className="rounded border border-[#4B2818]/15 p-1 text-[#A51F2B] disabled:opacity-25"><ArrowUp className="h-3.5 w-3.5" /></button>
-                          <button type="button" disabled={guardandoOrden || indice === filas.length - 1} onClick={() => void moverFila(fila.key, 1)} title="Bajar cliente" aria-label={`Bajar ${fila.nombre}`} className="rounded border border-[#4B2818]/15 p-1 text-[#A51F2B] disabled:opacity-25"><ArrowDown className="h-3.5 w-3.5" /></button>
-                        </div>
-                        <div className="min-w-0 leading-tight" title={fila.nombre}>
-                          <span className="block truncate">{fila.sigla}</span>
-                          {normalizarNombre(fila.sigla) !==
-                            normalizarNombre(fila.nombre) && (
-                            <span className="block truncate text-[9px] font-bold normal-case text-[#4B2818]/60">
-                              {fila.nombre}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="sticky left-[170px] z-[5] w-[72px] min-w-[72px] max-w-[72px] bg-white px-1 py-1 transition-colors group-focus-within:bg-amber-200">
-                      <input
-                        type="number"
-                        data-columna="precio"
-                        value={fila.precio || ''}
-                        onChange={(e) => actualizarPrecio(fila.key, e.target.value)}
-                        onKeyDown={moverEnGrilla}
-                        className="sin-spinner h-8 w-16 rounded border border-[#4B2818]/15 px-1 text-right font-bold group-focus-within:bg-amber-50"
-                      />
-                    </td>
-                    {dias.map((dia) => {
-                      const celda = fila.dias[dia] || {
-                        vendidos: 0,
-                        devueltos: 0,
-                        ajuste: 0,
-                      };
-                      return (
-                        <>
-                          <td key={`${fila.key}-${dia}-v`} className={`border-l border-[#4B2818]/10 px-1 py-1 transition-colors group-focus-within:!bg-amber-100 ${esDomingo(anio, mes, dia) ? 'bg-amber-100' : ''}`}>
-                            <input
-                              type="number"
-                              min="0"
-                              data-columna={`${dia}-vendidos`}
-                              value={celda.vendidos || ''}
-                              onChange={(e) =>
-                                actualizarCelda(fila.key, dia, 'vendidos', e.target.value)
-                              }
-                              onKeyDown={moverEnGrilla}
-                              className="sin-spinner h-8 w-14 rounded border border-[#4B2818]/15 px-1 text-right font-bold group-focus-within:bg-amber-50"
-                            />
-                          </td>
-                          <td key={`${fila.key}-${dia}-d`} className={`px-1 py-1 transition-colors group-focus-within:!bg-amber-100 ${esDomingo(anio, mes, dia) ? 'bg-amber-100' : ''}`}>
-                            <input
-                              type="number"
-                              min="0"
-                              data-columna={`${dia}-devueltos`}
-                              value={celda.devueltos || ''}
-                              onChange={(e) =>
-                                actualizarCelda(fila.key, dia, 'devueltos', e.target.value)
-                              }
-                              onKeyDown={moverEnGrilla}
-                              className="sin-spinner h-8 w-14 rounded border border-red-200 bg-red-50 px-1 text-right font-bold text-red-800 group-focus-within:bg-amber-50"
-                            />
-                          </td>
-                        </>
-                      );
-                    })}
-                    <td className="border-l border-[#4B2818]/10 px-2 py-1 text-right font-black text-[#A51F2B]">
-                      {dinero(
-                        dias.reduce((total, dia) => {
-                          const celda = fila.dias[dia] || {
-                            vendidos: 0,
-                            devueltos: 0,
-                            ajuste: 0,
-                          };
-                          return (
-                            total +
-                            celda.vendidos * fila.precio -
-                            celda.devueltos * fila.precio +
-                            celda.ajuste
-                          );
-                        }, 0)
-                      )}
-                    </td>
-                  </tr>
+                  <FilaKilos key={fila.key} fila={fila} indice={indice} cantidadFilas={filas.length}
+                    dias={dias} anio={anio} mes={mes} guardandoOrden={guardandoOrden}
+                    actualizarCelda={actualizarCelda} actualizarPrecio={actualizarPrecio} moverFila={moverFilaEstable} />
                 ))}
-
                 <tr className="border-t-2 border-[#2A1710] bg-[#FFF3DF] font-black">
                   <td className="sticky left-0 z-[5] bg-[#FFF3DF] px-2 py-2">Total kg</td>
                   <td className="sticky left-[170px] z-[5] bg-[#FFF3DF]" />
