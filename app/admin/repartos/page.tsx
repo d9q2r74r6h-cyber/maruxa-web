@@ -572,8 +572,8 @@ export default function RepartosPage() {
     return filtrados.length > 0 ? filtrados : clientes;
   }
 
-  async function obtenerSaldoMesAnterior() {
-    if (!perfil || !repartidor.trim()) return 0;
+  async function obtenerSaldoMesAnterior(): Promise<number | null> {
+    if (!perfil || !repartidor.trim()) return null;
 
     const fechaAnterior = new Date(anio, mes - 2, 1);
     const anioAnterior = fechaAnterior.getFullYear();
@@ -593,7 +593,7 @@ export default function RepartosPage() {
         (repartidorId && item.repartidor_id === repartidorId) ||
         correspondeAlRepartidor(item.repartidor_nombre, repartidor)
     ) as Planilla[];
-    if (compatibles.length === 0) return 0;
+    if (compatibles.length === 0) return null;
 
     const idsCompatibles = compatibles.map((item) => item.id);
     const { data: detallesAnteriores, error: errorDetalles } = await supabase
@@ -702,7 +702,7 @@ export default function RepartosPage() {
     if (!errorPlanilla && !planillaData) {
       let saldoMesAnterior = 0;
       try {
-        saldoMesAnterior = await obtenerSaldoMesAnterior();
+        saldoMesAnterior = (await obtenerSaldoMesAnterior()) ?? 0;
       } catch (error) {
         alert(
           error instanceof Error
@@ -738,35 +738,30 @@ export default function RepartosPage() {
     }
 
     let saldoCargado = montoPesosGuardado(planillaData.saldo_inicial);
-    if (saldoCargado === 0) {
-      try {
-        saldoCargado = await obtenerSaldoMesAnterior();
-        const observacionesActualizadas = observacionesPlanilla(
-          ordenClientesGuardado(planillaData.observaciones),
-          pastelesGuardados(planillaData.observaciones),
-          liquidacionGuardada(planillaData.observaciones),
-          true
-        );
-        const { error: errorSaldoInicial } = await supabase
-          .from('reparto_planillas')
-          .update({
-            saldo_inicial: saldoCargado,
-            observaciones: observacionesActualizadas,
-          })
-          .eq('id', planillaData.id);
-        if (errorSaldoInicial) throw errorSaldoInicial;
-        planillaData = {
-          ...planillaData,
-          saldo_inicial: saldoCargado,
-          observaciones: observacionesActualizadas,
-        };
-      } catch (error) {
-        alert(
-          error instanceof Error
-            ? `No se pudo obtener el saldo del mes anterior: ${error.message}`
-            : 'No se pudo obtener el saldo del mes anterior.'
-        );
+    let saldoArrastrado = false;
+    try {
+      const saldoAnterior = await obtenerSaldoMesAnterior();
+      if (!cargaVigente()) return;
+      // Sin planilla anterior se conserva el saldo de apertura ingresado.
+      if (saldoAnterior !== null) {
+        saldoArrastrado = true;
+        saldoCargado = saldoAnterior;
+        if (saldoCargado !== montoPesosGuardado(planillaData.saldo_inicial)) {
+          const { error: errorSaldoInicial } = await supabase
+            .from('reparto_planillas')
+            .update({ saldo_inicial: saldoCargado })
+            .eq('id', planillaData.id);
+          if (errorSaldoInicial) throw errorSaldoInicial;
+          planillaData = { ...planillaData, saldo_inicial: saldoCargado };
+        }
       }
+    } catch (error) {
+      if (!cargaVigente()) return;
+      alert(error instanceof Error
+        ? `No se pudo actualizar el saldo del mes anterior: ${error.message}`
+        : 'No se pudo actualizar el saldo del mes anterior. Intenta abrir la planilla nuevamente.');
+      setCargando(false);
+      return;
     }
 
     if (!cargaVigente()) return;
@@ -890,7 +885,7 @@ export default function RepartosPage() {
     setLiquidacion(
       borrador?.liquidacion || liquidacionGuardada(planillaData.observaciones)
     );
-    if (borrador) setSaldoInicial(montoPesosGuardado(borrador.saldoInicial));
+    if (borrador && !saldoArrastrado) setSaldoInicial(montoPesosGuardado(borrador.saldoInicial));
     setCambiosPendientes(Boolean(borrador));
     setCargando(false);
   }
