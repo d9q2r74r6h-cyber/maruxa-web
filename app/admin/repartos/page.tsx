@@ -588,28 +588,43 @@ export default function RepartosPage() {
 
     if (errorPlanillas) throw errorPlanillas;
 
-    const planillaAnterior = (planillasAnteriores || []).find(
+    const compatibles = (planillasAnteriores || []).filter(
       (item) =>
         (repartidorId && item.repartidor_id === repartidorId) ||
         correspondeAlRepartidor(item.repartidor_nombre, repartidor)
-    ) as Planilla | undefined;
-    if (!planillaAnterior) return 0;
+    ) as Planilla[];
+    if (compatibles.length === 0) return 0;
 
-    const [detallesRespuesta, abonosRespuesta] = await Promise.all([
-      supabase
-        .from('reparto_planilla_detalles')
-        .select('precio_unitario,kilos_vendidos,kilos_devueltos,monto_ajuste')
-        .eq('planilla_id', planillaAnterior.id),
-      supabase
-        .from('reparto_planilla_abonos')
-        .select('monto')
-        .eq('planilla_id', planillaAnterior.id),
-    ]);
+    const idsCompatibles = compatibles.map((item) => item.id);
+    const { data: detallesAnteriores, error: errorDetalles } = await supabase
+      .from('reparto_planilla_detalles')
+      .select(
+        'planilla_id,precio_unitario,kilos_vendidos,kilos_devueltos,monto_ajuste'
+      )
+      .in('planilla_id', idsCompatibles);
+    if (errorDetalles) throw errorDetalles;
 
-    if (detallesRespuesta.error) throw detallesRespuesta.error;
-    if (abonosRespuesta.error) throw abonosRespuesta.error;
+    const cantidades = new Map<string, number>();
+    (detallesAnteriores || []).forEach((detalle) =>
+      cantidades.set(
+        detalle.planilla_id,
+        (cantidades.get(detalle.planilla_id) || 0) + 1
+      )
+    );
+    const planillaAnterior = [...compatibles].sort(
+      (a, b) => (cantidades.get(b.id) || 0) - (cantidades.get(a.id) || 0)
+    )[0];
+    const detallesPlanilla = (detallesAnteriores || []).filter(
+      (detalle) => detalle.planilla_id === planillaAnterior.id
+    );
 
-    const netoVentas = (detallesRespuesta.data || []).reduce(
+    const { data: abonosAnteriores, error: errorAbonos } = await supabase
+      .from('reparto_planilla_abonos')
+      .select('monto')
+      .eq('planilla_id', planillaAnterior.id);
+    if (errorAbonos) throw errorAbonos;
+
+    const netoVentas = detallesPlanilla.reduce(
       (total, detalle) =>
         total +
         (numero(detalle.kilos_vendidos) - numero(detalle.kilos_devueltos)) *
@@ -620,7 +635,7 @@ export default function RepartosPage() {
     const totalPasteles = Object.values(
       pastelesGuardados(planillaAnterior.observaciones)
     ).reduce((total, monto) => total + numero(monto), 0);
-    const totalAbonos = (abonosRespuesta.data || []).reduce(
+    const totalAbonos = (abonosAnteriores || []).reduce(
       (total, abono) => total + numero(abono.monto),
       0
     );
@@ -723,10 +738,7 @@ export default function RepartosPage() {
     }
 
     let saldoCargado = montoPesosGuardado(planillaData.saldo_inicial);
-    if (
-      saldoCargado === 0 &&
-      !saldoInicialFueDefinido(planillaData.observaciones)
-    ) {
+    if (saldoCargado === 0) {
       try {
         saldoCargado = await obtenerSaldoMesAnterior();
         const observacionesActualizadas = observacionesPlanilla(
