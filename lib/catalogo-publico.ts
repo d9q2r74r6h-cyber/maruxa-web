@@ -1,6 +1,8 @@
+import type { Presentacion } from './presentaciones';
 import { createClient } from '@supabase/supabase-js';
 
 export type ProductoCatalogo = {
+  presentaciones?: Presentacion[] | null;
   id: number;
   nombre: string;
   descripcion: string | null;
@@ -73,6 +75,7 @@ export async function obtenerProductosCatalogo(filtros: FiltrosCatalogo = {}) {
       precio_15,
       precio_20,
       precio_25,
+      presentaciones,
       familias_productos!inner (
         id,
         nombre,
@@ -150,6 +153,7 @@ export async function obtenerProductosCatalogo(filtros: FiltrosCatalogo = {}) {
       precio_15: producto.precio_15,
       precio_20: producto.precio_20,
       precio_25: producto.precio_25,
+      presentaciones: producto.presentaciones,
       familia: producto.familias_productos
         ? {
             id: producto.familias_productos.id,

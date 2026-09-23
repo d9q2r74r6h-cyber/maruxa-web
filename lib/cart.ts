@@ -7,6 +7,8 @@ export type CartItem = {
   precio: number;
   imagen: string | null;
   tamano?: string;
+  presentacion_id?: string;
+  requiere_anticipacion?: boolean;
   cantidad: number;
 };
 

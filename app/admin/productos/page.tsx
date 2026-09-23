@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { obtenerEmpresaActual } from '@/lib/empresa';
+import { presentacionesProducto, validarPresentaciones, type Presentacion } from '@/lib/presentaciones';
 import { Search, X } from 'lucide-react';
 type TipoProducto = 'producto' | 'ingrediente' | 'envase' | 'mano_obra';
 
@@ -14,6 +15,7 @@ type FamiliaProducto = {
 };
 
 type Producto = {
+  presentaciones?: Presentacion[] | null;
   id: number;
   codigo: string | null;
   nombre: string;
@@ -53,6 +55,7 @@ type Producto = {
 };
 
 const formInicial = {
+  presentaciones: [] as { id: string; nombre: string; precio: string; activo: boolean }[],
   codigo: '',
   nombre: '',
   descripcion: '',
@@ -368,6 +371,7 @@ export default function AdminProductosPage() {
     const tipoProducto = producto.tipo_producto || 'producto';
 
     setForm({
+      presentaciones: presentacionesProducto(producto).map((p) => ({ ...p, precio: String(p.precio) })),
       codigo: producto.codigo || '',
       nombre: producto.nombre,
       descripcion: producto.descripcion || '',
@@ -429,23 +433,17 @@ export default function AdminProductosPage() {
 
     if (
       esProducto &&
-      !esProductoTorta &&
+      !esProductoTorta && form.presentaciones.length === 0 &&
       !form.precio
     ) {
       alert('Completa el precio de venta.');
       return false;
     }
 
-    if (
-      esProducto &&
-      esProductoTorta &&
-      !form.precio_10 &&
-      !form.precio_15 &&
-      !form.precio_20 &&
-      !form.precio_25
-    ) {
-      alert('Completa al menos un precio de torta.');
-      return false;
+    if (esProducto && (esProductoTorta || form.presentaciones.length > 0)) {
+      if (!form.presentaciones.length) { alert('Agrega al menos una presentación con nombre y precio.'); return false; }
+      try { validarPresentaciones(form.presentaciones.map((p) => ({ ...p, nombre: p.nombre.trim(), precio: Number(p.precio) }))); }
+      catch (error) { alert(error instanceof Error ? error.message : 'Revisa las presentaciones.'); return false; }
     }
 
     if (esInsumo && !form.costo_unitario) {
@@ -490,14 +488,16 @@ export default function AdminProductosPage() {
     empresaId?: string | number,
     codigoFinal?: string
   ) {
+    const preciosDisponibles = form.presentaciones.filter((p) => p.activo).map((p) => Number(p.precio));
+    const precioPresentacion = preciosDisponibles.length ? Math.min(...preciosDisponibles) : 0;
     return {
       codigo: (codigoFinal || form.codigo).trim().toUpperCase() || null,
       nombre: form.nombre,
       descripcion: form.descripcion,
       precio:
         form.tipo_producto === 'producto'
-          ? esProductoTorta
-            ? Number(form.precio_10 || 0)
+          ? form.presentaciones.length > 0
+            ? precioPresentacion
             : Number(form.precio || 0)
           : 0,
       categoria:
@@ -513,14 +513,10 @@ export default function AdminProductosPage() {
       destacado: esProducto ? form.destacado : false,
       slug: crearSlug(form.nombre),
 
-      precio_10:
-        esProducto && form.precio_10 ? Number(form.precio_10) : null,
-      precio_15:
-        esProducto && form.precio_15 ? Number(form.precio_15) : null,
-      precio_20:
-        esProducto && form.precio_20 ? Number(form.precio_20) : null,
-      precio_25:
-        esProducto && form.precio_25 ? Number(form.precio_25) : null,
+      presentaciones: esProducto ? form.presentaciones.map((p) => ({ ...p, nombre: p.nombre.trim(), precio: Number(p.precio) })) : null,
+      ...Object.fromEntries([10, 15, 20, 25].map((n) => [
+        'precio_' + n, esProducto ? Number(form.presentaciones.find((p) => p.activo && p.nombre.trim() === n + ' personas')?.precio || 0) || null : null,
+      ])),
 
       familia_id: esProducto ? form.familia_id || null : null,
       usar_configuracion_familia: esProducto
@@ -847,7 +843,7 @@ export default function AdminProductosPage() {
               </label>
             )}
 
-            {esProducto && !esProductoTorta && (
+            {esProducto && !esProductoTorta && form.presentaciones.length === 0 && (
               <label className="space-y-2">
                 <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
                   Precio de venta final
@@ -1037,83 +1033,21 @@ export default function AdminProductosPage() {
               </label>
             )}
 
-            {esProducto && esProductoTorta && (
-              <>
-                <label className="space-y-2">
-                  <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
-                    Precio final 10 personas
-                  </span>
-                  <input
-                    placeholder="Con IVA incluido"
-                    type="number"
-                    value={form.precio_10}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        precio_10: e.target.value,
-                      })
-                    }
-                    className="h-14 w-full rounded-2xl border border-maruxa-rojo/10 px-5 font-bold outline-none"
-                  />
-                </label>
-
-                <label className="space-y-2">
-                  <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
-                    Precio final 15 personas
-                  </span>
-                  <input
-                    placeholder="Con IVA incluido"
-                    type="number"
-                    value={form.precio_15}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        precio_15: e.target.value,
-                      })
-                    }
-                    className="h-14 w-full rounded-2xl border border-maruxa-rojo/10 px-5 font-bold outline-none"
-                  />
-                </label>
-
-                <label className="space-y-2">
-                  <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
-                    Precio final 20 personas
-                  </span>
-                  <input
-                    placeholder="Con IVA incluido"
-                    type="number"
-                    value={form.precio_20}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        precio_20: e.target.value,
-                      })
-                    }
-                    className="h-14 w-full rounded-2xl border border-maruxa-rojo/10 px-5 font-bold outline-none"
-                  />
-                </label>
-
-                <label className="space-y-2">
-                  <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
-                    Precio final 25 personas
-                  </span>
-                  <input
-                    placeholder="Con IVA incluido"
-                    type="number"
-                    value={form.precio_25}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        precio_25: e.target.value,
-                      })
-                    }
-                    className="h-14 w-full rounded-2xl border border-maruxa-rojo/10 px-5 font-bold outline-none"
-                  />
-                </label>
-                <p className="md:col-span-2 text-xs font-semibold text-maruxa-cafe/60">
-                  Los precios de torta tambien son finales, con IVA incluido.
-                </p>
-              </>
+            {esProducto && (
+              <section className="space-y-3 rounded-2xl border p-4 md:col-span-2">
+                <h3 className="text-lg font-black">Presentaciones y precios</h3>
+                <p className="text-sm">Agrega solo las opciones que vendes. Por ejemplo: 10 personas, Grande o Caja de 6. Precios finales con IVA incluido.</p>
+                {form.presentaciones.map((p, index) => (
+                  <div key={p.id} className="grid items-end gap-3 rounded-xl bg-gray-50 p-3 md:grid-cols-[1fr_160px_auto_auto]">
+                    <label>Nombre<input aria-label={'Nombre de presentación ' + (index + 1)} value={p.nombre} maxLength={80} placeholder="Ej: 20 personas" className="mt-1 w-full rounded border p-3" onChange={(e) => setForm((f) => ({ ...f, presentaciones: f.presentaciones.map((actual) => actual.id === p.id ? { ...actual, nombre: e.target.value } : actual) }))} /></label>
+                    <label>Precio final<input aria-label={'Precio de presentación ' + (index + 1)} type="number" min="1" step="1" value={p.precio} className="mt-1 w-full rounded border p-3" onChange={(e) => setForm((f) => ({ ...f, presentaciones: f.presentaciones.map((actual) => actual.id === p.id ? { ...actual, precio: e.target.value } : actual) }))} /></label>
+                    <label className="py-3"><input type="checkbox" checked={p.activo} onChange={(e) => setForm((f) => ({ ...f, presentaciones: f.presentaciones.map((actual) => actual.id === p.id ? { ...actual, activo: e.target.checked } : actual) }))} /> Disponible</label>
+                    <button type="button" className="rounded border p-3 text-red-700" onClick={() => setForm((f) => ({ ...f, presentaciones: f.presentaciones.filter((actual) => actual.id !== p.id) }))}>Quitar</button>
+                  </div>
+                ))}
+                <button type="button" className="rounded-full bg-maruxa-rojo px-5 py-3 font-bold text-white" onClick={() => setForm((f) => ({ ...f, presentaciones: [...f.presentaciones, { id: crypto.randomUUID(), nombre: '', precio: '', activo: true }] }))}>+ Agregar presentación</button>
+                {!form.presentaciones.length && <p className="text-sm">{esProductoTorta ? 'Agrega una presentación aunque vendas un único tamaño.' : 'Si no agregas presentaciones, se utiliza el precio general.'}</p>}
+              </section>
             )}
 
               {form.tipo_producto === 'producto' && (
@@ -1483,29 +1417,8 @@ export default function AdminProductosPage() {
                         ).toLocaleString('es-CL')}{' '}
                         / {producto.unidad_base || '-'}
                       </p>
-                    ) : esTortaLista ? (
-                      <div className="mt-1 text-sm font-bold text-maruxa-cafe/70">
-                        <p>
-                          10p: $
-                          {producto.precio_10?.toLocaleString('es-CL') ||
-                            '—'}
-                        </p>
-                        <p>
-                          15p: $
-                          {producto.precio_15?.toLocaleString('es-CL') ||
-                            '—'}
-                        </p>
-                        <p>
-                          20p: $
-                          {producto.precio_20?.toLocaleString('es-CL') ||
-                            '—'}
-                        </p>
-                        <p>
-                          25p: $
-                          {producto.precio_25?.toLocaleString('es-CL') ||
-                            '—'}
-                        </p>
-                      </div>
+                    ) : presentacionesProducto(producto).length > 0 ? (
+                      <div className="space-y-1">{presentacionesProducto(producto).map((p) => <p key={p.id}>{p.nombre}: {dinero(p.precio)}{!p.activo ? ' (No disponible)' : ''}</p>)}</div>
                     ) : (
                       <p className="mt-1 font-bold text-maruxa-cafe/70">
                         ${producto.precio.toLocaleString('es-CL')}

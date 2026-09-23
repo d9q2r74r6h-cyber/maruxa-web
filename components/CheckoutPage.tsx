@@ -22,7 +22,7 @@ export function CheckoutPage() {
   }, [items]);
 
   const tieneTortas = useMemo(() => {
-    return items.some((item) => item.tamano);
+    return items.some((item) => item.requiere_anticipacion ?? Boolean(item.tamano));
   }, [items]);
 
   async function finalizar(e: React.FormEvent<HTMLFormElement>) {
@@ -69,6 +69,7 @@ const entradaPedido = {
     id: item.id,
     cantidad: item.cantidad,
     tamano: item.tamano || null,
+    presentacion_id: item.presentacion_id || null,
   })),
 };
 

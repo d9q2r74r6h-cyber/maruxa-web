@@ -1,5 +1,6 @@
 'use client';
 
+import { presentacionesProducto, presentacionesDisponibles, type Presentacion } from '@/lib/presentaciones';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { useCart } from '@/lib/cart';
@@ -10,6 +11,7 @@ import { useRouter } from 'next/navigation';
 
 
 type Producto = {
+  presentaciones?: Presentacion[] | null;
   id: number;
   nombre: string;
   descripcion: string | null;
@@ -23,18 +25,9 @@ type Producto = {
   precio_25: number | null;
 };
 
-const tamanos = [
-  { nombre: '10 personas', campo: 'precio_10' },
-  { nombre: '15 personas', campo: 'precio_15' },
-  { nombre: '20 personas', campo: 'precio_20' },
-  { nombre: '25 personas', campo: 'precio_25' },
-] as const;
-
 export default function ProductoDetalle({ slug }: { slug: string }) {
   const [producto, setProducto] = useState<Producto | null>(null);
-  type TamanoTorta = (typeof tamanos)[number];
-
-const [tamano, setTamano] = useState<TamanoTorta>(tamanos[0]);
+  const [presentacionId, setPresentacionId] = useState('');
   const [cargando, setCargando] = useState(true);
   const router = useRouter();
 
@@ -80,9 +73,10 @@ const [tamano, setTamano] = useState<TamanoTorta>(tamanos[0]);
     .toLowerCase()
     .includes('torta');
 
-  const precioFinal = esTorta
-    ? producto[tamano.campo] || producto.precio
-    : producto.precio;
+  const opciones = presentacionesDisponibles(producto);
+  const tamano = opciones.find((p) => p.id === presentacionId) || opciones[0];
+  const sinDisponibilidad = presentacionesProducto(producto).length > 0 && !tamano;
+  const precioFinal = tamano?.precio ?? producto.precio;
 
   return (
     <main className="min-h-screen bg-maruxa-crema py-20">
@@ -135,21 +129,21 @@ const [tamano, setTamano] = useState<TamanoTorta>(tamanos[0]);
             {producto.descripcion}
           </p>
 
-          {esTorta && (
+          {opciones.length > 0 && (
             <div className="mt-10">
               <p className="mb-4 text-sm font-black uppercase tracking-widest text-maruxa-rojo">
-                Elige tamaño
+                Elige presentación
               </p>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                {tamanos.map((t) => {
-                  const activo = tamano.nombre === t.nombre;
-                  const precioTamano = producto[t.campo];
+                {opciones.map((t) => {
+                  const activo = tamano?.id === t.id;
+                  const precioTamano = t.precio;
 
                   return (
                     <button
                       key={t.nombre}
-                      onClick={() => setTamano(t)}
+                      onClick={() => setPresentacionId(t.id)}
                       className={`rounded-[24px] border p-5 text-left transition ${
                         activo
                           ? 'border-maruxa-rojo bg-maruxa-rojo text-maruxa-crema shadow-premium'
@@ -187,14 +181,15 @@ const [tamano, setTamano] = useState<TamanoTorta>(tamanos[0]);
               <div className="flex flex-col gap-3">
   <button
     onClick={() => {
+      if (sinDisponibilidad) return;
       addItem({
         id: producto.id,
         nombre: producto.nombre,
         precio: precioFinal,
         imagen: producto.imagen,
-        tamano: esTorta
-          ? tamano.nombre
-          : undefined,
+        tamano: tamano?.nombre,
+        presentacion_id: tamano?.id,
+        requiere_anticipacion: esTorta,
         cantidad: 1,
       });
 
@@ -202,9 +197,10 @@ const [tamano, setTamano] = useState<TamanoTorta>(tamanos[0]);
         `${producto.nombre} agregado al carrito`
       );
     }}
-    className="btn-rojo"
+    disabled={sinDisponibilidad}
+    className="btn-rojo disabled:opacity-50"
   >
-    Agregar al carrito
+    {sinDisponibilidad ? 'Sin presentaciones disponibles' : 'Agregar al carrito'}
   </button>
 
   <div className="grid grid-cols-2 gap-3">

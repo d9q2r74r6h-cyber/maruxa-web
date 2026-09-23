@@ -82,7 +82,7 @@ export async function POST(request: Request) {
 
   const { data: productos, error: errorProductos } = await admin
     .from('productos')
-    .select('id,nombre,precio,precio_10,precio_15,precio_20,precio_25,imagen')
+    .select('id,nombre,precio,precio_10,precio_15,precio_20,precio_25,presentaciones,imagen,categoria')
     .eq('empresa_id', empresa.id)
     .eq('activo', true)
     .eq('tipo_producto', 'producto')
@@ -114,7 +114,7 @@ export async function POST(request: Request) {
       fechaRetiro,
       horaRetiro,
       hoyChile,
-      items.some((item) => Boolean(item.tamano))
+      items.some((item) => String(productosPorId.get(item.id)?.categoria || '').toLowerCase().includes('torta'))
     );
     const total = totalPedido(items);
 

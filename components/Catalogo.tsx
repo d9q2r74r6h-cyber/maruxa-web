@@ -1,4 +1,5 @@
 'use client';
+import { presentacionesDisponibles, type Presentacion } from '@/lib/presentaciones';
 
 import { motion } from 'framer-motion';
 import Image from 'next/image';
@@ -12,6 +13,7 @@ import {
 import { useSearchParams } from 'next/navigation';
 
 type Producto = {
+  presentaciones?: Presentacion[] | null;
   id: number;
   nombre: string;
   descripcion: string | null;
@@ -56,12 +58,7 @@ function descripcionResumida(descripcion: string) {
 }
 
 
-const tamanosTorta = [
-  { nombre: '10 personas', campo: 'precio_10' },
-  { nombre: '15 personas', campo: 'precio_15' },
-  { nombre: '20 personas', campo: 'precio_20' },
-  { nombre: '25 personas', campo: 'precio_25' },
-] as const;
+
 
 export default function Catalogo() {
 
@@ -143,28 +140,8 @@ export default function Catalogo() {
   }
 
   function precioConTamano(producto: Producto) {
-    if (!esTorta(producto)) return producto.precio;
-  
-    const seleccionado =
-      tamanoSeleccionado[producto.id] || '10 personas';
-  
-    if (seleccionado === '10 personas') {
-      return producto.precio_10 || producto.precio;
-    }
-  
-    if (seleccionado === '15 personas') {
-      return producto.precio_15 || producto.precio;
-    }
-  
-    if (seleccionado === '20 personas') {
-      return producto.precio_20 || producto.precio;
-    }
-  
-    if (seleccionado === '25 personas') {
-      return producto.precio_25 || producto.precio;
-    }
-  
-    return producto.precio;
+    const opciones = presentacionesDisponibles(producto);
+    return (opciones.find((p) => p.nombre === tamanoSeleccionado[producto.id]) || opciones[0])?.precio ?? producto.precio;
   }
 
   function slugProducto(producto: Producto) {
@@ -517,7 +494,7 @@ export default function Catalogo() {
                     )}
                   </div>
 
-                  {esTorta(p) && (
+                  {presentacionesDisponibles(p).length > 0 && (
                     <div className="mt-5">
 
                       <p className="mb-2 text-xs font-black uppercase tracking-widest text-maruxa-rojo">
@@ -529,7 +506,7 @@ export default function Catalogo() {
                           tamanoSeleccionado[
                             p.id
                           ] ||
-                          '10 personas'
+                          presentacionesDisponibles(p)[0]?.nombre || ''
                         }
                         onChange={(
                           e
@@ -545,8 +522,8 @@ export default function Catalogo() {
                         }
                         className="w-full rounded-2xl border border-maruxa-rojo/10 bg-white px-4 py-3 font-bold text-maruxa-chocolate outline-none"
                       >
-                        {tamanosTorta.map((t) => {
-                            const precio = p[t.campo] || p.precio;
+                        {presentacionesDisponibles(p).map((t) => {
+                            const precio = t.precio;
 
                             return (
                               <option key={t.nombre} value={t.nombre}>

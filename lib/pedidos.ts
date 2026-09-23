@@ -1,3 +1,4 @@
+import { presentacionesProducto, presentacionesDisponibles, type Presentacion } from './presentaciones.ts';
 export const TAMANOS_TORTA = {
   '10 personas': 'precio_10',
   '15 personas': 'precio_15',
@@ -8,6 +9,8 @@ export const TAMANOS_TORTA = {
 export type TamanoTorta = keyof typeof TAMANOS_TORTA;
 
 export type ProductoPedidoFuente = {
+  presentaciones?: Presentacion[] | null;
+  categoria?: string;
   id: number;
   nombre: string;
   precio: number | null;
@@ -22,6 +25,7 @@ export type ItemPedidoEntrada = {
   id: number;
   cantidad: number;
   tamano?: string | null;
+  presentacion_id?: string | null;
 };
 
 export type ItemPedidoValidado = {
@@ -30,7 +34,8 @@ export type ItemPedidoValidado = {
   cantidad: number;
   precio: number;
   imagen: string | null;
-  tamano?: TamanoTorta;
+  tamano?: string;
+  presentacion_id?: string;
 };
 
 function enteroSeguro(valor: unknown) {
@@ -48,27 +53,18 @@ export function validarItemPedido(
   }
 
   const tamanoTexto = String(entrada.tamano || '').trim();
-  const requiereTamano = [
-    producto.precio_10,
-    producto.precio_15,
-    producto.precio_20,
-    producto.precio_25,
-  ].some((precioTamano) => Number(precioTamano || 0) > 0);
+  const opciones = presentacionesProducto(producto);
+  const disponibles = presentacionesDisponibles(producto);
   let precio = Number(producto.precio || 0);
-  let tamano: TamanoTorta | undefined;
-
-  if (requiereTamano && !tamanoTexto) {
-    throw new Error(`Selecciona un tamaño para ${producto.nombre}.`);
-  }
-
-  if (tamanoTexto) {
-    if (!(tamanoTexto in TAMANOS_TORTA)) {
-      throw new Error(`Tamaño inválido para ${producto.nombre}.`);
-    }
-
-    tamano = tamanoTexto as TamanoTorta;
-    const campo = TAMANOS_TORTA[tamano];
-    precio = Number(producto[campo] || 0);
+  let tamano: string | undefined;
+  let presentacionId: string | undefined;
+  if (opciones.length || tamanoTexto || entrada.presentacion_id) {
+    if (!tamanoTexto && !entrada.presentacion_id) throw new Error('Selecciona un tamaño o presentación para ' + producto.nombre + '.');
+    const elegida = disponibles.find((p) => entrada.presentacion_id ? p.id === entrada.presentacion_id : p.nombre === tamanoTexto);
+    if (!elegida) throw new Error('Tamaño inválido o presentación no disponible para ' + producto.nombre + '.');
+    precio = elegida.precio;
+    tamano = elegida.nombre;
+    presentacionId = elegida.id;
   }
 
   if (!Number.isFinite(precio) || precio <= 0) {
@@ -81,7 +77,7 @@ export function validarItemPedido(
     cantidad,
     precio: Math.round(precio),
     imagen: producto.imagen || null,
-    ...(tamano ? { tamano } : {}),
+    ...(tamano ? { tamano, presentacion_id: presentacionId } : {}),
   };
 }
 
