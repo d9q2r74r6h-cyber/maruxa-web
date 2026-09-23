@@ -310,7 +310,7 @@ export default function Catalogo() {
                   }}
                   className={`shrink-0 rounded-full px-5 py-3 text-sm font-black transition ${
                     activa
-                      ? 'bg-maruxa-rojo text-maruxa-crema'
+                      ? 'bg-[#A51F2B] text-white'
                       : 'bg-white text-maruxa-chocolate hover:bg-maruxa-rojo/10'
                   }`}
                 >
@@ -331,10 +331,12 @@ export default function Catalogo() {
               return (
                 <button
                   key={subfamilia}
+                  type="button"
+                  aria-pressed={activa}
                   onClick={() => setSubfamiliaActiva(subfamilia)}
                   className={`rounded-full border px-4 py-2 text-sm font-black transition ${
                     activa
-                      ? 'border-maruxa-rojo bg-maruxa-rojo/10 text-maruxa-rojo'
+                      ? 'border-[#A51F2B] bg-[#A51F2B] text-white'
                       : 'border-maruxa-cafe/15 bg-transparent text-maruxa-chocolate hover:border-maruxa-rojo/35'
                   }`}
                 >
