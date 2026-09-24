@@ -12,6 +12,7 @@ import {
   type WheelEvent,
 } from 'react';
 import { ArrowDown, ArrowUp, ClipboardPaste, Loader2, Save, X } from 'lucide-react';
+import { calcularLiquidacion } from '@/lib/liquidacion-repartos';
 import { supabase } from '@/lib/supabase';
 import { useAdminSession } from '@/components/AdminSession';
 
@@ -32,7 +33,8 @@ type Funcionario = {
   porcentaje_comision: number;
 };
 
-type Liquidacion = { diasLibres: number; anticipo: number; abono: number };
+type Liquidacion = { diasLibres: number; anticipo: number; abono: number; versionArrastre?: number; porcentajeComision?: number };
+type SaldosAnteriores = { reparto: number; liquidacion: number };
 
 type Planilla = {
   id: string;
@@ -372,6 +374,8 @@ function liquidacionGuardada(valor: string | null | undefined): Liquidacion {
       diasLibres: numero(liquidacion?.diasLibres),
       anticipo: numero(liquidacion?.anticipo),
       abono: numero(liquidacion?.abono),
+      versionArrastre: liquidacion?.versionArrastre,
+      porcentajeComision: liquidacion?.porcentajeComision,
     };
   } catch {
     return { diasLibres: 0, anticipo: 0, abono: 0 };
@@ -505,6 +509,7 @@ export default function RepartosPage() {
   const [filas, setFilas] = useState<Fila[]>([]);
   const [abonos, setAbonos] = useState<Record<number, number>>({});
   const [pasteles, setPasteles] = useState<Record<number, number>>({});
+  const [saldoLiquidacionAnterior, setSaldoLiquidacionAnterior] = useState(0);
   const [liquidacion, setLiquidacion] = useState<Liquidacion>({
     diasLibres: 0,
     anticipo: 0,
@@ -539,6 +544,7 @@ export default function RepartosPage() {
   );
 
   function limpiarPlanillaAbierta() {
+    setSaldoLiquidacionAnterior(0);
     cargaPlanillaRef.current += 1;
     setPlanilla(null);
     setFilas([]);
@@ -673,7 +679,7 @@ export default function RepartosPage() {
     return filtrados.length > 0 ? filtrados : clientes;
   }
 
-  async function obtenerSaldoMesAnterior(): Promise<number | null> {
+  async function obtenerSaldoMesAnterior(): Promise<SaldosAnteriores | null> {
     if (!perfil || !repartidor.trim()) return null;
 
     // Leer páginas completas evita truncar meses con más de 1.000 movimientos.
@@ -736,15 +742,24 @@ export default function RepartosPage() {
       entregados.set(item.planilla_id, (entregados.get(item.planilla_id) || 0) + numero(item.monto));
     }
     let saldo: number | null = null;
+    let saldoLiquidacion = 0;
     for (const compatibles of cadena) {
       const anterior = [...compatibles].sort((a, b) =>
         (cantidades.get(b.id) || 0) - (cantidades.get(a.id) || 0))[0];
       const pastelesMes = Object.values(pastelesGuardados(anterior.observaciones))
         .reduce((total, monto) => total + numero(monto), 0);
+      const cierre = liquidacionGuardada(anterior.observaciones);
+      // Solo arrastrar liquidaciones guardadas con la nueva regla; los cierres
+      // históricos no indican si ya fueron pagados y no deben reabrirse.
+      saldoLiquidacion = cierre.versionArrastre === 1
+        ? calcularLiquidacion({ entregado: entregados.get(anterior.id) || 0,
+            porcentaje: numero(cierre.porcentajeComision), diasLibres: cierre.diasLibres,
+            anticipo: cierre.anticipo, abono: cierre.abono, saldoAnterior: saldoLiquidacion }).totalLiquidacion
+        : 0;
       saldo = Math.round((saldo ?? montoPesosGuardado(anterior.saldo_inicial)) +
         (netos.get(anterior.id) || 0) + pastelesMes - (entregados.get(anterior.id) || 0));
     }
-    return saldo;
+    return { reparto: saldo!, liquidacion: saldoLiquidacion };
   }
 
   async function abrirPlanilla() {
@@ -756,7 +771,7 @@ export default function RepartosPage() {
     }
 
     setCargando(true);
-    let saldoAnteriorConsulta: Promise<number | null> | undefined;
+    let saldoAnteriorConsulta: Promise<SaldosAnteriores | null> | undefined;
     const consultarSaldoAnterior = () => saldoAnteriorConsulta ??= obtenerSaldoMesAnterior();
 
     const { data: planillasPeriodo, error: errorBusqueda } = await supabase
@@ -803,7 +818,7 @@ export default function RepartosPage() {
     if (!errorPlanilla && !planillaData) {
       let saldoMesAnterior = 0;
       try {
-        saldoMesAnterior = (await consultarSaldoAnterior()) ?? 0;
+        saldoMesAnterior = (await consultarSaldoAnterior())?.reparto ?? 0;
       } catch (error) {
         alert(
           error instanceof Error
@@ -843,10 +858,11 @@ export default function RepartosPage() {
     try {
       const saldoAnterior = await consultarSaldoAnterior();
       if (!cargaVigente()) return;
+      setSaldoLiquidacionAnterior(saldoAnterior?.liquidacion ?? 0);
       // Sin planilla anterior se conserva el saldo de apertura ingresado.
       if (saldoAnterior !== null) {
         saldoArrastrado = true;
-        saldoCargado = saldoAnterior;
+        saldoCargado = saldoAnterior.reparto;
         if (saldoCargado !== montoPesosGuardado(planillaData.saldo_inicial)) {
           const { error: errorSaldoInicial } = await supabase
             .from('reparto_planillas')
@@ -1062,6 +1078,7 @@ export default function RepartosPage() {
       abonos,
       pasteles,
       saldoInicial,
+      liquidacion,
       actualizadoEn: new Date().toISOString(),
     };
     try {
@@ -1078,6 +1095,7 @@ export default function RepartosPage() {
     cargando,
     filas,
     pasteles,
+    liquidacion,
     planilla,
     saldoInicial,
   ]);
@@ -1273,7 +1291,7 @@ export default function RepartosPage() {
         observaciones: observacionesPlanilla(
           filas.map((fila) => fila.key),
           pasteles,
-          liquidacion
+          { ...liquidacion, versionArrastre: 1, porcentajeComision }
         ),
       })
       .eq('id', planilla.id);
@@ -1398,6 +1416,7 @@ export default function RepartosPage() {
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem(claveBorradorPlanilla(planilla.id));
     }
+    setLiquidacion((actual) => ({ ...actual, versionArrastre: 1, porcentajeComision }));
     setCambiosPendientes(false);
     setGuardando(false);
     alert('Planilla guardada.');
@@ -1681,15 +1700,12 @@ export default function RepartosPage() {
     }),
     [totalesDiarios]
   );
-  const porcentajeComision = numero(funcionarioActual?.porcentaje_comision);
-  const montoComision = funcionarioActual?.trabaja_comision
-    ? (totalMensual.entregado * porcentajeComision) / 100
-    : 0;
-  const valorDiaComision = montoComision / 30;
-  const montoLiquidacion =
-    montoComision + valorDiaComision * liquidacion.diasLibres;
-  const subtotalLiquidacion = liquidacion.anticipo - montoLiquidacion;
-  const totalLiquidacion = subtotalLiquidacion - liquidacion.abono;
+  const porcentajeComision = liquidacion.porcentajeComision ?? (funcionarioActual?.trabaja_comision ? numero(funcionarioActual.porcentaje_comision) : 0);
+  const { montoComision, valorDiaComision, montoLiquidacion, subtotalLiquidacion, totalLiquidacion } = calcularLiquidacion({
+    entregado: totalMensual.entregado, porcentaje: porcentajeComision,
+    diasLibres: liquidacion.diasLibres, anticipo: liquidacion.anticipo,
+    abono: liquidacion.abono, saldoAnterior: saldoLiquidacionAnterior,
+  });
 
   return (
     <div className="space-y-5 pb-12" onWheel={evitarCambioNumeroConRueda}>
@@ -2199,7 +2215,8 @@ export default function RepartosPage() {
           </div>
 
           <div className="p-5">
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg border border-[#D9C4A7] bg-white px-4 py-3"><p className="text-[10px] font-black uppercase tracking-wide">Saldo liquidación anterior</p><p className="mt-1 text-lg font-black">{dinero(saldoLiquidacionAnterior)}</p></div>
               <div className="rounded-lg border border-[#E9D7BC] bg-[#FFF9EF] px-4 py-3"><p className="text-[10px] font-black uppercase tracking-wide text-[#4B2818]/55">Monto comisión</p><p className="mt-1 text-xl font-black text-[#2A1710]">{dinero(montoComision)}</p></div>
               <div className="rounded-lg border border-[#E9D7BC] bg-[#FFF9EF] px-4 py-3"><p className="text-[10px] font-black uppercase tracking-wide text-[#4B2818]/55">Días base</p><p className="mt-1 text-xl font-black text-[#2A1710]">30</p></div>
               <div className="rounded-lg border border-[#E9D7BC] bg-[#FFF9EF] px-4 py-3"><p className="text-[10px] font-black uppercase tracking-wide text-[#4B2818]/55">Valor día</p><p className="mt-1 text-xl font-black text-[#2A1710]">{dinero(valorDiaComision)}</p></div>
