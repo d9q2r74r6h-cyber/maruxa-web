@@ -492,7 +492,7 @@ export default function AdminProductosPage() {
     const precioPresentacion = preciosDisponibles.length ? Math.min(...preciosDisponibles) : 0;
     return {
       codigo: (codigoFinal || form.codigo).trim().toUpperCase() || null,
-      nombre: form.nombre,
+      nombre: form.nombre.trim().toLocaleUpperCase('es-CL'),
       descripcion: form.descripcion,
       precio:
         form.tipo_producto === 'producto'
