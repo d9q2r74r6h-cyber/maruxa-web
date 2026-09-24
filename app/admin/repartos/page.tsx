@@ -1696,7 +1696,7 @@ export default function RepartosPage() {
     [totalesDiarios]
   );
   const porcentajeComision = liquidacion.porcentajeComision ?? (funcionarioActual?.trabaja_comision ? numero(funcionarioActual.porcentaje_comision) : 0);
-  const { montoComision, valorDiaComision, montoLiquidacion, subtotalLiquidacion, totalLiquidacion } = calcularLiquidacion({
+  const { baseComision, montoComision, valorDiaComision, montoLiquidacion, subtotalLiquidacion, totalLiquidacion } = calcularLiquidacion({
     entregado: totalMensual.entregado, porcentaje: porcentajeComision,
     diasLibres: liquidacion.diasLibres, anticipo: liquidacion.anticipo,
     abono: liquidacion.abono, abonoAnterior: abonoLiquidacionAnterior,
@@ -2210,8 +2210,9 @@ export default function RepartosPage() {
           </div>
 
           <div className="p-5">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
               <div className="rounded-lg border border-[#D9C4A7] bg-white px-4 py-3"><p className="text-[10px] font-black uppercase tracking-wide">Abono del mes anterior</p><p className="mt-1 text-lg font-black">{dinero(abonoLiquidacionAnterior)}</p></div>
+              <div className="rounded-lg border border-[#D9C4A7] bg-white px-4 py-3"><p className="text-[10px] font-black uppercase tracking-wide">Base comisión</p><p className="mt-1 text-lg font-black">{dinero(baseComision)}</p><p className="mt-1 text-xs text-[#4B2818]/70">Entregado {dinero(totalMensual.entregado)} + abono anterior {dinero(abonoLiquidacionAnterior)}</p></div>
               <div className="rounded-lg border border-[#E9D7BC] bg-[#FFF9EF] px-4 py-3"><p className="text-[10px] font-black uppercase tracking-wide text-[#4B2818]/55">Monto comisión</p><p className="mt-1 text-xl font-black text-[#2A1710]">{dinero(montoComision)}</p></div>
               <div className="rounded-lg border border-[#E9D7BC] bg-[#FFF9EF] px-4 py-3"><p className="text-[10px] font-black uppercase tracking-wide text-[#4B2818]/55">Días base</p><p className="mt-1 text-xl font-black text-[#2A1710]">30</p></div>
               <div className="rounded-lg border border-[#E9D7BC] bg-[#FFF9EF] px-4 py-3"><p className="text-[10px] font-black uppercase tracking-wide text-[#4B2818]/55">Valor día</p><p className="mt-1 text-xl font-black text-[#2A1710]">{dinero(valorDiaComision)}</p></div>
