@@ -1045,7 +1045,7 @@ export default function AdminProductosPage() {
                     <button type="button" className="rounded border p-3 text-red-700" onClick={() => setForm((f) => ({ ...f, presentaciones: f.presentaciones.filter((actual) => actual.id !== p.id) }))}>Quitar</button>
                   </div>
                 ))}
-                <button type="button" className="rounded-full bg-maruxa-rojo px-5 py-3 font-bold text-white" onClick={() => setForm((f) => ({ ...f, presentaciones: [...f.presentaciones, { id: crypto.randomUUID(), nombre: '', precio: '', activo: true }] }))}>+ Agregar presentación</button>
+                <button type="button" className="btn-rojo focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#A51F2B]" onClick={() => setForm((f) => ({ ...f, presentaciones: [...f.presentaciones, { id: crypto.randomUUID(), nombre: '', precio: '', activo: true }] }))}>+ Agregar presentación</button>
                 {!form.presentaciones.length && <p className="text-sm">{esProductoTorta ? 'Agrega una presentación aunque vendas un único tamaño.' : 'Si no agregas presentaciones, se utiliza el precio general.'}</p>}
               </section>
             )}

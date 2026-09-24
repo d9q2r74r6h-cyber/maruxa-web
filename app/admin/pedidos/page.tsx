@@ -35,6 +35,63 @@ export default function AdminPedidosPage() {
 
 
 
+
+  function imprimirPedido(pedido: Pedido) {
+    const ventana = window.open('', '_blank', 'width=850,height=700');
+    if (!ventana) {
+      alert('Permite las ventanas emergentes para imprimir el pedido.');
+      return;
+    }
+    const doc = ventana.document;
+    doc.title = 'Pedido #' + pedido.id + ' - Pastelería';
+    doc.documentElement.lang = 'es';
+    const estilo = doc.createElement('style');
+    estilo.textContent = `
+      @page { size: A4; margin: 18mm; }
+      body { font: 16px Arial, sans-serif; color: #111; margin: 24px; }
+      h1 { font-size: 28px; margin-bottom: 8px; }
+      h2 { font-size: 18px; margin-top: 28px; }
+      .retiro { border: 2px solid #111; padding: 14px; font-size: 21px; font-weight: bold; }
+      table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+      th, td { border: 1px solid #777; padding: 12px; text-align: left; overflow-wrap: anywhere; }
+      th { background: #eee; } tr { break-inside: avoid; }
+      p { white-space: pre-wrap; overflow-wrap: anywhere; }
+      button { padding: 12px 20px; cursor: pointer; }
+      @media print { body { margin: 0; } button { display: none; } }
+    `;
+    doc.head.appendChild(estilo);
+    function texto(tag: string, contenido: string, padre: HTMLElement = doc.body) {
+      const elemento = doc.createElement(tag);
+      elemento.textContent = contenido;
+      padre.appendChild(elemento);
+      return elemento;
+    }
+    const boton = texto('button', 'Imprimir / Guardar PDF');
+    boton.onclick = () => ventana.print();
+    texto('h1', 'Orden de pastelería · Pedido #' + pedido.id);
+    texto('p', 'Cliente: ' + pedido.cliente);
+    texto('p', 'Teléfono: ' + pedido.telefono);
+    const fecha = pedido.fecha_retiro ? pedido.fecha_retiro.split('-').reverse().join('-') : 'Sin definir';
+    texto('p', 'Retiro: ' + fecha + ' · ' + (pedido.hora_retiro?.slice(0, 5) || 'Sin hora')).className = 'retiro';
+    texto('p', 'Estado: ' + pedido.estado);
+    const tabla = texto('table', '');
+    const cabecera = texto('tr', '', texto('thead', '', tabla));
+    ['Cantidad', 'Producto', 'Presentación / tamaño'].forEach(t => texto('th', t, cabecera));
+    const cuerpo = texto('tbody', '', tabla);
+    for (const producto of pedido.productos || []) {
+      const fila = texto('tr', '', cuerpo);
+      texto('td', String(producto.cantidad), fila);
+      texto('td', producto.nombre, fila);
+      texto('td', producto.tamano || '—', fila);
+    }
+    texto('h2', 'Observaciones del pedido');
+    texto('p', pedido.observaciones || 'Sin observaciones.');
+    texto('h2', 'Control de preparación');
+    texto('p', 'Preparado por: ____________________    Revisado por: ____________________');
+    ventana.focus();
+    ventana.setTimeout(() => ventana.print(), 250);
+  }
+
   async function cambiarEstado(id: number, estado: string) {
     const empresa = await obtenerEmpresaActual();
   
@@ -449,6 +506,14 @@ export default function AdminPedidosPage() {
   >
     WhatsApp Cliente
   </a>
+
+  <button
+    type="button"
+    onClick={() => imprimirPedido(pedido)}
+    className="mt-3 w-full rounded-2xl bg-[#A51F2B] px-4 py-3 text-center font-black text-white transition hover:bg-[#74151F]"
+  >
+    Imprimir para pastelería
+  </button>
 
   <button
     type="button"
