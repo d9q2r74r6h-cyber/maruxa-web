@@ -509,7 +509,7 @@ export default function RepartosPage() {
   const [filas, setFilas] = useState<Fila[]>([]);
   const [abonos, setAbonos] = useState<Record<number, number>>({});
   const [pasteles, setPasteles] = useState<Record<number, number>>({});
-  const [saldoLiquidacionAnterior, setSaldoLiquidacionAnterior] = useState(0);
+  const [abonoLiquidacionAnterior, setAbonoLiquidacionAnterior] = useState(0);
   const [liquidacion, setLiquidacion] = useState<Liquidacion>({
     diasLibres: 0,
     anticipo: 0,
@@ -544,7 +544,7 @@ export default function RepartosPage() {
   );
 
   function limpiarPlanillaAbierta() {
-    setSaldoLiquidacionAnterior(0);
+    setAbonoLiquidacionAnterior(0);
     cargaPlanillaRef.current += 1;
     setPlanilla(null);
     setFilas([]);
@@ -749,13 +749,8 @@ export default function RepartosPage() {
       const pastelesMes = Object.values(pastelesGuardados(anterior.observaciones))
         .reduce((total, monto) => total + numero(monto), 0);
       const cierre = liquidacionGuardada(anterior.observaciones);
-      // Solo arrastrar liquidaciones guardadas con la nueva regla; los cierres
-      // históricos no indican si ya fueron pagados y no deben reabrirse.
-      saldoLiquidacion = cierre.versionArrastre === 1
-        ? calcularLiquidacion({ entregado: entregados.get(anterior.id) || 0,
-            porcentaje: numero(cierre.porcentajeComision), diasLibres: cierre.diasLibres,
-            anticipo: cierre.anticipo, abono: cierre.abono, saldoAnterior: saldoLiquidacion }).totalLiquidacion
-        : 0;
+      // Arrastrar solo lo que el repartidor dejó abonado en ese mes.
+      saldoLiquidacion = Math.round(cierre.abono) || 0;
       saldo = Math.round((saldo ?? montoPesosGuardado(anterior.saldo_inicial)) +
         (netos.get(anterior.id) || 0) + pastelesMes - (entregados.get(anterior.id) || 0));
     }
@@ -858,7 +853,7 @@ export default function RepartosPage() {
     try {
       const saldoAnterior = await consultarSaldoAnterior();
       if (!cargaVigente()) return;
-      setSaldoLiquidacionAnterior(saldoAnterior?.liquidacion ?? 0);
+      setAbonoLiquidacionAnterior(saldoAnterior?.liquidacion ?? 0);
       // Sin planilla anterior se conserva el saldo de apertura ingresado.
       if (saldoAnterior !== null) {
         saldoArrastrado = true;
@@ -1704,7 +1699,7 @@ export default function RepartosPage() {
   const { montoComision, valorDiaComision, montoLiquidacion, subtotalLiquidacion, totalLiquidacion } = calcularLiquidacion({
     entregado: totalMensual.entregado, porcentaje: porcentajeComision,
     diasLibres: liquidacion.diasLibres, anticipo: liquidacion.anticipo,
-    abono: liquidacion.abono, saldoAnterior: saldoLiquidacionAnterior,
+    abono: liquidacion.abono, abonoAnterior: abonoLiquidacionAnterior,
   });
 
   return (
@@ -2216,7 +2211,7 @@ export default function RepartosPage() {
 
           <div className="p-5">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-lg border border-[#D9C4A7] bg-white px-4 py-3"><p className="text-[10px] font-black uppercase tracking-wide">Saldo liquidación anterior</p><p className="mt-1 text-lg font-black">{dinero(saldoLiquidacionAnterior)}</p></div>
+              <div className="rounded-lg border border-[#D9C4A7] bg-white px-4 py-3"><p className="text-[10px] font-black uppercase tracking-wide">Abono del mes anterior</p><p className="mt-1 text-lg font-black">{dinero(abonoLiquidacionAnterior)}</p></div>
               <div className="rounded-lg border border-[#E9D7BC] bg-[#FFF9EF] px-4 py-3"><p className="text-[10px] font-black uppercase tracking-wide text-[#4B2818]/55">Monto comisión</p><p className="mt-1 text-xl font-black text-[#2A1710]">{dinero(montoComision)}</p></div>
               <div className="rounded-lg border border-[#E9D7BC] bg-[#FFF9EF] px-4 py-3"><p className="text-[10px] font-black uppercase tracking-wide text-[#4B2818]/55">Días base</p><p className="mt-1 text-xl font-black text-[#2A1710]">30</p></div>
               <div className="rounded-lg border border-[#E9D7BC] bg-[#FFF9EF] px-4 py-3"><p className="text-[10px] font-black uppercase tracking-wide text-[#4B2818]/55">Valor día</p><p className="mt-1 text-xl font-black text-[#2A1710]">{dinero(valorDiaComision)}</p></div>
@@ -2229,8 +2224,8 @@ export default function RepartosPage() {
               <div className="rounded-lg border border-[#E9D7BC] bg-[#FFF3DF] px-4 py-3"><p className="text-[10px] font-black uppercase tracking-wide text-[#4B2818]/55">Liquidación</p><p className="mt-1 text-lg font-black text-[#2A1710]">{dinero(montoLiquidacion)}</p></div>
               <label className="grid min-w-0 gap-1 text-[10px] font-black uppercase tracking-wide text-[#A51F2B]">Anticipo<input type="text" inputMode="numeric" value={liquidacion.anticipo || ''} onChange={(event) => { setCambiosPendientes(true); setLiquidacion((actual) => ({ ...actual, anticipo: Math.max(0, numero(event.target.value)) })); }} className="h-14 min-w-0 w-full rounded-lg border-2 border-red-200 bg-white px-4 text-right text-lg font-black outline-none focus:border-[#A51F2B]" /></label>
               <div className="rounded-lg border border-red-100 bg-red-50 px-4 py-3"><p className="text-[10px] font-black uppercase tracking-wide text-red-700">Sub-Total</p><p className="mt-1 text-lg font-black text-red-700">{dinero(subtotalLiquidacion)}</p></div>
-              <label className="grid min-w-0 gap-1 text-[10px] font-black uppercase tracking-wide text-[#4B2818]/60">Abono<input type="text" inputMode="numeric" value={liquidacion.abono || ''} onChange={(event) => { setCambiosPendientes(true); setLiquidacion((actual) => ({ ...actual, abono: Math.max(0, numero(event.target.value)) })); }} className="h-14 min-w-0 w-full rounded-lg border-2 border-[#D9C4A7] bg-white px-4 text-right text-lg font-black outline-none focus:border-[#A51F2B]" /></label>
-              <div className="rounded-lg bg-[#2A1710] px-4 py-3 text-white shadow-md"><p className="text-[10px] font-black uppercase tracking-wide text-white/65">Total</p><p className="mt-1 text-xl font-black">{dinero(totalLiquidacion)}</p></div>
+              <label className="grid min-w-0 gap-1 text-[10px] font-black uppercase tracking-wide text-[#4B2818]/60">Abono para el mes siguiente<input type="text" inputMode="numeric" value={liquidacion.abono || ''} onChange={(event) => { setCambiosPendientes(true); setLiquidacion((actual) => ({ ...actual, abono: Math.max(0, numero(event.target.value)) })); }} className="h-14 min-w-0 w-full rounded-lg border-2 border-[#D9C4A7] bg-white px-4 text-right text-lg font-black outline-none focus:border-[#A51F2B]" /></label>
+              <div className="rounded-lg bg-[#2A1710] px-4 py-3 text-white shadow-md"><p className="text-[10px] font-black uppercase tracking-wide text-white/65">Total por retirar</p><p className="mt-1 text-xl font-black">{dinero(totalLiquidacion)}</p></div>
             </div>
           </div>
         </section>
