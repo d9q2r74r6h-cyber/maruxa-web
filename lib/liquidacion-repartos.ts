@@ -10,3 +10,7 @@ export function calcularLiquidacion({ entregado, porcentaje, diasLibres, anticip
   const totalLiquidacion = (subtotalLiquidacion + Math.round(abono)) || 0;
   return { baseComision, montoComision, valorDiaComision, montoLiquidacion, subtotalLiquidacion, totalLiquidacion };
 }
+
+export function descontarAbonoLiquidacionDelSaldo(saldo: number, abono: number) {
+  return Math.round(saldo) - Math.round(abono);
+}

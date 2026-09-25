@@ -12,7 +12,10 @@ import {
   type WheelEvent,
 } from 'react';
 import { ArrowDown, ArrowUp, ClipboardPaste, Loader2, Save, X } from 'lucide-react';
-import { calcularLiquidacion } from '@/lib/liquidacion-repartos';
+import {
+  calcularLiquidacion,
+  descontarAbonoLiquidacionDelSaldo,
+} from '@/lib/liquidacion-repartos';
 import { supabase } from '@/lib/supabase';
 import { useAdminSession } from '@/components/AdminSession';
 
@@ -751,8 +754,13 @@ export default function RepartosPage() {
       const cierre = liquidacionGuardada(anterior.observaciones);
       // Arrastrar solo lo que el repartidor dejó abonado en ese mes.
       saldoLiquidacion = Math.round(cierre.abono) || 0;
-      saldo = Math.round((saldo ?? montoPesosGuardado(anterior.saldo_inicial)) +
-        (netos.get(anterior.id) || 0) + pastelesMes - (entregados.get(anterior.id) || 0));
+      saldo = descontarAbonoLiquidacionDelSaldo(
+        (saldo ?? montoPesosGuardado(anterior.saldo_inicial)) +
+          (netos.get(anterior.id) || 0) +
+          pastelesMes -
+          (entregados.get(anterior.id) || 0),
+        saldoLiquidacion
+      );
     }
     return { reparto: saldo!, liquidacion: saldoLiquidacion };
   }

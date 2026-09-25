@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { calcularLiquidacion } from '../lib/liquidacion-repartos.ts';
+import {
+ calcularLiquidacion,
+ descontarAbonoLiquidacionDelSaldo,
+} from '../lib/liquidacion-repartos.ts';
 const base = { entregado: 14088000, porcentaje: 4, diasLibres: 6, anticipo: 450000, abono: 100000 };
 test('el abono reduce lo que retira Luis en el mes', () => {
  const r=calcularLiquidacion(base);
@@ -42,4 +45,8 @@ test("el abono anterior aplica el porcentaje del repartidor sin duplicarse en el
  assert.equal(r.montoComision,36000);
  assert.equal(r.subtotalLiquidacion,-26000);
  assert.equal(r.totalLiquidacion,-21000);
+});
+
+test('el abono de la liquidación rebaja el saldo que pasa al mes siguiente', () => {
+ assert.equal(descontarAbonoLiquidacionDelSaldo(1500000,822943),677057);
 });
