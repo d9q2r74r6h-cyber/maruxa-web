@@ -35,7 +35,6 @@ const grupos: {
     label: 'Comercial',
     items: [
       { label: 'Pedidos', href: '/admin/pedidos', modulo: 'pedidos' },
-      { label: 'Licitaciones', href: '/admin/licitaciones' },
       { label: 'Mensajes', href: '/admin/whatsapp', modulo: 'whatsapp' },
       { label: 'Documentos tributarios', href: '/admin/documentos', modulo: 'documentos' },
       { label: 'Clientes', href: '/admin/clientes', modulo: 'clientes' },
@@ -87,6 +86,7 @@ const grupos: {
     items: [
       { label: 'Familias de productos', href: '/admin/familias-productos', modulo: 'familias' },
       { label: 'Empresa', href: '/admin/configuracion', modulo: 'empresa' },
+      { label: 'Licitaciones', href: '/admin/licitaciones' },
       { label: 'Politica de precios', future: true },
       { label: 'Usuarios y permisos', href: '/admin/usuarios', modulo: 'usuarios' },
       { label: 'Auditoria', href: '/admin/auditoria', modulo: 'auditoria' },
