@@ -2219,7 +2219,7 @@ export default function RepartosPage() {
 
       {vistaPlanilla === 'totales' && planilla && funcionarioActual?.trabaja_comision && (
         <section className="liquidacion-imprimible overflow-hidden rounded-xl border border-[#4B2818]/15 bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-[#4B2818]/10 bg-gradient-to-r from-[#FFF3DF] to-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="solo-pantalla flex flex-col gap-3 border-b border-[#4B2818]/10 bg-gradient-to-r from-[#FFF3DF] to-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#A51F2B]">Cierre mensual</p>
               <h3 className="mt-1 text-lg font-black text-[#2A1710]">Liquidación · {funcionarioActual.nombre_completo}</h3>
@@ -2236,7 +2236,7 @@ export default function RepartosPage() {
             </div>
           </div>
 
-          <div className="p-5">
+          <div className="solo-pantalla p-5">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
               <div className="rounded-lg border border-[#D9C4A7] bg-white px-4 py-3"><p className="text-[10px] font-black uppercase tracking-wide">Abono del mes anterior</p><p className="mt-1 text-lg font-black">{dinero(abonoLiquidacionAnterior)}</p></div>
               <div className="rounded-lg border border-[#D9C4A7] bg-white px-4 py-3"><p className="text-[10px] font-black uppercase tracking-wide">Base comisión</p><p className="mt-1 text-lg font-black">{dinero(baseComision)}</p><p className="mt-1 text-xs text-[#4B2818]/70">Entregado {dinero(totalMensual.entregado)} + abono anterior {dinero(abonoLiquidacionAnterior)}</p></div>
@@ -2266,9 +2266,67 @@ export default function RepartosPage() {
               <p className="mt-3 text-xs font-bold text-emerald-900/75">Al guardar la planilla, esta rebaja se reflejará automáticamente al abrir el mes siguiente.</p>
             </div>
 
-            <div className="hidden grid-cols-2 gap-16 pt-20 text-center print:grid">
-              <div className="border-t border-[#2A1710] pt-2 text-xs font-bold">Firma repartidor · {funcionarioActual.nombre_completo}</div>
-              <div className="border-t border-[#2A1710] pt-2 text-xs font-bold">Firma empresa</div>
+          </div>
+
+          <div className="detalle-liquidacion-impresion hidden">
+            <header className="encabezado-liquidacion-impresion">
+              <div>
+                <p>CIERRE MENSUAL · {nombreMes(mes).toUpperCase()} {anio}</p>
+                <h1>Liquidación · {funcionarioActual.nombre_completo}</h1>
+              </div>
+              <strong>COMISIÓN {porcentajeComision.toLocaleString('es-CL')}%</strong>
+            </header>
+
+            <table className="tabla-dias-impresion">
+              <thead>
+                <tr>
+                  <th>Día</th><th>Venta</th><th>Cacho</th><th>Pasteles</th><th>Total</th><th>Kilos</th><th>Precio/p.</th><th>Saldo ant.</th><th>Sub total</th><th>Entregado</th><th>Saldo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {totalesDiarios.map((item) => (
+                  <tr key={`impresion-${item.dia}`}>
+                    <td>{letraDiaSemana(anio, mes, item.dia)} {item.dia}</td>
+                    <td>{dinero(item.venta)}</td>
+                    <td>{dinero(item.cacho)}</td>
+                    <td>{dinero(item.pasteles)}</td>
+                    <td>{dinero(item.total)}</td>
+                    <td>{item.kilos.toLocaleString('es-CL', { maximumFractionDigits: 2 })}</td>
+                    <td>{dinero(item.precioPan)}</td>
+                    <td>{dinero(item.saldoAnterior)}</td>
+                    <td>{dinero(item.subTotal)}</td>
+                    <td>{dinero(item.entregado)}</td>
+                    <td>{dinero(item.saldo)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td>TOTAL</td><td>{dinero(totalMensual.venta)}</td><td>{dinero(totalMensual.cacho)}</td><td>{dinero(totalMensual.pasteles)}</td><td>{dinero(totalMensual.total)}</td><td>{totalMensual.kilos.toLocaleString('es-CL', { maximumFractionDigits: 2 })}</td><td colSpan={3} /><td>{dinero(totalMensual.entregado)}</td><td>{dinero(totalMensual.saldo)}</td>
+                </tr>
+              </tfoot>
+            </table>
+
+            <div className="resumen-liquidacion-impresion">
+              <div><span>Abono anterior</span><strong>{dinero(abonoLiquidacionAnterior)}</strong></div>
+              <div><span>Base comisión</span><strong>{dinero(baseComision)}</strong></div>
+              <div><span>Monto comisión</span><strong>{dinero(montoComision)}</strong></div>
+              <div><span>Días libres</span><strong>{liquidacion.diasLibres}</strong></div>
+              <div><span>Liquidación</span><strong>{dinero(montoLiquidacion)}</strong></div>
+              <div><span>Anticipo</span><strong>{dinero(liquidacion.anticipo)}</strong></div>
+              <div><span>Abono próximo mes</span><strong>{dinero(liquidacion.abono)}</strong></div>
+              <div><span>Total por retirar</span><strong>{dinero(totalLiquidacion)}</strong></div>
+            </div>
+
+            <div className="saldo-impresion">
+              <span>Saldo actual: <strong>{dinero(totalMensual.saldo)}</strong></span>
+              <span>− Abono liquidación: <strong>{dinero(liquidacion.abono)}</strong></span>
+              <span>= Saldo inicial mes siguiente: <strong>{dinero(saldoMesSiguiente)}</strong></span>
+            </div>
+
+            <div className="firmas-liquidacion-impresion">
+              <div>Firma repartidor · {funcionarioActual.nombre_completo}</div>
+              <div>Firma empresa</div>
             </div>
           </div>
         </section>
