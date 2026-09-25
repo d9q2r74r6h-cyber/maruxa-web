@@ -506,7 +506,7 @@ export default function AdminProductosPage() {
           : form.tipo_producto === 'ingrediente'
             ? 'Ingredientes'
             : form.tipo_producto === 'envase'
-              ? 'Envases'
+              ? 'Insumos'
               : 'Mano de obra',
       empresa_id: empresaId,
       imagen: esProducto ? form.imagen || null : null,
@@ -749,17 +749,19 @@ export default function AdminProductosPage() {
           </p>
 
           <h1 className="mt-3 text-5xl font-black text-maruxa-chocolate">
-            Productos Maruxa
+            Productos, ingredientes, insumos y servicios
           </h1>
 
           <p className="mt-3 font-bold text-maruxa-cafe/70">
-            {totalProductos} productos registrados
+            {totalProductos} registros creados
           </p>
         </div>
 
         <section className="mb-10 rounded-[34px] bg-white p-6 shadow-premium">
           <h2 className="text-2xl font-black text-maruxa-chocolate">
-            {productoEditando ? 'Editar producto' : 'Crear producto'}
+            {productoEditando
+              ? 'Editar producto, ingrediente, insumo o servicio'
+              : 'Crear producto, ingrediente, insumo o servicio'}
           </h2>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -807,7 +809,7 @@ export default function AdminProductosPage() {
             >
               <option value="producto">Producto terminado</option>
               <option value="ingrediente">Ingrediente</option>
-              <option value="envase">Envase</option>
+              <option value="envase">Insumo</option>
               <option value="mano_obra">Mano de obra</option>
             </select>
 
@@ -1231,7 +1233,7 @@ export default function AdminProductosPage() {
               >
                 {productoEditando
                   ? 'Guardar cambios'
-                  : 'Guardar producto'}
+                  : 'Guardar registro'}
               </button>
 
               <button
@@ -1291,7 +1293,7 @@ export default function AdminProductosPage() {
                   <option value="todos">Todos los tipos</option>
                   <option value="producto">Productos terminados</option>
                   <option value="ingrediente">Ingredientes</option>
-                  <option value="envase">Envases</option>
+                  <option value="envase">Insumos</option>
                   <option value="mano_obra">Mano de obra</option>
                 </select>
               </div>
@@ -1357,7 +1359,7 @@ export default function AdminProductosPage() {
                         : tipo === 'ingrediente'
                           ? 'Ingrediente'
                           : tipo === 'envase'
-                            ? 'Envase'
+                            ? 'Insumo'
                             : 'Mano de obra'}
                     </p>
 

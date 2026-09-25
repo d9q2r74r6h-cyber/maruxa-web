@@ -1635,7 +1635,7 @@ export default function AdminComprasPage() {
         ? 'Productos'
         : tipo === 'ingrediente'
           ? 'Ingredientes'
-          : 'Envases';
+          : 'Insumos';
     const costo = numero(nuevoProducto.costo_unitario);
     const stockInicial = numero(nuevoProducto.stock_actual);
     const familiaSeleccionada = familias.find(
@@ -2673,7 +2673,7 @@ export default function AdminComprasPage() {
                       >
                         <option value="producto">Producto</option>
                         <option value="ingrediente">Ingrediente</option>
-                        <option value="envase">Envase</option>
+                        <option value="envase">Insumo</option>
                       </select>
                     </label>
 
@@ -3508,7 +3508,7 @@ export default function AdminComprasPage() {
                               >
                                 <option value="producto">Producto</option>
                                 <option value="ingrediente">Ingrediente</option>
-                                <option value="envase">Envase</option>
+                                <option value="envase">Insumo</option>
                               </select>
                             </label>
 
