@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
+import { CORREO_FACTURAS } from '@/lib/facturas-correo';
+import { recibirFacturasCorreo } from '@/lib/recibir-facturas-correo';
+export const maxDuration = 60;
 
 const correoPublico = 'contacto@panaderiamaruxa.cl';
 const correoRevisionMeta = 'meta.review@panaderiamaruxa.cl';
@@ -116,6 +119,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  let firmaVerificada = false;
   try {
     const evento = resend.webhooks.verify({
       payload,
@@ -123,20 +127,23 @@ export async function POST(request: NextRequest) {
       webhookSecret,
     });
 
+    firmaVerificada = true;
     if (evento.type !== 'email.received') {
       return NextResponse.json({ procesado: false });
     }
 
     const destinatarios = [
       ...evento.data.to,
-      ...evento.data.cc,
-      ...evento.data.bcc,
+      ...(evento.data.cc || []),
+      ...(evento.data.bcc || []),
     ].map(normalizarDireccion);
 
     const dirigidoABandeja = destinatarios.includes(correoPublico);
     const dirigidoARevisionMeta = destinatarios.includes(correoRevisionMeta);
 
-    if (!dirigidoABandeja && !dirigidoARevisionMeta) {
+    const dirigidoAFacturas = destinatarios.includes(CORREO_FACTURAS);
+
+    if (!dirigidoABandeja && !dirigidoARevisionMeta && !dirigidoAFacturas) {
       return NextResponse.json({
         procesado: false,
         motivo: 'Destinatario no configurado',
@@ -152,6 +159,13 @@ export async function POST(request: NextRequest) {
         { error: 'No se pudo obtener el contenido del correo' },
         { status: 502 }
       );
+    }
+
+    if (dirigidoAFacturas) {
+      const empresaId = await obtenerEmpresaId(admin);
+      if (!empresaId) return NextResponse.json({ error: 'No se pudo identificar la empresa receptora' }, { status: 503 });
+      await recibirFacturasCorreo(admin, resend, empresaId, correo);
+      if (!dirigidoABandeja && !dirigidoARevisionMeta) return NextResponse.json({ procesado: true, tipo: 'facturas', email_id: correo.id });
     }
 
     if (dirigidoARevisionMeta) {
@@ -238,10 +252,10 @@ export async function POST(request: NextRequest) {
       email_id: evento.data.email_id,
     });
   } catch (error) {
-    console.error('Webhook de Resend inválido:', error);
+    console.error(firmaVerificada ? 'Error procesando correo de Resend:' : 'Webhook de Resend inválido:', error);
     return NextResponse.json(
-      { error: 'Firma de webhook inválida' },
-      { status: 400 }
+      { error: firmaVerificada ? 'No se pudo completar la recepción. Se reintentará.' : 'Firma de webhook inválida' },
+      { status: firmaVerificada ? 503 : 400 }
     );
   }
 }

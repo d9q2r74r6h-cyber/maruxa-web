@@ -9,6 +9,9 @@ import {
 } from 'react';
 import { supabase } from '@/lib/supabase';
 import { obtenerEmpresaActual } from '@/lib/empresa';
+import dynamic from 'next/dynamic';
+import type { CargaFactura } from '@/components/ImportarFactura';
+const ImportarFactura = dynamic(() => import('@/components/ImportarFactura'), { ssr: false });
 
 type Producto = {
   id: number;
@@ -2010,6 +2013,35 @@ export default function AdminComprasPage() {
     await cargarRecetasAfectadas(variaciones);
   }
 
+  async function cargarCostosFactura({ factura, proveedor, productos: seleccionados }: CargaFactura) {
+    if (guardando || loading) throw new Error('Espera a que termine la operación actual.');
+    if (items.length || mostrarCrearProducto) throw new Error('Guarda o quita los productos pendientes del formulario antes de cargar esta factura.');
+    const nuevosItems = factura.lineas.map((linea) => {
+      const producto = seleccionados.find(p => String(p.id) === linea.productoId);
+      if (!producto) throw new Error('Falta asociar un producto.');
+      const { margen, tipoMargen } = configuracionMargenProducto(producto);
+      return {
+        ...itemCompraVacio(), producto_id: String(producto.id),
+        busqueda_producto: producto.nombre, cantidad: String(linea.cantidad),
+        costo_unitario: String(linea.montoNeto / linea.cantidad), costo_total: String(linea.montoNeto),
+        margen_porcentaje: String(margen || ''), tipo_margen: tipoMargen,
+        precio_venta: String(producto.precio || ''),
+      };
+    });
+    setProductos(actuales => {
+      const mapa = new Map(actuales.map(p => [p.id, p]));
+      seleccionados.forEach(p => mapa.set(p.id, p));
+      return [...mapa.values()];
+    });
+    setProveedorId(proveedor.id);
+    setProveedorTexto(proveedor.nombre_fantasia || proveedor.razon_social);
+    // El lector convierte cada línea a neto; no modificar la preferencia del proveedor.
+    setPrecioIvaIncluido(false);
+    setItems(nuevosItems);
+    setResultadosBusqueda({});
+    setIndiceBusquedaActivo(null);
+  }
+
   async function guardarCompra() {
     const empresa = await obtenerEmpresaActual();
 
@@ -2371,6 +2403,8 @@ export default function AdminComprasPage() {
       <h1 className="text-2xl font-black text-maruxa-chocolate md:text-3xl">
         Inventario <span className="text-maruxa-rojo">·</span> Costos y precios
       </h1>
+
+      <ImportarFactura onApply={cargarCostosFactura} />
 
       <section className="mt-4 rounded-[34px] bg-white p-6 shadow-premium [overflow-anchor:none]">
         {loading ? (

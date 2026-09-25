@@ -9,6 +9,7 @@
     "@supabase/supabase-js": "^2.106.1",
     "@tailwindcss/postcss": "latest",
     "date-fns": "^4.3.0",
+    "fast-xml-parser": "^5.11.1",
     "framer-motion": "^12.40.0",
     "lucide-react": "latest",
     "mercadopago": "^0.5.0",
@@ -18,6 +19,7 @@
     "react-dom": "^19.2.7",
     "resend": "^6.12.4",
     "sonner": "^2.0.7",
+    "tesseract.js": "^6.0.1",
     "zustand": "^5.0.13"
   },
   "devDependencies": {
