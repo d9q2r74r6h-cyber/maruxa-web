@@ -11,7 +11,7 @@ import {
   type KeyboardEvent,
   type WheelEvent,
 } from 'react';
-import { ArrowDown, ArrowUp, ClipboardPaste, Loader2, Save, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ClipboardPaste, Loader2, Printer, Save, X } from 'lucide-react';
 import {
   calcularLiquidacion,
   descontarAbonoLiquidacionDelSaldo,
@@ -1709,6 +1709,19 @@ export default function RepartosPage() {
     diasLibres: liquidacion.diasLibres, anticipo: liquidacion.anticipo,
     abono: liquidacion.abono, abonoAnterior: abonoLiquidacionAnterior,
   });
+  const saldoMesSiguiente = descontarAbonoLiquidacionDelSaldo(
+    totalMensual.saldo,
+    liquidacion.abono
+  );
+
+  function imprimirLiquidacion() {
+    document.body.classList.add('imprimiendo-liquidacion');
+    const limpiarModoImpresion = () =>
+      document.body.classList.remove('imprimiendo-liquidacion');
+    window.addEventListener('afterprint', limpiarModoImpresion, { once: true });
+    window.print();
+    window.setTimeout(limpiarModoImpresion, 1000);
+  }
 
   return (
     <div className="space-y-5 pb-12" onWheel={evitarCambioNumeroConRueda}>
@@ -2205,15 +2218,21 @@ export default function RepartosPage() {
       </section>
 
       {vistaPlanilla === 'totales' && planilla && funcionarioActual?.trabaja_comision && (
-        <section className="overflow-hidden rounded-xl border border-[#4B2818]/15 bg-white shadow-sm">
+        <section className="liquidacion-imprimible overflow-hidden rounded-xl border border-[#4B2818]/15 bg-white shadow-sm">
           <div className="flex flex-col gap-3 border-b border-[#4B2818]/10 bg-gradient-to-r from-[#FFF3DF] to-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#A51F2B]">Cierre mensual</p>
               <h3 className="mt-1 text-lg font-black text-[#2A1710]">Liquidación · {funcionarioActual.nombre_completo}</h3>
+              <p className="mt-1 text-xs font-bold capitalize text-[#4B2818]/65">{nombreMes(mes)} {anio}</p>
             </div>
-            <div className="inline-flex w-fit items-baseline gap-2 rounded-full bg-[#A51F2B] px-4 py-2 text-white shadow-sm">
-              <span className="text-[10px] font-black uppercase tracking-wide text-white/75">Comisión</span>
-              <span className="text-xl font-black">{porcentajeComision.toLocaleString('es-CL')}%</span>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={imprimirLiquidacion} className="no-imprimir inline-flex items-center gap-2 rounded-full border border-[#A51F2B]/25 bg-white px-4 py-2 text-xs font-black text-[#A51F2B] transition hover:bg-[#FFF3DF]">
+                <Printer size={16} /> Imprimir
+              </button>
+              <div className="inline-flex w-fit items-baseline gap-2 rounded-full bg-[#A51F2B] px-4 py-2 text-white shadow-sm">
+                <span className="text-[10px] font-black uppercase tracking-wide text-white/75">Comisión</span>
+                <span className="text-xl font-black">{porcentajeComision.toLocaleString('es-CL')}%</span>
+              </div>
             </div>
           </div>
 
@@ -2235,6 +2254,21 @@ export default function RepartosPage() {
               <div className="rounded-lg border border-red-100 bg-red-50 px-4 py-3"><p className="text-[10px] font-black uppercase tracking-wide text-red-700">Sub-Total</p><p className="mt-1 text-lg font-black text-red-700">{dinero(subtotalLiquidacion)}</p></div>
               <label className="grid min-w-0 gap-1 text-[10px] font-black uppercase tracking-wide text-[#4B2818]/60">Abono para el mes siguiente<input type="text" inputMode="numeric" value={liquidacion.abono || ''} onChange={(event) => { setCambiosPendientes(true); setLiquidacion((actual) => ({ ...actual, abono: Math.max(0, numero(event.target.value)) })); }} className="h-14 min-w-0 w-full rounded-lg border-2 border-[#D9C4A7] bg-white px-4 text-right text-lg font-black outline-none focus:border-[#A51F2B]" /></label>
               <div className="rounded-lg bg-[#2A1710] px-4 py-3 text-white shadow-md"><p className="text-[10px] font-black uppercase tracking-wide text-white/65">Total por retirar</p><p className="mt-1 text-xl font-black">{dinero(totalLiquidacion)}</p></div>
+            </div>
+
+            <div className="mt-4 rounded-lg border-2 border-emerald-200 bg-emerald-50 px-4 py-4">
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-800">Rebaja aplicada al saldo del reparto</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                <div><p className="text-xs font-bold text-[#4B2818]/65">Saldo actual</p><p className="mt-1 text-lg font-black text-[#2A1710]">{dinero(totalMensual.saldo)}</p></div>
+                <div><p className="text-xs font-bold text-[#4B2818]/65">Menos abono de liquidación</p><p className="mt-1 text-lg font-black text-emerald-800">− {dinero(liquidacion.abono)}</p></div>
+                <div><p className="text-xs font-bold text-[#4B2818]/65">Saldo inicial del mes siguiente</p><p className="mt-1 text-xl font-black text-emerald-900">{dinero(saldoMesSiguiente)}</p></div>
+              </div>
+              <p className="mt-3 text-xs font-bold text-emerald-900/75">Al guardar la planilla, esta rebaja se reflejará automáticamente al abrir el mes siguiente.</p>
+            </div>
+
+            <div className="hidden grid-cols-2 gap-16 pt-20 text-center print:grid">
+              <div className="border-t border-[#2A1710] pt-2 text-xs font-bold">Firma repartidor · {funcionarioActual.nombre_completo}</div>
+              <div className="border-t border-[#2A1710] pt-2 text-xs font-bold">Firma empresa</div>
             </div>
           </div>
         </section>

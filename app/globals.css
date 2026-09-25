@@ -57,3 +57,20 @@ button,input,textarea,select{font-family:ui-sans-serif,system-ui,sans-serif}.con
       --rdp-cell-size: 42px;
     }
   }
+
+@media print {
+  @page { size: A4 portrait; margin: 14mm; }
+  body.imprimiendo-liquidacion { background: #fff; }
+  body.imprimiendo-liquidacion * { visibility: hidden !important; }
+  body.imprimiendo-liquidacion .liquidacion-imprimible,
+  body.imprimiendo-liquidacion .liquidacion-imprimible * { visibility: visible !important; }
+  body.imprimiendo-liquidacion .liquidacion-imprimible {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    overflow: visible;
+    border: 0;
+    box-shadow: none;
+  }
+  body.imprimiendo-liquidacion .no-imprimir { display: none !important; }
+}
