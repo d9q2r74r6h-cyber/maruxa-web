@@ -78,7 +78,7 @@ button,input,textarea,select{font-family:ui-sans-serif,system-ui,sans-serif}.con
   .detalle-liquidacion-impresion {
     color: #2a1710;
     font-family: Arial, Helvetica, sans-serif;
-    font-size: 7px;
+    font-size: 8.5px;
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
   }
@@ -93,10 +93,11 @@ button,input,textarea,select{font-family:ui-sans-serif,system-ui,sans-serif}.con
   .encabezado-liquidacion-impresion > strong { border-radius: 999px; background: #a51f2b; color: white; padding: 2mm 4mm; font-size: 10px; }
   .tabla-dias-impresion { width: 100%; table-layout: fixed; border-collapse: collapse; }
   .tabla-dias-impresion th,
-  .tabla-dias-impresion td { border: .2mm solid #cdbda9; padding: .65mm .8mm; text-align: right; white-space: nowrap; line-height: 1.05; }
+  .tabla-dias-impresion td { border: .15mm solid #cdbda9; padding: .3mm .4mm; text-align: right; white-space: nowrap; line-height: 1; }
   .tabla-dias-impresion th:first-child,
-  .tabla-dias-impresion td:first-child { width: 8mm; text-align: left; font-weight: 800; }
-  .tabla-dias-impresion th { background: #2a1710 !important; color: white !important; font-size: 6.5px; }
+  .tabla-dias-impresion td:first-child { width: 7mm; text-align: left; font-weight: 800; }
+  .tabla-dias-impresion th { background: #2a1710 !important; color: white !important; font-size: 7.5px; }
+  .tabla-dias-impresion tbody td { font-weight: 600; }
   .tabla-dias-impresion tbody tr:nth-child(even) { background: #faf5ed !important; }
   .tabla-dias-impresion tfoot { background: #fff3df !important; font-weight: 800; }
   .resumen-liquidacion-impresion { display: grid; grid-template-columns: repeat(8, 1fr); gap: 1.5mm; margin-top: 2mm; }
