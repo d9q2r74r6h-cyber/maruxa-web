@@ -13,6 +13,15 @@ type EmbeddedSignupData = {
   phone_number_id?: string;
 };
 
+type EmbeddedSignupEvent = {
+  type?: string;
+  event?: 'FINISH' | 'CANCEL' | 'ERROR';
+  data?: EmbeddedSignupData & {
+    error_message?: string;
+    current_step?: string;
+  };
+};
+
 declare global {
   interface Window {
     FB?: {
@@ -33,7 +42,9 @@ export default function WhatsappCoexistencia() {
     phoneNumberId?: string | null;
     telefono?: string | null;
   } | null>(null);
+  const [errorMeta, setErrorMeta] = useState<string | null>(null);
   const datosSignupRef = useRef<EmbeddedSignupData>({});
+  const errorMetaRef = useRef<string | null>(null);
 
   useEffect(() => {
     function recibirMensaje(evento: MessageEvent) {
@@ -41,7 +52,7 @@ export default function WhatsappCoexistencia() {
         return;
       }
 
-      let datos = evento.data;
+      let datos: EmbeddedSignupEvent | string = evento.data;
       if (typeof datos === 'string') {
         try {
           datos = JSON.parse(datos);
@@ -50,12 +61,23 @@ export default function WhatsappCoexistencia() {
         }
       }
 
-      if (datos?.type !== 'WA_EMBEDDED_SIGNUP') return;
+      if (typeof datos === 'string' || datos?.type !== 'WA_EMBEDDED_SIGNUP') return;
       if (datos?.event === 'FINISH') {
         datosSignupRef.current = datos.data || {};
       }
       if (datos?.event === 'ERROR') {
-        toast.error(datos?.data?.error_message || 'Meta no completo la conexion.');
+        const mensaje = datos?.data?.error_message || 'Meta no completo la conexion.';
+        errorMetaRef.current = mensaje;
+        setErrorMeta(mensaje);
+        toast.error(mensaje);
+      }
+      if (datos?.event === 'CANCEL') {
+        const paso = datos?.data?.current_step;
+        const mensaje = paso
+          ? `La conexion se cerro en el paso: ${paso}.`
+          : 'La conexion con Meta fue cancelada.';
+        errorMetaRef.current = mensaje;
+        setErrorMeta(mensaje);
       }
     }
 
@@ -117,13 +139,19 @@ export default function WhatsappCoexistencia() {
     }
 
     datosSignupRef.current = {};
+    errorMetaRef.current = null;
+    setErrorMeta(null);
     setConectando(true);
     window.FB.login(
       (respuesta) => {
         const code = respuesta.authResponse?.code;
         if (!code) {
           setConectando(false);
-          toast.error('La autorizacion fue cancelada o no entrego un codigo.');
+          if (!errorMetaRef.current) {
+            const mensaje = 'La autorizacion fue cancelada o no entrego un codigo.';
+            setErrorMeta(mensaje);
+            toast.error(mensaje);
+          }
           return;
         }
 
@@ -136,6 +164,7 @@ export default function WhatsappCoexistencia() {
         response_type: 'code',
         override_default_response_type: true,
         extras: {
+          setup: {},
           featureType: 'whatsapp_business_app_onboarding',
           sessionInfoVersion: '3',
         },
@@ -167,6 +196,17 @@ export default function WhatsappCoexistencia() {
           Meta autorizo {resultado.telefono || 'el 5041'} (Phone Number ID{' '}
           {resultado.phoneNumberId || 'pendiente'}). Falta activar las variables del canal secundario.
         </p>
+      )}
+      {errorMeta && (
+        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">
+          <p>Meta informo: {errorMeta}</p>
+          {/(already in use|ya est[aá] en uso)/i.test(errorMeta) && (
+            <p className="mt-1">
+              Elige la opcion para conectar la aplicacion WhatsApp Business existente y confirma
+              desde el telefono. No elimines la cuenta ni desinstales WhatsApp Business.
+            </p>
+          )}
+        </div>
       )}
     </div>
   );
