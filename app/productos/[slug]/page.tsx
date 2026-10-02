@@ -22,8 +22,8 @@ export async function generateMetadata({
   params,
 }: Props): Promise<Metadata> {
   const { slug } = await params;
-
-  const nombreProducto = slug.replace(/-/g, ' ');
+  const { data } = await obtenerProductosCatalogo({ slug });
+  const nombreProducto = data[0]?.nombre || slug.replace(/-/g, ' ');
 
   return {
     title: `${nombreProducto} | Panadería Maruxa`,

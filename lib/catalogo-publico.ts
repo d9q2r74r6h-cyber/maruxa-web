@@ -1,5 +1,6 @@
 import type { Presentacion } from './presentaciones';
 import { createClient } from '@supabase/supabase-js';
+import { nombreProductoPublico } from '@/lib/nombre-producto-publico';
 
 export type ProductoCatalogo = {
   presentaciones?: Presentacion[] | null;
@@ -141,7 +142,7 @@ export async function obtenerProductosCatalogo(filtros: FiltrosCatalogo = {}) {
   return {
     data: productosConsulta.map((producto) => ({
       id: producto.id,
-      nombre: producto.nombre,
+      nombre: nombreProductoPublico(producto.nombre),
       descripcion: producto.descripcion,
       precio: producto.precio,
       categoria: producto.categoria,
