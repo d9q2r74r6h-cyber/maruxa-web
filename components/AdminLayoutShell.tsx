@@ -22,7 +22,6 @@ const modulosPorRuta = [
   ['/admin/familias-productos', 'familias'],
   ['/admin/configuracion', 'empresa'],
   ['/admin/planillas', 'planillas'],
-  ['/admin/produccion', 'produccion'],
   ['/admin/recetas', 'recetas'],
   ['/admin/compras', 'compras'],
   ['/admin/productos', 'productos'],

@@ -60,7 +60,6 @@ const grupos: {
     label: 'Produccion',
     items: [
       { label: 'Recetas', href: '/admin/recetas', modulo: 'recetas' },
-      { label: 'Fabricacion', href: '/admin/produccion', modulo: 'produccion' },
       { label: 'Rinde por saco', href: '/admin/planillas', modulo: 'planillas' },
       { label: 'Historial produccion', future: true },
     ],
