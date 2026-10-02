@@ -349,6 +349,7 @@ export default function AdminComprasPage() {
   const [fichaEditando, setFichaEditando] = useState({
     fecha: '',
     nombre: '',
+    undxcaja: '',
     familiaId: '',
     costo: '',
     margen: '',
@@ -359,6 +360,7 @@ export default function AdminComprasPage() {
   const [historialEditando, setHistorialEditando] = useState({
     fecha: '',
     nombre: '',
+    undxcaja: '',
     familiaId: '',
     costo: '',
     margen: '',
@@ -1259,6 +1261,7 @@ export default function AdminComprasPage() {
     setFichaEditando({
       fecha: new Date().toISOString().slice(0, 10),
       nombre: producto.nombre,
+      undxcaja: String(producto.undxcaja || ''),
       familiaId: producto.familia_id || '',
       costo: String(producto.costo_unitario || ''),
       margen: String(
@@ -1304,6 +1307,7 @@ export default function AdminComprasPage() {
     );
     const cambios = {
       nombre: fichaEditando.nombre.trim(),
+      undxcaja: numero(fichaEditando.undxcaja) || null,
       familia_id: fichaEditando.familiaId || null,
       costo_unitario: numero(fichaEditando.costo),
       precio: numero(fichaEditando.precioVenta),
@@ -1317,6 +1321,15 @@ export default function AdminComprasPage() {
     if (!cambios.nombre) {
       setGuardandoFicha(false);
       alert('El nombre del producto no puede quedar vacío.');
+      return;
+    }
+    if (
+      fichaEditando.undxcaja &&
+      (!Number.isInteger(Number(fichaEditando.undxcaja)) ||
+        Number(fichaEditando.undxcaja) <= 0)
+    ) {
+      setGuardandoFicha(false);
+      alert('Las unidades por caja deben ser un número entero mayor que cero.');
       return;
     }
     const { error } = await supabase
@@ -1343,6 +1356,7 @@ export default function AdminComprasPage() {
           ? {
               ...item,
               busqueda_producto: `${cambios.nombre} - ${producto.tipo_producto}`,
+              undxcaja: fichaEditando.undxcaja,
             }
           : item
       )
@@ -1417,6 +1431,7 @@ export default function AdminComprasPage() {
     setHistorialEditando({
       fecha: historial.fecha.slice(0, 10),
       nombre: producto.nombre,
+      undxcaja: String(producto.undxcaja || ''),
       familiaId: producto.familia_id || '',
       costo: String(historial.precio || ''),
       margen: String(margenAplicado || ''),
@@ -1463,6 +1478,15 @@ export default function AdminComprasPage() {
       alert('El nombre del producto no puede quedar vacío.');
       return;
     }
+    if (
+      historialEditando.undxcaja &&
+      (!Number.isInteger(Number(historialEditando.undxcaja)) ||
+        Number(historialEditando.undxcaja) <= 0)
+    ) {
+      setGuardandoHistorial(false);
+      alert('Las unidades por caja deben ser un número entero mayor que cero.');
+      return;
+    }
 
     const { error } = await supabase
       .from('producto_costos_historial')
@@ -1498,6 +1522,7 @@ export default function AdminComprasPage() {
       margenIngresado === numero(familiaSeleccionada?.margen_porcentaje);
     const cambiosProducto = {
       nombre: nombreProducto,
+      undxcaja: numero(historialEditando.undxcaja) || null,
       familia_id: historialEditando.familiaId || null,
       ...(esRegistroVigente
         ? {
@@ -1544,6 +1569,17 @@ export default function AdminComprasPage() {
               ...cambiosProducto,
             }
           : producto
+      )
+    );
+    setItems((actuales) =>
+      actuales.map((item) =>
+        String(item.producto_id) === String(productoId)
+          ? {
+              ...item,
+              busqueda_producto: `${nombreProducto} - producto`,
+              undxcaja: historialEditando.undxcaja,
+            }
+          : item
       )
     );
     setHistorialEditandoId(null);
@@ -3223,11 +3259,12 @@ export default function AdminComprasPage() {
                             </p>
                           ) : (
                             <div className="mt-3 overflow-x-auto">
-                              <table className="w-full min-w-[1080px] text-sm">
+                              <table className="w-full min-w-[1160px] text-sm">
                                 <thead>
                                   <tr className="text-left text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                                     <th className="px-3 py-2">Fecha</th>
                                     <th className="px-3 py-2">Producto</th>
+                                    <th className="px-3 py-2 text-right">Unid./caja</th>
                                     <th className="px-3 py-2">Familia</th>
                                     <th className="px-3 py-2 text-right">Neto</th>
                                     <th className="px-3 py-2 text-right">IVA</th>
@@ -3319,6 +3356,43 @@ export default function AdminComprasPage() {
                                           />
                                         ) : (
                                           producto.nombre
+                                        )}
+                                      </td>
+                                      <td className="px-3 py-2 text-right font-black">
+                                        {historial.id &&
+                                        historialEditandoId === historial.id ? (
+                                          <input
+                                            type="number"
+                                            min="1"
+                                            step="1"
+                                            value={historialEditando.undxcaja}
+                                            onChange={(e) =>
+                                              setHistorialEditando((actual) => ({
+                                                ...actual,
+                                                undxcaja: e.target.value,
+                                              }))
+                                            }
+                                            className="w-20 rounded-lg border px-2 py-1 text-right text-xs font-black"
+                                          />
+                                        ) : historial.origen === 'ficha_actual' &&
+                                          fichaEditandoId === producto.id ? (
+                                          <input
+                                            type="number"
+                                            min="1"
+                                            step="1"
+                                            value={fichaEditando.undxcaja}
+                                            onChange={(e) =>
+                                              setFichaEditando((actual) => ({
+                                                ...actual,
+                                                undxcaja: e.target.value,
+                                              }))
+                                            }
+                                            className="w-20 rounded-lg border px-2 py-1 text-right text-xs font-black"
+                                          />
+                                        ) : unidadesCajaVista > 0 ? (
+                                          unidadesCajaVista.toLocaleString('es-CL')
+                                        ) : (
+                                          '—'
                                         )}
                                       </td>
                                       <td className="px-3 py-2 font-bold">
