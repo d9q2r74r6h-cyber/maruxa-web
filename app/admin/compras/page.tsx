@@ -73,6 +73,7 @@ type FamiliaProducto = {
 type ItemCompra = {
   producto_id: string;
   busqueda_producto: string;
+  undxcaja?: string;
   cantidad: string;
   costo_unitario: string;
   costo_total: string;
@@ -1044,6 +1045,7 @@ export default function AdminComprasPage() {
             busqueda_producto: producto
               ? `${producto.nombre} - ${producto.tipo_producto}`
               : item.busqueda_producto,
+            undxcaja: producto?.undxcaja ? String(producto.undxcaja) : '',
             costo_unitario: '',
             costo_total: '',
             margen_porcentaje: String(margen || ''),
@@ -1059,6 +1061,7 @@ export default function AdminComprasPage() {
             ...item,
             producto_id: '',
             busqueda_producto: valor,
+            undxcaja: '',
             nuevo_producto: false,
             familia_id_nueva: '',
           };
@@ -2095,6 +2098,17 @@ export default function AdminComprasPage() {
     let productosTrabajo = [...productos];
     const nuevosPendientes = itemsTrabajo.filter((item) => item.nuevo_producto);
 
+    const unidadesCajaInvalidas = itemsTrabajo.some(
+      (item) =>
+        item.undxcaja &&
+        (!Number.isInteger(Number(item.undxcaja)) || Number(item.undxcaja) <= 0)
+    );
+
+    if (unidadesCajaInvalidas) {
+      alert('Las unidades por caja deben ser un número entero mayor que cero.');
+      return;
+    }
+
     if (nuevosPendientes.length > 0) {
       if (!proveedorId) {
         alert('Selecciona el proveedor en la parte superior.');
@@ -2104,7 +2118,10 @@ export default function AdminComprasPage() {
       setGuardando(true);
 
       for (const itemNuevo of nuevosPendientes) {
-        const datosNombre = separarUnidadesCaja(itemNuevo.busqueda_producto);
+        const datosNombre = separarUnidadesCaja(
+          itemNuevo.busqueda_producto,
+          itemNuevo.undxcaja
+        );
         const nombre = datosNombre.nombre;
         const familiaId = itemNuevo.familia_id_nueva || familiaGeneralId;
         const familia = familias.find((item) => item.id === familiaId);
@@ -2344,6 +2361,10 @@ export default function AdminComprasPage() {
         .update({
           costo_unitario: costoCompra,
           precio: precioVenta || numero(producto.precio),
+          undxcaja:
+            itemIngresado?.undxcaja !== undefined
+              ? numero(itemIngresado.undxcaja) || null
+              : producto.undxcaja || null,
           proveedor_id: proveedorId || producto.proveedor_id || null,
           ...(margenIngresado > 0
             ? {
@@ -2869,6 +2890,10 @@ export default function AdminComprasPage() {
                   const producto = productos.find((p) => String(p.id) === String(item.producto_id));
                   const esProductoNuevo = item.nuevo_producto === true;
                   const mostrarDetalle = Boolean(producto || esProductoNuevo);
+                  const unidadesCajaVista =
+                    item.undxcaja !== undefined
+                      ? numero(item.undxcaja)
+                      : numero(producto?.undxcaja);
                   const familiaProducto = familias.find(
                     (familia) =>
                       familia.id ===
@@ -2934,7 +2959,7 @@ export default function AdminComprasPage() {
                       style={{ order: index }}
                       className={`relative grid gap-3 rounded-2xl border border-maruxa-cafe/10 bg-white p-4 shadow-sm ${
                         mostrarDetalle
-                          ? 'md:grid-cols-2 xl:grid-cols-9'
+                          ? 'md:grid-cols-2 xl:grid-cols-10'
                           : 'grid-cols-[minmax(0,1fr)_auto] items-end'
                       }`}
                     >
@@ -3045,6 +3070,23 @@ export default function AdminComprasPage() {
 
                       <label className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
                         <span className="flex min-h-7 items-end text-[11px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
+                          Unid./caja
+                        </span>
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={item.undxcaja ?? String(producto?.undxcaja || '')}
+                          onChange={(e) =>
+                            actualizarItem(index, 'undxcaja', e.target.value)
+                          }
+                          placeholder="0"
+                          className="w-full min-w-0 rounded-xl border px-2 py-2 text-right text-sm font-bold"
+                        />
+                      </label>
+
+                      <label className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
+                        <span className="flex min-h-7 items-end text-[11px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
                           Costo proveedor
                           {precioIvaIncluido ? ' bruto' : ' neto'}
                         </span>
@@ -3151,7 +3193,7 @@ export default function AdminComprasPage() {
                       </label>
 
                       {producto && (
-                        <section className="rounded-2xl border-2 border-maruxa-rojo/20 bg-[#FFF8ED] p-4 md:col-span-2 xl:col-span-9">
+                        <section className="rounded-2xl border-2 border-maruxa-rojo/20 bg-[#FFF8ED] p-4 md:col-span-2 xl:col-span-10">
                           <div className="flex flex-wrap items-end justify-between gap-2 border-b border-maruxa-rojo/15 pb-3">
                             <div>
                               <p className="text-[11px] font-black uppercase tracking-[.2em] text-maruxa-rojo">
@@ -3160,6 +3202,11 @@ export default function AdminComprasPage() {
                               <h4 className="mt-1 font-black text-maruxa-chocolate">
                                 Últimos valores ingresados para {producto.nombre}
                               </h4>
+                              {unidadesCajaVista > 0 ? (
+                                <p className="mt-1 text-xs font-black text-maruxa-cafe/60">
+                                  Caja de {unidadesCajaVista.toLocaleString('es-CL')} unidades
+                                </p>
+                              ) : null}
                             </div>
                             <span className="rounded-full bg-white px-3 py-1 text-[11px] font-black text-maruxa-cafe/60">
                               Registro histórico
@@ -3514,7 +3561,7 @@ export default function AdminComprasPage() {
                           onClick={() => eliminarItem(index)}
                           className={`self-end justify-self-stretch rounded-xl border border-red-300 bg-red-50 px-3 py-2.5 text-xs font-black text-red-700 ${
                             mostrarDetalle
-                              ? 'md:col-span-2 xl:col-span-1 xl:col-start-9 xl:row-start-1'
+                              ? 'md:col-span-2 xl:col-span-1 xl:col-start-10 xl:row-start-1'
                               : ''
                           }`}
                         >
@@ -3522,7 +3569,7 @@ export default function AdminComprasPage() {
                         </button>
 
                       {producto && productoEditandoId === producto.id && (
-                        <div className="grid gap-4 rounded-2xl border border-red-100 bg-red-50/60 p-4 md:col-span-2 xl:col-span-9">
+                        <div className="grid gap-4 rounded-2xl border border-red-100 bg-red-50/60 p-4 md:col-span-2 xl:col-span-10">
                           <div className="grid gap-3 md:grid-cols-12">
                             <label className="grid gap-1 md:col-span-2">
                               <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
