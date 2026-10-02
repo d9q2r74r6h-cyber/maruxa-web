@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { supabase } from '@/lib/supabase';
 import { obtenerEmpresaActual } from '@/lib/empresa';
+import { separarUnidadesCaja } from '@/lib/nombre-producto-publico';
 import dynamic from 'next/dynamic';
 import type { CargaFactura } from '@/components/ImportarFactura';
 const ImportarFactura = dynamic(() => import('@/components/ImportarFactura'), { ssr: false });
@@ -20,6 +21,7 @@ type Producto = {
   tipo_producto: string;
   familia_id: string | null;
   unidad_base: string | null;
+  undxcaja?: number | null;
   stock_actual: number | null;
   costo_unitario: number | null;
   precio: number | null;
@@ -94,6 +96,7 @@ type ProductoEdicion = {
   tipo_producto: TipoProductoCompra;
   familia_id: string;
   unidad_base: string;
+  undxcaja: string;
   costo_unitario: string;
   stock_actual: string;
   controla_stock: boolean;
@@ -321,6 +324,7 @@ export default function AdminComprasPage() {
     tipo_producto: 'producto' as TipoProductoCompra,
     familia_id: '',
     unidad_base: 'KG',
+    undxcaja: '',
     costo_unitario: '',
     stock_actual: '',
     controla_stock: true,
@@ -334,6 +338,7 @@ export default function AdminComprasPage() {
     tipo_producto: 'ingrediente',
     familia_id: '',
     unidad_base: 'KG',
+    undxcaja: '',
     costo_unitario: '',
     stock_actual: '',
     controla_stock: true,
@@ -445,6 +450,7 @@ export default function AdminComprasPage() {
         tipo_producto,
         familia_id,
         unidad_base,
+        undxcaja,
         stock_actual,
         costo_unitario,
         precio,
@@ -829,6 +835,7 @@ export default function AdminComprasPage() {
           tipo_producto,
           familia_id,
           unidad_base,
+          undxcaja,
           stock_actual,
           costo_unitario,
           controla_stock
@@ -1147,6 +1154,7 @@ export default function AdminComprasPage() {
       tipo_producto: (producto.tipo_producto || 'ingrediente') as TipoProductoCompra,
       familia_id: producto.familia_id || '',
       unidad_base: producto.unidad_base || 'KG',
+      undxcaja: String(producto.undxcaja || ''),
       costo_unitario: String(producto.costo_unitario || ''),
       stock_actual: String(producto.stock_actual || ''),
       controla_stock: producto.controla_stock ?? true,
@@ -1161,6 +1169,7 @@ export default function AdminComprasPage() {
       tipo_producto: 'ingrediente',
       familia_id: '',
       unidad_base: 'KG',
+      undxcaja: '',
       costo_unitario: '',
       stock_actual: '',
       controla_stock: true,
@@ -1175,11 +1184,25 @@ export default function AdminComprasPage() {
       return;
     }
 
+    if (
+      productoEditando.undxcaja &&
+      (!Number.isInteger(Number(productoEditando.undxcaja)) ||
+        Number(productoEditando.undxcaja) <= 0)
+    ) {
+      alert('Las unidades por caja deben ser un número entero mayor que cero.');
+      return;
+    }
+
     setGuardandoProductoEditado(true);
 
+    const datosNombre = separarUnidadesCaja(
+      productoEditando.nombre,
+      productoEditando.undxcaja
+    );
     const datos = {
       codigo: productoEditando.codigo.trim().toUpperCase() || null,
-      nombre: productoEditando.nombre.trim(),
+      nombre: datosNombre.nombre,
+      undxcaja: datosNombre.undxcaja,
       tipo_producto: productoEditando.tipo_producto,
       familia_id: productoEditando.familia_id || null,
       unidad_base: productoEditando.unidad_base,
@@ -1582,16 +1605,28 @@ export default function AdminComprasPage() {
       alert('Ingresa el nombre del producto.');
       return;
     }
+    if (
+      nuevoProducto.undxcaja &&
+      (!Number.isInteger(Number(nuevoProducto.undxcaja)) ||
+        Number(nuevoProducto.undxcaja) <= 0)
+    ) {
+      alert('Las unidades por caja deben ser un número entero mayor que cero.');
+      return;
+    }
 
     if (!proveedorId) {
       alert('Selecciona un proveedor antes de crear el producto.');
       return;
     }
 
+    const datosNombre = separarUnidadesCaja(
+      nuevoProducto.nombre,
+      nuevoProducto.undxcaja
+    );
     const productoExistente = productos.find(
       (producto) =>
         normalizarTexto(producto.nombre) ===
-        normalizarTexto(nuevoProducto.nombre)
+        normalizarTexto(datosNombre.nombre)
     );
 
     if (productoExistente) {
@@ -1659,7 +1694,10 @@ export default function AdminComprasPage() {
 
     if (!codigoFinal) {
       try {
-        codigoFinal = await generarCodigoProductoCompra(empresa.id);
+        codigoFinal = await generarCodigoProductoCompra(
+          empresa.id,
+          datosNombre.nombre
+        );
       } catch (error) {
         alert(error instanceof Error ? error.message : 'No se pudo generar el codigo.');
         return;
@@ -1672,13 +1710,14 @@ export default function AdminComprasPage() {
         empresa_id: empresa.id,
         proveedor_id: proveedorId,
         codigo: codigoFinal,
-        nombre: nuevoProducto.nombre.trim(),
+        nombre: datosNombre.nombre,
+        undxcaja: datosNombre.undxcaja,
         descripcion: '',
         precio: precioVentaCalculado,
         categoria,
         imagen: null,
         destacado: false,
-        slug: crearSlug(nuevoProducto.nombre.trim()),
+        slug: crearSlug(datosNombre.nombre),
         tipo_producto: tipo,
         familia_id: nuevoProducto.familia_id || null,
         unidad_base: nuevoProducto.unidad_base,
@@ -1697,6 +1736,7 @@ export default function AdminComprasPage() {
         tipo_producto,
         familia_id,
         unidad_base,
+        undxcaja,
         stock_actual,
         costo_unitario,
         precio,
@@ -1744,6 +1784,7 @@ export default function AdminComprasPage() {
       tipo_producto: 'producto',
       familia_id: '',
       unidad_base: 'KG',
+      undxcaja: '',
       costo_unitario: '',
       stock_actual: '',
       controla_stock: true,
@@ -2063,7 +2104,8 @@ export default function AdminComprasPage() {
       setGuardando(true);
 
       for (const itemNuevo of nuevosPendientes) {
-        const nombre = itemNuevo.busqueda_producto.trim();
+        const datosNombre = separarUnidadesCaja(itemNuevo.busqueda_producto);
+        const nombre = datosNombre.nombre;
         const familiaId = itemNuevo.familia_id_nueva || familiaGeneralId;
         const familia = familias.find((item) => item.id === familiaId);
         const costoNeto = desgloseIva(
@@ -2104,6 +2146,7 @@ export default function AdminComprasPage() {
             proveedor_id: proveedorId,
             codigo,
             nombre,
+            undxcaja: datosNombre.undxcaja,
             descripcion: '',
             precio: numero(itemNuevo.precio_venta),
             categoria: 'Productos',
@@ -2127,7 +2170,7 @@ export default function AdminComprasPage() {
               : itemNuevo.tipo_margen,
           })
           .select(`
-            id,codigo,nombre,tipo_producto,familia_id,unidad_base,stock_actual,
+            id,codigo,nombre,tipo_producto,familia_id,unidad_base,undxcaja,stock_actual,
             costo_unitario,precio,proveedor_id,controla_stock,
             usar_configuracion_familia,margen_personalizado,tipo_margen_personalizado
           `)
@@ -2573,7 +2616,7 @@ export default function AdminComprasPage() {
                       </span>
                     </label>
 
-                    <label className="relative grid gap-1 md:col-span-5">
+                    <label className="relative grid gap-1 md:col-span-3">
                       <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
                         Nombre
                       </span>
@@ -2635,6 +2678,7 @@ export default function AdminComprasPage() {
                                     tipo_producto: 'producto',
                                     familia_id: '',
                                     unidad_base: 'KG',
+                                    undxcaja: '',
                                     costo_unitario: '',
                                     stock_actual: '',
                                     controla_stock: true,
@@ -2675,6 +2719,26 @@ export default function AdminComprasPage() {
                         <option value="ingrediente">Ingrediente</option>
                         <option value="envase">Insumo</option>
                       </select>
+                    </label>
+
+                    <label className="grid gap-1 md:col-span-2">
+                      <span className="text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
+                        Unidades por caja
+                      </span>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={nuevoProducto.undxcaja}
+                        onChange={(e) =>
+                          setNuevoProducto({
+                            ...nuevoProducto,
+                            undxcaja: e.target.value,
+                          })
+                        }
+                        placeholder="Ej: 36"
+                        className="rounded-2xl border px-4 py-3 text-right font-bold"
+                      />
                     </label>
 
                     <label className="grid gap-1 md:col-span-3">
@@ -3476,7 +3540,7 @@ export default function AdminComprasPage() {
                               />
                             </label>
 
-                            <label className="grid gap-1 md:col-span-5">
+                            <label className="grid gap-1 md:col-span-4">
                               <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
                                 Nombre
                               </span>
@@ -3489,6 +3553,25 @@ export default function AdminComprasPage() {
                                   })
                                 }
                                 className="rounded-xl border px-3 py-2 text-sm font-bold"
+                              />
+                            </label>
+
+                            <label className="grid gap-1 md:col-span-2">
+                              <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
+                                Unidades por caja
+                              </span>
+                              <input
+                                type="number"
+                                min="1"
+                                step="1"
+                                value={productoEditando.undxcaja}
+                                onChange={(e) =>
+                                  setProductoEditando({
+                                    ...productoEditando,
+                                    undxcaja: e.target.value,
+                                  })
+                                }
+                                className="rounded-xl border px-3 py-2 text-right text-sm font-bold"
                               />
                             </label>
 
@@ -3512,7 +3595,7 @@ export default function AdminComprasPage() {
                               </select>
                             </label>
 
-                            <label className="grid gap-1 md:col-span-3">
+                            <label className="grid gap-1 md:col-span-2">
                               <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
                                 Familia
                               </span>

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { obtenerEmpresaActual } from '@/lib/empresa';
 import { presentacionesProducto, validarPresentaciones, type Presentacion } from '@/lib/presentaciones';
+import { separarUnidadesCaja } from '@/lib/nombre-producto-publico';
 import { Search, X } from 'lucide-react';
 type TipoProducto = 'producto' | 'ingrediente' | 'envase' | 'mano_obra';
 
@@ -32,6 +33,7 @@ type Producto = {
   familia_id: string | null;
   tipo_producto: TipoProducto | null;
   unidad_base: string | null;
+  undxcaja: number | null;
   costo_unitario: number | null;
   iva_porcentaje: number | null;
   impuesto_adicional_porcentaje: number | null;
@@ -77,6 +79,7 @@ const formInicial = {
 
   tipo_producto: 'producto' as TipoProducto,
   unidad_base: 'KG',
+  undxcaja: '',
   costo_unitario: '',
   iva_porcentaje: '19',
   impuesto_adicional_porcentaje: '',
@@ -397,6 +400,7 @@ export default function AdminProductosPage() {
 
       tipo_producto: tipoProducto,
       unidad_base: producto.unidad_base || 'KG',
+      undxcaja: String(producto.undxcaja || ''),
       costo_unitario: producto.costo_unitario
         ? String(Number(Number(producto.costo_unitario).toFixed(4)))
         : '',
@@ -451,6 +455,14 @@ export default function AdminProductosPage() {
       return false;
     }
 
+    if (
+      form.undxcaja &&
+      (!Number.isInteger(Number(form.undxcaja)) || Number(form.undxcaja) <= 0)
+    ) {
+      alert('Las unidades por caja deben ser un número entero mayor que cero.');
+      return false;
+    }
+
     return true;
   }
 
@@ -488,11 +500,13 @@ export default function AdminProductosPage() {
     empresaId?: string | number,
     codigoFinal?: string
   ) {
+    const datosNombre = separarUnidadesCaja(form.nombre, form.undxcaja);
     const preciosDisponibles = form.presentaciones.filter((p) => p.activo).map((p) => Number(p.precio));
     const precioPresentacion = preciosDisponibles.length ? Math.min(...preciosDisponibles) : 0;
     return {
       codigo: (codigoFinal || form.codigo).trim().toUpperCase() || null,
-      nombre: form.nombre.trim().toLocaleUpperCase('es-CL'),
+      nombre: datosNombre.nombre.toLocaleUpperCase('es-CL'),
+      undxcaja: datosNombre.undxcaja,
       descripcion: form.descripcion,
       precio:
         form.tipo_producto === 'producto'
@@ -511,7 +525,7 @@ export default function AdminProductosPage() {
       empresa_id: empresaId,
       imagen: esProducto ? form.imagen || null : null,
       destacado: esProducto ? form.destacado : false,
-      slug: crearSlug(form.nombre),
+      slug: crearSlug(datosNombre.nombre),
 
       presentaciones: esProducto ? form.presentaciones.map((p) => ({ ...p, nombre: p.nombre.trim(), precio: Number(p.precio) })) : null,
       ...Object.fromEntries([10, 15, 20, 25].map((n) => [
@@ -905,6 +919,30 @@ export default function AdminProductosPage() {
                 </select>
                   <span className="block text-xs font-semibold text-maruxa-cafe/60">
                     Como se mide en compras, recetas e inventario.
+                  </span>
+                </label>
+
+                <label className="space-y-2">
+                  <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
+                    Unidades por caja
+                  </span>
+                  <input
+                    placeholder={esManoObra ? 'No aplica' : 'Ej: 36'}
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={form.undxcaja}
+                    disabled={esManoObra}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        undxcaja: e.target.value,
+                      })
+                    }
+                    className="h-14 w-full rounded-2xl border border-maruxa-rojo/10 px-5 font-bold outline-none disabled:bg-gray-100 disabled:text-gray-400"
+                  />
+                  <span className="block text-xs font-semibold text-maruxa-cafe/60">
+                    Cantidad contenida en la caja, separada del nombre comercial.
                   </span>
                 </label>
 
@@ -1404,6 +1442,12 @@ export default function AdminProductosPage() {
                     <h3 className="mt-1 text-xl font-black text-maruxa-chocolate">
                       {producto.nombre}
                     </h3>
+
+                    {producto.undxcaja ? (
+                      <p className="mt-0.5 text-xs font-black uppercase tracking-wide text-maruxa-cafe/55">
+                        Caja: {producto.undxcaja.toLocaleString('es-CL')} unidades
+                      </p>
+                    ) : null}
 
                     {producto.codigo && (
                       <p className="mt-0.5 text-xs font-black uppercase tracking-wide text-maruxa-cafe/55">
