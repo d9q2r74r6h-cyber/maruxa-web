@@ -143,6 +143,7 @@ export default function AdminProductosPage() {
     useState<Producto | null>(null);
 
   const [familias, setFamilias] = useState<FamiliaProducto[]>([]);
+  const [familiaPrincipalId, setFamiliaPrincipalId] = useState('');
   const [impuestosAdicionales, setImpuestosAdicionales] = useState<
     ImpuestoAdicional[]
   >([]);
@@ -218,12 +219,12 @@ export default function AdminProductosPage() {
   );
   const esProductoTorta =
     esFamiliaTortas || normalizarTexto(form.categoria).includes('torta');
-  const familiasOrdenadas = [...familias].sort((a, b) =>
-    nombreJerarquicoFamilia(a.id).localeCompare(
-      nombreJerarquicoFamilia(b.id),
-      'es'
-    )
-  );
+  const familiasPrincipales = familias
+    .filter((familia) => !familia.familia_padre_id)
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  const subfamiliasDisponibles = familias
+    .filter((familia) => familia.familia_padre_id === familiaPrincipalId)
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   const prefijoTipoProducto: Record<TipoProducto, string> = {
     producto: 'PRO',
     ingrediente: 'ING',
@@ -366,12 +367,15 @@ export default function AdminProductosPage() {
   function limpiarFormulario() {
     setProductoEditando(null);
     setForm(formInicial);
+    setFamiliaPrincipalId('');
   }
 
   function editarProducto(producto: Producto) {
     setProductoEditando(producto);
 
     const tipoProducto = producto.tipo_producto || 'producto';
+    const rutaFamiliaProducto = obtenerRutaFamilia(producto.familia_id);
+    setFamiliaPrincipalId(rutaFamiliaProducto[0]?.id || '');
 
     setForm({
       presentaciones: presentacionesProducto(producto).map((p) => ({ ...p, precio: String(p.precio) })),
@@ -828,24 +832,62 @@ export default function AdminProductosPage() {
             </select>
 
             {esProducto && (
+              <>
               <label className="space-y-2">
                 <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
-                  Familia / subfamilia
+                  Familia
                 </span>
                 <select
-                  value={form.familia_id ?? ''}
-                  onChange={(e) =>
+                  value={familiaPrincipalId}
+                  onChange={(e) => {
+                    const familiaId = e.target.value;
+                    setFamiliaPrincipalId(familiaId);
                     setForm({
                       ...form,
-                      familia_id: e.target.value,
-                    })
-                  }
+                      familia_id: familiaId,
+                    });
+                  }}
                   className="h-14 w-full rounded-2xl border border-maruxa-rojo/10 px-5 font-bold outline-none"
                 >
                   <option value="">Seleccionar familia</option>
-                  {familiasOrdenadas.map((familia) => (
+                  {familiasPrincipales.map((familia) => (
                     <option key={familia.id} value={familia.id}>
-                      {nombreJerarquicoFamilia(familia.id)}
+                      {familia.nombre}
+                      {familia.mostrar_catalogo ? ' - Catálogo' : ' - Interna'}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="space-y-2">
+                <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
+                  Subfamilia
+                </span>
+                <select
+                  value={
+                    familiaFormSeleccionada?.familia_padre_id
+                      ? form.familia_id
+                      : ''
+                  }
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      familia_id: e.target.value || familiaPrincipalId,
+                    })
+                  }
+                  disabled={!familiaPrincipalId || subfamiliasDisponibles.length === 0}
+                  className="h-14 w-full rounded-2xl border border-maruxa-rojo/10 px-5 font-bold outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+                >
+                  <option value="">
+                    {!familiaPrincipalId
+                      ? 'Primero selecciona una familia'
+                      : subfamiliasDisponibles.length === 0
+                        ? 'Esta familia no tiene subfamilias'
+                        : 'Sin subfamilia'}
+                  </option>
+                  {subfamiliasDisponibles.map((familia) => (
+                    <option key={familia.id} value={familia.id}>
+                      {familia.nombre}
                       {familia.mostrar_catalogo ? ' - Catálogo' : ' - Interna'}
                     </option>
                   ))}
@@ -857,6 +899,7 @@ export default function AdminProductosPage() {
                   </span>
                 )}
               </label>
+              </>
             )}
 
             {esProducto && !esProductoTorta && form.presentaciones.length === 0 && (
