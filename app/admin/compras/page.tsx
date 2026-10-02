@@ -3259,19 +3259,31 @@ export default function AdminComprasPage() {
                             </p>
                           ) : (
                             <div className="mt-3 overflow-x-auto">
-                              <table className="w-full min-w-[1160px] text-sm">
+                              <table className="w-full min-w-[760px] table-fixed text-[11px] sm:min-w-full">
+                                <colgroup>
+                                  <col className="w-[10%]" />
+                                  <col className="w-[18%]" />
+                                  <col className="w-[7%]" />
+                                  <col className="w-[12%]" />
+                                  <col className="w-[8%]" />
+                                  <col className="w-[6%]" />
+                                  <col className="w-[7%]" />
+                                  <col className="w-[8%]" />
+                                  <col className="w-[12%]" />
+                                  <col className="w-[12%]" />
+                                </colgroup>
                                 <thead>
-                                  <tr className="text-left text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/60">
-                                    <th className="px-3 py-2">Fecha</th>
-                                    <th className="px-3 py-2">Producto</th>
-                                    <th className="px-3 py-2 text-right">Unid./caja</th>
-                                    <th className="px-3 py-2">Familia</th>
-                                    <th className="px-3 py-2 text-right">Neto</th>
-                                    <th className="px-3 py-2 text-right">IVA</th>
-                                    <th className="px-3 py-2 text-right">Total</th>
-                                    <th className="px-3 py-2 text-right">Margen</th>
-                                    <th className="px-3 py-2 text-right">Precio venta</th>
-                                    <th className="px-3 py-2 text-right">Acciones</th>
+                                  <tr className="text-left text-[9px] font-black uppercase tracking-normal text-maruxa-cafe/60 sm:text-[10px]">
+                                    <th className="px-1.5 py-2">Fecha</th>
+                                    <th className="px-1.5 py-2">Producto</th>
+                                    <th className="px-1.5 py-2 text-right">Unid./caja</th>
+                                    <th className="px-1.5 py-2">Familia</th>
+                                    <th className="px-1.5 py-2 text-right">Neto</th>
+                                    <th className="px-1.5 py-2 text-right">IVA</th>
+                                    <th className="px-1.5 py-2 text-right">Total</th>
+                                    <th className="px-1.5 py-2 text-right">Margen</th>
+                                    <th className="px-1.5 py-2 text-right">Precio venta</th>
+                                    <th className="px-1.5 py-2 text-right">Acciones</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -3283,7 +3295,7 @@ export default function AdminComprasPage() {
                                       }
                                       className="border-t border-maruxa-cafe/10 bg-white/70"
                                     >
-                                      <td className="px-3 py-2 font-bold">
+                                      <td className="px-1.5 py-2 font-bold">
                                         {historial.id &&
                                         historialEditandoId === historial.id ? (
                                           <input
@@ -3295,7 +3307,7 @@ export default function AdminComprasPage() {
                                                 fecha: e.target.value,
                                               }))
                                             }
-                                            className="w-36 rounded-lg border px-2 py-1 text-xs font-bold"
+                                            className="w-full min-w-0 rounded-lg border px-1.5 py-1 text-[10px] font-bold"
                                           />
                                         ) : historial.origen === 'ficha_actual' &&
                                         fichaEditandoId === producto.id ? (
@@ -3308,7 +3320,7 @@ export default function AdminComprasPage() {
                                                 fecha: e.target.value,
                                               }))
                                             }
-                                            className="w-36 rounded-lg border px-2 py-1 text-xs font-bold"
+                                            className="w-full min-w-0 rounded-lg border px-1.5 py-1 text-[10px] font-bold"
                                           />
                                         ) : (
                                           formatearFecha(historial.fecha)
@@ -3329,7 +3341,7 @@ export default function AdminComprasPage() {
                                           </span>
                                         )}
                                       </td>
-                                      <td className="px-3 py-2 font-bold">
+                                      <td className="px-1.5 py-2 font-bold">
                                         {historial.id &&
                                         historialEditandoId === historial.id ? (
                                           <input
@@ -3340,7 +3352,7 @@ export default function AdminComprasPage() {
                                                 nombre: e.target.value,
                                               }))
                                             }
-                                            className="w-48 rounded-lg border px-2 py-1 text-xs font-bold"
+                                            className="w-full min-w-0 rounded-lg border px-1.5 py-1 text-[10px] font-bold"
                                           />
                                         ) : historial.origen === 'ficha_actual' &&
                                           fichaEditandoId === producto.id ? (
@@ -3352,13 +3364,13 @@ export default function AdminComprasPage() {
                                                 nombre: e.target.value,
                                               }))
                                             }
-                                            className="w-48 rounded-lg border px-2 py-1 text-xs font-bold"
+                                            className="w-full min-w-0 rounded-lg border px-1.5 py-1 text-[10px] font-bold"
                                           />
                                         ) : (
                                           producto.nombre
                                         )}
                                       </td>
-                                      <td className="px-3 py-2 text-right font-black">
+                                      <td className="px-1.5 py-2 text-right font-black">
                                         {historial.id &&
                                         historialEditandoId === historial.id ? (
                                           <input
@@ -3372,7 +3384,7 @@ export default function AdminComprasPage() {
                                                 undxcaja: e.target.value,
                                               }))
                                             }
-                                            className="w-20 rounded-lg border px-2 py-1 text-right text-xs font-black"
+                                            className="w-full min-w-0 rounded-lg border px-1 py-1 text-right text-[10px] font-black"
                                           />
                                         ) : historial.origen === 'ficha_actual' &&
                                           fichaEditandoId === producto.id ? (
@@ -3387,7 +3399,7 @@ export default function AdminComprasPage() {
                                                 undxcaja: e.target.value,
                                               }))
                                             }
-                                            className="w-20 rounded-lg border px-2 py-1 text-right text-xs font-black"
+                                            className="w-full min-w-0 rounded-lg border px-1 py-1 text-right text-[10px] font-black"
                                           />
                                         ) : unidadesCajaVista > 0 ? (
                                           unidadesCajaVista.toLocaleString('es-CL')
@@ -3395,7 +3407,7 @@ export default function AdminComprasPage() {
                                           '—'
                                         )}
                                       </td>
-                                      <td className="px-3 py-2 font-bold">
+                                      <td className="px-1.5 py-2 font-bold">
                                         {historial.id &&
                                         historialEditandoId === historial.id ? (
                                           <select
@@ -3403,7 +3415,7 @@ export default function AdminComprasPage() {
                                             onChange={(e) =>
                                               cambiarFamiliaHistorial(e.target.value)
                                             }
-                                            className="w-44 rounded-lg border bg-white px-2 py-1 text-xs font-bold"
+                                            className="w-full min-w-0 rounded-lg border bg-white px-1.5 py-1 text-[10px] font-bold"
                                           >
                                             <option value="">Sin familia</option>
                                             {familias.map((familia) => (
@@ -3422,7 +3434,7 @@ export default function AdminComprasPage() {
                                             onChange={(e) =>
                                               cambiarFamiliaFicha(e.target.value)
                                             }
-                                            className="w-44 rounded-lg border bg-white px-2 py-1 text-xs font-bold"
+                                            className="w-full min-w-0 rounded-lg border bg-white px-1.5 py-1 text-[10px] font-bold"
                                           >
                                             <option value="">Sin familia</option>
                                             {familias.map((familia) => (
@@ -3438,7 +3450,7 @@ export default function AdminComprasPage() {
                                           familiaProducto?.nombre || 'Sin familia'
                                         )}
                                       </td>
-                                      <td className="px-3 py-2 text-right font-black">
+                                      <td className="px-1.5 py-2 text-right font-black">
                                         {historial.id &&
                                         historialEditandoId === historial.id ? (
                                           <input
@@ -3450,7 +3462,7 @@ export default function AdminComprasPage() {
                                               }))
                                             }
                                             inputMode="numeric"
-                                            className="w-24 rounded-lg border px-2 py-1 text-right text-xs font-black"
+                                            className="w-full min-w-0 rounded-lg border px-1 py-1 text-right text-[10px] font-black"
                                           />
                                         ) : historial.origen === 'ficha_actual' &&
                                         fichaEditandoId === producto.id ? (
@@ -3463,13 +3475,13 @@ export default function AdminComprasPage() {
                                               }))
                                             }
                                             inputMode="numeric"
-                                            className="w-24 rounded-lg border px-2 py-1 text-right text-xs font-black"
+                                            className="w-full min-w-0 rounded-lg border px-1 py-1 text-right text-[10px] font-black"
                                           />
                                         ) : (
                                           dinero(historial.precio)
                                         )}
                                       </td>
-                                      <td className="px-3 py-2 text-right font-bold">
+                                      <td className="px-1.5 py-2 text-right font-bold">
                                         {dinero(
                                           costoVisibleHistorial(
                                             historial,
@@ -3478,7 +3490,7 @@ export default function AdminComprasPage() {
                                             (ivaPorcentaje / 100)
                                         )}
                                       </td>
-                                      <td className="px-3 py-2 text-right font-black">
+                                      <td className="px-1.5 py-2 text-right font-black">
                                         {dinero(
                                           costoVisibleHistorial(
                                             historial,
@@ -3487,7 +3499,7 @@ export default function AdminComprasPage() {
                                             (1 + ivaPorcentaje / 100)
                                         )}
                                       </td>
-                                      <td className="px-3 py-2 text-right font-bold">
+                                      <td className="px-1.5 py-2 text-right font-bold">
                                         {historial.id &&
                                         historialEditandoId === historial.id ? (
                                           <input
@@ -3499,7 +3511,7 @@ export default function AdminComprasPage() {
                                               }))
                                             }
                                             inputMode="decimal"
-                                            className="w-20 rounded-lg border px-2 py-1 text-right text-xs font-bold"
+                                            className="w-full min-w-0 rounded-lg border px-1 py-1 text-right text-[10px] font-bold"
                                           />
                                         ) : historial.origen === 'ficha_actual' &&
                                         fichaEditandoId === producto.id ? (
@@ -3512,7 +3524,7 @@ export default function AdminComprasPage() {
                                               }))
                                             }
                                             inputMode="decimal"
-                                            className="w-20 rounded-lg border px-2 py-1 text-right text-xs font-bold"
+                                            className="w-full min-w-0 rounded-lg border px-1 py-1 text-right text-[10px] font-bold"
                                           />
                                         ) : historial.margen_porcentaje === null ? (
                                           'No registrado'
@@ -3520,7 +3532,7 @@ export default function AdminComprasPage() {
                                           entradaPorcentaje(historial.margen_porcentaje)
                                         )}
                                       </td>
-                                      <td className="px-3 py-2 text-right font-black text-maruxa-rojo">
+                                      <td className="px-1.5 py-2 text-right font-black text-maruxa-rojo">
                                         {historial.id &&
                                         historialEditandoId === historial.id ? (
                                           <input
@@ -3532,7 +3544,7 @@ export default function AdminComprasPage() {
                                               }))
                                             }
                                             inputMode="numeric"
-                                            className="w-24 rounded-lg border px-2 py-1 text-right text-xs font-black text-maruxa-rojo"
+                                            className="w-full min-w-0 rounded-lg border px-1 py-1 text-right text-[10px] font-black text-maruxa-rojo"
                                           />
                                         ) : historial.origen === 'ficha_actual' &&
                                         fichaEditandoId === producto.id ? (
@@ -3545,7 +3557,7 @@ export default function AdminComprasPage() {
                                               }))
                                             }
                                             inputMode="numeric"
-                                            className="w-24 rounded-lg border px-2 py-1 text-right text-xs font-black text-maruxa-rojo"
+                                            className="w-full min-w-0 rounded-lg border px-1 py-1 text-right text-[10px] font-black text-maruxa-rojo"
                                           />
                                         ) : historial.precio_venta === null ? (
                                           'No registrado'
@@ -3553,7 +3565,7 @@ export default function AdminComprasPage() {
                                           dinero(historial.precio_venta)
                                         )}
                                       </td>
-                                      <td className="px-3 py-2 text-right">
+                                      <td className="px-1.5 py-2 text-right">
                                         {historial.id ? (
                                           historialEditandoId === historial.id ? (
                                             <div className="flex justify-end gap-1">
