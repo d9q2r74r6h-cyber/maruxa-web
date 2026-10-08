@@ -246,6 +246,11 @@ export default function AlertasPage() {
     void cargarComparativo();
   }, [mes, perfil?.empresa_id]);
 
+  const diasComparables = useMemo(
+    () => registros.filter((dia) => dia.rinde > 0 && dia.repartos > 0),
+    [registros]
+  );
+
   const resumen = useMemo(() => {
     const porRepartidor = new Map<
       string,
@@ -257,7 +262,7 @@ export default function AlertasPage() {
       }
     >();
 
-    registros.forEach((dia) => {
+    diasComparables.forEach((dia) => {
       const actual = porRepartidor.get(dia.claveRepartidor) || {
         clave: dia.claveRepartidor,
         nombre: dia.repartidor,
@@ -272,17 +277,18 @@ export default function AlertasPage() {
     return Array.from(porRepartidor.values()).sort((a, b) =>
       a.nombre.localeCompare(b.nombre, 'es')
     );
-  }, [registros]);
+  }, [diasComparables]);
 
   const alertasConDiferencia = useMemo(
     () =>
-      registros.filter(
+      diasComparables.filter(
         (dia) => Math.abs(dia.rinde - dia.repartos) > 0.01
       ),
-    [registros]
+    [diasComparables]
   );
 
   async function enviarAviso(dia: ComparativoDia) {
+    if (dia.rinde <= 0 || dia.repartos <= 0 || Math.abs(dia.rinde - dia.repartos) <= 0.01) return;
     const llave = `${dia.claveRepartidor}-${dia.fecha}`;
     if (!dia.funcionarioId) {
       setResultadoEnvio((actual) => ({ ...actual, [llave]: 'Este reparto no está vinculado a un funcionario.' }));
@@ -323,7 +329,8 @@ export default function AlertasPage() {
           </h1>
           <p className="mt-2 max-w-2xl text-sm font-semibold text-[#4B2818]/65">
             Compara los kilos asignados a cada reparto en la Planilla
-            con los kilos ingresados en sus planillas mensuales.
+            con los kilos ingresados en sus planillas mensuales. El resumen y las
+            alertas solo consideran días con kilos mayores que cero en ambos lados.
           </p>
         </div>
         <label className="grid gap-1 text-xs font-black text-[#4B2818]">
@@ -422,7 +429,9 @@ export default function AlertasPage() {
           <p className="p-6 text-sm font-bold text-red-700">{error}</p>
         ) : alertasConDiferencia.length === 0 ? (
           <p className="p-8 text-center text-sm font-semibold text-[#4B2818]/60">
-            No hay diferencias entre Planilla y Repartos para este mes.
+            {diasComparables.length === 0
+              ? 'No hay días con kilos ingresados en ambos lados para comparar este mes.'
+              : 'No hay diferencias en los días con kilos ingresados en ambos lados.'}
           </p>
         ) : (
           <div className="overflow-x-auto">
