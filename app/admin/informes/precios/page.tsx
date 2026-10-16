@@ -166,7 +166,7 @@ export default function InformePreciosPage() {
             .select('id,nombre,precio,precio_10,familia_id,proveedor_id,unidad_base,created_at')
             .eq('empresa_id', perfil.empresa_id)
             .eq('activo', true)
-            .eq('tipo_producto', 'producto')
+            .in('tipo_producto', ['producto', 'ingrediente'])
             .order('nombre', { ascending: true }),
           supabase
             .from('familias_productos')

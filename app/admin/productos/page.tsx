@@ -517,7 +517,7 @@ export default function AdminProductosPage() {
           ? form.presentaciones.length > 0
             ? precioPresentacion
             : Number(form.precio || 0)
-          : 0,
+          : form.tipo_producto === 'ingrediente' ? Number(form.precio || 0) : 0,
       categoria:
         form.tipo_producto === 'producto'
           ? categoriaFamiliaForm
@@ -902,14 +902,16 @@ export default function AdminProductosPage() {
               </>
             )}
 
-            {esProducto && !esProductoTorta && form.presentaciones.length === 0 && (
+            {((esProducto && !esProductoTorta && form.presentaciones.length === 0) || form.tipo_producto === 'ingrediente') && (
               <label className="space-y-2">
                 <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
                   Precio de venta final
+                  {form.tipo_producto === 'ingrediente' ? ' (opcional)' : ''}
                 </span>
                 <input
                   placeholder="Precio con IVA incluido"
                   type="number"
+                  min="0"
                   value={form.precio}
                   onChange={(e) =>
                     setForm({
@@ -920,6 +922,7 @@ export default function AdminProductosPage() {
                   className="h-14 w-full rounded-2xl border border-maruxa-rojo/10 px-5 font-bold outline-none"
                 />
                 <span className="block text-xs font-semibold text-maruxa-cafe/60">
+                  {form.tipo_producto === 'ingrediente' && 'Si también lo vendes, ingresa un precio para incluirlo en los listados de precios. Déjalo vacío o en cero si solo se usa en recetas. '}
                   Ingrese el precio que paga el cliente. Neto aprox:{' '}
                   {dinero(precioVentaNeto)} | IVA:{' '}
                   {dinero(ivaVentaCalculado)}
@@ -1505,6 +1508,9 @@ export default function AdminProductosPage() {
                           Number(producto.costo_unitario || 0)
                         ).toLocaleString('es-CL')}{' '}
                         / {producto.unidad_base || '-'}
+                        {tipo === 'ingrediente' && Number(producto.precio) > 0 && (
+                          <span className="block">Precio de venta: {dinero(producto.precio)}</span>
+                        )}
                       </p>
                     ) : presentacionesProducto(producto).length > 0 ? (
                       <div className="space-y-1">{presentacionesProducto(producto).map((p) => <p key={p.id}>{p.nombre}: {dinero(p.precio)}{!p.activo ? ' (No disponible)' : ''}</p>)}</div>
