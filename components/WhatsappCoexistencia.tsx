@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 
 const META_APP_ID = '883388000861812';
-const CONFIG_ID = '1344035874530274';
+const CONFIG_ID = '1436054218497998';
 
 type EmbeddedSignupData = {
   waba_id?: string;
