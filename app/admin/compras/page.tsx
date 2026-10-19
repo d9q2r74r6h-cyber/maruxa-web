@@ -297,6 +297,9 @@ export default function AdminComprasPage() {
   const [mostrarProveedores, setMostrarProveedores] = useState(false);
   const [buscandoProveedores, setBuscandoProveedores] = useState(false);
   const [familias, setFamilias] = useState<FamiliaProducto[]>([]);
+  const [guardandoFamiliaId, setGuardandoFamiliaId] = useState<number | null>(null);
+  const [mensajeFamilia, setMensajeFamilia] = useState<Record<number, string>>({});
+  const guardadoFamiliaEnCurso = useRef(false);
   const [familiaGeneralId, setFamiliaGeneralId] = useState('');
   const [margenGeneral, setMargenGeneral] = useState('');
   const [tipoMargenGeneral, setTipoMargenGeneral] = useState<
@@ -1012,6 +1015,40 @@ export default function AdminComprasPage() {
     setFamiliaGeneralId(familiaId);
     setMargenGeneral(familia ? String(numero(familia.margen_porcentaje) || '') : '');
     setTipoMargenGeneral(familia?.tipo_margen || 'markup');
+  }
+
+  async function cambiarFamiliaProducto(producto: Producto, familiaId: string) {
+    if (guardadoFamiliaEnCurso.current || familiaId === (producto.familia_id || '')) return;
+    if (familiaId && !familias.some((familia) => familia.id === familiaId)) return;
+    guardadoFamiliaEnCurso.current = true;
+    setGuardandoFamiliaId(producto.id);
+    setMensajeFamilia((actual) => ({ ...actual, [producto.id]: '' }));
+    try {
+      const empresa = await obtenerEmpresaActual();
+      if (!empresa) throw new Error('No se pudo identificar la empresa.');
+      const { data, error } = await supabase
+        .from('productos')
+        .update({ familia_id: familiaId || null })
+        .eq('empresa_id', empresa.id)
+        .eq('id', producto.id)
+        .select('id,familia_id')
+        .single();
+      if (error) throw error;
+      if (!data) throw new Error('No se pudo guardar la familia.');
+      setProductos((actuales) => actuales.map((actual) =>
+        actual.id === producto.id ? { ...actual, familia_id: data.familia_id } : actual
+      ));
+      if (productoEditandoId === producto.id) {
+        setProductoEditando((actual) => ({ ...actual, familia_id: familiaId }));
+      }
+      setMensajeFamilia((actual) => ({ ...actual, [producto.id]: 'Familia guardada' }));
+    } catch (error) {
+      setMensajeFamilia((actual) => ({ ...actual, [producto.id]: 'No se guardó la familia. Intenta nuevamente.' }));
+      alert(error instanceof Error ? error.message : 'No se pudo guardar la familia del producto.');
+    } finally {
+      guardadoFamiliaEnCurso.current = false;
+      setGuardandoFamiliaId(null);
+    }
   }
 
   function eliminarItem(index: number) {
@@ -2123,6 +2160,7 @@ export default function AdminComprasPage() {
   }
 
   async function guardarCompra() {
+    if (guardadoFamiliaEnCurso.current) return;
     const empresa = await obtenerEmpresaActual();
 
     if (!empresa) {
@@ -3105,14 +3143,39 @@ export default function AdminComprasPage() {
                       </div>
 
                       {mostrarDetalle && (
-                        <div className="grid min-w-0 content-start gap-1 xl:col-span-2">
+                        <label className="grid min-w-0 content-start gap-1 xl:col-span-2">
                           <span className="flex min-h-7 items-end text-[11px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
                             Familia de productos
                           </span>
-                          <div className="rounded-xl border bg-maruxa-crema/40 px-3 py-2 text-sm font-bold text-maruxa-chocolate">
-                            {familiaProducto?.nombre || 'Sin familia asignada'}
-                          </div>
-                        </div>
+                          <select
+                            aria-label={`Familia de ${producto?.nombre || item.busqueda_producto}`}
+                            value={producto?.familia_id || item.familia_id_nueva || ''}
+                            disabled={guardando || guardandoFamiliaId !== null || productoEditandoId !== null || fichaEditandoId !== null || historialEditandoId !== null}
+                            onChange={(event) => {
+                              if (producto) {
+                                void cambiarFamiliaProducto(producto, event.target.value);
+                              } else {
+                                actualizarItem(index, 'familia_id_nueva', event.target.value);
+                              }
+                            }}
+                            className="w-full min-w-0 rounded-xl border bg-white px-3 py-2 text-sm font-bold text-maruxa-chocolate disabled:opacity-60"
+                          >
+                            <option value="" disabled={esProductoNuevo}>Sin familia asignada</option>
+                            {producto?.familia_id && !familias.some((familia) => familia.id === producto.familia_id) && (
+                              <option value={producto.familia_id}>Familia actual (inactiva)</option>
+                            )}
+                            {familias.map((familia) => (
+                              <option key={familia.id} value={familia.id}>{familia.nombre}</option>
+                            ))}
+                          </select>
+                          <span role="status" className="text-[10px] font-semibold text-maruxa-cafe/65">
+                            {producto
+                              ? guardandoFamiliaId === producto.id
+                                ? 'Guardando familia…'
+                                : mensajeFamilia[producto.id] || 'Se guarda al seleccionar.'
+                              : 'Se guardará al crear el producto.'}
+                          </span>
+                        </label>
                       )}
 
                       <label className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
@@ -3898,7 +3961,7 @@ export default function AdminComprasPage() {
                 <button
                   type="button"
                   onClick={guardarCompra}
-                  disabled={guardando}
+                  disabled={guardando || guardandoFamiliaId !== null}
                   className="rounded-full bg-red-700 px-8 py-4 font-black text-white shadow-lg disabled:opacity-50"
                 >
                   {guardando
