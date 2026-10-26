@@ -3,6 +3,7 @@ export type CanalWhatsapp = {
   accessToken: string;
   telefonoVisible: string | null;
   etiqueta: string;
+  proveedor: 'meta' | '360dialog';
 };
 
 function limpiar(valor: string | undefined) {
@@ -10,9 +11,7 @@ function limpiar(valor: string | undefined) {
 }
 
 export function obtenerCanalesWhatsapp(): CanalWhatsapp[] {
-  const tokenPrincipal =
-    limpiar(process.env.WHATSAPP_ACCESS_TOKEN) ||
-    limpiar(process.env.WHATSAPP_360DIALOG_API_KEY);
+  const tokenPrincipal = limpiar(process.env.WHATSAPP_ACCESS_TOKEN);
   const idPrincipal = limpiar(process.env.WHATSAPP_PHONE_NUMBER_ID);
   const canales: CanalWhatsapp[] = [];
 
@@ -22,6 +21,27 @@ export function obtenerCanalesWhatsapp(): CanalWhatsapp[] {
       accessToken: tokenPrincipal,
       telefonoVisible: limpiar(process.env.WHATSAPP_DISPLAY_PHONE_NUMBER),
       etiqueta: limpiar(process.env.WHATSAPP_CHANNEL_LABEL) || 'WhatsApp principal',
+      proveedor: 'meta',
+    });
+  }
+
+  const apiKey360 = limpiar(process.env.WHATSAPP_360DIALOG_API_KEY);
+  const id360 =
+    limpiar(process.env.WHATSAPP_360DIALOG_PHONE_NUMBER_ID) ||
+    limpiar(process.env.WHATSAPP_SECONDARY_PHONE_NUMBER_ID);
+
+  if (apiKey360 && id360 && id360 !== idPrincipal) {
+    canales.push({
+      phoneNumberId: id360,
+      accessToken: apiKey360,
+      telefonoVisible:
+        limpiar(process.env.WHATSAPP_360DIALOG_DISPLAY_PHONE_NUMBER) ||
+        limpiar(process.env.WHATSAPP_SECONDARY_DISPLAY_PHONE_NUMBER),
+      etiqueta:
+        limpiar(process.env.WHATSAPP_360DIALOG_CHANNEL_LABEL) ||
+        limpiar(process.env.WHATSAPP_SECONDARY_CHANNEL_LABEL) ||
+        'WhatsApp 360dialog',
+      proveedor: '360dialog',
     });
   }
 
@@ -29,7 +49,12 @@ export function obtenerCanalesWhatsapp(): CanalWhatsapp[] {
   const tokenSecundario =
     limpiar(process.env.WHATSAPP_SECONDARY_ACCESS_TOKEN) || tokenPrincipal;
 
-  if (idSecundario && tokenSecundario && idSecundario !== idPrincipal) {
+  if (
+    idSecundario &&
+    tokenSecundario &&
+    idSecundario !== idPrincipal &&
+    idSecundario !== id360
+  ) {
     canales.push({
       phoneNumberId: idSecundario,
       accessToken: tokenSecundario,
@@ -37,6 +62,7 @@ export function obtenerCanalesWhatsapp(): CanalWhatsapp[] {
       etiqueta:
         limpiar(process.env.WHATSAPP_SECONDARY_CHANNEL_LABEL) ||
         'WhatsApp empresa',
+      proveedor: 'meta',
     });
   }
 
