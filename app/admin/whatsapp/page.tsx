@@ -46,6 +46,13 @@ type Conversacion = {
 
 type CanalActivo = 'whatsapp' | 'instagram' | 'correo' | 'todos';
 
+type CanalWhatsappConfigurado = {
+  phoneNumberId: string;
+  telefonoVisible: string | null;
+  etiqueta: string;
+  proveedor: 'meta' | '360dialog';
+};
+
 type CuentaBancaria = {
   banco: string;
   tipo_cuenta: string;
@@ -278,6 +285,8 @@ export default function AdminWhatsappPage() {
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState('');
   const [canalActivo, setCanalActivo] = useState<CanalActivo>('whatsapp');
+  const [canalesWhatsapp, setCanalesWhatsapp] = useState<CanalWhatsappConfigurado[]>([]);
+  const [canalWhatsappActivo, setCanalWhatsappActivo] = useState('todos');
   const [conversacionActivaId, setConversacionActivaId] = useState<string | null>(null);
   const [respuestas, setRespuestas] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState<string | null>(null);
@@ -341,6 +350,13 @@ export default function AdminWhatsappPage() {
       .maybeSingle();
 
     setCuentaPrincipal((cuentaData as CuentaBancaria | null) || null);
+
+    const diagnosticoWhatsapp = await fetch('/api/whatsapp/webhook', {
+      cache: 'no-store',
+    })
+      .then((respuesta) => (respuesta.ok ? respuesta.json() : null))
+      .catch(() => null);
+    setCanalesWhatsapp(diagnosticoWhatsapp?.canales || []);
 
     const { data, error } = await supabase
       .from('whatsapp_eventos')
@@ -436,8 +452,14 @@ export default function AdminWhatsappPage() {
 
   const eventosVisibles = useMemo(() => {
     if (canalActivo === 'todos') return eventos;
-    return eventos.filter((evento) => evento.origen === canalActivo);
-  }, [canalActivo, eventos]);
+    return eventos.filter((evento) => {
+      if (evento.origen !== canalActivo) return false;
+      if (canalActivo !== 'whatsapp' || canalWhatsappActivo === 'todos') {
+        return true;
+      }
+      return datosCanalWhatsapp(evento).phoneNumberId === canalWhatsappActivo;
+    });
+  }, [canalActivo, canalWhatsappActivo, eventos]);
 
   const conversaciones = useMemo(() => {
     const grupos = new Map<string, WhatsappEvento[]>();
@@ -835,6 +857,39 @@ export default function AdminWhatsappPage() {
             );
           })}
         </div>
+
+        {canalActivo === 'whatsapp' && canalesWhatsapp.length > 1 && (
+          <div className="mt-2 flex flex-wrap gap-2 rounded-xl bg-white p-2 shadow-premium">
+            <button
+              type="button"
+              onClick={() => setCanalWhatsappActivo('todos')}
+              className={`rounded-full px-3 py-2 text-xs font-black transition ${
+                canalWhatsappActivo === 'todos'
+                  ? 'bg-[#A51F2B] text-white'
+                  : 'bg-maruxa-crema text-maruxa-chocolate'
+              }`}
+            >
+              Todos los números
+            </button>
+            {canalesWhatsapp.map((canal) => (
+              <button
+                key={canal.phoneNumberId}
+                type="button"
+                onClick={() => setCanalWhatsappActivo(canal.phoneNumberId)}
+                className={`rounded-full px-3 py-2 text-left text-xs font-black transition ${
+                  canalWhatsappActivo === canal.phoneNumberId
+                    ? 'bg-[#A51F2B] text-white'
+                    : 'bg-maruxa-crema text-maruxa-chocolate'
+                }`}
+              >
+                <span className="block">{canal.etiqueta}</span>
+                <span className="block text-[10px] opacity-70">
+                  {canal.telefonoVisible || canal.phoneNumberId}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="mt-4 grid gap-2 md:grid-cols-4">
           {[
