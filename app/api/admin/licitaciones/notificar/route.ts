@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { obtenerCanalWhatsapp } from '@/lib/whatsapp-canales';
+import { enviarPorWhatsapp } from '@/lib/whatsapp-api';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -17,11 +18,7 @@ function autorizado(r:Request){
 async function whatsapp(destino:string,mensaje:string){
   const canal=obtenerCanalWhatsapp();
   if(!canal)throw new Error('WhatsApp no configurado.');
-  const r=await fetch(`https://graph.facebook.com/v20.0/${canal.phoneNumberId}/messages`,{
-    method:'POST',headers:{Authorization:`Bearer ${canal.accessToken}`,'Content-Type':'application/json'},
-    body:JSON.stringify({messaging_product:'whatsapp',to:destino,type:'text',text:{preview_url:false,body:mensaje}})
-  });
-  const data=await r.json().catch(()=>null);
+  const {respuesta:r,data}=await enviarPorWhatsapp(canal,{messaging_product:'whatsapp',to:destino,type:'text',text:{preview_url:false,body:mensaje}});
   if(!r.ok)throw new Error(data?.error?.message||`WhatsApp rechazó el envío (${r.status}).`);
   return data?.messages?.[0]?.id||`licitaciones-${Date.now()}`;
 }

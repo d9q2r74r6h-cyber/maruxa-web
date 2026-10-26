@@ -10,7 +10,9 @@ function limpiar(valor: string | undefined) {
 }
 
 export function obtenerCanalesWhatsapp(): CanalWhatsapp[] {
-  const tokenPrincipal = limpiar(process.env.WHATSAPP_ACCESS_TOKEN);
+  const tokenPrincipal =
+    limpiar(process.env.WHATSAPP_ACCESS_TOKEN) ||
+    limpiar(process.env.WHATSAPP_360DIALOG_API_KEY);
   const idPrincipal = limpiar(process.env.WHATSAPP_PHONE_NUMBER_ID);
   const canales: CanalWhatsapp[] = [];
 

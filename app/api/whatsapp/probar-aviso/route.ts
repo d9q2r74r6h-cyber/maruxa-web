@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { obtenerCanalWhatsapp } from '@/lib/whatsapp-canales';
+import { enviarPorWhatsapp } from '@/lib/whatsapp-api';
 
 function crearAdmin() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -39,8 +41,7 @@ export async function POST(request: Request) {
   }
 
   const destino = normalizarDestino(perfil.notificacion_whatsapp);
-  const token = process.env.WHATSAPP_ACCESS_TOKEN;
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const canal = obtenerCanalWhatsapp();
   const templateName =
     process.env.WHATSAPP_NOTIFICATION_TEMPLATE_NAME ||
     'aviso_nuevo_mensaje_admin';
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!token || !phoneNumberId) {
+  if (!canal) {
     return NextResponse.json(
       { error: 'Configuracion de WhatsApp incompleta.' },
       { status: 503 }
@@ -63,15 +64,9 @@ export async function POST(request: Request) {
 
   const texto =
     'Prueba de avisos Maruxa. Si recibes este mensaje, las notificaciones de nuevos mensajes estan funcionando.';
-  const respuesta = await fetch(
-    `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
+  const { respuesta, data: meta, texto: detalle } = await enviarPorWhatsapp(
+    canal,
     {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
         messaging_product: 'whatsapp',
         to: destino,
         type: 'template',
@@ -85,17 +80,8 @@ export async function POST(request: Request) {
             },
           ],
         },
-      }),
-    }
+      }
   );
-
-  const detalle = await respuesta.text();
-  let meta: any = null;
-  try {
-    meta = detalle ? JSON.parse(detalle) : null;
-  } catch {
-    meta = detalle;
-  }
 
   if (!respuesta.ok) {
     return NextResponse.json(

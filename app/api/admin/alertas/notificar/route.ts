@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { obtenerCanalWhatsapp } from '@/lib/whatsapp-canales';
+import { enviarPorWhatsapp } from '@/lib/whatsapp-api';
 
 function normalizarTelefono(valor: string | null) {
   return String(valor || '').replace(/\D/g, '');
@@ -40,12 +41,10 @@ export async function POST(request: Request) {
   const canal = obtenerCanalWhatsapp();
   if (!canal) return NextResponse.json({ error: 'El canal de WhatsApp no está configurado.' }, { status: 503 });
 
-  const respuesta = await fetch(`https://graph.facebook.com/v20.0/${canal.phoneNumberId}/messages`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${canal.accessToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messaging_product: 'whatsapp', to: destino, type: 'text', text: { preview_url: false, body: mensaje } }),
+  const { respuesta, data: meta } = await enviarPorWhatsapp(canal, {
+    messaging_product: 'whatsapp', to: destino, type: 'text',
+    text: { preview_url: false, body: mensaje },
   });
-  const meta = await respuesta.json().catch(() => null);
   if (!respuesta.ok) return NextResponse.json({ error: meta?.error?.message || `WhatsApp rechazó el envío (${respuesta.status}).` }, { status: 502 });
 
   const messageId = meta?.messages?.[0]?.id || `alerta-${Date.now()}`;

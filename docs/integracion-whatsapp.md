@@ -13,6 +13,8 @@ WHATSAPP_ACCESS_TOKEN=
 WHATSAPP_PHONE_NUMBER_ID=
 WHATSAPP_BUSINESS_ACCOUNT_ID=
 WHATSAPP_EMPRESA_ID=
+WHATSAPP_360DIALOG_API_KEY=
+WHATSAPP_360DIALOG_WEBHOOK_SECRET=
 SUPABASE_SERVICE_ROLE_KEY=
 ```
 
@@ -24,6 +26,11 @@ Meta. Se usa para comprobar la firma `X-Hub-Signature-256`.
 
 `WHATSAPP_EMPRESA_ID` corresponde al UUID de Maruxa en la tabla `empresas`.
 Si se omite, el receptor busca la empresa activa con slug `maruxa`.
+
+Cuando se usa 360dialog, `WHATSAPP_360DIALOG_API_KEY` reemplaza el token de
+Meta para los envíos. `WHATSAPP_360DIALOG_WEBHOOK_SECRET` protege el receptor;
+la URL configurada en 360dialog debe terminar en
+`?d360_token=EL_MISMO_SECRETO`.
 
 ## Carros de compra
 

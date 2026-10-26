@@ -1,6 +1,8 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { obtenerCanalWhatsapp } from '@/lib/whatsapp-canales';
+import { enviarPorWhatsapp } from '@/lib/whatsapp-api';
 
 function crearAdmin() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -103,23 +105,14 @@ function recipientId(evento: any) {
 }
 
 async function enviarMensajeWhatsApp(telefono: string, mensaje: string) {
-  const token = process.env.WHATSAPP_ACCESS_TOKEN;
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const canal = obtenerCanalWhatsapp();
   const destino = telefono.replace(/\D/g, '');
 
-  if (!token || !phoneNumberId || !destino) {
+  if (!canal || !destino) {
     return 'Falta token, phone number id o telefono destino.';
   }
 
-  const respuesta = await fetch(
-    `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+  const { respuesta, texto: detalle } = await enviarPorWhatsapp(canal, {
         messaging_product: 'whatsapp',
         to: destino,
         type: 'text',
@@ -127,13 +120,10 @@ async function enviarMensajeWhatsApp(telefono: string, mensaje: string) {
           preview_url: false,
           body: mensaje,
         },
-      }),
-    }
-  );
+      });
 
   if (respuesta.ok) return null;
 
-  const detalle = await respuesta.text();
   const errorTexto = detalle || `Meta respondio ${respuesta.status}`;
   const errorPlantilla = await enviarPlantillaNotificacionWhatsApp(
     destino,
@@ -149,8 +139,7 @@ async function enviarPlantillaNotificacionWhatsApp(
   destino: string,
   mensaje: string
 ) {
-  const token = process.env.WHATSAPP_ACCESS_TOKEN;
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const canal = obtenerCanalWhatsapp();
   const telefonoDestino = destino.replace(/\D/g, '');
   const mensajePlantilla = mensaje
     .replace(/[\r\n\t]+/g, ' ')
@@ -164,8 +153,7 @@ async function enviarPlantillaNotificacionWhatsApp(
     process.env.WHATSAPP_NOTIFICATION_TEMPLATE_LANGUAGE || 'es_CL';
 
   if (
-    !token ||
-    !phoneNumberId ||
+    !canal ||
     !telefonoDestino ||
     !templateName ||
     !mensajePlantilla
@@ -173,15 +161,7 @@ async function enviarPlantillaNotificacionWhatsApp(
     return 'No hay plantilla de notificacion configurada.';
   }
 
-  const respuesta = await fetch(
-    `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+  const { respuesta, texto: detalle } = await enviarPorWhatsapp(canal, {
         messaging_product: 'whatsapp',
         to: telefonoDestino,
         type: 'template',
@@ -200,13 +180,10 @@ async function enviarPlantillaNotificacionWhatsApp(
             },
           ],
         },
-      }),
-    }
-  );
+      });
 
   if (respuesta.ok) return null;
 
-  const detalle = await respuesta.text();
   return detalle || `Meta respondio ${respuesta.status}`;
 }
 

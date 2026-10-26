@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
+import { obtenerCanalWhatsapp } from '@/lib/whatsapp-canales';
+import { enviarPorWhatsapp } from '@/lib/whatsapp-api';
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
@@ -60,21 +62,12 @@ function destinoWhatsapp(telefono: string | null) {
 }
 
 async function enviarWhatsApp(telefono: string | null, mensaje: string) {
-  const token = process.env.WHATSAPP_ACCESS_TOKEN;
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const canal = obtenerCanalWhatsapp();
   const destino = destinoWhatsapp(telefono);
 
-  if (!token || !phoneNumberId || !destino) return null;
+  if (!canal || !destino) return null;
 
-  const respuesta = await fetch(
-    `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+  const { respuesta, texto } = await enviarPorWhatsapp(canal, {
         messaging_product: 'whatsapp',
         to: destino,
         type: 'text',
@@ -82,11 +75,9 @@ async function enviarWhatsApp(telefono: string | null, mensaje: string) {
           preview_url: false,
           body: mensaje,
         },
-      }),
-    }
-  );
+      });
 
-  return respuesta.ok ? null : await respuesta.text();
+  return respuesta.ok ? null : texto;
 }
 
 function escaparHtml(texto: string) {

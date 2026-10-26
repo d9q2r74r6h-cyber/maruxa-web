@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { obtenerCanalWhatsapp } from '@/lib/whatsapp-canales';
+import { enviarPorWhatsapp } from '@/lib/whatsapp-api';
 
 function crearAdmin() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -68,15 +69,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const respuesta = await fetch(
-    `https://graph.facebook.com/v20.0/${canal.phoneNumberId}/messages`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${canal.accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+  const { respuesta, data: dataMeta } = await enviarPorWhatsapp(canal, {
         messaging_product: 'whatsapp',
         to: destino,
         type: 'text',
@@ -84,11 +77,7 @@ export async function POST(request: Request) {
           preview_url: false,
           body: mensaje,
         },
-      }),
-    }
-  );
-
-  const dataMeta = await respuesta.json().catch(() => null);
+      });
 
   if (!respuesta.ok) {
     return NextResponse.json(

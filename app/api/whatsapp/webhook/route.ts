@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 import { obtenerCanalWhatsapp } from '@/lib/whatsapp-canales';
+import { enviarPorWhatsapp } from '@/lib/whatsapp-api';
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
@@ -17,9 +18,11 @@ type ProductoWhatsApp = {
 
 type MensajeWhatsApp = {
   from?: string;
+  to?: string;
   id?: string;
   timestamp?: string;
   type?: string;
+  text?: { body?: string };
   order?: {
     catalog_id?: string;
     product_items?: ProductoWhatsApp[];
@@ -158,15 +161,7 @@ async function responderPedidoWhatsApp(
 
   if (!canal || !destino) return 'El numero receptor no esta configurado para responder.';
 
-  const respuesta = await fetch(
-    `https://graph.facebook.com/v20.0/${canal.phoneNumberId}/messages`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${canal.accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+  const { respuesta, texto: detalle } = await enviarPorWhatsapp(canal, {
         messaging_product: 'whatsapp',
         to: destino,
         type: 'text',
@@ -174,13 +169,10 @@ async function responderPedidoWhatsApp(
           preview_url: false,
           body: `Hola, recibimos tu pedido #${pedidoId} en Panadería Maruxa. Lo revisaremos y te confirmaremos disponibilidad, total y horario de retiro. Gracias por preferirnos.`,
         },
-      }),
-    }
-  );
+      });
 
   if (respuesta.ok) return null;
 
-  const detalle = await respuesta.text();
   return detalle || `Meta respondio ${respuesta.status}`;
 }
 
@@ -188,8 +180,8 @@ async function enviarPlantillaNotificacionWhatsApp(
   destino: string,
   mensaje: string
 ): Promise<ResultadoEnvioWhatsApp> {
-  const token = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const canal = obtenerCanalWhatsapp(phoneNumberId);
   const telefonoDestino = destino.replace(/\D/g, '');
   const mensajePlantilla = mensaje
     .replace(/[\r\n\t]+/g, ' ')
@@ -203,8 +195,7 @@ async function enviarPlantillaNotificacionWhatsApp(
     process.env.WHATSAPP_NOTIFICATION_TEMPLATE_LANGUAGE || 'es_CL';
 
   if (
-    !token ||
-    !phoneNumberId ||
+    !canal ||
     !telefonoDestino ||
     !templateName ||
     !mensajePlantilla
@@ -216,15 +207,8 @@ async function enviarPlantillaNotificacionWhatsApp(
     };
   }
 
-  const respuesta = await fetch(
-    `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+  const { respuesta, data: respuestaMeta, texto: detalle } =
+    await enviarPorWhatsapp(canal, {
         messaging_product: 'whatsapp',
         to: telefonoDestino,
         type: 'template',
@@ -243,17 +227,7 @@ async function enviarPlantillaNotificacionWhatsApp(
             },
           ],
         },
-      }),
-    }
-  );
-
-  const detalle = await respuesta.text();
-  let respuestaMeta: any = null;
-  try {
-    respuestaMeta = detalle ? JSON.parse(detalle) : null;
-  } catch {
-    respuestaMeta = detalle;
-  }
+      });
 
   if (respuesta.ok) {
     return {
@@ -482,8 +456,16 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const cuerpo = await request.text();
+  const secreto360 = process.env.WHATSAPP_360DIALOG_WEBHOOK_SECRET?.trim();
+  const token360 = new URL(request.url).searchParams.get('d360_token')?.trim();
+  const autorizado360 = Boolean(
+    secreto360 && token360 && secreto360 === token360
+  );
 
-  if (!firmaValida(cuerpo, request.headers.get('x-hub-signature-256'))) {
+  if (
+    !autorizado360 &&
+    !firmaValida(cuerpo, request.headers.get('x-hub-signature-256'))
+  ) {
     return NextResponse.json({ error: 'Firma inválida.' }, { status: 401 });
   }
 
@@ -562,6 +544,36 @@ export async function POST(request: Request) {
     }
 
     const contacto = valor.contacts?.[0];
+    const ecos = (valor.message_echoes || []) as MensajeWhatsApp[];
+
+    for (const eco of ecos) {
+      if (!eco.id) continue;
+
+      const { data: existente } = await admin
+        .from('whatsapp_eventos')
+        .select('id')
+        .eq('message_id', eco.id)
+        .maybeSingle();
+
+      if (existente) continue;
+
+      await admin.from('whatsapp_eventos').insert({
+        empresa_id: empresaId,
+        message_id: eco.id,
+        telefono: formatearTelefonoWhatsApp(eco.to) || null,
+        tipo: 'respuesta',
+        estado: 'enviado',
+        observacion:
+          eco.text?.body || `Mensaje ${eco.type || 'desconocido'} enviado desde WhatsApp Business.`,
+        payload: {
+          direccion: 'saliente',
+          origen: 'whatsapp_business_app',
+          canal_phone_number_id: valor.metadata?.phone_number_id || null,
+          eco,
+        },
+      });
+    }
+
     const mensajes = (valor.messages || []) as MensajeWhatsApp[];
 
     for (const mensaje of mensajes) {
