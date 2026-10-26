@@ -38,6 +38,22 @@ type ResultadoEnvioWhatsApp = {
   respuesta: any;
 };
 
+// Identificadores del catálogo histórico de WhatsApp. Meta conserva estos
+// retailer IDs aunque el ERP haya adoptado una codificación nueva.
+const PRODUCTOS_LEGACY_WHATSAPP: Record<string, number> = {
+  T01: 9,
+  T02: 10,
+  T03: 11,
+  T04: 12,
+  T05: 18,
+  T06: 19,
+  PP01: 13,
+  PP02: 14,
+  PP03: 15,
+  PP04: 16,
+  PP05: 17,
+};
+
 function firmaValida(cuerpo: string, firma: string | null) {
   const secreto = process.env.WHATSAPP_APP_SECRET;
   if (!secreto || !firma?.startsWith('sha256=')) return false;
@@ -749,9 +765,15 @@ export async function POST(request: Request) {
         .map((item) => item.product_retailer_id?.trim())
         .filter(Boolean) as string[];
       const codigosBase = [...new Set(codigos.map(codigoProductoBase))];
-      const idsFallback = codigos
-        .map((codigo) => codigo.match(/^producto-(\d+)(?:-(?:10|15|20|25)p)?$/i)?.[1])
-        .filter(Boolean) as string[];
+      const idsFallback = [
+        ...codigos
+          .map((codigo) => codigo.match(/^producto-(\d+)(?:-(?:10|15|20|25)p)?$/i)?.[1])
+          .filter(Boolean)
+          .map(Number),
+        ...codigosBase
+          .map((codigo) => PRODUCTOS_LEGACY_WHATSAPP[codigo])
+          .filter((id): id is number => Boolean(id)),
+      ];
 
       const productosPorCodigoQuery = codigosBase.length
         ? admin
@@ -766,7 +788,7 @@ export async function POST(request: Request) {
             .from('productos')
             .select('id,codigo,nombre,imagen,precio')
             .eq('empresa_id', empresaId)
-            .in('id', idsFallback.map(Number))
+            .in('id', [...new Set(idsFallback)])
         : Promise.resolve({ data: [] });
 
       const [{ data: productosPorCodigoDb }, { data: productosPorIdDb }] =
@@ -782,6 +804,10 @@ export async function POST(request: Request) {
         const codigoDb = normalizarCodigoProducto(String(producto.codigo || ''));
         if (codigoDb) productosPorCodigo.set(codigoDb, producto);
         productosPorCodigo.set(`PRODUCTO-${producto.id}`, producto);
+      }
+      for (const [codigoLegacy, productoId] of Object.entries(PRODUCTOS_LEGACY_WHATSAPP)) {
+        const producto = productosDb.find((item) => Number(item.id) === productoId);
+        if (producto) productosPorCodigo.set(codigoLegacy, producto);
       }
 
       const faltantes: string[] = [];
