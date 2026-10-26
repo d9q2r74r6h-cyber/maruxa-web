@@ -194,10 +194,17 @@ async function enviarPlantillaNotificacionWhatsApp(
     .trim()
     .slice(0, 900);
   const templateName =
+    (canal?.proveedor === '360dialog'
+      ? process.env.WHATSAPP_360DIALOG_NOTIFICATION_TEMPLATE_NAME
+      : null) ||
     process.env.WHATSAPP_NOTIFICATION_TEMPLATE_NAME ||
     'aviso_nuevo_mensaje_admin';
   const languageCode =
-    process.env.WHATSAPP_NOTIFICATION_TEMPLATE_LANGUAGE || 'es_CL';
+    (canal?.proveedor === '360dialog'
+      ? process.env.WHATSAPP_360DIALOG_NOTIFICATION_TEMPLATE_LANGUAGE
+      : null) ||
+    process.env.WHATSAPP_NOTIFICATION_TEMPLATE_LANGUAGE ||
+    'es_CL';
 
   if (
     !canal ||
