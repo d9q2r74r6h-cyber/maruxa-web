@@ -66,12 +66,16 @@ function crearAdmin() {
 }
 
 function codigoProductoBase(codigo: string) {
-  return codigo.replace(/-(10|15|20|25)p$/i, '');
+  return codigo.trim().replace(/-?(10|15|20|25)p$/i, '').toUpperCase();
 }
 
 function etiquetaTamano(codigo: string) {
-  const match = codigo.match(/-(10|15|20|25)p$/i);
+  const match = codigo.trim().match(/-?(10|15|20|25)p$/i);
   return match ? `${match[1]} personas` : null;
+}
+
+function normalizarCodigoProducto(codigo: string) {
+  return codigo.trim().toUpperCase();
 }
 
 function fechaHoraChile(fecha: Date) {
@@ -744,7 +748,7 @@ export async function POST(request: Request) {
       const codigos = productosOrden
         .map((item) => item.product_retailer_id?.trim())
         .filter(Boolean) as string[];
-      const codigosBase = codigos.map(codigoProductoBase);
+      const codigosBase = [...new Set(codigos.map(codigoProductoBase))];
       const idsFallback = codigos
         .map((codigo) => codigo.match(/^producto-(\d+)(?:-(?:10|15|20|25)p)?$/i)?.[1])
         .filter(Boolean) as string[];
@@ -773,25 +777,20 @@ export async function POST(request: Request) {
         ...(productosPorIdDb || []),
       ];
 
-      const productosPorCodigo = new Map(
-        productosDb.flatMap((producto) => [
-          [String(producto.codigo), producto],
-          [`producto-${producto.id}`, producto],
-          [`${producto.codigo}-10p`, producto],
-          [`${producto.codigo}-15p`, producto],
-          [`${producto.codigo}-20p`, producto],
-          [`${producto.codigo}-25p`, producto],
-          [`producto-${producto.id}-10p`, producto],
-          [`producto-${producto.id}-15p`, producto],
-          [`producto-${producto.id}-20p`, producto],
-          [`producto-${producto.id}-25p`, producto],
-        ])
-      );
+      const productosPorCodigo = new Map<string, (typeof productosDb)[number]>();
+      for (const producto of productosDb) {
+        const codigoDb = normalizarCodigoProducto(String(producto.codigo || ''));
+        if (codigoDb) productosPorCodigo.set(codigoDb, producto);
+        productosPorCodigo.set(`PRODUCTO-${producto.id}`, producto);
+      }
 
       const faltantes: string[] = [];
       const productosPedido = productosOrden.map((item) => {
         const codigo = item.product_retailer_id?.trim() || 'SIN-CODIGO';
-        const producto = productosPorCodigo.get(codigo);
+        const codigoNormalizado = normalizarCodigoProducto(codigo);
+        const producto =
+          productosPorCodigo.get(codigoNormalizado) ||
+          productosPorCodigo.get(codigoProductoBase(codigoNormalizado));
         const tamano = etiquetaTamano(codigo);
         const cantidad = Number(item.quantity || 0);
         const precioWhatsApp = Number(item.item_price || 0);
