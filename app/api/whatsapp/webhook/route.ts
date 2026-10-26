@@ -371,7 +371,7 @@ async function avisarAdministradores(
   return resultados.filter(Boolean) as string[];
 }
 
-async function avisarPasteleros(
+async function avisarResponsablesPedido(
   admin: NonNullable<ReturnType<typeof crearAdmin>>,
   empresaId: string,
   pedido: {
@@ -386,36 +386,21 @@ async function avisarPasteleros(
 ) {
   const { data: funcionarios, error } = await admin
     .from('funcionarios')
-    .select(
-      'id,nombre_completo,telefono,cargo,funcionario_cargos(cargos_empresa(nombre))'
-    )
+    .select('id,nombre_completo,telefono')
     .eq('empresa_id', empresaId)
-    .eq('activo', true);
+    .eq('activo', true)
+    .eq('recibe_avisos_pedidos_whatsapp', true);
 
-  if (error) return [`No se pudieron consultar pasteleros: ${error.message}`];
-
-  const pasteleros = (funcionarios || []).filter((funcionario: any) => {
-    const cargosRelacionados = (funcionario.funcionario_cargos || []).flatMap(
-      (relacion: any) => {
-        const cargo = relacion.cargos_empresa;
-        return Array.isArray(cargo) ? cargo.map((item) => item?.nombre) : [cargo?.nombre];
-      }
-    );
-    return [funcionario.cargo, ...cargosRelacionados]
-      .filter(Boolean)
-      .join(' ')
-      .toLocaleLowerCase('es-CL')
-      .includes('pastel');
-  });
+  if (error) return [`No se pudieron consultar destinatarios de pedidos: ${error.message}`];
 
   const destinatarios = new Map<string, any>();
-  for (const pastelerero of pasteleros) {
-    const telefono = String(pastelerero.telefono || '').replace(/\D/g, '');
-    if (telefono) destinatarios.set(telefono, pastelerero);
+  for (const funcionario of funcionarios || []) {
+    const telefono = String(funcionario.telefono || '').replace(/\D/g, '');
+    if (telefono) destinatarios.set(telefono, funcionario);
   }
 
   if (!destinatarios.size) {
-    return ['No hay pasteleros activos con teléfono configurado.'];
+    return ['No hay trabajadores seleccionados para recibir pedidos con teléfono configurado.'];
   }
 
   const detalleProductos = pedido.productos
@@ -434,7 +419,7 @@ async function avisarPasteleros(
     .join('\n');
 
   const resultados = await Promise.all(
-    Array.from(destinatarios.entries()).map(async ([telefono, pastelerero]) => {
+    Array.from(destinatarios.entries()).map(async ([telefono, funcionario]) => {
       const resultado = await enviarPlantillaNotificacionWhatsApp(
         telefono,
         texto,
@@ -448,11 +433,11 @@ async function avisarPasteleros(
           telefono: formatearTelefonoWhatsApp(telefono),
           tipo: 'aviso_administrador',
           estado: 'aceptado',
-          observacion: `Pedido #${pedido.id} enviado a ${pastelerero.nombre_completo}.`,
+          observacion: `Pedido #${pedido.id} enviado a ${funcionario.nombre_completo}.`,
           payload: {
             direccion: 'saliente',
-            origen: 'aviso_pasteleria',
-            funcionario_id: pastelerero.id,
+            origen: 'aviso_pedido',
+            funcionario_id: funcionario.id,
             pedido_id: pedido.id,
             meta: resultado.respuesta,
           },
@@ -460,7 +445,7 @@ async function avisarPasteleros(
       }
 
       return resultado.error
-        ? `Pastelería ${pastelerero.nombre_completo}: ${resultado.error}`
+        ? `${funcionario.nombre_completo}: ${resultado.error}`
         : null;
     })
   );
@@ -885,7 +870,7 @@ export async function POST(request: Request) {
           : null;
       const erroresPasteleros =
         pedido && !errorPedido
-          ? await avisarPasteleros(
+          ? await avisarResponsablesPedido(
               admin,
               empresaId,
               {
