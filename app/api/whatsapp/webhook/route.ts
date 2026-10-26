@@ -2,7 +2,10 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
-import { obtenerCanalWhatsapp } from '@/lib/whatsapp-canales';
+import {
+  obtenerCanalWhatsapp,
+  obtenerCanalesWhatsapp,
+} from '@/lib/whatsapp-canales';
 import { enviarPorWhatsapp } from '@/lib/whatsapp-api';
 
 const resend = process.env.RESEND_API_KEY
@@ -366,6 +369,12 @@ export async function GET(request: Request) {
 
   if (!modo && !token && !desafio) {
     const admin = crearAdmin();
+    const canales = obtenerCanalesWhatsapp().map((canal) => ({
+      phoneNumberId: canal.phoneNumberId,
+      telefonoVisible: canal.telefonoVisible,
+      etiqueta: canal.etiqueta,
+      proveedor: canal.proveedor,
+    }));
     let baseDatosLista = false;
     let baseDatosError: string | null = admin ? null : 'Cliente Supabase no configurado.';
     let baseDatosEstado: number | null = null;
@@ -400,6 +409,10 @@ export async function GET(request: Request) {
         disponible: true,
         tokenConfigurado: Boolean(tokenConfigurado),
         appSecretConfigurado: Boolean(process.env.WHATSAPP_APP_SECRET),
+        secreto360Configurado: Boolean(
+          process.env.WHATSAPP_360DIALOG_WEBHOOK_SECRET?.trim()
+        ),
+        canales,
         plantillaNotificacionConfigurada: true,
         plantillaNotificacionNombre:
           process.env.WHATSAPP_NOTIFICATION_TEMPLATE_NAME ||
@@ -422,6 +435,10 @@ export async function GET(request: Request) {
       disponible: true,
       tokenConfigurado: Boolean(tokenConfigurado),
       appSecretConfigurado: Boolean(process.env.WHATSAPP_APP_SECRET),
+      secreto360Configurado: Boolean(
+        process.env.WHATSAPP_360DIALOG_WEBHOOK_SECRET?.trim()
+      ),
+      canales,
       plantillaNotificacionConfigurada: true,
       plantillaNotificacionNombre:
         process.env.WHATSAPP_NOTIFICATION_TEMPLATE_NAME ||
