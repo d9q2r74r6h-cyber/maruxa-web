@@ -181,9 +181,11 @@ async function responderPedidoWhatsApp(
 
 async function enviarPlantillaNotificacionWhatsApp(
   destino: string,
-  mensaje: string
+  mensaje: string,
+  phoneNumberIdPreferido?: string | null
 ): Promise<ResultadoEnvioWhatsApp> {
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const phoneNumberId =
+    phoneNumberIdPreferido || process.env.WHATSAPP_PHONE_NUMBER_ID;
   const canal = obtenerCanalWhatsapp(phoneNumberId);
   const telefonoDestino = destino.replace(/\D/g, '');
   const mensajePlantilla = mensaje
@@ -264,6 +266,7 @@ async function avisarAdministradores(
     nombre: string;
     resumen: string;
     pedidoId?: string | number | null;
+    phoneNumberId?: string | null;
   }
 ) {
   const { data: perfiles } = await admin
@@ -298,7 +301,8 @@ async function avisarAdministradores(
         tareas.push(
           enviarPlantillaNotificacionWhatsApp(
             perfil.notificacion_whatsapp,
-            texto
+            texto,
+            datos.phoneNumberId
           ).then(async (resultado) => {
             if (resultado.messageId) {
               const { error: errorRegistro } = await admin
@@ -354,6 +358,103 @@ async function avisarAdministradores(
       }
 
       return tareas;
+    })
+  );
+
+  return resultados.filter(Boolean) as string[];
+}
+
+async function avisarPasteleros(
+  admin: NonNullable<ReturnType<typeof crearAdmin>>,
+  empresaId: string,
+  pedido: {
+    id: string | number;
+    cliente: string;
+    telefono: string;
+    productos: Array<{ nombre: string; cantidad: number }>;
+    total: number;
+    observaciones?: string | null;
+  },
+  phoneNumberId?: string | null
+) {
+  const { data: funcionarios, error } = await admin
+    .from('funcionarios')
+    .select(
+      'id,nombre_completo,telefono,cargo,funcionario_cargos(cargos_empresa(nombre))'
+    )
+    .eq('empresa_id', empresaId)
+    .eq('activo', true);
+
+  if (error) return [`No se pudieron consultar pasteleros: ${error.message}`];
+
+  const pasteleros = (funcionarios || []).filter((funcionario: any) => {
+    const cargosRelacionados = (funcionario.funcionario_cargos || []).flatMap(
+      (relacion: any) => {
+        const cargo = relacion.cargos_empresa;
+        return Array.isArray(cargo) ? cargo.map((item) => item?.nombre) : [cargo?.nombre];
+      }
+    );
+    return [funcionario.cargo, ...cargosRelacionados]
+      .filter(Boolean)
+      .join(' ')
+      .toLocaleLowerCase('es-CL')
+      .includes('pastel');
+  });
+
+  const destinatarios = new Map<string, any>();
+  for (const pastelerero of pasteleros) {
+    const telefono = String(pastelerero.telefono || '').replace(/\D/g, '');
+    if (telefono) destinatarios.set(telefono, pastelerero);
+  }
+
+  if (!destinatarios.size) {
+    return ['No hay pasteleros activos con teléfono configurado.'];
+  }
+
+  const detalleProductos = pedido.productos
+    .map((producto) => `${producto.cantidad} x ${producto.nombre}`)
+    .join(', ');
+  const texto = [
+    `Nuevo pedido de pastelería #${pedido.id}`,
+    `Cliente: ${pedido.cliente}`,
+    `Teléfono: ${pedido.telefono}`,
+    `Productos: ${detalleProductos}`,
+    `Total: $${Number(pedido.total || 0).toLocaleString('es-CL')}`,
+    pedido.observaciones ? `Observaciones: ${pedido.observaciones}` : null,
+    'Revisar: https://panaderiamaruxa.cl/admin/pedidos',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const resultados = await Promise.all(
+    Array.from(destinatarios.entries()).map(async ([telefono, pastelerero]) => {
+      const resultado = await enviarPlantillaNotificacionWhatsApp(
+        telefono,
+        texto,
+        phoneNumberId
+      );
+
+      if (resultado.messageId) {
+        await admin.from('whatsapp_eventos').insert({
+          empresa_id: empresaId,
+          message_id: resultado.messageId,
+          telefono: formatearTelefonoWhatsApp(telefono),
+          tipo: 'aviso_administrador',
+          estado: 'aceptado',
+          observacion: `Pedido #${pedido.id} enviado a ${pastelerero.nombre_completo}.`,
+          payload: {
+            direccion: 'saliente',
+            origen: 'aviso_pasteleria',
+            funcionario_id: pastelerero.id,
+            pedido_id: pedido.id,
+            meta: resultado.respuesta,
+          },
+        });
+      }
+
+      return resultado.error
+        ? `Pastelería ${pastelerero.nombre_completo}: ${resultado.error}`
+        : null;
     })
   );
 
@@ -775,6 +876,23 @@ export async function POST(request: Request) {
               valor.metadata?.phone_number_id
             )
           : null;
+      const erroresPasteleros =
+        pedido && !errorPedido
+          ? await avisarPasteleros(
+              admin,
+              empresaId,
+              {
+                id: pedido.id,
+                cliente:
+                  contacto?.profile?.name || `WhatsApp ${mensaje.from || ''}`,
+                telefono: telefonoCliente,
+                productos: productosPedido,
+                total,
+                observaciones: observacionesPedido,
+              },
+              valor.metadata?.phone_number_id
+            )
+          : [];
 
       const { data: eventoPedido } = await admin.from('whatsapp_eventos').insert({
         ...eventoBase,
@@ -792,6 +910,9 @@ export async function POST(request: Request) {
           (errorRespuesta
             ? `Pedido guardado, pero no se pudo responder por WhatsApp: ${errorRespuesta}`
             : null) ||
+          (erroresPasteleros.length
+            ? `Aviso a pastelería pendiente: ${erroresPasteleros.join(' | ')}`
+            : null) ||
           (faltantes.length
             ? `Códigos no encontrados: ${faltantes.join(', ')}`
             : null),
@@ -803,6 +924,7 @@ export async function POST(request: Request) {
           nombre: contacto?.profile?.name || `WhatsApp ${mensaje.from || ''}`,
           resumen: `Pedido recibido por $${Number(total || 0).toLocaleString('es-CL')}.`,
           pedidoId: pedido.id,
+          phoneNumberId: valor.metadata?.phone_number_id,
         });
 
         if (eventoPedido?.id && erroresAviso.length > 0) {

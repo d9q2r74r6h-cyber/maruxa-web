@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Printer } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { obtenerEmpresaActual } from '@/lib/empresa';
 
@@ -32,6 +33,31 @@ export default function AdminPedidosPage() {
   const [filtroEstado, setFiltroEstado] = useState('todos');
   const [guardandoRetiro, setGuardandoRetiro] = useState<number | null>(null);
   const [enviandoMensaje, setEnviandoMensaje] = useState<string | null>(null);
+
+  function imprimirPedido(pedido: Pedido) {
+    const ventana = window.open('', '_blank', 'width=760,height=900');
+    if (!ventana) {
+      alert('El navegador bloqueó la ventana de impresión. Permite ventanas emergentes para Maruxa.');
+      return;
+    }
+
+    const escapar = (valor: unknown) =>
+      String(valor ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    const productos = (pedido.productos || [])
+      .map(
+        (producto) =>
+          `<tr><td>${escapar(producto.cantidad)}</td><td>${escapar(producto.nombre)}</td><td>$${Number(producto.precio || 0).toLocaleString('es-CL')}</td></tr>`
+      )
+      .join('');
+
+    ventana.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Pedido ${pedido.id}</title><style>@page{size:80mm auto;margin:5mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#111;margin:0;font-size:12px}h1{font-size:20px;margin:0 0 4px}.encabezado{border-bottom:2px dashed #111;padding-bottom:8px;margin-bottom:10px}.dato{margin:3px 0}.numero{font-size:17px;font-weight:800}table{width:100%;border-collapse:collapse;margin:10px 0}th,td{text-align:left;border-bottom:1px solid #aaa;padding:6px 3px}th:first-child,td:first-child{width:32px;text-align:center}.total{border-top:2px solid #111;padding-top:8px;text-align:right;font-size:17px;font-weight:800}.observaciones{margin-top:12px;border:2px solid #111;padding:8px;font-weight:700;white-space:pre-wrap}.pie{margin-top:18px;text-align:center;font-size:10px}</style></head><body><div class="encabezado"><h1>Panadería Maruxa</h1><div class="numero">COMANDA #${escapar(pedido.id)}</div><div class="dato">Cliente: ${escapar(pedido.cliente)}</div><div class="dato">Teléfono: ${escapar(pedido.telefono)}</div><div class="dato">Retiro: ${escapar(pedido.fecha_retiro)} ${escapar(pedido.hora_retiro)}</div></div><table><thead><tr><th>Cant.</th><th>Producto</th><th>Precio</th></tr></thead><tbody>${productos}</tbody></table><div class="total">TOTAL $${Number(pedido.total || 0).toLocaleString('es-CL')}</div>${pedido.observaciones ? `<div class="observaciones">OBSERVACIONES<br>${escapar(pedido.observaciones)}</div>` : ''}<div class="pie">Pedido recibido por ${escapar(pedido.origen || 'Maruxa')}<br>${new Date().toLocaleString('es-CL')}</div><script>window.onload=()=>window.print()<\/script></body></html>`);
+    ventana.document.close();
+  }
 
 
 
@@ -535,6 +561,15 @@ export default function AdminPedidosPage() {
     {enviandoMensaje === `${pedido.id}-listo`
       ? 'Enviando...'
       : 'Avisar listo'}
+  </button>
+
+  <button
+    type="button"
+    onClick={() => imprimirPedido(pedido)}
+    className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-maruxa-chocolate px-4 py-3 font-black text-white transition hover:opacity-90"
+  >
+    <Printer className="h-4 w-4" />
+    Imprimir comanda
   </button>
 </div>
               </div>
