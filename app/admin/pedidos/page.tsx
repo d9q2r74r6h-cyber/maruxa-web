@@ -58,66 +58,6 @@ export default function AdminPedidosPage() {
     ventana.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Pedido ${pedido.id}</title><style>@page{size:80mm auto;margin:5mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#111;margin:0;font-size:12px}h1{font-size:20px;margin:0 0 4px}.encabezado{border-bottom:2px dashed #111;padding-bottom:8px;margin-bottom:10px}.dato{margin:3px 0}.numero{font-size:17px;font-weight:800}table{width:100%;border-collapse:collapse;margin:10px 0}th,td{text-align:left;border-bottom:1px solid #aaa;padding:6px 3px}th:first-child,td:first-child{width:32px;text-align:center}.total{border-top:2px solid #111;padding-top:8px;text-align:right;font-size:17px;font-weight:800}.observaciones{margin-top:12px;border:2px solid #111;padding:8px;font-weight:700;white-space:pre-wrap}.pie{margin-top:18px;text-align:center;font-size:10px}</style></head><body><div class="encabezado"><h1>Panadería Maruxa</h1><div class="numero">COMANDA #${escapar(pedido.id)}</div><div class="dato">Cliente: ${escapar(pedido.cliente)}</div><div class="dato">Teléfono: ${escapar(pedido.telefono)}</div><div class="dato">Retiro: ${escapar(pedido.fecha_retiro)} ${escapar(pedido.hora_retiro)}</div></div><table><thead><tr><th>Cant.</th><th>Producto</th><th>Precio</th></tr></thead><tbody>${productos}</tbody></table><div class="total">TOTAL $${Number(pedido.total || 0).toLocaleString('es-CL')}</div>${pedido.observaciones ? `<div class="observaciones">OBSERVACIONES<br>${escapar(pedido.observaciones)}</div>` : ''}<div class="pie">Pedido recibido por ${escapar(pedido.origen || 'Maruxa')}<br>${new Date().toLocaleString('es-CL')}</div><script>window.onload=()=>window.print()<\/script></body></html>`);
     ventana.document.close();
   }
-
-
-
-
-  function imprimirPedido(pedido: Pedido) {
-    const ventana = window.open('', '_blank', 'width=850,height=700');
-    if (!ventana) {
-      alert('Permite las ventanas emergentes para imprimir el pedido.');
-      return;
-    }
-    const doc = ventana.document;
-    doc.title = 'Pedido #' + pedido.id + ' - Pastelería';
-    doc.documentElement.lang = 'es';
-    const estilo = doc.createElement('style');
-    estilo.textContent = `
-      @page { size: A4; margin: 18mm; }
-      body { font: 16px Arial, sans-serif; color: #111; margin: 24px; }
-      h1 { font-size: 28px; margin-bottom: 8px; }
-      h2 { font-size: 18px; margin-top: 28px; }
-      .retiro { border: 2px solid #111; padding: 14px; font-size: 21px; font-weight: bold; }
-      table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-      th, td { border: 1px solid #777; padding: 12px; text-align: left; overflow-wrap: anywhere; }
-      th { background: #eee; } tr { break-inside: avoid; }
-      p { white-space: pre-wrap; overflow-wrap: anywhere; }
-      button { padding: 12px 20px; cursor: pointer; }
-      @media print { body { margin: 0; } button { display: none; } }
-    `;
-    doc.head.appendChild(estilo);
-    function texto(tag: string, contenido: string, padre: HTMLElement = doc.body) {
-      const elemento = doc.createElement(tag);
-      elemento.textContent = contenido;
-      padre.appendChild(elemento);
-      return elemento;
-    }
-    const boton = texto('button', 'Imprimir / Guardar PDF');
-    boton.onclick = () => ventana.print();
-    texto('h1', 'Orden de pastelería · Pedido #' + pedido.id);
-    texto('p', 'Cliente: ' + pedido.cliente);
-    texto('p', 'Teléfono: ' + pedido.telefono);
-    const fecha = pedido.fecha_retiro ? pedido.fecha_retiro.split('-').reverse().join('-') : 'Sin definir';
-    texto('p', 'Retiro: ' + fecha + ' · ' + (pedido.hora_retiro?.slice(0, 5) || 'Sin hora')).className = 'retiro';
-    texto('p', 'Estado: ' + pedido.estado);
-    const tabla = texto('table', '');
-    const cabecera = texto('tr', '', texto('thead', '', tabla));
-    ['Cantidad', 'Producto', 'Presentación / tamaño'].forEach(t => texto('th', t, cabecera));
-    const cuerpo = texto('tbody', '', tabla);
-    for (const producto of pedido.productos || []) {
-      const fila = texto('tr', '', cuerpo);
-      texto('td', String(producto.cantidad), fila);
-      texto('td', producto.nombre, fila);
-      texto('td', producto.tamano || '—', fila);
-    }
-    texto('h2', 'Observaciones del pedido');
-    texto('p', pedido.observaciones || 'Sin observaciones.');
-    texto('h2', 'Control de preparación');
-    texto('p', 'Preparado por: ____________________    Revisado por: ____________________');
-    ventana.focus();
-    ventana.setTimeout(() => ventana.print(), 250);
-  }
-
   async function cambiarEstado(id: number, estado: string) {
     const empresa = await obtenerEmpresaActual();
   
