@@ -76,12 +76,22 @@ function crearAdmin() {
 }
 
 function codigoProductoBase(codigo: string) {
-  return codigo.trim().replace(/-?(10|15|20|25)p$/i, '').toUpperCase();
+  const normalizado = codigo.trim().toUpperCase();
+  const codigoConPresentacion = normalizado.match(/^(PRO-[^-]+-\d+)(?:-.+)?$/i);
+  if (codigoConPresentacion) return codigoConPresentacion[1];
+  return normalizado.replace(/-?(10|15|20|25)p$/i, '');
 }
 
 function etiquetaTamano(codigo: string) {
-  const match = codigo.trim().match(/-?(10|15|20|25)p$/i);
-  return match ? `${match[1]} personas` : null;
+  const normalizado = codigo.trim();
+  const tamanoTorta = normalizado.match(/-?(10|15|20|25)p$/i);
+  if (tamanoTorta) return `${tamanoTorta[1]} personas`;
+
+  const presentacion = normalizado.match(/^PRO-[^-]+-\d+-(.+)$/i)?.[1];
+  if (!presentacion) return null;
+
+  const texto = presentacion.replace(/-/g, ' ').trim();
+  return texto ? texto.charAt(0).toUpperCase() + texto.slice(1) : null;
 }
 
 function normalizarCodigoProducto(codigo: string) {
