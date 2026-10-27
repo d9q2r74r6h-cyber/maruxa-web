@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
+  AlertTriangle,
   BadgeDollarSign,
   Edit3,
   Loader2,
@@ -41,6 +42,14 @@ type ProductoPrecio = {
   codigo: string | null;
   nombre: string;
   precio: number | null;
+};
+
+type ErrorCampana = {
+  id: string;
+  cliente: string;
+  telefono: string;
+  error: string;
+  fecha: string;
 };
 
 const inicial = {
@@ -131,6 +140,8 @@ export default function ClientesPage() {
   );
   const [clienteEnviandoPlantilla, setClienteEnviandoPlantilla] = useState<string | null>(null);
   const [enviandoCampana, setEnviandoCampana] = useState(false);
+  const [erroresCampana, setErroresCampana] = useState<ErrorCampana[] | null>(null);
+  const [cargandoErroresCampana, setCargandoErroresCampana] = useState(false);
 
   async function cargar() {
     if (!perfil) return;
@@ -486,6 +497,21 @@ export default function ClientesPage() {
     );
   }
 
+  async function revisarFallosCampana() {
+    setCargandoErroresCampana(true);
+    const { data: sesion } = await supabase.auth.getSession();
+    const respuesta = await fetch('/api/admin/clientes/errores-campana-pedidos', {
+      headers: { Authorization: `Bearer ${sesion.session?.access_token || ''}` },
+    });
+    const resultado = await respuesta.json().catch(() => ({}));
+    setCargandoErroresCampana(false);
+    if (!respuesta.ok) {
+      alert(resultado.error || 'No se pudieron consultar los fallos.');
+      return;
+    }
+    setErroresCampana(resultado.errores || []);
+  }
+
   return (
     <div className="space-y-6 pb-12">
       <header className="flex flex-wrap items-end justify-between gap-4">
@@ -498,15 +524,26 @@ export default function ClientesPage() {
             Mantencion de clientes, siglas, precios base y asignacion de reparto.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => void enviarCampanaInicial()}
-          disabled={enviandoCampana || cargando}
-          className="inline-flex h-11 items-center gap-2 rounded-lg bg-emerald-700 px-4 text-sm font-black text-white shadow-sm disabled:opacity-50"
-        >
-          {enviandoCampana ? <Loader2 className="h-4 w-4 animate-spin" /> : <Megaphone className="h-4 w-4" />}
-          {enviandoCampana ? 'Enviando campaña…' : 'Enviar plantilla inicial'}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => void revisarFallosCampana()}
+            disabled={cargandoErroresCampana}
+            className="inline-flex h-11 items-center gap-2 rounded-lg border border-amber-600/30 bg-amber-50 px-4 text-sm font-black text-amber-800 disabled:opacity-50"
+          >
+            {cargandoErroresCampana ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertTriangle className="h-4 w-4" />}
+            Revisar fallos
+          </button>
+          <button
+            type="button"
+            onClick={() => void enviarCampanaInicial()}
+            disabled={enviandoCampana || cargando}
+            className="inline-flex h-11 items-center gap-2 rounded-lg bg-emerald-700 px-4 text-sm font-black text-white shadow-sm disabled:opacity-50"
+          >
+            {enviandoCampana ? <Loader2 className="h-4 w-4 animate-spin" /> : <Megaphone className="h-4 w-4" />}
+            {enviandoCampana ? 'Enviando campaña…' : 'Enviar plantilla inicial'}
+          </button>
+        </div>
       </header>
 
       <section className="grid gap-5 xl:grid-cols-[380px_1fr]">
@@ -976,6 +1013,37 @@ export default function ClientesPage() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {erroresCampana && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2A1710]/55 p-3 sm:p-6">
+          <section className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+            <header className="flex items-center justify-between border-b bg-amber-50 px-5 py-4">
+              <div>
+                <h2 className="font-black text-[#2A1710]">Fallos de campañas WhatsApp</h2>
+                <p className="text-xs font-bold text-[#4B2818]/60">{erroresCampana.length} registros recientes</p>
+              </div>
+              <button type="button" onClick={() => setErroresCampana(null)} className="grid h-9 w-9 place-items-center rounded-md border bg-white"><X className="h-4 w-4" /></button>
+            </header>
+            <div className="overflow-y-auto p-4">
+              {erroresCampana.length === 0 ? (
+                <p className="p-8 text-center font-bold text-emerald-700">No hay fallos registrados.</p>
+              ) : (
+                <div className="space-y-3">
+                  {erroresCampana.map((item) => (
+                    <article key={item.id} className="rounded-lg border border-red-200 bg-red-50 p-3">
+                      <div className="flex flex-wrap justify-between gap-2">
+                        <p className="font-black text-[#2A1710]">{item.cliente}</p>
+                        <p className="text-xs font-bold text-[#4B2818]/60">{item.telefono}</p>
+                      </div>
+                      <p className="mt-2 break-words text-sm font-semibold text-red-800">{item.error}</p>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
         </div>
       )}
     </div>
