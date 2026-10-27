@@ -657,8 +657,16 @@ export async function POST(request: Request) {
         )
         .filter(Boolean);
       const observacion = errores.length
-        ? `Meta marco el aviso como ${estado.status}: ${errores.join(' | ')}`
-        : `Meta marco el aviso como ${estado.status}.`;
+        ? `Meta marcó el mensaje como ${estado.status}: ${errores.join(' | ')}`
+        : `Meta marcó el mensaje como ${estado.status}.`;
+
+      const { data: eventoSaliente } = await admin
+        .from('whatsapp_eventos')
+        .select('id,payload')
+        .eq('message_id', estado.id)
+        .maybeSingle();
+
+      if (!eventoSaliente) continue;
 
       await admin
         .from('whatsapp_eventos')
@@ -666,15 +674,14 @@ export async function POST(request: Request) {
           estado: estado.status || 'actualizado',
           observacion,
           payload: {
+            ...(eventoSaliente.payload || {}),
             direccion: 'saliente',
-            origen: 'aviso_administrador',
             canal_phone_number_id: valor.metadata?.phone_number_id || null,
             canal_telefono: valor.metadata?.display_phone_number || null,
             estado_meta: estado,
           },
         })
-        .eq('message_id', estado.id)
-        .eq('tipo', 'aviso_administrador');
+        .eq('id', eventoSaliente.id);
     }
 
     const contacto = valor.contacts?.[0];
