@@ -108,7 +108,7 @@ function esTorta(producto: ProductoFeed) {
 }
 
 function idBase(producto: ProductoFeed) {
-  return producto.codigo || `producto-${producto.id}`;
+  return producto.codigo!;
 }
 
 const tamanosTorta = [
@@ -265,6 +265,7 @@ export async function GET(request: Request) {
     .eq('activo', true)
     .eq('familias_productos.activo', true)
     .eq('familias_productos.mostrar_catalogo', true)
+    .not('codigo', 'is', null)
     .gt('precio', 0)
     .order('nombre', { ascending: true });
 

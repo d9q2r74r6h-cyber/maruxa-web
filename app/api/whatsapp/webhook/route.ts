@@ -43,27 +43,9 @@ type ResultadoEnvioWhatsApp = {
 const PRODUCTOS_LEGACY_WHATSAPP: Record<string, number> = {
   T01: 9,
   T02: 10,
-  T03: 11,
-  T04: 12,
-  T05: 18,
-  T06: 19,
-  T07: 53,
-  T08: 215,
-  T09: 217,
-  T10: 224,
-  T11: 237,
-  T12: 238,
-  T13: 285,
   PP01: 13,
-  PP02: 14,
   PP03: 15,
   PP04: 16,
-  PP05: 17,
-  PP06: 33,
-  PP07: 51,
-  PP08: 52,
-  PP09: 225,
-  PP10: 235,
 };
 
 function firmaValida(cuerpo: string, firma: string | null) {
