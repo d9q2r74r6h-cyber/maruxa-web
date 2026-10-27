@@ -20,7 +20,7 @@ with check (empresa_id = public.usuario_empresa_id());
 
 insert into public.producto_precios_whatsapp
   (empresa_id, canal, producto_id, precio, precio_10, precio_15, precio_20, precio_25)
-select empresa_id, '5041', id, precio, precio_10, precio_15, precio_20, precio_25
+select empresa_id, '5041', id, 0, null, null, null, null
 from public.productos p
 where p.tipo_producto = 'producto'
   and p.activo = true

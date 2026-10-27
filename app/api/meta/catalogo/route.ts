@@ -104,7 +104,8 @@ function enlaceProducto(producto: ProductoFeed) {
 }
 
 function esTorta(producto: ProductoFeed) {
-  return limpiar(producto.categoria).toLowerCase().includes('torta');
+  return [producto.precio_10, producto.precio_15, producto.precio_20, producto.precio_25]
+    .some((valor) => Number(valor || 0) > 0);
 }
 
 function idBase(producto: ProductoFeed) {
@@ -299,9 +300,12 @@ export async function GET(request: Request) {
       .in('producto_id', productosFeed.map((producto) => producto.id));
     if (errorPrecios) return NextResponse.json({ error: errorPrecios.message }, { status: 500 });
     const porProducto = new Map((preciosAlternativos || []).map((item) => [Number(item.producto_id), item]));
-    productosFeed = productosFeed.map((producto) => {
+    productosFeed = productosFeed.flatMap((producto) => {
       const alternativo = porProducto.get(producto.id);
-      return alternativo ? { ...producto, ...alternativo } : producto;
+      if (!alternativo) return [];
+      const configurado = [alternativo.precio, alternativo.precio_10, alternativo.precio_15, alternativo.precio_20, alternativo.precio_25]
+        .some((valor) => Number(valor || 0) > 0);
+      return configurado ? [{ ...producto, ...alternativo }] : [];
     });
   }
 
