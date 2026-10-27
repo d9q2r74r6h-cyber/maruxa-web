@@ -63,7 +63,7 @@ export async function POST(request: Request) {
       components: [
         {
           type: 'header',
-          parameters: [{ type: 'image', image: { link: 'https://panaderiamaruxa.cl/logo-maruxa.png' } }],
+          parameters: [{ type: 'image', image: { link: 'https://panaderiamaruxa.cl/logo-maruxa-meta.png' } }],
         },
         { type: 'body', parameters: [{ type: 'text', text: nombre }] },
       ],
