@@ -21,8 +21,16 @@ with check (empresa_id = public.usuario_empresa_id());
 insert into public.producto_precios_whatsapp
   (empresa_id, canal, producto_id, precio, precio_10, precio_15, precio_20, precio_25)
 select empresa_id, '5041', id, precio, precio_10, precio_15, precio_20, precio_25
-from public.productos
-where tipo_producto = 'producto'
-  and precio > 0
+from public.productos p
+where p.tipo_producto = 'producto'
+  and p.activo = true
+  and p.codigo is not null
+  and p.precio > 0
+  and exists (
+    select 1 from public.familias_productos f
+    where f.id = p.familia_id
+      and f.activo = true
+      and f.mostrar_catalogo = true
+  )
 on conflict (empresa_id, canal, producto_id) do nothing;
 
