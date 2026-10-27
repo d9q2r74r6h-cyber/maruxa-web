@@ -176,6 +176,7 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const diagnostico = url.searchParams.get('debug')?.trim();
+  const listaPrecios = url.searchParams.get('lista')?.trim().toLowerCase();
 
   if (diagnostico) {
     const { data, error } = await admin
@@ -289,7 +290,22 @@ export async function GET(request: Request) {
     'google_product_category',
   ];
 
-  const items = ((data || []) as ProductoFeed[]).flatMap(crearItemsFeed);
+  let productosFeed = (data || []) as ProductoFeed[];
+  if (listaPrecios === '5041' && productosFeed.length) {
+    const { data: preciosAlternativos, error: errorPrecios } = await admin
+      .from('producto_precios_whatsapp')
+      .select('producto_id,precio,precio_10,precio_15,precio_20,precio_25')
+      .eq('canal', '5041')
+      .in('producto_id', productosFeed.map((producto) => producto.id));
+    if (errorPrecios) return NextResponse.json({ error: errorPrecios.message }, { status: 500 });
+    const porProducto = new Map((preciosAlternativos || []).map((item) => [Number(item.producto_id), item]));
+    productosFeed = productosFeed.map((producto) => {
+      const alternativo = porProducto.get(producto.id);
+      return alternativo ? { ...producto, ...alternativo } : producto;
+    });
+  }
+
+  const items = productosFeed.flatMap(crearItemsFeed);
 
   const filas = items.map((item) => [
     csv(item.id),

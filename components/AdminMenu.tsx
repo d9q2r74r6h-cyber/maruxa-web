@@ -48,6 +48,7 @@ const grupos: {
     label: 'Inventario',
     items: [
       { label: 'Productos', href: '/admin/productos', modulo: 'productos' },
+      { label: 'Precios WhatsApp 5041', href: '/admin/precios-whatsapp-5041', modulo: 'productos' },
       { label: 'Proveedores', href: '/admin/proveedores' },
       { label: 'Costos y precios', href: '/admin/compras', modulo: 'compras' },
       { label: 'Vehículos', href: '/admin/vehiculos', modulo: 'vehiculos' },
