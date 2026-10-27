@@ -5,6 +5,7 @@ import {
   BadgeDollarSign,
   Edit3,
   Loader2,
+  Megaphone,
   Save,
   Search,
   Send,
@@ -129,6 +130,7 @@ export default function ClientesPage() {
     null
   );
   const [clienteEnviandoPlantilla, setClienteEnviandoPlantilla] = useState<string | null>(null);
+  const [enviandoCampana, setEnviandoCampana] = useState(false);
 
   async function cargar() {
     if (!perfil) return;
@@ -454,16 +456,57 @@ export default function ClientesPage() {
     alert(`Plantilla enviada a ${cliente.razon_social}.`);
   }
 
+  async function enviarCampanaInicial() {
+    const autorizados = clientes.filter(
+      (cliente) => cliente.activo && cliente.whatsapp_pedidos_autorizado && cliente.telefono
+    );
+    if (!autorizados.length) {
+      alert('No hay clientes activos y autorizados con teléfono.');
+      return;
+    }
+    if (!window.confirm(`Se revisarán ${autorizados.length} clientes autorizados. Se omitirá a quienes ya recibieron esta plantilla y a los números duplicados. ¿Iniciar campaña?`)) return;
+
+    setEnviandoCampana(true);
+    const { data: sesion } = await supabase.auth.getSession();
+    const respuesta = await fetch('/api/admin/clientes/enviar-campana-pedidos', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${sesion.session?.access_token || ''}`,
+      },
+    });
+    const resultado = await respuesta.json().catch(() => ({}));
+    setEnviandoCampana(false);
+
+    if (!respuesta.ok) {
+      alert(resultado.error || 'No se pudo ejecutar la campaña.');
+      return;
+    }
+    alert(
+      `Campaña terminada. Enviados: ${resultado.enviados}. Ya enviados: ${resultado.yaEnviados}. Duplicados: ${resultado.duplicados}. Errores: ${resultado.errores}.`
+    );
+  }
+
   return (
     <div className="space-y-6 pb-12">
-      <header>
-        <p className="text-xs font-black uppercase tracking-wide text-[#A51F2B]">
-          Comercial
-        </p>
-        <h1 className="mt-2 text-3xl font-black text-[#2A1710]">Clientes</h1>
-        <p className="mt-1 text-sm font-semibold text-[#4B2818]/65">
-          Mantencion de clientes, siglas, precios base y asignacion de reparto.
-        </p>
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-xs font-black uppercase tracking-wide text-[#A51F2B]">
+            Comercial
+          </p>
+          <h1 className="mt-2 text-3xl font-black text-[#2A1710]">Clientes</h1>
+          <p className="mt-1 text-sm font-semibold text-[#4B2818]/65">
+            Mantencion de clientes, siglas, precios base y asignacion de reparto.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void enviarCampanaInicial()}
+          disabled={enviandoCampana || cargando}
+          className="inline-flex h-11 items-center gap-2 rounded-lg bg-emerald-700 px-4 text-sm font-black text-white shadow-sm disabled:opacity-50"
+        >
+          {enviandoCampana ? <Loader2 className="h-4 w-4 animate-spin" /> : <Megaphone className="h-4 w-4" />}
+          {enviandoCampana ? 'Enviando campaña…' : 'Enviar plantilla inicial'}
+        </button>
       </header>
 
       <section className="grid gap-5 xl:grid-cols-[380px_1fr]">
