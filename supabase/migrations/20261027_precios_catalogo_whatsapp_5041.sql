@@ -23,5 +23,6 @@ insert into public.producto_precios_whatsapp
 select empresa_id, '5041', id, precio, precio_10, precio_15, precio_20, precio_25
 from public.productos
 where tipo_producto = 'producto'
+  and precio > 0
 on conflict (empresa_id, canal, producto_id) do nothing;
 

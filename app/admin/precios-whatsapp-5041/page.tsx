@@ -22,7 +22,7 @@ export default function PreciosWhatsapp5041Page() {
   useEffect(()=>{ if(!perfil) return; void (async()=>{
     setCargando(true);
     const [{data:p,error:e1},{data:l,error:e2}] = await Promise.all([
-      supabase.from('productos').select('id,codigo,nombre,categoria,precio,precio_10,precio_15,precio_20,precio_25').eq('empresa_id',perfil.empresa_id).eq('tipo_producto','producto').eq('activo',true).order('nombre'),
+      supabase.from('productos').select('id,codigo,nombre,categoria,precio,precio_10,precio_15,precio_20,precio_25').eq('empresa_id',perfil.empresa_id).eq('tipo_producto','producto').eq('activo',true).gt('precio',0).order('nombre'),
       supabase.from('producto_precios_whatsapp').select('producto_id,precio,precio_10,precio_15,precio_20,precio_25').eq('empresa_id',perfil.empresa_id).eq('canal','5041')
     ]);
     if(e1||e2) alert(e1?.message||e2?.message);
