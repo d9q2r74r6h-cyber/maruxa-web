@@ -7,6 +7,7 @@ import {
   Loader2,
   Save,
   Search,
+  Send,
   UsersRound,
   X,
 } from 'lucide-react';
@@ -127,6 +128,7 @@ export default function ClientesPage() {
   const [clienteCambiandoEstado, setClienteCambiandoEstado] = useState<string | null>(
     null
   );
+  const [clienteEnviandoPlantilla, setClienteEnviandoPlantilla] = useState<string | null>(null);
 
   async function cargar() {
     if (!perfil) return;
@@ -157,7 +159,7 @@ export default function ClientesPage() {
       const coincideBusqueda =
         !texto ||
         normalizar(
-          `${cliente.rut} ${cliente.razon_social} ${cliente.sigla || ''} ${
+          `${cliente.rut} ${cliente.razon_social} ${cliente.sigla || ''} ${cliente.telefono || ''} ${
             cliente.codigo_legacy || ''
           }`
         ).includes(texto);
@@ -426,6 +428,30 @@ export default function ClientesPage() {
       alert(error.message);
       return;
     }
+  }
+
+  async function enviarPlantillaInicial(cliente: Cliente) {
+    if (!cliente.telefono || !cliente.whatsapp_pedidos_autorizado) return;
+    if (!window.confirm(`Se enviará la plantilla inicial únicamente a ${cliente.razon_social} (${cliente.telefono}). ¿Continuar?`)) return;
+
+    setClienteEnviandoPlantilla(cliente.id);
+    const { data: sesion } = await supabase.auth.getSession();
+    const respuesta = await fetch('/api/admin/clientes/enviar-plantilla-pedidos', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${sesion.session?.access_token || ''}`,
+      },
+      body: JSON.stringify({ clienteId: cliente.id }),
+    });
+    const resultado = await respuesta.json().catch(() => ({}));
+    setClienteEnviandoPlantilla(null);
+
+    if (!respuesta.ok) {
+      alert(resultado.error || 'No se pudo enviar la plantilla.');
+      return;
+    }
+    alert(`Plantilla enviada a ${cliente.razon_social}.`);
   }
 
   return (
@@ -722,6 +748,21 @@ export default function ClientesPage() {
                   </div>
 
                   <div className="flex items-center gap-2 md:justify-end">
+                    {cliente.whatsapp_pedidos_autorizado && cliente.telefono && (
+                      <button
+                        type="button"
+                        onClick={() => void enviarPlantillaInicial(cliente)}
+                        disabled={clienteEnviandoPlantilla === cliente.id}
+                        className="grid h-9 w-9 place-items-center rounded-md border border-emerald-600/25 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                        title="Enviar plantilla inicial de pedidos"
+                      >
+                        {clienteEnviandoPlantilla === cliente.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Send className="h-4 w-4" />
+                        )}
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => abrirPrecios(cliente)}
