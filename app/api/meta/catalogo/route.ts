@@ -13,6 +13,7 @@ type ProductoFeed = {
   precio_15: number | null;
   precio_20: number | null;
   precio_25: number | null;
+  presentaciones?: { id:string; nombre:string; precio:number; activo:boolean }[] | null;
   categoria: string | null;
   imagen: string | null;
   slug: string | null;
@@ -98,6 +99,10 @@ function textoCatalogo(valor: string | null | undefined) {
     );
 }
 
+function sufijoPresentacion(nombre: string) {
+  return limpiar(nombre).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+}
+
 function enlaceProducto(producto: ProductoFeed) {
   if (producto.slug) return `${baseUrl}/producto/${producto.slug}`;
   return `${baseUrl}/catalogo`;
@@ -127,17 +132,21 @@ function crearItemsFeed(producto: ProductoFeed): ItemFeed[] {
   const enlace = enlaceProducto(producto);
 
   if (!esTorta(producto)) {
-    return [
-      {
+    const items: ItemFeed[] = [];
+    if (Number(producto.precio || 0) > 0) items.push({
         id: idBase(producto),
-        titulo: nombre,
+        titulo: producto.presentaciones?.length ? `${nombre} individual` : nombre,
         descripcion,
         precio: Number(producto.precio || 0),
         enlace,
         imagen,
         categoria,
-      },
-    ];
+      });
+    for (const presentacion of producto.presentaciones || []) {
+      if (!presentacion.activo || Number(presentacion.precio || 0) <= 0) continue;
+      items.push({ id:`${idBase(producto)}-${sufijoPresentacion(presentacion.nombre)}`, titulo:`${nombre} ${textoCatalogo(presentacion.nombre)}`, descripcion:`${descripcion} - ${presentacion.nombre}`, precio:Number(presentacion.precio), enlace, imagen, categoria });
+    }
+    return items;
   }
 
   const variantes = tamanosTorta
@@ -254,6 +263,7 @@ export async function GET(request: Request) {
       precio_15,
       precio_20,
       precio_25,
+      presentaciones,
       categoria,
       imagen,
       slug,
@@ -295,7 +305,7 @@ export async function GET(request: Request) {
   if (listaPrecios === '5041' && productosFeed.length) {
     const { data: preciosAlternativos, error: errorPrecios } = await admin
       .from('producto_precios_whatsapp')
-      .select('producto_id,precio,precio_10,precio_15,precio_20,precio_25')
+      .select('producto_id,precio,precio_10,precio_15,precio_20,precio_25,presentaciones')
       .eq('canal', '5041')
       .in('producto_id', productosFeed.map((producto) => producto.id));
     if (errorPrecios) return NextResponse.json({ error: errorPrecios.message }, { status: 500 });
@@ -303,7 +313,7 @@ export async function GET(request: Request) {
     productosFeed = productosFeed.flatMap((producto) => {
       const alternativo = porProducto.get(producto.id);
       if (!alternativo) return [];
-      const configurado = [alternativo.precio, alternativo.precio_10, alternativo.precio_15, alternativo.precio_20, alternativo.precio_25]
+      const configurado = [alternativo.precio, alternativo.precio_10, alternativo.precio_15, alternativo.precio_20, alternativo.precio_25, ...(alternativo.presentaciones || []).map((item:{precio?:number})=>item.precio)]
         .some((valor) => Number(valor || 0) > 0);
       return configurado ? [{ ...producto, ...alternativo }] : [];
     });
