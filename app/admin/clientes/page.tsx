@@ -29,6 +29,8 @@ type Cliente = {
   forma_pago: string | null;
   plazo_pago: string | null;
   precio_base: number | null;
+  whatsapp_pedidos_autorizado: boolean;
+  whatsapp_recordatorio_diario: boolean;
   activo: boolean;
 };
 
@@ -54,6 +56,8 @@ const inicial = {
   forma_pago: '',
   plazo_pago: '',
   precio_base: '',
+  whatsapp_pedidos_autorizado: false,
+  whatsapp_recordatorio_diario: false,
 };
 
 const repartidoresBase = [
@@ -332,6 +336,8 @@ export default function ClientesPage() {
       forma_pago: cliente.forma_pago || '',
       plazo_pago: cliente.plazo_pago || '',
       precio_base: cliente.precio_base ? String(cliente.precio_base) : '',
+      whatsapp_pedidos_autorizado: Boolean(cliente.whatsapp_pedidos_autorizado),
+      whatsapp_recordatorio_diario: Boolean(cliente.whatsapp_recordatorio_diario),
     });
   }
 
@@ -343,6 +349,11 @@ export default function ClientesPage() {
       alert(
         `El RUT ingresado ya pertenece a ${clienteRutExistente.razon_social}.`
       );
+      return;
+    }
+
+    if ((form.whatsapp_pedidos_autorizado || form.whatsapp_recordatorio_diario) && !form.telefono.trim()) {
+      alert('Debes ingresar el teléfono del cliente para habilitar los mensajes de WhatsApp.');
       return;
     }
 
@@ -364,6 +375,9 @@ export default function ClientesPage() {
       forma_pago: form.forma_pago.trim() || null,
       plazo_pago: form.plazo_pago.trim() || null,
       precio_base: form.precio_base ? numero(form.precio_base) : null,
+      whatsapp_pedidos_autorizado: form.whatsapp_pedidos_autorizado,
+      whatsapp_recordatorio_diario:
+        form.whatsapp_pedidos_autorizado && form.whatsapp_recordatorio_diario,
     };
 
     const { error } = clienteEditando
@@ -469,7 +483,7 @@ export default function ClientesPage() {
                 <input
                   required={campo === 'rut' || campo === 'razon_social'}
                   type={campo === 'precio_base' ? 'number' : 'text'}
-                  value={form[campo as keyof typeof form]}
+                  value={String(form[campo as keyof typeof form])}
                   onChange={(event) =>
                     setForm({ ...form, [campo]: event.target.value })
                   }
@@ -523,6 +537,51 @@ export default function ClientesPage() {
                 className="h-10 rounded-md border border-[#4B2818]/20 px-3 font-bold outline-none focus:border-[#A51F2B]"
               />
             </label>
+
+            <div className="grid gap-2 rounded-lg border border-[#4B2818]/15 bg-[#FFF9F0] p-3">
+              <p className="text-xs font-black uppercase tracking-wide text-[#A51F2B]">
+                Mensajes de pedidos
+              </p>
+              <label className="flex items-start gap-3 text-sm font-bold text-[#2A1710]">
+                <input
+                  type="checkbox"
+                  checked={form.whatsapp_pedidos_autorizado}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      whatsapp_pedidos_autorizado: event.target.checked,
+                      whatsapp_recordatorio_diario: event.target.checked
+                        ? form.whatsapp_recordatorio_diario
+                        : false,
+                    })
+                  }
+                  className="mt-0.5 h-4 w-4 accent-[#A51F2B]"
+                />
+                <span>
+                  Recibe mensajes de pedidos por WhatsApp
+                  <small className="mt-0.5 block font-semibold text-[#4B2818]/60">
+                    Marca esta opción solo si el cliente autorizó los mensajes.
+                  </small>
+                </span>
+              </label>
+              <label className={`flex items-start gap-3 text-sm font-bold ${form.whatsapp_pedidos_autorizado ? 'text-[#2A1710]' : 'text-[#4B2818]/40'}`}>
+                <input
+                  type="checkbox"
+                  checked={form.whatsapp_recordatorio_diario}
+                  disabled={!form.whatsapp_pedidos_autorizado}
+                  onChange={(event) =>
+                    setForm({ ...form, whatsapp_recordatorio_diario: event.target.checked })
+                  }
+                  className="mt-0.5 h-4 w-4 accent-[#A51F2B]"
+                />
+                <span>
+                  Recibe recordatorio diario
+                  <small className="mt-0.5 block font-semibold text-[#4B2818]/60">
+                    Domingo a viernes a las 19:00.
+                  </small>
+                </span>
+              </label>
+            </div>
           </div>
 
           <button
@@ -638,6 +697,18 @@ export default function ClientesPage() {
                       {repartidorOficial(cliente.repartidor_nombre) ||
                         'Sin asignar'}
                     </p>
+                    {cliente.whatsapp_pedidos_autorizado && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black uppercase text-emerald-700">
+                          WhatsApp autorizado
+                        </span>
+                        {cliente.whatsapp_recordatorio_diario && (
+                          <span className="rounded-full bg-sky-50 px-2 py-1 text-[10px] font-black uppercase text-sky-700">
+                            Recordatorio 19:00
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="text-xs font-semibold text-[#4B2818]/60 md:text-right">
