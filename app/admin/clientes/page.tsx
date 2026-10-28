@@ -870,17 +870,25 @@ export default function ClientesPage() {
                   </div>
 
                   <div className="flex items-center gap-2 md:justify-end">
-                    {cliente.whatsapp_pedidos_autorizado && cliente.telefono && (
+                    {cliente.telefono && (
                       <button
                         type="button"
                         onClick={() => {
+                          if (!cliente.activo || !cliente.whatsapp_pedidos_autorizado) return;
                           setClienteMensaje(cliente);
                           setTipoMensaje('plantilla');
                           setPlantillaMensaje('pedidos_catalogo_dia_siguiente');
                           setMensajeLibre('');
                         }}
-                        className="grid h-9 w-9 place-items-center rounded-md border border-emerald-600/25 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
-                        title="Enviar mensaje individual"
+                        disabled={!cliente.activo || !cliente.whatsapp_pedidos_autorizado}
+                        className="grid h-9 w-9 place-items-center rounded-md border border-emerald-600/25 text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:border-[#4B2818]/10 disabled:bg-[#4B2818]/5 disabled:text-[#4B2818]/30"
+                        title={
+                          !cliente.activo
+                            ? 'Activa el cliente para enviar mensajes'
+                            : cliente.whatsapp_pedidos_autorizado
+                              ? 'Enviar mensaje individual'
+                              : 'Activa WhatsApp autorizado en Editar cliente para enviar mensajes'
+                        }
                       >
                         <Send className="h-4 w-4" />
                       </button>
