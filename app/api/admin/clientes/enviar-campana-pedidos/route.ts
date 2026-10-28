@@ -4,6 +4,7 @@ import { obtenerCanalesWhatsapp } from '@/lib/whatsapp-canales';
 import { enviarPorWhatsapp } from '@/lib/whatsapp-api';
 
 const PLANTILLA = 'pedidos_catalogo_dia_siguiente';
+export const maxDuration = 60;
 
 function crearAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -61,13 +62,18 @@ export async function POST(request: Request) {
   const vistos = new Set<string>();
   let yaEnviados = 0;
   let duplicados = 0;
+  let invalidos = 0;
   const pendientes = (clientes || []).filter((cliente: any) => {
     if (yaEnviadosIds.has(String(cliente.id))) {
       yaEnviados += 1;
       return false;
     }
     const destino = telefono(cliente.telefono);
-    if (destino.length < 11 || vistos.has(destino)) {
+    if (!/^569[0-9]{8}$/.test(destino)) {
+      invalidos += 1;
+      return false;
+    }
+    if (vistos.has(destino)) {
       duplicados += 1;
       return false;
     }
@@ -79,44 +85,59 @@ export async function POST(request: Request) {
   let errores = 0;
   const detalles: { clienteId: string; error: string }[] = [];
 
-  for (let indice = 0; indice < pendientes.length; indice += 5) {
-    const lote = pendientes.slice(indice, indice + 5);
+  for (let indice = 0; indice < pendientes.length; indice += 3) {
+    const lote = pendientes.slice(indice, indice + 3);
     await Promise.all(lote.map(async (cliente: any) => {
       const destino = telefono(cliente.telefono);
       const nombre = String(cliente.sigla || cliente.razon_social || 'Cliente').trim().split(/\s+/)[0];
-      const { respuesta, data, texto } = await enviarPorWhatsapp(canal, {
-        messaging_product: 'whatsapp',
-        to: destino,
-        type: 'template',
-        template: {
-          name: PLANTILLA,
-          language: { code: 'es_CL' },
-          components: [
-            { type: 'header', parameters: [{ type: 'image', image: { link: 'https://panaderiamaruxa.cl/logo-maruxa-meta.png' } }] },
-            { type: 'body', parameters: [{ type: 'text', text: nombre }] },
-          ],
-        },
-      });
-      const messageId = data?.messages?.[0]?.id || null;
-      const error = respuesta.ok ? null : data?.error?.message || texto || 'Error desconocido';
-      await admin.from('whatsapp_eventos').insert({
-        empresa_id: perfil.empresa_id,
-        message_id: messageId,
-        telefono: `+${destino}`,
-        tipo: 'plantilla_cliente',
-        estado: respuesta.ok ? 'aceptado' : 'error',
-        observacion: respuesta.ok
-          ? `Plantilla ${PLANTILLA} enviada a ${cliente.razon_social}.`
-          : error,
-        payload: { direccion: 'saliente', origen: 'campana_clientes', cliente_id: cliente.id, plantilla: PLANTILLA },
-      });
-      if (respuesta.ok) enviados += 1;
-      else {
+      try {
+        const { respuesta, data, texto } = await enviarPorWhatsapp(canal, {
+          messaging_product: 'whatsapp',
+          to: destino,
+          type: 'template',
+          template: {
+            name: PLANTILLA,
+            language: { code: 'es_CL' },
+            components: [
+              { type: 'header', parameters: [{ type: 'image', image: { link: 'https://panaderiamaruxa.cl/logo-maruxa-meta.png' } }] },
+              { type: 'body', parameters: [{ type: 'text', text: nombre }] },
+            ],
+          },
+        });
+        const messageId = data?.messages?.[0]?.id || null;
+        const error = respuesta.ok ? null : data?.error?.message || texto || 'Error desconocido';
+        await admin.from('whatsapp_eventos').insert({
+          empresa_id: perfil.empresa_id,
+          message_id: messageId,
+          telefono: `+${destino}`,
+          tipo: 'plantilla_cliente',
+          estado: respuesta.ok ? 'aceptado' : 'error',
+          observacion: respuesta.ok
+            ? `Plantilla ${PLANTILLA} enviada a ${cliente.razon_social}.`
+            : error,
+          payload: { direccion: 'saliente', origen: 'campana_clientes', cliente_id: cliente.id, plantilla: PLANTILLA },
+        });
+        if (respuesta.ok) enviados += 1;
+        else {
+          errores += 1;
+          detalles.push({ clienteId: cliente.id, error });
+        }
+      } catch (errorEnvio) {
+        const error = errorEnvio instanceof Error ? errorEnvio.message : 'Error de conexión con 360dialog';
         errores += 1;
         detalles.push({ clienteId: cliente.id, error });
+        await admin.from('whatsapp_eventos').insert({
+          empresa_id: perfil.empresa_id,
+          message_id: null,
+          telefono: `+${destino}`,
+          tipo: 'plantilla_cliente',
+          estado: 'error',
+          observacion: error,
+          payload: { direccion: 'saliente', origen: 'campana_clientes', cliente_id: cliente.id, plantilla: PLANTILLA },
+        });
       }
     }));
   }
 
-  return NextResponse.json({ ok: true, enviados, yaEnviados, duplicados, errores, detalles });
+  return NextResponse.json({ ok: true, enviados, yaEnviados, duplicados, invalidos, errores, detalles });
 }

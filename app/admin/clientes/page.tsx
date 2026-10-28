@@ -494,7 +494,7 @@ export default function ClientesPage() {
       return;
     }
     alert(
-      `Campaña terminada. Enviados: ${resultado.enviados}. Ya enviados: ${resultado.yaEnviados}. Duplicados: ${resultado.duplicados}. Errores: ${resultado.errores}.`
+      `Campaña terminada. Enviados: ${resultado.enviados}. Ya enviados: ${resultado.yaEnviados}. Duplicados: ${resultado.duplicados}. Inválidos: ${resultado.invalidos || 0}. Errores: ${resultado.errores}.`
     );
   }
 
