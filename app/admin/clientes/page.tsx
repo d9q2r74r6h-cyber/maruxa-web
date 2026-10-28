@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   BadgeDollarSign,
-  ClipboardList,
   Edit3,
   Loader2,
   Megaphone,
@@ -56,26 +55,6 @@ type EstadoCampana = {
 
 type VerificacionWhatsapp = {
   estado: 'vacio' | 'invalido' | 'consultando' | 'confirmado' | 'sin_confirmar';
-  detalle: string;
-};
-
-type BitacoraDia = {
-  fecha: string;
-  total: number;
-  enviados: number;
-  entregados: number;
-  leidos: number;
-  pendientes: number;
-  errores: number;
-};
-
-type BitacoraEnvio = {
-  id: string;
-  fecha: string;
-  hora: string;
-  cliente: string;
-  telefono: string;
-  estado: string;
   detalle: string;
 };
 
@@ -177,12 +156,6 @@ export default function ClientesPage() {
     estado: 'vacio',
     detalle: '',
   });
-  const [cargandoBitacora, setCargandoBitacora] = useState(false);
-  const [bitacoraRecordatorios, setBitacoraRecordatorios] = useState<{
-    resumen: BitacoraDia[];
-    envios: BitacoraEnvio[];
-  } | null>(null);
-  const [fechaBitacora, setFechaBitacora] = useState('');
 
   async function cargar() {
     if (!perfil) return;
@@ -636,26 +609,6 @@ export default function ClientesPage() {
     setEstadosCampana(resultado.estados || []);
   }
 
-  async function cargarBitacoraRecordatorios() {
-    setCargandoBitacora(true);
-    const { data: sesion } = await supabase.auth.getSession();
-    const respuesta = await fetch('/api/admin/clientes/bitacora-recordatorios', {
-      headers: { Authorization: `Bearer ${sesion.session?.access_token || ''}` },
-    });
-    const resultado = await respuesta.json().catch(() => ({}));
-    setCargandoBitacora(false);
-    if (!respuesta.ok) {
-      alert(resultado.error || 'No se pudo cargar la bitácora de recordatorios.');
-      return;
-    }
-    const resumen = (resultado.resumen || []) as BitacoraDia[];
-    setBitacoraRecordatorios({ resumen, envios: resultado.envios || [] });
-    setFechaBitacora(resumen[0]?.fecha || '');
-  }
-
-  const resumenBitacora = bitacoraRecordatorios?.resumen.find((dia) => dia.fecha === fechaBitacora);
-  const enviosBitacora = (bitacoraRecordatorios?.envios || []).filter((envio) => envio.fecha === fechaBitacora);
-
   return (
     <div className="space-y-6 pb-12">
       <header className="flex flex-wrap items-end justify-between gap-4">
@@ -669,15 +622,6 @@ export default function ClientesPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => void cargarBitacoraRecordatorios()}
-            disabled={cargandoBitacora}
-            className="inline-flex h-11 items-center gap-2 rounded-lg border border-sky-600/30 bg-sky-50 px-4 text-sm font-black text-sky-800 disabled:opacity-50"
-          >
-            {cargandoBitacora ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
-            Bitácora recordatorios
-          </button>
           <button
             type="button"
             onClick={() => void revisarFallosCampana()}
@@ -1273,64 +1217,6 @@ export default function ClientesPage() {
         </div>
       )}
 
-      {bitacoraRecordatorios && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2A1710]/55 p-3 sm:p-6">
-          <section className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
-            <header className="flex flex-wrap items-center justify-between gap-3 border-b bg-sky-50 px-5 py-4">
-              <div>
-                <h2 className="font-black text-[#2A1710]">Bitácora de recordatorios WhatsApp</h2>
-                <p className="text-xs font-bold text-[#4B2818]/60">Envíos automáticos de los últimos 45 días</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <select value={fechaBitacora} onChange={(event) => setFechaBitacora(event.target.value)} className="h-9 rounded-md border bg-white px-3 text-sm font-black">
-                  {bitacoraRecordatorios.resumen.map((dia) => (
-                    <option key={dia.fecha} value={dia.fecha}>{dia.fecha}</option>
-                  ))}
-                </select>
-                <button type="button" onClick={() => setBitacoraRecordatorios(null)} className="grid h-9 w-9 place-items-center rounded-md border bg-white"><X className="h-4 w-4" /></button>
-              </div>
-            </header>
-
-            {resumenBitacora ? (
-              <>
-                <div className="grid grid-cols-2 gap-2 border-b bg-[#FFFDF8] p-4 sm:grid-cols-3 lg:grid-cols-6">
-                  {[
-                    ['Total', resumenBitacora.total, 'text-[#2A1710]'],
-                    ['Enviados', resumenBitacora.enviados, 'text-sky-700'],
-                    ['Entregados', resumenBitacora.entregados, 'text-emerald-700'],
-                    ['Leídos', resumenBitacora.leidos, 'text-emerald-800'],
-                    ['Pendientes', resumenBitacora.pendientes, 'text-amber-700'],
-                    ['Errores', resumenBitacora.errores, 'text-red-700'],
-                  ].map(([etiqueta, cantidad, color]) => (
-                    <div key={String(etiqueta)} className="rounded-lg border bg-white p-3 text-center">
-                      <p className="text-[10px] font-black uppercase text-[#4B2818]/55">{etiqueta}</p>
-                      <p className={`mt-1 text-2xl font-black ${color}`}>{cantidad}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="overflow-y-auto p-4">
-                  <div className="space-y-2">
-                    {enviosBitacora.map((item) => (
-                      <article key={item.id} className={`rounded-lg border p-3 ${['error', 'failed'].includes(item.estado) ? 'border-red-200 bg-red-50' : ['delivered', 'read'].includes(item.estado) ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div>
-                            <p className="font-black text-[#2A1710]">{item.cliente}</p>
-                            <p className="text-xs font-bold text-[#4B2818]/55">{item.telefono} · {item.hora}</p>
-                          </div>
-                          <span className="rounded-full bg-white px-2 py-1 text-[10px] font-black uppercase">{item.estado}</span>
-                        </div>
-                        <p className="mt-2 break-words text-sm font-semibold text-[#4B2818]/75">{item.detalle}</p>
-                      </article>
-                    ))}
-                  </div>
-                </div>
-              </>
-            ) : (
-              <p className="p-12 text-center font-bold text-[#4B2818]/60">Aún no hay recordatorios automáticos registrados.</p>
-            )}
-          </section>
-        </div>
-      )}
     </div>
   );
 }
