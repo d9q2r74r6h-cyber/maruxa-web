@@ -7,6 +7,14 @@
     {
       "path": "/api/admin/licitaciones/notificar",
       "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/admin/clientes/recordatorio-diario",
+      "schedule": "0 22 * * *"
+    },
+    {
+      "path": "/api/admin/clientes/recordatorio-diario",
+      "schedule": "0 23 * * *"
     }
   ]
 }
