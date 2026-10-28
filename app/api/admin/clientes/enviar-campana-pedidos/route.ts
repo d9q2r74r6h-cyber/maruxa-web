@@ -85,9 +85,7 @@ export async function POST(request: Request) {
   let errores = 0;
   const detalles: { clienteId: string; error: string }[] = [];
 
-  for (let indice = 0; indice < pendientes.length; indice += 3) {
-    const lote = pendientes.slice(indice, indice + 3);
-    await Promise.all(lote.map(async (cliente: any) => {
+  for (const cliente of pendientes) {
       const destino = telefono(cliente.telefono);
       const nombre = String(cliente.sigla || cliente.razon_social || 'Cliente').trim().split(/\s+/)[0];
       try {
@@ -128,7 +126,7 @@ export async function POST(request: Request) {
         detalles.push({ clienteId: cliente.id, error });
         await admin.from('whatsapp_eventos').insert({
           empresa_id: perfil.empresa_id,
-          message_id: null,
+          message_id: `campana-error-${crypto.randomUUID()}`,
           telefono: `+${destino}`,
           tipo: 'plantilla_cliente',
           estado: 'error',
@@ -136,7 +134,7 @@ export async function POST(request: Request) {
           payload: { direccion: 'saliente', origen: 'campana_clientes', cliente_id: cliente.id, plantilla: PLANTILLA },
         });
       }
-    }));
+      await new Promise((resolver) => setTimeout(resolver, 250));
   }
 
   return NextResponse.json({ ok: true, enviados, yaEnviados, duplicados, invalidos, errores, detalles });

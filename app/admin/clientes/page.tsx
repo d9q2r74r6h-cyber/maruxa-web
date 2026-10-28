@@ -493,8 +493,12 @@ export default function ClientesPage() {
       alert(resultado.error || 'No se pudo ejecutar la campaña.');
       return;
     }
+    const ejemplosErrores = (resultado.detalles || [])
+      .slice(0, 3)
+      .map((item: { error: string }) => `• ${item.error}`)
+      .join('\n');
     alert(
-      `Campaña terminada. Enviados: ${resultado.enviados}. Ya enviados: ${resultado.yaEnviados}. Duplicados: ${resultado.duplicados}. Inválidos: ${resultado.invalidos || 0}. Errores: ${resultado.errores}.`
+      `Campaña terminada. Enviados: ${resultado.enviados}. Ya enviados: ${resultado.yaEnviados}. Duplicados: ${resultado.duplicados}. Inválidos: ${resultado.invalidos || 0}. Errores: ${resultado.errores}.${ejemplosErrores ? `\n\nPrimeros errores:\n${ejemplosErrores}` : ''}`
     );
   }
 
