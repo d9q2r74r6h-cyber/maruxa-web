@@ -20,12 +20,11 @@ export async function GET(request: Request) {
 
   const { data: eventos, error } = await admin
     .from('whatsapp_eventos')
-    .select('id,telefono,observacion,created_at,payload')
+    .select('id,telefono,observacion,created_at,payload,estado')
     .eq('empresa_id', perfil.empresa_id)
     .eq('tipo', 'plantilla_cliente')
-    .in('estado', ['error', 'failed'])
     .order('created_at', { ascending: false })
-    .limit(100);
+    .limit(500);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const ids = [...new Set((eventos || []).map((item: any) => item.payload?.cliente_id).filter(Boolean))];
@@ -34,12 +33,19 @@ export async function GET(request: Request) {
     : { data: [] };
   const nombres = new Map((clientes || []).map((cliente: any) => [String(cliente.id), cliente.razon_social]));
 
+  const ultimosPorCliente = new Map<string, any>();
+  for (const evento of eventos || []) {
+    const clave = String((evento as any).payload?.cliente_id || (evento as any).telefono || (evento as any).id);
+    if (!ultimosPorCliente.has(clave)) ultimosPorCliente.set(clave, evento);
+  }
+
   return NextResponse.json({
-    errores: (eventos || []).map((evento: any) => ({
+    estados: [...ultimosPorCliente.values()].map((evento: any) => ({
       id: evento.id,
       cliente: nombres.get(String(evento.payload?.cliente_id || '')) || 'Cliente no identificado',
       telefono: evento.telefono || '-',
-      error: evento.observacion || 'Error sin detalle',
+      estado: evento.estado || 'desconocido',
+      detalle: evento.observacion || 'Sin detalle adicional',
       fecha: evento.created_at,
     })),
   });

@@ -44,11 +44,12 @@ type ProductoPrecio = {
   precio: number | null;
 };
 
-type ErrorCampana = {
+type EstadoCampana = {
   id: string;
   cliente: string;
   telefono: string;
-  error: string;
+  estado: string;
+  detalle: string;
   fecha: string;
 };
 
@@ -140,7 +141,7 @@ export default function ClientesPage() {
   );
   const [clienteEnviandoPlantilla, setClienteEnviandoPlantilla] = useState<string | null>(null);
   const [enviandoCampana, setEnviandoCampana] = useState(false);
-  const [erroresCampana, setErroresCampana] = useState<ErrorCampana[] | null>(null);
+  const [estadosCampana, setEstadosCampana] = useState<EstadoCampana[] | null>(null);
   const [cargandoErroresCampana, setCargandoErroresCampana] = useState(false);
 
   async function cargar() {
@@ -509,7 +510,7 @@ export default function ClientesPage() {
       alert(resultado.error || 'No se pudieron consultar los fallos.');
       return;
     }
-    setErroresCampana(resultado.errores || []);
+    setEstadosCampana(resultado.estados || []);
   }
 
   return (
@@ -532,7 +533,7 @@ export default function ClientesPage() {
             className="inline-flex h-11 items-center gap-2 rounded-lg border border-amber-600/30 bg-amber-50 px-4 text-sm font-black text-amber-800 disabled:opacity-50"
           >
             {cargandoErroresCampana ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertTriangle className="h-4 w-4" />}
-            Revisar fallos
+            Estado campaña
           </button>
           <button
             type="button"
@@ -1016,28 +1017,31 @@ export default function ClientesPage() {
         </div>
       )}
 
-      {erroresCampana && (
+      {estadosCampana && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2A1710]/55 p-3 sm:p-6">
           <section className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
             <header className="flex items-center justify-between border-b bg-amber-50 px-5 py-4">
               <div>
-                <h2 className="font-black text-[#2A1710]">Fallos de campañas WhatsApp</h2>
-                <p className="text-xs font-bold text-[#4B2818]/60">{erroresCampana.length} registros recientes</p>
+                <h2 className="font-black text-[#2A1710]">Estado de campaña WhatsApp</h2>
+                <p className="text-xs font-bold text-[#4B2818]/60">Último estado de {estadosCampana.length} clientes</p>
               </div>
-              <button type="button" onClick={() => setErroresCampana(null)} className="grid h-9 w-9 place-items-center rounded-md border bg-white"><X className="h-4 w-4" /></button>
+              <button type="button" onClick={() => setEstadosCampana(null)} className="grid h-9 w-9 place-items-center rounded-md border bg-white"><X className="h-4 w-4" /></button>
             </header>
             <div className="overflow-y-auto p-4">
-              {erroresCampana.length === 0 ? (
-                <p className="p-8 text-center font-bold text-emerald-700">No hay fallos registrados.</p>
+              {estadosCampana.length === 0 ? (
+                <p className="p-8 text-center font-bold text-[#4B2818]/60">No hay envíos registrados.</p>
               ) : (
                 <div className="space-y-3">
-                  {erroresCampana.map((item) => (
-                    <article key={item.id} className="rounded-lg border border-red-200 bg-red-50 p-3">
+                  {estadosCampana.map((item) => (
+                    <article key={item.id} className={`rounded-lg border p-3 ${['error','failed'].includes(item.estado) ? 'border-red-200 bg-red-50' : ['delivered','read'].includes(item.estado) ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
                       <div className="flex flex-wrap justify-between gap-2">
                         <p className="font-black text-[#2A1710]">{item.cliente}</p>
-                        <p className="text-xs font-bold text-[#4B2818]/60">{item.telefono}</p>
+                        <div className="flex items-center gap-2">
+                          <span className="rounded-full bg-white px-2 py-1 text-[10px] font-black uppercase">{item.estado}</span>
+                          <p className="text-xs font-bold text-[#4B2818]/60">{item.telefono}</p>
+                        </div>
                       </div>
-                      <p className="mt-2 break-words text-sm font-semibold text-red-800">{item.error}</p>
+                      <p className="mt-2 break-words text-sm font-semibold text-[#4B2818]/75">{item.detalle}</p>
                     </article>
                   ))}
                 </div>
