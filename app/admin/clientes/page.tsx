@@ -53,6 +53,11 @@ type EstadoCampana = {
   fecha: string;
 };
 
+type VerificacionWhatsapp = {
+  estado: 'vacio' | 'invalido' | 'consultando' | 'confirmado' | 'sin_confirmar';
+  detalle: string;
+};
+
 const inicial = {
   rut: '',
   razon_social: '',
@@ -147,6 +152,10 @@ export default function ClientesPage() {
   const [enviandoCampana, setEnviandoCampana] = useState(false);
   const [estadosCampana, setEstadosCampana] = useState<EstadoCampana[] | null>(null);
   const [cargandoErroresCampana, setCargandoErroresCampana] = useState(false);
+  const [verificacionWhatsapp, setVerificacionWhatsapp] = useState<VerificacionWhatsapp>({
+    estado: 'vacio',
+    detalle: '',
+  });
 
   async function cargar() {
     if (!perfil) return;
@@ -166,6 +175,52 @@ export default function ClientesPage() {
   useEffect(() => {
     cargar();
   }, [perfil]);
+
+  useEffect(() => {
+    const digitos = form.telefono.replace(/\D/g, '');
+    const normalizado = digitos.length === 9 && digitos.startsWith('9') ? `56${digitos}` : digitos;
+
+    if (!digitos) {
+      setVerificacionWhatsapp({ estado: 'vacio', detalle: '' });
+      return;
+    }
+    if (!/^569\d{8}$/.test(normalizado)) {
+      setVerificacionWhatsapp({
+        estado: 'invalido',
+        detalle: 'Ingresa un celular chileno válido, por ejemplo +56 9 1234 5678.',
+      });
+      return;
+    }
+
+    const controlador = new AbortController();
+    const espera = window.setTimeout(async () => {
+      setVerificacionWhatsapp({ estado: 'consultando', detalle: 'Buscando actividad registrada…' });
+      const { data: sesion } = await supabase.auth.getSession();
+      try {
+        const respuesta = await fetch(`/api/admin/clientes/verificar-whatsapp?telefono=${encodeURIComponent(normalizado)}`, {
+          headers: { Authorization: `Bearer ${sesion.session?.access_token || ''}` },
+          signal: controlador.signal,
+        });
+        const resultado = await respuesta.json().catch(() => ({}));
+        if (!respuesta.ok) throw new Error(resultado.error || 'No se pudo verificar el número.');
+        setVerificacionWhatsapp({
+          estado: resultado.confirmado ? 'confirmado' : 'sin_confirmar',
+          detalle: resultado.detalle,
+        });
+      } catch (error) {
+        if (controlador.signal.aborted) return;
+        setVerificacionWhatsapp({
+          estado: 'sin_confirmar',
+          detalle: error instanceof Error ? error.message : 'No se pudo verificar el número.',
+        });
+      }
+    }, 600);
+
+    return () => {
+      window.clearTimeout(espera);
+      controlador.abort();
+    };
+  }, [form.telefono]);
 
   const repartidores = useMemo(() => {
     return repartidoresBase;
@@ -641,6 +696,23 @@ export default function ClientesPage() {
                   <span className="rounded-md bg-red-50 px-2 py-1 text-xs font-black text-red-700">
                     Este RUT ya existe: {clienteRutExistente.razon_social}
                     {clienteRutExistente.activo ? ' (activo)' : ' (inactivo)'}.
+                  </span>
+                )}
+                {campo === 'telefono' && verificacionWhatsapp.estado !== 'vacio' && (
+                  <span
+                    className={`rounded-md px-2 py-1.5 text-xs font-black ${
+                      verificacionWhatsapp.estado === 'confirmado'
+                        ? 'bg-emerald-50 text-emerald-700'
+                        : verificacionWhatsapp.estado === 'consultando'
+                          ? 'bg-sky-50 text-sky-700'
+                          : verificacionWhatsapp.estado === 'invalido'
+                            ? 'bg-red-50 text-red-700'
+                            : 'bg-amber-50 text-amber-800'
+                    }`}
+                  >
+                    {verificacionWhatsapp.estado === 'consultando' && <Loader2 className="mr-1 inline h-3.5 w-3.5 animate-spin" />}
+                    {verificacionWhatsapp.estado === 'confirmado' ? 'WhatsApp confirmado: ' : verificacionWhatsapp.estado === 'sin_confirmar' ? 'WhatsApp sin confirmar: ' : ''}
+                    {verificacionWhatsapp.detalle}
                   </span>
                 )}
               </label>
