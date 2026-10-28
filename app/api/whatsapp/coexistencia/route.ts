@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { obtenerCanalesWhatsapp } from '@/lib/whatsapp-canales';
 
 const META_APP_ID = '883388000861812';
 const GRAPH_VERSION = 'v23.0';
@@ -16,6 +17,39 @@ function crearAdmin() {
 
 function soloDigitos(valor: unknown) {
   return String(valor || '').replace(/\D/g, '');
+}
+
+export async function GET(request: Request) {
+  const admin = crearAdmin();
+  const accessTokenSesion = request.headers
+    .get('authorization')
+    ?.replace(/^Bearer\s+/i, '');
+
+  if (!admin || !accessTokenSesion) {
+    return NextResponse.json({ error: 'Sesion requerida.' }, { status: 401 });
+  }
+
+  const { data: autenticacion } = await admin.auth.getUser(accessTokenSesion);
+  if (!autenticacion.user) {
+    return NextResponse.json({ error: 'Sesion invalida.' }, { status: 401 });
+  }
+
+  const { data: perfil } = await admin
+    .from('perfiles_usuario')
+    .select('activo,rol')
+    .eq('id', autenticacion.user.id)
+    .maybeSingle();
+  if (!perfil?.activo || !String(perfil.rol || '').toLowerCase().includes('admin')) {
+    return NextResponse.json({ error: 'Acceso denegado.' }, { status: 403 });
+  }
+
+  const canal = obtenerCanalesWhatsapp().find((item) => item.proveedor === '360dialog');
+  return NextResponse.json({
+    conectado: Boolean(canal),
+    telefono: canal?.telefonoVisible || null,
+    phoneNumberId: canal?.phoneNumberId || null,
+    proveedor: canal?.proveedor || null,
+  });
 }
 
 export async function POST(request: Request) {

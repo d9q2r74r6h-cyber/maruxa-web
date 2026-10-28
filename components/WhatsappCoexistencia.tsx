@@ -38,6 +38,8 @@ declare global {
 export default function WhatsappCoexistencia() {
   const [sdkListo, setSdkListo] = useState(false);
   const [conectando, setConectando] = useState(false);
+  const [estadoConexion, setEstadoConexion] = useState<'cargando' | 'conectado' | 'desconectado'>('cargando');
+  const [telefonoConectado, setTelefonoConectado] = useState<string | null>(null);
   const [resultado, setResultado] = useState<{
     phoneNumberId?: string | null;
     telefono?: string | null;
@@ -45,6 +47,34 @@ export default function WhatsappCoexistencia() {
   const [errorMeta, setErrorMeta] = useState<string | null>(null);
   const datosSignupRef = useRef<EmbeddedSignupData>({});
   const errorMetaRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    let activo = true;
+    async function consultarConexion() {
+      const { data: sesion } = await supabase.auth.getSession();
+      if (!sesion.session) {
+        if (activo) setEstadoConexion('desconectado');
+        return;
+      }
+      try {
+        const respuesta = await fetch('/api/whatsapp/coexistencia', {
+          headers: { Authorization: `Bearer ${sesion.session.access_token}` },
+          cache: 'no-store',
+        });
+        const datos = await respuesta.json().catch(() => ({}));
+        if (!respuesta.ok) throw new Error(datos.error || 'No se pudo consultar la conexión.');
+        if (!activo) return;
+        setEstadoConexion(datos.conectado ? 'conectado' : 'desconectado');
+        setTelefonoConectado(datos.telefono || null);
+      } catch {
+        if (activo) setEstadoConexion('desconectado');
+      }
+    }
+    void consultarConexion();
+    return () => {
+      activo = false;
+    };
+  }, []);
 
   useEffect(() => {
     function recibirMensaje(evento: MessageEvent) {
@@ -129,6 +159,8 @@ export default function WhatsappCoexistencia() {
     if (!respuesta.ok) throw new Error(datos.error || 'No se pudo completar la conexion.');
 
     setResultado(datos);
+    setEstadoConexion('conectado');
+    setTelefonoConectado(datos.telefono || null);
     toast.success('5041 autorizado y suscrito al webhook.');
   }
 
@@ -181,15 +213,27 @@ export default function WhatsappCoexistencia() {
             Autoriza coexistencia sin desconectar la aplicacion WhatsApp Business del telefono.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={conectar}
-          disabled={!sdkListo || conectando}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-[#A51F2B] px-4 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {conectando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
-          {conectando ? 'Conectando...' : 'Conectar 5041 a la web'}
-        </button>
+        {estadoConexion === 'cargando' ? (
+          <span className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-slate-100 px-4 text-xs font-black text-slate-600">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Comprobando conexión…
+          </span>
+        ) : estadoConexion === 'conectado' ? (
+          <span className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-emerald-100 px-4 text-xs font-black text-emerald-800">
+            <Link2 className="h-4 w-4" />
+            {telefonoConectado || 'WhatsApp 5041'} conectado
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={conectar}
+            disabled={!sdkListo || conectando}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-[#A51F2B] px-4 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {conectando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+            {conectando ? 'Conectando...' : 'Conectar 5041 a la web'}
+          </button>
+        )}
       </div>
       {resultado && (
         <p className="mt-3 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800">
