@@ -89,7 +89,7 @@ export async function POST(request: Request) {
       const destino = telefono(cliente.telefono);
       const nombre = String(cliente.sigla || cliente.razon_social || 'Cliente').trim().split(/\s+/)[0];
       try {
-        const { respuesta, data, texto } = await enviarPorWhatsapp(canal, {
+        const payload = {
           messaging_product: 'whatsapp',
           to: destino,
           type: 'template',
@@ -101,12 +101,18 @@ export async function POST(request: Request) {
               { type: 'body', parameters: [{ type: 'text', text: nombre }] },
             ],
           },
-        });
+        };
+        let resultado = await enviarPorWhatsapp(canal, payload);
+        for (let intento = 1; intento <= 2 && (resultado.respuesta.status === 429 || resultado.respuesta.status >= 500); intento += 1) {
+          await new Promise((resolver) => setTimeout(resolver, intento * 2000));
+          resultado = await enviarPorWhatsapp(canal, payload);
+        }
+        const { respuesta, data, texto } = resultado;
         const messageId = data?.messages?.[0]?.id || null;
-        const error = respuesta.ok ? null : data?.error?.message || texto || 'Error desconocido';
+        const error = respuesta.ok ? null : `HTTP ${respuesta.status}: ${data?.error?.message || texto || 'Error desconocido'}`;
         await admin.from('whatsapp_eventos').insert({
           empresa_id: perfil.empresa_id,
-          message_id: messageId,
+          message_id: messageId || `campana-error-${crypto.randomUUID()}`,
           telefono: `+${destino}`,
           tipo: 'plantilla_cliente',
           estado: respuesta.ok ? 'aceptado' : 'error',
@@ -134,7 +140,7 @@ export async function POST(request: Request) {
           payload: { direccion: 'saliente', origen: 'campana_clientes', cliente_id: cliente.id, plantilla: PLANTILLA },
         });
       }
-      await new Promise((resolver) => setTimeout(resolver, 250));
+      await new Promise((resolver) => setTimeout(resolver, 1000));
   }
 
   return NextResponse.json({ ok: true, enviados, yaEnviados, duplicados, invalidos, errores, detalles });
