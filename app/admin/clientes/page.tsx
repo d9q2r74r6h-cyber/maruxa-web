@@ -139,7 +139,11 @@ export default function ClientesPage() {
   const [clienteCambiandoEstado, setClienteCambiandoEstado] = useState<string | null>(
     null
   );
-  const [clienteEnviandoPlantilla, setClienteEnviandoPlantilla] = useState<string | null>(null);
+  const [clienteMensaje, setClienteMensaje] = useState<Cliente | null>(null);
+  const [tipoMensaje, setTipoMensaje] = useState<'plantilla' | 'libre'>('plantilla');
+  const [plantillaMensaje, setPlantillaMensaje] = useState('pedidos_catalogo_dia_siguiente');
+  const [mensajeLibre, setMensajeLibre] = useState('');
+  const [enviandoMensaje, setEnviandoMensaje] = useState(false);
   const [enviandoCampana, setEnviandoCampana] = useState(false);
   const [estadosCampana, setEstadosCampana] = useState<EstadoCampana[] | null>(null);
   const [cargandoErroresCampana, setCargandoErroresCampana] = useState(false);
@@ -444,28 +448,39 @@ export default function ClientesPage() {
     }
   }
 
-  async function enviarPlantillaInicial(cliente: Cliente) {
-    if (!cliente.telefono || !cliente.whatsapp_pedidos_autorizado) return;
-    if (!window.confirm(`Se enviará la plantilla inicial únicamente a ${cliente.razon_social} (${cliente.telefono}). ¿Continuar?`)) return;
+  async function enviarMensajeIndividual() {
+    if (!clienteMensaje?.telefono) return;
+    if (tipoMensaje === 'libre' && !mensajeLibre.trim()) {
+      alert('Escribe el mensaje que deseas enviar.');
+      return;
+    }
+    if (!window.confirm(`Se enviará un mensaje únicamente a ${clienteMensaje.razon_social} (${clienteMensaje.telefono}). ¿Continuar?`)) return;
 
-    setClienteEnviandoPlantilla(cliente.id);
+    setEnviandoMensaje(true);
     const { data: sesion } = await supabase.auth.getSession();
-    const respuesta = await fetch('/api/admin/clientes/enviar-plantilla-pedidos', {
+    const respuesta = await fetch('/api/admin/clientes/enviar-whatsapp', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${sesion.session?.access_token || ''}`,
       },
-      body: JSON.stringify({ clienteId: cliente.id }),
+      body: JSON.stringify({
+        clienteId: clienteMensaje.id,
+        tipo: tipoMensaje,
+        plantilla: plantillaMensaje,
+        mensaje: mensajeLibre.trim(),
+      }),
     });
     const resultado = await respuesta.json().catch(() => ({}));
-    setClienteEnviandoPlantilla(null);
+    setEnviandoMensaje(false);
 
     if (!respuesta.ok) {
-      alert(resultado.error || 'No se pudo enviar la plantilla.');
+      alert(resultado.error || 'No se pudo enviar el mensaje.');
       return;
     }
-    alert(`Plantilla enviada a ${cliente.razon_social}.`);
+    alert(`Mensaje enviado a ${clienteMensaje.razon_social}.`);
+    setClienteMensaje(null);
+    setMensajeLibre('');
   }
 
   async function enviarCampanaInicial() {
@@ -858,16 +873,16 @@ export default function ClientesPage() {
                     {cliente.whatsapp_pedidos_autorizado && cliente.telefono && (
                       <button
                         type="button"
-                        onClick={() => void enviarPlantillaInicial(cliente)}
-                        disabled={clienteEnviandoPlantilla === cliente.id}
+                        onClick={() => {
+                          setClienteMensaje(cliente);
+                          setTipoMensaje('plantilla');
+                          setPlantillaMensaje('pedidos_catalogo_dia_siguiente');
+                          setMensajeLibre('');
+                        }}
                         className="grid h-9 w-9 place-items-center rounded-md border border-emerald-600/25 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
-                        title="Enviar plantilla inicial de pedidos"
+                        title="Enviar mensaje individual"
                       >
-                        {clienteEnviandoPlantilla === cliente.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Send className="h-4 w-4" />
-                        )}
+                        <Send className="h-4 w-4" />
                       </button>
                     )}
                     <button
@@ -1040,6 +1055,51 @@ export default function ClientesPage() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {clienteMensaje && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2A1710]/55 p-3 sm:p-6">
+          <section className="w-full max-w-xl overflow-hidden rounded-xl bg-white shadow-2xl">
+            <header className="flex items-center justify-between border-b bg-emerald-50 px-5 py-4">
+              <div>
+                <h2 className="font-black text-[#2A1710]">Enviar mensaje individual</h2>
+                <p className="mt-1 text-xs font-bold text-[#4B2818]/60">{clienteMensaje.razon_social} · {clienteMensaje.telefono}</p>
+              </div>
+              <button type="button" disabled={enviandoMensaje} onClick={() => setClienteMensaje(null)} className="grid h-9 w-9 place-items-center rounded-md border bg-white disabled:opacity-50"><X className="h-4 w-4" /></button>
+            </header>
+            <div className="space-y-4 p-5">
+              <div className="grid grid-cols-2 gap-2 rounded-lg bg-[#FFF3DF] p-1">
+                <button type="button" onClick={() => setTipoMensaje('plantilla')} className={`rounded-md px-3 py-2 text-sm font-black ${tipoMensaje === 'plantilla' ? 'bg-white text-[#A51F2B] shadow-sm' : 'text-[#4B2818]/60'}`}>Plantilla aprobada</button>
+                <button type="button" onClick={() => setTipoMensaje('libre')} className={`rounded-md px-3 py-2 text-sm font-black ${tipoMensaje === 'libre' ? 'bg-white text-[#A51F2B] shadow-sm' : 'text-[#4B2818]/60'}`}>Mensaje libre</button>
+              </div>
+
+              {tipoMensaje === 'plantilla' ? (
+                <label className="grid gap-2 text-sm font-black text-[#2A1710]">
+                  Plantilla
+                  <select value={plantillaMensaje} onChange={(event) => setPlantillaMensaje(event.target.value)} className="h-11 rounded-md border bg-white px-3 font-bold">
+                    <option value="pedidos_catalogo_dia_siguiente">Activación del catálogo de pedidos</option>
+                    <option value="recordatorio_pedido_manana">Recordatorio de pedido para mañana</option>
+                  </select>
+                  <span className="text-xs font-semibold text-[#4B2818]/60">El nombre del cliente reemplazará automáticamente la variable {'{{1}}'}.</span>
+                </label>
+              ) : (
+                <label className="grid gap-2 text-sm font-black text-[#2A1710]">
+                  Mensaje
+                  <textarea value={mensajeLibre} onChange={(event) => setMensajeLibre(event.target.value)} rows={6} maxLength={4096} placeholder="Escribe el mensaje…" className="resize-none rounded-md border p-3 font-semibold outline-none focus:border-[#A51F2B]" />
+                  <span className="text-xs font-semibold text-[#4B2818]/60">Solo puede enviarse si el cliente escribió durante las últimas 24 horas.</span>
+                </label>
+              )}
+
+              <div className="flex justify-end gap-2 border-t pt-4">
+                <button type="button" disabled={enviandoMensaje} onClick={() => setClienteMensaje(null)} className="h-10 rounded-md border px-4 text-sm font-black">Cancelar</button>
+                <button type="button" disabled={enviandoMensaje} onClick={() => void enviarMensajeIndividual()} className="inline-flex h-10 items-center gap-2 rounded-md bg-emerald-700 px-5 text-sm font-black text-white disabled:opacity-50">
+                  {enviandoMensaje ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  Enviar mensaje
+                </button>
+              </div>
+            </div>
+          </section>
         </div>
       )}
 
