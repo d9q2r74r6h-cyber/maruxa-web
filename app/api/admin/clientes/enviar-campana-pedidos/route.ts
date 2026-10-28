@@ -37,6 +37,11 @@ export async function POST(request: Request) {
   const canal = obtenerCanalesWhatsapp().find((item) => item.proveedor === '360dialog');
   if (!canal) return NextResponse.json({ error: 'El canal 360dialog no está configurado.' }, { status: 503 });
 
+  const cuerpo = await request.json().catch(() => ({}));
+  const excluirIds = new Set(
+    Array.isArray(cuerpo.excluirIds) ? cuerpo.excluirIds.map(String).slice(0, 500) : []
+  );
+
   const [{ data: clientes }, { data: enviosPrevios }] = await Promise.all([
     admin
       .from('clientes')
@@ -64,6 +69,7 @@ export async function POST(request: Request) {
   let duplicados = 0;
   let invalidos = 0;
   const pendientes = (clientes || []).filter((cliente: any) => {
+    if (excluirIds.has(String(cliente.id))) return false;
     if (yaEnviadosIds.has(String(cliente.id))) {
       yaEnviados += 1;
       return false;
@@ -80,12 +86,15 @@ export async function POST(request: Request) {
     vistos.add(destino);
     return true;
   });
+  const lote = pendientes.slice(0, 4);
 
   let enviados = 0;
   let errores = 0;
   const detalles: { clienteId: string; error: string }[] = [];
 
-  for (const cliente of pendientes) {
+  const procesadosIds: string[] = [];
+  for (const cliente of lote) {
+      procesadosIds.push(String(cliente.id));
       const destino = telefono(cliente.telefono);
       const nombre = String(cliente.sigla || cliente.razon_social || 'Cliente').trim().split(/\s+/)[0];
       try {
@@ -143,5 +152,15 @@ export async function POST(request: Request) {
       await new Promise((resolver) => setTimeout(resolver, 1000));
   }
 
-  return NextResponse.json({ ok: true, enviados, yaEnviados, duplicados, invalidos, errores, detalles });
+  return NextResponse.json({
+    ok: true,
+    enviados,
+    yaEnviados,
+    duplicados,
+    invalidos,
+    errores,
+    detalles,
+    procesadosIds,
+    pendientesRestantes: Math.max(0, pendientes.length - lote.length),
+  });
 }

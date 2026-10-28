@@ -480,25 +480,47 @@ export default function ClientesPage() {
 
     setEnviandoCampana(true);
     const { data: sesion } = await supabase.auth.getSession();
-    const respuesta = await fetch('/api/admin/clientes/enviar-campana-pedidos', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${sesion.session?.access_token || ''}`,
-      },
-    });
-    const resultado = await respuesta.json().catch(() => ({}));
+    const totales = { enviados: 0, yaEnviados: 0, duplicados: 0, invalidos: 0, errores: 0 };
+    const detalles: { error: string }[] = [];
+    const excluirIds: string[] = [];
+    let pendientesRestantes = 1;
+    let errorCampana = '';
+
+    for (let bloque = 0; bloque < 30 && pendientesRestantes > 0; bloque += 1) {
+      const respuesta = await fetch('/api/admin/clientes/enviar-campana-pedidos', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${sesion.session?.access_token || ''}`,
+        },
+        body: JSON.stringify({ excluirIds }),
+      });
+      const resultado = await respuesta.json().catch(() => ({}));
+      if (!respuesta.ok) {
+        errorCampana = resultado.error || 'No se pudo ejecutar uno de los bloques de la campaña.';
+        break;
+      }
+      totales.enviados += Number(resultado.enviados || 0);
+      totales.errores += Number(resultado.errores || 0);
+      totales.yaEnviados = Math.max(totales.yaEnviados, Number(resultado.yaEnviados || 0));
+      totales.duplicados = Math.max(totales.duplicados, Number(resultado.duplicados || 0));
+      totales.invalidos = Math.max(totales.invalidos, Number(resultado.invalidos || 0));
+      detalles.push(...(resultado.detalles || []));
+      excluirIds.push(...(resultado.procesadosIds || []));
+      pendientesRestantes = Number(resultado.pendientesRestantes || 0);
+    }
     setEnviandoCampana(false);
 
-    if (!respuesta.ok) {
-      alert(resultado.error || 'No se pudo ejecutar la campaña.');
+    if (errorCampana) {
+      alert(`${errorCampana}\n\nAntes de la interrupción: enviados ${totales.enviados}, errores ${totales.errores}.`);
       return;
     }
-    const ejemplosErrores = (resultado.detalles || [])
+    const ejemplosErrores = detalles
       .slice(0, 3)
       .map((item: { error: string }) => `• ${item.error}`)
       .join('\n');
     alert(
-      `Campaña terminada. Enviados: ${resultado.enviados}. Ya enviados: ${resultado.yaEnviados}. Duplicados: ${resultado.duplicados}. Inválidos: ${resultado.invalidos || 0}. Errores: ${resultado.errores}.${ejemplosErrores ? `\n\nPrimeros errores:\n${ejemplosErrores}` : ''}`
+      `Campaña terminada. Enviados: ${totales.enviados}. Ya enviados: ${totales.yaEnviados}. Duplicados: ${totales.duplicados}. Inválidos: ${totales.invalidos}. Errores: ${totales.errores}.${ejemplosErrores ? `\n\nPrimeros errores:\n${ejemplosErrores}` : ''}`
     );
   }
 
