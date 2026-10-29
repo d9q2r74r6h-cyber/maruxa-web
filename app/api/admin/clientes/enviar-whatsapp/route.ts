@@ -20,6 +20,26 @@ function telefono(valor: string | null | undefined) {
   return digitos.length === 9 && digitos.startsWith('9') ? `56${digitos}` : digitos;
 }
 
+function fechaMananaChile() {
+  const partes = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Santiago',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const valor = (tipo: Intl.DateTimeFormatPartTypes) =>
+    partes.find((parte) => parte.type === tipo)?.value || '';
+  const manana = new Date(
+    Date.UTC(Number(valor('year')), Number(valor('month')) - 1, Number(valor('day')) + 1, 12)
+  );
+  return new Intl.DateTimeFormat('es-CL', {
+    timeZone: 'UTC',
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  }).format(manana).replace(',', '');
+}
+
 export async function POST(request: Request) {
   const admin = crearAdmin();
   const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
@@ -77,7 +97,11 @@ export async function POST(request: Request) {
         parameters: [{ type: 'image', image: { link: 'https://panaderiamaruxa.cl/logo-maruxa-meta.png' } }],
       });
     }
-    components.push({ type: 'body', parameters: [{ type: 'text', text: nombre }] });
+    const parametrosCuerpo: Record<string, unknown>[] = [{ type: 'text', text: nombre }];
+    if (plantilla === 'recordatorio_pedido_manana') {
+      parametrosCuerpo.push({ type: 'text', text: fechaMananaChile() });
+    }
+    components.push({ type: 'body', parameters: parametrosCuerpo });
     payload = {
       messaging_product: 'whatsapp',
       to: destino,

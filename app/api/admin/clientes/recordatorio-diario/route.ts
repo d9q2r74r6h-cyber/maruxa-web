@@ -38,6 +38,26 @@ function momentoChile() {
   };
 }
 
+function fechaMananaChile() {
+  const partes = new Intl.DateTimeFormat('en-CA', {
+    timeZone: ZONA_HORARIA,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const valor = (tipo: Intl.DateTimeFormatPartTypes) =>
+    partes.find((parte) => parte.type === tipo)?.value || '';
+  const manana = new Date(
+    Date.UTC(Number(valor('year')), Number(valor('month')) - 1, Number(valor('day')) + 1, 12)
+  );
+  return new Intl.DateTimeFormat('es-CL', {
+    timeZone: 'UTC',
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  }).format(manana).replace(',', '');
+}
+
 function autorizado(request: Request) {
   const secreto = process.env.CRON_SECRET;
   const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
@@ -50,6 +70,7 @@ export async function GET(request: Request) {
   }
 
   const momento = momentoChile();
+  const fechaEntrega = fechaMananaChile();
   if (momento.hora !== 19 || momento.dia === 'Sat') {
     return NextResponse.json({
       ok: true,
@@ -126,7 +147,13 @@ export async function GET(request: Request) {
         name: PLANTILLA,
         language: { code: 'es_CL' },
         components: [
-          { type: 'body', parameters: [{ type: 'text', text: nombre }] },
+          {
+            type: 'body',
+            parameters: [
+              { type: 'text', text: nombre },
+              { type: 'text', text: fechaEntrega },
+            ],
+          },
         ],
       },
     };
@@ -161,6 +188,7 @@ export async function GET(request: Request) {
           cliente_id: cliente.id,
           plantilla: PLANTILLA,
           fecha_local: momento.fecha,
+          fecha_entrega: fechaEntrega,
         },
       });
       if (respuesta.ok) enviados += 1;
@@ -180,6 +208,7 @@ export async function GET(request: Request) {
           cliente_id: cliente.id,
           plantilla: PLANTILLA,
           fecha_local: momento.fecha,
+          fecha_entrega: fechaEntrega,
         },
       });
     }
