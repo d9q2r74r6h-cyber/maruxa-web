@@ -70,6 +70,14 @@ export async function POST(request: Request) {
     const plantilla = String(cuerpo.plantilla || '');
     if (!PLANTILLAS.has(plantilla)) return NextResponse.json({ error: 'Plantilla no permitida.' }, { status: 400 });
     const nombre = String(cliente.sigla || cliente.razon_social || 'Cliente').trim().split(/\s+/)[0];
+    const components: Record<string, unknown>[] = [];
+    if (plantilla === 'pedidos_catalogo_dia_siguiente') {
+      components.push({
+        type: 'header',
+        parameters: [{ type: 'image', image: { link: 'https://panaderiamaruxa.cl/logo-maruxa-meta.png' } }],
+      });
+    }
+    components.push({ type: 'body', parameters: [{ type: 'text', text: nombre }] });
     payload = {
       messaging_product: 'whatsapp',
       to: destino,
@@ -77,10 +85,7 @@ export async function POST(request: Request) {
       template: {
         name: plantilla,
         language: { code: 'es_CL' },
-        components: [
-          { type: 'header', parameters: [{ type: 'image', image: { link: 'https://panaderiamaruxa.cl/logo-maruxa-meta.png' } }] },
-          { type: 'body', parameters: [{ type: 'text', text: nombre }] },
-        ],
+        components,
       },
     };
     tipoEvento = 'plantilla_cliente';
@@ -89,7 +94,13 @@ export async function POST(request: Request) {
 
   const { respuesta, data, texto } = await enviarPorWhatsapp(canal, payload);
   const messageId = data?.messages?.[0]?.id || `mensaje-error-${crypto.randomUUID()}`;
-  const error = respuesta.ok ? null : data?.error?.message || texto || `HTTP ${respuesta.status}`;
+  const detalleError = [
+    data?.error?.message,
+    data?.error?.error_data?.details,
+    data?.error?.details,
+    texto,
+  ].filter(Boolean).join(' - ');
+  const error = respuesta.ok ? null : detalleError || `HTTP ${respuesta.status}`;
   await admin.from('whatsapp_eventos').insert({
     empresa_id: perfil.empresa_id,
     message_id: messageId,

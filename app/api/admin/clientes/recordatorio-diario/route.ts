@@ -126,7 +126,6 @@ export async function GET(request: Request) {
         name: PLANTILLA,
         language: { code: 'es_CL' },
         components: [
-          { type: 'header', parameters: [{ type: 'image', image: { link: 'https://panaderiamaruxa.cl/logo-maruxa-meta.png' } }] },
           { type: 'body', parameters: [{ type: 'text', text: nombre }] },
         ],
       },
@@ -140,9 +139,15 @@ export async function GET(request: Request) {
       }
       const { respuesta, data, texto } = resultado;
       const messageId = data?.messages?.[0]?.id || `recordatorio-error-${crypto.randomUUID()}`;
+      const detalleError = [
+        data?.error?.message,
+        data?.error?.error_data?.details,
+        data?.error?.details,
+        texto,
+      ].filter(Boolean).join(' - ');
       const detalle = respuesta.ok
         ? `Recordatorio diario enviado a ${cliente.razon_social}.`
-        : `HTTP ${respuesta.status}: ${data?.error?.message || texto || 'Error desconocido'}`;
+        : `HTTP ${respuesta.status}: ${detalleError || 'Error desconocido'}`;
       await admin.from('whatsapp_eventos').insert({
         empresa_id: cliente.empresa_id,
         message_id: messageId,
