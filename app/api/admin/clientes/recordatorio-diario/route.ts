@@ -65,13 +65,33 @@ function autorizado(request: Request) {
 }
 
 export async function GET(request: Request) {
-  if (!autorizado(request)) {
+  const admin = crearAdmin();
+  if (!admin) return NextResponse.json({ error: 'Supabase no está configurado.' }, { status: 503 });
+  const url = new URL(request.url);
+  const forzar = url.searchParams.get('forzar') === '1';
+  let empresaId: string | null = null;
+
+  if (forzar) {
+    const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+    if (!token) return NextResponse.json({ error: 'Sesión requerida.' }, { status: 401 });
+    const { data: autenticacion } = await admin.auth.getUser(token);
+    if (!autenticacion.user) return NextResponse.json({ error: 'Sesión inválida.' }, { status: 401 });
+    const { data: perfil } = await admin
+      .from('perfiles_usuario')
+      .select('empresa_id,activo,rol')
+      .eq('id', autenticacion.user.id)
+      .maybeSingle();
+    if (!perfil?.activo || !String(perfil.rol || '').toLowerCase().includes('admin')) {
+      return NextResponse.json({ error: 'Acceso denegado.' }, { status: 403 });
+    }
+    empresaId = perfil.empresa_id;
+  } else if (!autorizado(request)) {
     return NextResponse.json({ error: 'No autorizado.' }, { status: 401 });
   }
 
   const momento = momentoChile();
   const fechaEntrega = fechaMananaChile();
-  if (momento.hora !== 19 || momento.dia === 'Sat') {
+  if (!forzar && (momento.hora !== 19 || momento.dia === 'Sat')) {
     return NextResponse.json({
       ok: true,
       omitido: true,
@@ -80,26 +100,30 @@ export async function GET(request: Request) {
     });
   }
 
-  const admin = crearAdmin();
-  if (!admin) return NextResponse.json({ error: 'Supabase no está configurado.' }, { status: 503 });
   const canal = obtenerCanalesWhatsapp().find((item) => item.proveedor === '360dialog');
   if (!canal) return NextResponse.json({ error: 'El canal 360dialog no está configurado.' }, { status: 503 });
 
   const desde = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
-  const [{ data: clientes, error: errorClientes }, { data: eventos, error: errorEventos }] = await Promise.all([
-    admin
+  let consultaClientes = admin
       .from('clientes')
       .select('id,empresa_id,razon_social,sigla,telefono')
       .eq('activo', true)
       .eq('whatsapp_pedidos_autorizado', true)
       .eq('whatsapp_recordatorio_diario', true)
       .not('telefono', 'is', null)
-      .order('razon_social'),
-    admin
+      .order('razon_social');
+  let consultaEventos = admin
       .from('whatsapp_eventos')
       .select('empresa_id,payload,estado')
       .eq('tipo', 'recordatorio_cliente')
-      .gte('created_at', desde),
+      .gte('created_at', desde);
+  if (empresaId) {
+    consultaClientes = consultaClientes.eq('empresa_id', empresaId);
+    consultaEventos = consultaEventos.eq('empresa_id', empresaId);
+  }
+  const [{ data: clientes, error: errorClientes }, { data: eventos, error: errorEventos }] = await Promise.all([
+    consultaClientes,
+    consultaEventos,
   ]);
   if (errorClientes || errorEventos) {
     return NextResponse.json({ error: errorClientes?.message || errorEventos?.message }, { status: 500 });
@@ -217,6 +241,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     ok: errores === 0,
+    manual: forzar,
     fecha: momento.fecha,
     enviados,
     yaEnviados,

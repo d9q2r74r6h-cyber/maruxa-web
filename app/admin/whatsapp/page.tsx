@@ -316,6 +316,7 @@ export default function AdminWhatsappPage() {
   const [permisoNotificaciones, setPermisoNotificaciones] =
     useState<NotificationPermission | 'no-disponible'>('no-disponible');
   const [cargandoBitacora, setCargandoBitacora] = useState(false);
+  const [enviandoRecordatorios, setEnviandoRecordatorios] = useState(false);
   const [bitacoraRecordatorios, setBitacoraRecordatorios] = useState<{
     resumen: BitacoraDia[];
     envios: BitacoraEnvio[];
@@ -827,6 +828,23 @@ export default function AdminWhatsappPage() {
     setFechaBitacora(resumen[0]?.fecha || '');
   }
 
+  async function enviarRecordatoriosAhora() {
+    if (!window.confirm('Se enviará ahora el recordatorio de pedidos a todos los clientes activos que lo autorizaron. Los clientes que ya lo recibieron hoy serán omitidos. ¿Continuar?')) return;
+    setEnviandoRecordatorios(true);
+    const { data: sesion } = await supabase.auth.getSession();
+    const respuesta = await fetch('/api/admin/clientes/recordatorio-diario?forzar=1', {
+      headers: { Authorization: `Bearer ${sesion.session?.access_token || ''}` },
+    });
+    const resultado = await respuesta.json().catch(() => ({}));
+    setEnviandoRecordatorios(false);
+    if (!respuesta.ok) {
+      alert(resultado.error || 'No se pudieron enviar los recordatorios.');
+      return;
+    }
+    alert(`Envío terminado. Enviados: ${resultado.enviados || 0}. Ya enviados hoy: ${resultado.yaEnviados || 0}. Duplicados: ${resultado.duplicados || 0}. Inválidos: ${resultado.invalidos || 0}. Errores: ${resultado.errores || 0}.`);
+    await cargarBitacoraRecordatorios();
+  }
+
   const resumenBitacora = bitacoraRecordatorios?.resumen.find((dia) => dia.fecha === fechaBitacora);
   const enviosBitacora = (bitacoraRecordatorios?.envios || []).filter((envio) => envio.fecha === fechaBitacora);
 
@@ -867,6 +885,16 @@ export default function AdminWhatsappPage() {
             >
               {cargandoBitacora ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
               Bitácora de envíos
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void enviarRecordatoriosAhora()}
+              disabled={enviandoRecordatorios}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-full bg-emerald-700 px-4 text-xs font-black text-white shadow-premium disabled:opacity-50"
+            >
+              {enviandoRecordatorios ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {enviandoRecordatorios ? 'Enviando…' : 'Enviar recordatorio ahora'}
             </button>
 
             <button
