@@ -72,7 +72,22 @@ export function obtenerCanalesWhatsapp(): CanalWhatsapp[] {
 export function obtenerCanalWhatsapp(phoneNumberId?: string | null) {
   const canales = obtenerCanalesWhatsapp();
   if (!phoneNumberId) return canales[0] || null;
-  return canales.find((canal) => canal.phoneNumberId === phoneNumberId) || null;
+
+  const idSolicitado = limpiar(phoneNumberId);
+  const idPedidos = limpiar(process.env.WHATSAPP_ORDERS_PHONE_NUMBER_ID);
+  const id360 = limpiar(process.env.WHATSAPP_360DIALOG_PHONE_NUMBER_ID);
+
+  // Las conversaciones anteriores a la migracion conservan el Phone Number ID
+  // de 360dialog. Al responderlas, deben salir por el nuevo canal directo Meta.
+  if (idSolicitado && id360 && idSolicitado === id360 && idPedidos) {
+    const canalMigrado = canales.find(
+      (canal) =>
+        canal.phoneNumberId === idPedidos && canal.proveedor === 'meta'
+    );
+    if (canalMigrado) return canalMigrado;
+  }
+
+  return canales.find((canal) => canal.phoneNumberId === idSolicitado) || null;
 }
 
 export function obtenerCanalPedidosWhatsapp() {
