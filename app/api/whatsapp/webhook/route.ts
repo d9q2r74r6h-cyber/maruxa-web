@@ -530,12 +530,45 @@ export async function GET(request: Request) {
 
   if (!modo && !token && !desafio) {
     const admin = crearAdmin();
-    const canales = obtenerCanalesWhatsapp().map((canal) => ({
-      phoneNumberId: canal.phoneNumberId,
-      telefonoVisible: canal.telefonoVisible,
-      etiqueta: canal.etiqueta,
-      proveedor: canal.proveedor,
-    }));
+    const canalesConfigurados = obtenerCanalesWhatsapp();
+    const tokenPrincipal = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || null;
+    const tokenSecundario =
+      process.env.WHATSAPP_SECONDARY_ACCESS_TOKEN?.trim() || null;
+    const canales = await Promise.all(
+      canalesConfigurados.map(async (canal) => {
+        let accesoMeta: boolean | null = null;
+        let estadoMeta: number | null = null;
+        let codigoMeta: number | null = null;
+
+        if (canal.proveedor === 'meta') {
+          try {
+            const respuestaMeta = await fetch(
+              `https://graph.facebook.com/v20.0/${canal.phoneNumberId}?fields=id,display_phone_number,verified_name`,
+              {
+                headers: { Authorization: `Bearer ${canal.accessToken}` },
+                cache: 'no-store',
+              }
+            );
+            estadoMeta = respuestaMeta.status;
+            accesoMeta = respuestaMeta.ok;
+            const detalleMeta = await respuestaMeta.json().catch(() => null);
+            codigoMeta = Number(detalleMeta?.error?.code) || null;
+          } catch {
+            accesoMeta = false;
+          }
+        }
+
+        return {
+          phoneNumberId: canal.phoneNumberId,
+          telefonoVisible: canal.telefonoVisible,
+          etiqueta: canal.etiqueta,
+          proveedor: canal.proveedor,
+          accesoMeta,
+          estadoMeta,
+          codigoMeta,
+        };
+      })
+    );
     let baseDatosLista = false;
     let baseDatosError: string | null = admin ? null : 'Cliente Supabase no configurado.';
     let baseDatosEstado: number | null = null;
@@ -570,6 +603,9 @@ export async function GET(request: Request) {
         disponible: true,
         tokenConfigurado: Boolean(tokenConfigurado),
         appSecretConfigurado: Boolean(process.env.WHATSAPP_APP_SECRET),
+        tokenSecundarioConfigurado: Boolean(tokenSecundario),
+        tokenSecundarioReutilizaPrincipal:
+          Boolean(tokenSecundario) && tokenSecundario === tokenPrincipal,
         secreto360Configurado: Boolean(
           process.env.WHATSAPP_360DIALOG_WEBHOOK_SECRET?.trim()
         ),
