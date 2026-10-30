@@ -597,6 +597,13 @@ export async function GET(request: Request) {
     let baseDatosError: string | null = admin ? null : 'Cliente Supabase no configurado.';
     let baseDatosEstado: number | null = null;
     let destinosWhatsappConfigurados = 0;
+    let ultimoRecordatorio: {
+      desde: string;
+      total: number;
+      estados: Record<string, number>;
+      plantilla: string | null;
+      ultimoEnvio: string | null;
+    } | null = null;
 
     if (admin) {
       const resultado = await admin
@@ -615,6 +622,31 @@ export async function GET(request: Request) {
         .eq('activo', true)
         .eq('notificar_whatsapp', true)
         .not('notificacion_whatsapp', 'is', null);
+      const desdeRecordatorios = new Date(
+        Date.now() - 6 * 60 * 60 * 1000
+      ).toISOString();
+      const { data: recordatoriosRecientes } = await admin
+        .from('whatsapp_eventos')
+        .select('created_at,estado,payload')
+        .eq('tipo', 'recordatorio_cliente')
+        .gte('created_at', desdeRecordatorios)
+        .order('created_at', { ascending: false })
+        .limit(500);
+      const estadosRecordatorios = (recordatoriosRecientes || []).reduce(
+        (acumulado: Record<string, number>, evento: any) => {
+          const estado = String(evento.estado || 'desconocido').toLowerCase();
+          acumulado[estado] = (acumulado[estado] || 0) + 1;
+          return acumulado;
+        },
+        {}
+      );
+      ultimoRecordatorio = {
+        desde: desdeRecordatorios,
+        total: recordatoriosRecientes?.length || 0,
+        estados: estadosRecordatorios,
+        plantilla: recordatoriosRecientes?.[0]?.payload?.plantilla || null,
+        ultimoEnvio: recordatoriosRecientes?.[0]?.created_at || null,
+      };
       baseDatosLista = !resultado.error;
       baseDatosEstado = resultado.status;
       baseDatosError = resultado.error
@@ -649,6 +681,7 @@ export async function GET(request: Request) {
         baseDatosEstado,
         baseDatosError,
         destinosWhatsappConfigurados,
+        ultimoRecordatorio,
         ultimosAvisos: ultimosAvisos || [],
       });
     }
