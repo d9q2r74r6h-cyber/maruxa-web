@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Printer } from 'lucide-react';
+import { BellRing, Printer } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { obtenerEmpresaActual } from '@/lib/empresa';
 
@@ -33,6 +33,32 @@ export default function AdminPedidosPage() {
   const [filtroEstado, setFiltroEstado] = useState('todos');
   const [guardandoRetiro, setGuardandoRetiro] = useState<number | null>(null);
   const [enviandoMensaje, setEnviandoMensaje] = useState<string | null>(null);
+  const [reenviandoAviso, setReenviandoAviso] = useState<number | null>(null);
+
+  async function reenviarAvisoPasteleria(pedido: Pedido) {
+    if (!window.confirm(`Se reenviará el pedido #${pedido.id} por WhatsApp a todos los trabajadores seleccionados. ¿Continuar?`)) return;
+    const { data: sesion } = await supabase.auth.getSession();
+    if (!sesion.session) {
+      alert('Tu sesión expiró. Vuelve a iniciar sesión.');
+      return;
+    }
+    setReenviandoAviso(pedido.id);
+    const respuesta = await fetch('/api/admin/pedidos/reenviar-aviso-pasteleria', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${sesion.session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ pedidoId: pedido.id }),
+    });
+    const resultado = await respuesta.json().catch(() => ({}));
+    setReenviandoAviso(null);
+    if (!respuesta.ok || resultado.errores?.length) {
+      alert(resultado.error || `Enviados: ${resultado.enviados || 0}. Errores: ${(resultado.errores || []).join(' | ')}`);
+      return;
+    }
+    alert(`Pedido reenviado a ${resultado.enviados || 0} trabajadores.`);
+  }
 
   function imprimirPedido(pedido: Pedido) {
     const ventana = window.open('', '_blank', 'width=760,height=900');
@@ -511,6 +537,17 @@ export default function AdminPedidosPage() {
     <Printer className="h-4 w-4" />
     Imprimir comanda
   </button>
+  {pedido.origen === 'whatsapp_carrito' && (
+    <button
+      type="button"
+      onClick={() => reenviarAvisoPasteleria(pedido)}
+      disabled={reenviandoAviso === pedido.id}
+      className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-maruxa-rojo px-4 py-3 font-black text-white transition hover:opacity-90 disabled:opacity-50"
+    >
+      <BellRing className="h-4 w-4" />
+      {reenviandoAviso === pedido.id ? 'Reenviando...' : 'Reenviar a pastelería'}
+    </button>
+  )}
 </div>
               </div>
 
