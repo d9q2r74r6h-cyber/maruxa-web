@@ -134,6 +134,7 @@ export async function GET(request: Request) {
       .filter((evento: any) =>
         evento.payload?.fecha_local === momento.fecha &&
         evento.payload?.cliente_id &&
+        evento.payload?.canal_phone_number_id === canal.phoneNumberId &&
         ['aceptado', 'sent', 'delivered', 'read'].includes(String(evento.estado || '').toLowerCase())
       )
       .map((evento: any) => `${evento.empresa_id}:${evento.payload.cliente_id}`)
@@ -211,6 +212,7 @@ export async function GET(request: Request) {
           origen: 'recordatorio_diario',
           cliente_id: cliente.id,
           plantilla: PLANTILLA,
+          canal_phone_number_id: canal.phoneNumberId,
           fecha_local: momento.fecha,
           fecha_entrega: fechaEntrega,
         },
@@ -231,6 +233,7 @@ export async function GET(request: Request) {
           origen: 'recordatorio_diario',
           cliente_id: cliente.id,
           plantilla: PLANTILLA,
+          canal_phone_number_id: canal.phoneNumberId,
           fecha_local: momento.fecha,
           fecha_entrega: fechaEntrega,
         },

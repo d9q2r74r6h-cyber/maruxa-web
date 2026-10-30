@@ -61,7 +61,12 @@ export async function POST(request: Request) {
 
   const yaEnviadosIds = new Set(
     (enviosPrevios || [])
-      .filter((item: any) => item.payload?.plantilla === PLANTILLA && item.payload?.cliente_id)
+      .filter(
+        (item: any) =>
+          item.payload?.plantilla === PLANTILLA &&
+          item.payload?.cliente_id &&
+          item.payload?.canal_phone_number_id === canal.phoneNumberId
+      )
       .map((item: any) => String(item.payload.cliente_id))
   );
   const vistos = new Set<string>();
@@ -128,7 +133,13 @@ export async function POST(request: Request) {
           observacion: respuesta.ok
             ? `Plantilla ${PLANTILLA} enviada a ${cliente.razon_social}.`
             : error,
-          payload: { direccion: 'saliente', origen: 'campana_clientes', cliente_id: cliente.id, plantilla: PLANTILLA },
+          payload: {
+            direccion: 'saliente',
+            origen: 'campana_clientes',
+            cliente_id: cliente.id,
+            plantilla: PLANTILLA,
+            canal_phone_number_id: canal.phoneNumberId,
+          },
         });
         if (respuesta.ok) enviados += 1;
         else {
@@ -146,7 +157,13 @@ export async function POST(request: Request) {
           tipo: 'plantilla_cliente',
           estado: 'error',
           observacion: error,
-          payload: { direccion: 'saliente', origen: 'campana_clientes', cliente_id: cliente.id, plantilla: PLANTILLA },
+          payload: {
+            direccion: 'saliente',
+            origen: 'campana_clientes',
+            cliente_id: cliente.id,
+            plantilla: PLANTILLA,
+            canal_phone_number_id: canal.phoneNumberId,
+          },
         });
       }
       await new Promise((resolver) => setTimeout(resolver, 1000));
