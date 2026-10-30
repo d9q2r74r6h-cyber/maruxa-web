@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { obtenerCanalPedidosWhatsapp } from '@/lib/whatsapp-canales';
-import { enviarPorWhatsapp } from '@/lib/whatsapp-api';
+import { enviarPorWhatsapp, resolverPlantillaWhatsapp } from '@/lib/whatsapp-api';
 
 function crearAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -90,6 +90,23 @@ export async function POST(request: Request) {
     );
   }
 
+  const nombrePlantilla =
+    process.env.WHATSAPP_ORDER_NOTIFICATION_TEMPLATE_NAME ||
+    'aviso_nuevo_mensaje_admin';
+  const plantilla = await resolverPlantillaWhatsapp(
+    canal,
+    nombrePlantilla,
+    process.env.WHATSAPP_ORDER_NOTIFICATION_TEMPLATE_LANGUAGE || 'en_US'
+  );
+  if (plantilla.encontrada === false) {
+    return NextResponse.json(
+      {
+        error: `La plantilla ${nombrePlantilla} no existe en la WABA 1640388854109907. Debe crearse o duplicarse dentro de esa cuenta.`,
+      },
+      { status: 409 }
+    );
+  }
+
   let enviados = 0;
   const errores: string[] = [];
   for (const funcionario of destinatarios) {
@@ -109,12 +126,9 @@ export async function POST(request: Request) {
       to: digitos(funcionario.telefono),
       type: 'template',
       template: {
-        name:
-          process.env.WHATSAPP_ORDER_NOTIFICATION_TEMPLATE_NAME ||
-          'aviso_nuevo_mensaje_admin',
+        name: plantilla.nombre,
         language: {
-          code:
-            process.env.WHATSAPP_ORDER_NOTIFICATION_TEMPLATE_LANGUAGE || 'en_US',
+          code: plantilla.idioma,
         },
         components: [
           {

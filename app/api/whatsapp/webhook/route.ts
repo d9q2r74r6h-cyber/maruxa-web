@@ -6,7 +6,7 @@ import {
   obtenerCanalWhatsapp,
   obtenerCanalesWhatsapp,
 } from '@/lib/whatsapp-canales';
-import { enviarPorWhatsapp } from '@/lib/whatsapp-api';
+import { enviarPorWhatsapp, resolverPlantillaWhatsapp } from '@/lib/whatsapp-api';
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
@@ -324,17 +324,29 @@ async function enviarPlantillaPedidoTrabajador(
     `$${Number(pedido.total || 0).toLocaleString('es-CL')}`,
     pedido.observaciones || 'Sin observaciones',
   ];
+  const nombrePlantilla =
+    process.env.WHATSAPP_ORDER_NOTIFICATION_TEMPLATE_NAME ||
+    'aviso_nuevo_mensaje_admin';
+  const plantilla = await resolverPlantillaWhatsapp(
+    canal,
+    nombrePlantilla,
+    process.env.WHATSAPP_ORDER_NOTIFICATION_TEMPLATE_LANGUAGE || 'en_US'
+  );
+  if (plantilla.encontrada === false) {
+    return {
+      error: `La plantilla ${nombrePlantilla} no existe en la WABA 1640388854109907.`,
+      messageId: null,
+      respuesta: null,
+    };
+  }
   const { respuesta, data, texto } = await enviarPorWhatsapp(canal, {
     messaging_product: 'whatsapp',
     to: telefonoDestino,
     type: 'template',
     template: {
-      name:
-        process.env.WHATSAPP_ORDER_NOTIFICATION_TEMPLATE_NAME ||
-        'aviso_nuevo_mensaje_admin',
+      name: plantilla.nombre,
       language: {
-        code:
-          process.env.WHATSAPP_ORDER_NOTIFICATION_TEMPLATE_LANGUAGE || 'en_US',
+        code: plantilla.idioma,
       },
       components: [
         {
