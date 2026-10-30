@@ -29,8 +29,22 @@ export function obtenerCanalesWhatsapp(): CanalWhatsapp[] {
   const id360 =
     limpiar(process.env.WHATSAPP_360DIALOG_PHONE_NUMBER_ID) ||
     limpiar(process.env.WHATSAPP_SECONDARY_PHONE_NUMBER_ID);
+  const idSecundario = limpiar(process.env.WHATSAPP_SECONDARY_PHONE_NUMBER_ID);
+  const tokenSecundario =
+    limpiar(process.env.WHATSAPP_SECONDARY_ACCESS_TOKEN) || tokenPrincipal;
+  const idPedidos = limpiar(process.env.WHATSAPP_ORDERS_PHONE_NUMBER_ID);
+  const canalDirectoPedidosConfigurado = Boolean(
+    idSecundario &&
+      tokenSecundario &&
+      idPedidos === idSecundario
+  );
 
-  if (apiKey360 && id360 && id360 !== idPrincipal) {
+  if (
+    apiKey360 &&
+    id360 &&
+    id360 !== idPrincipal &&
+    !canalDirectoPedidosConfigurado
+  ) {
     canales.push({
       phoneNumberId: id360,
       accessToken: apiKey360,
@@ -45,15 +59,11 @@ export function obtenerCanalesWhatsapp(): CanalWhatsapp[] {
     });
   }
 
-  const idSecundario = limpiar(process.env.WHATSAPP_SECONDARY_PHONE_NUMBER_ID);
-  const tokenSecundario =
-    limpiar(process.env.WHATSAPP_SECONDARY_ACCESS_TOKEN) || tokenPrincipal;
-
   if (
     idSecundario &&
     tokenSecundario &&
     idSecundario !== idPrincipal &&
-    idSecundario !== id360
+    (canalDirectoPedidosConfigurado || idSecundario !== id360)
   ) {
     canales.push({
       phoneNumberId: idSecundario,
