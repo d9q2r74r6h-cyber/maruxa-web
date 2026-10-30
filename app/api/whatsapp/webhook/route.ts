@@ -334,7 +334,7 @@ async function enviarPlantillaPedidoTrabajador(
         'aviso_nuevo_mensaje_admin',
       language: {
         code:
-          process.env.WHATSAPP_ORDER_NOTIFICATION_TEMPLATE_LANGUAGE || 'es_CL',
+          process.env.WHATSAPP_ORDER_NOTIFICATION_TEMPLATE_LANGUAGE || 'en_US',
       },
       components: [
         {
