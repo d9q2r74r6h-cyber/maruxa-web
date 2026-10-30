@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { obtenerCanalesWhatsapp } from '@/lib/whatsapp-canales';
+import { obtenerCanalPedidosWhatsapp } from '@/lib/whatsapp-canales';
 import { enviarPorWhatsapp } from '@/lib/whatsapp-api';
 
 const PLANTILLA = 'recordatorio_pedido_manana';
@@ -100,8 +100,8 @@ export async function GET(request: Request) {
     });
   }
 
-  const canal = obtenerCanalesWhatsapp().find((item) => item.proveedor === '360dialog');
-  if (!canal) return NextResponse.json({ error: 'El canal 360dialog no está configurado.' }, { status: 503 });
+  const canal = obtenerCanalPedidosWhatsapp();
+  if (!canal) return NextResponse.json({ error: 'El canal de pedidos 5041 no está configurado.' }, { status: 503 });
 
   const desde = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
   let consultaClientes = admin
@@ -225,7 +225,7 @@ export async function GET(request: Request) {
         telefono: `+${destino}`,
         tipo: 'recordatorio_cliente',
         estado: 'error',
-        observacion: errorEnvio instanceof Error ? errorEnvio.message : 'Error de conexión con 360dialog.',
+        observacion: errorEnvio instanceof Error ? errorEnvio.message : 'Error de conexión con WhatsApp.',
         payload: {
           direccion: 'saliente',
           origen: 'recordatorio_diario',

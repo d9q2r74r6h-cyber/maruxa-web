@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { obtenerCanalesWhatsapp } from '@/lib/whatsapp-canales';
+import { obtenerCanalPedidosWhatsapp } from '@/lib/whatsapp-canales';
 import { enviarPorWhatsapp } from '@/lib/whatsapp-api';
 
 function crearAdmin() {
@@ -48,8 +48,8 @@ export async function POST(request: Request) {
   const destino = normalizarTelefono(cliente.telefono);
   if (destino.length < 11) return NextResponse.json({ error: 'El teléfono del cliente no es válido.' }, { status: 400 });
 
-  const canal = obtenerCanalesWhatsapp().find((item) => item.proveedor === '360dialog');
-  if (!canal) return NextResponse.json({ error: 'El canal 360dialog no está configurado.' }, { status: 503 });
+  const canal = obtenerCanalPedidosWhatsapp();
+  if (!canal) return NextResponse.json({ error: 'El canal de pedidos 5041 no está configurado.' }, { status: 503 });
 
   const nombre = String(cliente.sigla || cliente.razon_social || 'Cliente').trim().split(/\s+/)[0];
   const plantilla = 'pedidos_catalogo_dia_siguiente';
@@ -84,7 +84,7 @@ export async function POST(request: Request) {
   });
 
   if (!respuesta.ok) {
-    return NextResponse.json({ error: data?.error?.message || texto || '360dialog rechazó el envío.' }, { status: respuesta.status });
+    return NextResponse.json({ error: data?.error?.message || texto || 'El proveedor de WhatsApp rechazó el envío.' }, { status: respuesta.status });
   }
   return NextResponse.json({ ok: true, messageId });
 }

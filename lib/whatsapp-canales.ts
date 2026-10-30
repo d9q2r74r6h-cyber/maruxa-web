@@ -74,3 +74,18 @@ export function obtenerCanalWhatsapp(phoneNumberId?: string | null) {
   if (!phoneNumberId) return canales[0] || null;
   return canales.find((canal) => canal.phoneNumberId === phoneNumberId) || null;
 }
+
+export function obtenerCanalPedidosWhatsapp() {
+  const canales = obtenerCanalesWhatsapp();
+  const idPreferido = limpiar(process.env.WHATSAPP_ORDERS_PHONE_NUMBER_ID);
+  if (idPreferido) {
+    const porId = canales.find((canal) => canal.phoneNumberId === idPreferido);
+    if (porId) return porId;
+  }
+
+  return (
+    canales.find((canal) =>
+      String(canal.telefonoVisible || '').replace(/\D/g, '').endsWith('966785041')
+    ) || canales.find((canal) => canal.proveedor === '360dialog') || null
+  );
+}

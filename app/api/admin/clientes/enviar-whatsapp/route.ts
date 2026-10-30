@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { obtenerCanalesWhatsapp } from '@/lib/whatsapp-canales';
+import { obtenerCanalPedidosWhatsapp } from '@/lib/whatsapp-canales';
 import { enviarPorWhatsapp } from '@/lib/whatsapp-api';
 
 const PLANTILLAS = new Set([
@@ -61,8 +61,8 @@ export async function POST(request: Request) {
 
   const destino = telefono(cliente.telefono);
   if (!/^569[0-9]{8}$/.test(destino)) return NextResponse.json({ error: 'El teléfono del cliente no es válido.' }, { status: 400 });
-  const canal = obtenerCanalesWhatsapp().find((item) => item.proveedor === '360dialog');
-  if (!canal) return NextResponse.json({ error: 'El canal 360dialog no está configurado.' }, { status: 503 });
+  const canal = obtenerCanalPedidosWhatsapp();
+  if (!canal) return NextResponse.json({ error: 'El canal de pedidos 5041 no está configurado.' }, { status: 503 });
 
   let payload: Record<string, unknown>;
   let tipoEvento: string;

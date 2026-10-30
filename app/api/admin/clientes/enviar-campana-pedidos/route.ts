@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { obtenerCanalesWhatsapp } from '@/lib/whatsapp-canales';
+import { obtenerCanalPedidosWhatsapp } from '@/lib/whatsapp-canales';
 import { enviarPorWhatsapp } from '@/lib/whatsapp-api';
 
 const PLANTILLA = 'pedidos_catalogo_dia_siguiente';
@@ -34,8 +34,8 @@ export async function POST(request: Request) {
     .maybeSingle();
   if (!perfil?.activo) return NextResponse.json({ error: 'Acceso denegado.' }, { status: 403 });
 
-  const canal = obtenerCanalesWhatsapp().find((item) => item.proveedor === '360dialog');
-  if (!canal) return NextResponse.json({ error: 'El canal 360dialog no está configurado.' }, { status: 503 });
+  const canal = obtenerCanalPedidosWhatsapp();
+  if (!canal) return NextResponse.json({ error: 'El canal de pedidos 5041 no está configurado.' }, { status: 503 });
 
   const cuerpo = await request.json().catch(() => ({}));
   const excluirIds = new Set(
@@ -136,7 +136,7 @@ export async function POST(request: Request) {
           detalles.push({ clienteId: cliente.id, error });
         }
       } catch (errorEnvio) {
-        const error = errorEnvio instanceof Error ? errorEnvio.message : 'Error de conexión con 360dialog';
+        const error = errorEnvio instanceof Error ? errorEnvio.message : 'Error de conexión con WhatsApp';
         errores += 1;
         detalles.push({ clienteId: cliente.id, error });
         await admin.from('whatsapp_eventos').insert({
