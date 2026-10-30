@@ -537,17 +537,15 @@ export default function AdminPedidosPage() {
     <Printer className="h-4 w-4" />
     Imprimir comanda
   </button>
-  {pedido.origen === 'whatsapp_carrito' && (
-    <button
-      type="button"
-      onClick={() => reenviarAvisoPasteleria(pedido)}
-      disabled={reenviandoAviso === pedido.id}
-      className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-maruxa-rojo px-4 py-3 font-black text-white transition hover:opacity-90 disabled:opacity-50"
-    >
-      <BellRing className="h-4 w-4" />
-      {reenviandoAviso === pedido.id ? 'Reenviando...' : 'Reenviar a pastelería'}
-    </button>
-  )}
+  <button
+    type="button"
+    onClick={() => reenviarAvisoPasteleria(pedido)}
+    disabled={reenviandoAviso === pedido.id}
+    className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-maruxa-rojo px-4 py-3 font-black text-white transition hover:opacity-90 disabled:opacity-50"
+  >
+    <BellRing className="h-4 w-4" />
+    {reenviandoAviso === pedido.id ? 'Reenviando...' : 'Reenviar a pastelería'}
+  </button>
 </div>
               </div>
 
