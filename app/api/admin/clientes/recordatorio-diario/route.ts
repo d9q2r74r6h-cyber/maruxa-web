@@ -183,12 +183,6 @@ export async function GET(request: Request) {
             type: 'button',
             sub_type: 'CATALOG',
             index: '0',
-            parameters: [
-              {
-                type: 'action',
-                action: { thumbnail_product_retailer_id: 'PRO-TOR-001' },
-              },
-            ],
           },
         ],
       },
