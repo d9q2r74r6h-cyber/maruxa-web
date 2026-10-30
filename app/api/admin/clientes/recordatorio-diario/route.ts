@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { obtenerCanalPedidosWhatsapp } from '@/lib/whatsapp-canales';
 import { enviarPorWhatsapp } from '@/lib/whatsapp-api';
 
-const PLANTILLA = 'recordatorio_pedido_manana';
+const PLANTILLA = 'recordatorio_pedido_manana_catalogo';
 const ZONA_HORARIA = 'America/Santiago';
 export const maxDuration = 60;
 

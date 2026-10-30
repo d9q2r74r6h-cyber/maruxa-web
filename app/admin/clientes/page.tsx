@@ -1159,7 +1159,7 @@ export default function ClientesPage() {
                   Plantilla
                   <select value={plantillaMensaje} onChange={(event) => setPlantillaMensaje(event.target.value)} className="h-11 rounded-md border bg-white px-3 font-bold">
                     <option value="pedidos_catalogo_dia_siguiente">Activación del catálogo de pedidos</option>
-                    <option value="recordatorio_pedido_manana">Recordatorio de pedido para mañana</option>
+                    <option value="recordatorio_pedido_manana_catalogo">Recordatorio de pedido para mañana con catálogo</option>
                   </select>
                   <span className="text-xs font-semibold text-[#4B2818]/60">El nombre del cliente reemplazará automáticamente la variable {'{{1}}'}.</span>
                 </label>

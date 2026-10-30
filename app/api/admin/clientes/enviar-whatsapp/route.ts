@@ -5,7 +5,7 @@ import { enviarPorWhatsapp } from '@/lib/whatsapp-api';
 
 const PLANTILLAS = new Set([
   'pedidos_catalogo_dia_siguiente',
-  'recordatorio_pedido_manana',
+  'recordatorio_pedido_manana_catalogo',
 ]);
 
 function crearAdmin() {
@@ -98,11 +98,11 @@ export async function POST(request: Request) {
       });
     }
     const parametrosCuerpo: Record<string, unknown>[] = [{ type: 'text', text: nombre }];
-    if (plantilla === 'recordatorio_pedido_manana') {
+    if (plantilla === 'recordatorio_pedido_manana_catalogo') {
       parametrosCuerpo.push({ type: 'text', text: fechaMananaChile() });
     }
     components.push({ type: 'body', parameters: parametrosCuerpo });
-    if (plantilla === 'recordatorio_pedido_manana') {
+    if (plantilla === 'recordatorio_pedido_manana_catalogo') {
       components.push({
         type: 'button',
         sub_type: 'CATALOG',
