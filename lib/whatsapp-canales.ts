@@ -19,7 +19,9 @@ export function obtenerCanalesWhatsapp(): CanalWhatsapp[] {
     canales.push({
       phoneNumberId: idPrincipal,
       accessToken: tokenPrincipal,
-      telefonoVisible: limpiar(process.env.WHATSAPP_DISPLAY_PHONE_NUMBER),
+      telefonoVisible:
+        limpiar(process.env.WHATSAPP_DISPLAY_PHONE_NUMBER) ||
+        '+56 9 8623 2447',
       etiqueta: limpiar(process.env.WHATSAPP_CHANNEL_LABEL) || 'WhatsApp principal',
       proveedor: 'meta',
     });
