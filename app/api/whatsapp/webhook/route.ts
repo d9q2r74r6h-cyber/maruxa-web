@@ -534,6 +534,30 @@ export async function GET(request: Request) {
     const tokenPrincipal = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || null;
     const tokenSecundario =
       process.env.WHATSAPP_SECONDARY_ACCESS_TOKEN?.trim() || null;
+    let permisosTokenSecundario: string[] = [];
+    let permisosTokenSecundarioError: number | null = null;
+
+    if (tokenSecundario) {
+      try {
+        const respuestaPermisos = await fetch(
+          'https://graph.facebook.com/v20.0/me/permissions',
+          {
+            headers: { Authorization: `Bearer ${tokenSecundario}` },
+            cache: 'no-store',
+          }
+        );
+        const detallePermisos = await respuestaPermisos.json().catch(() => null);
+        permisosTokenSecundario = Array.isArray(detallePermisos?.data)
+          ? detallePermisos.data
+              .filter((permiso: any) => permiso?.status === 'granted')
+              .map((permiso: any) => String(permiso.permission))
+          : [];
+        permisosTokenSecundarioError =
+          Number(detallePermisos?.error?.code) || null;
+      } catch {
+        permisosTokenSecundarioError = -1;
+      }
+    }
     const canales = await Promise.all(
       canalesConfigurados.map(async (canal) => {
         let accesoMeta: boolean | null = null;
@@ -606,6 +630,8 @@ export async function GET(request: Request) {
         tokenSecundarioConfigurado: Boolean(tokenSecundario),
         tokenSecundarioReutilizaPrincipal:
           Boolean(tokenSecundario) && tokenSecundario === tokenPrincipal,
+        permisosTokenSecundario,
+        permisosTokenSecundarioError,
         secreto360Configurado: Boolean(
           process.env.WHATSAPP_360DIALOG_WEBHOOK_SECRET?.trim()
         ),
