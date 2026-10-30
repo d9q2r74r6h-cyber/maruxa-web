@@ -292,6 +292,82 @@ async function enviarPlantillaNotificacionWhatsApp(
   };
 }
 
+async function enviarPlantillaPedidoTrabajador(
+  destino: string,
+  nombreTrabajador: string,
+  pedido: {
+    id: string | number;
+    cliente: string;
+    telefono: string;
+    productos: Array<{ nombre: string; cantidad: number }>;
+    total: number;
+    observaciones?: string | null;
+    direccion?: string | null;
+    repartidor?: string | null;
+  },
+  phoneNumberIdPreferido?: string | null
+): Promise<ResultadoEnvioWhatsApp> {
+  const canal = obtenerCanalWhatsapp(
+    phoneNumberIdPreferido || process.env.WHATSAPP_PHONE_NUMBER_ID
+  );
+  const telefonoDestino = destino.replace(/\D/g, '');
+  if (!canal || !telefonoDestino) {
+    return {
+      error: 'No hay canal de WhatsApp configurado para avisar el pedido.',
+      messageId: null,
+      respuesta: null,
+    };
+  }
+
+  const productos = pedido.productos
+    .map((producto) => `${producto.cantidad} x ${producto.nombre}`)
+    .join(', ')
+    .slice(0, 700);
+  const valores = [
+    nombreTrabajador || 'Trabajador',
+    String(pedido.id),
+    pedido.cliente || 'Cliente no identificado',
+    pedido.telefono || 'Sin teléfono',
+    pedido.direccion || 'Sin dirección registrada',
+    pedido.repartidor || 'Sin repartidor asignado',
+    productos || 'Sin productos detallados',
+    `$${Number(pedido.total || 0).toLocaleString('es-CL')}`,
+    pedido.observaciones || 'Sin observaciones',
+  ];
+  const { respuesta, data, texto } = await enviarPorWhatsapp(canal, {
+    messaging_product: 'whatsapp',
+    to: telefonoDestino,
+    type: 'template',
+    template: {
+      name:
+        process.env.WHATSAPP_ORDER_NOTIFICATION_TEMPLATE_NAME ||
+        'aviso_pedido_pasteleria',
+      language: {
+        code:
+          process.env.WHATSAPP_ORDER_NOTIFICATION_TEMPLATE_LANGUAGE || 'es_CL',
+      },
+      components: [
+        {
+          type: 'body',
+          parameters: valores.map((text) => ({ type: 'text', text })),
+        },
+      ],
+    },
+  });
+
+  return respuesta.ok
+    ? {
+        error: null,
+        messageId: data?.messages?.[0]?.id || null,
+        respuesta: data,
+      }
+    : {
+        error: texto || `Meta respondió ${respuesta.status}`,
+        messageId: null,
+        respuesta: data,
+      };
+}
+
 function resumenMensajeEntrante(mensaje: MensajeWhatsApp) {
   if (mensaje.type === 'order') {
     const cantidad = mensaje.order?.product_items?.length || 0;
@@ -466,11 +542,11 @@ async function avisarResponsablesPedido(
       const email = String(funcionario.email || '').trim().toLowerCase();
       const nombreCompleto = String(funcionario.nombre_completo || 'Trabajador').trim();
       const resultado = telefono
-        ? await enviarPlantillaNotificacionWhatsApp(
+        ? await enviarPlantillaPedidoTrabajador(
             telefono,
-            texto,
-            phoneNumberId,
-            nombreCompleto
+            nombreCompleto,
+            pedido,
+            phoneNumberId
           )
         : { error: null, messageId: null, respuesta: null };
 
