@@ -208,7 +208,8 @@ async function responderPedidoWhatsApp(
 async function enviarPlantillaNotificacionWhatsApp(
   destino: string,
   mensaje: string,
-  phoneNumberIdPreferido?: string | null
+  phoneNumberIdPreferido?: string | null,
+  nombreDestinatario?: string | null
 ): Promise<ResultadoEnvioWhatsApp> {
   const phoneNumberId =
     phoneNumberIdPreferido || process.env.WHATSAPP_PHONE_NUMBER_ID;
@@ -219,6 +220,11 @@ async function enviarPlantillaNotificacionWhatsApp(
     .replace(/\s{2,}/g, ' ')
     .trim()
     .slice(0, 900);
+  const nombrePlantilla = String(nombreDestinatario || 'equipo Maruxa')
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+    .slice(0, 120);
   const templateName =
     (canal?.proveedor === '360dialog'
       ? process.env.WHATSAPP_360DIALOG_NOTIFICATION_TEMPLATE_NAME
@@ -257,6 +263,10 @@ async function enviarPlantillaNotificacionWhatsApp(
             {
               type: 'body',
               parameters: [
+                {
+                  type: 'text',
+                  text: nombrePlantilla,
+                },
                 {
                   type: 'text',
                   text: mensajePlantilla,
@@ -335,7 +345,8 @@ async function avisarAdministradores(
           enviarPlantillaNotificacionWhatsApp(
             perfil.notificacion_whatsapp,
             texto,
-            datos.phoneNumberId
+            datos.phoneNumberId,
+            perfil.nombre_visible
           ).then(async (resultado) => {
             if (resultado.messageId) {
               const { error: errorRegistro } = await admin
@@ -455,7 +466,12 @@ async function avisarResponsablesPedido(
       const email = String(funcionario.email || '').trim().toLowerCase();
       const nombreCompleto = String(funcionario.nombre_completo || 'Trabajador').trim();
       const resultado = telefono
-        ? await enviarPlantillaNotificacionWhatsApp(telefono, texto, phoneNumberId)
+        ? await enviarPlantillaNotificacionWhatsApp(
+            telefono,
+            texto,
+            phoneNumberId,
+            nombreCompleto
+          )
         : { error: null, messageId: null, respuesta: null };
 
       if (resultado.messageId) {
