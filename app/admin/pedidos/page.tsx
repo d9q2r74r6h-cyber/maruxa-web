@@ -531,17 +531,9 @@ export default function AdminPedidosPage() {
 
   <button
     type="button"
-    onClick={() => imprimirPedido(pedido)}
-    className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-maruxa-chocolate px-4 py-3 font-black text-white transition hover:opacity-90"
-  >
-    <Printer className="h-4 w-4" />
-    Imprimir comanda
-  </button>
-  <button
-    type="button"
     onClick={() => reenviarAvisoPasteleria(pedido)}
     disabled={reenviandoAviso === pedido.id}
-    className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-maruxa-rojo px-4 py-3 font-black text-white transition hover:opacity-90 disabled:opacity-50"
+    className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#A51F2B] px-4 py-3 font-black text-white transition hover:bg-[#74151F] disabled:opacity-50"
   >
     <BellRing className="h-4 w-4" />
     {reenviandoAviso === pedido.id ? 'Reenviando...' : 'Reenviar a pastelería'}
