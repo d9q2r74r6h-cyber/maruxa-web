@@ -111,7 +111,7 @@ export async function POST(request: Request) {
       template: {
         name:
           process.env.WHATSAPP_ORDER_NOTIFICATION_TEMPLATE_NAME ||
-          'aviso_pedido_pasteleria',
+          'aviso_nuevo_mensaje_admin',
         language: {
           code:
             process.env.WHATSAPP_ORDER_NOTIFICATION_TEMPLATE_LANGUAGE || 'es_CL',
