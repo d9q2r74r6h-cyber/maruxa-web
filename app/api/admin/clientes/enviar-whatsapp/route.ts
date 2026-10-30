@@ -102,6 +102,19 @@ export async function POST(request: Request) {
       parametrosCuerpo.push({ type: 'text', text: fechaMananaChile() });
     }
     components.push({ type: 'body', parameters: parametrosCuerpo });
+    if (plantilla === 'recordatorio_pedido_manana') {
+      components.push({
+        type: 'button',
+        sub_type: 'CATALOG',
+        index: '0',
+        parameters: [
+          {
+            type: 'action',
+            action: { thumbnail_product_retailer_id: 'PRO-TOR-001' },
+          },
+        ],
+      });
+    }
     payload = {
       messaging_product: 'whatsapp',
       to: destino,
