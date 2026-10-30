@@ -540,7 +540,7 @@ export async function GET(request: Request) {
     if (tokenSecundario) {
       try {
         const respuestaPermisos = await fetch(
-          'https://graph.facebook.com/v20.0/me/permissions',
+          'https://graph.facebook.com/v26.0/me/permissions',
           {
             headers: { Authorization: `Bearer ${tokenSecundario}` },
             cache: 'no-store',
@@ -567,7 +567,7 @@ export async function GET(request: Request) {
         if (canal.proveedor === 'meta') {
           try {
             const respuestaMeta = await fetch(
-              `https://graph.facebook.com/v20.0/${canal.phoneNumberId}?fields=id,display_phone_number,verified_name`,
+              `https://graph.facebook.com/v26.0/${canal.phoneNumberId}?fields=id,display_phone_number,verified_name`,
               {
                 headers: { Authorization: `Bearer ${canal.accessToken}` },
                 cache: 'no-store',

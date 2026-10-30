@@ -7,7 +7,7 @@ export async function enviarPorWhatsapp(
   const respuesta = await fetch(
     canal.proveedor === '360dialog'
       ? 'https://waba-v2.360dialog.io/messages'
-      : `https://graph.facebook.com/v20.0/${canal.phoneNumberId}/messages`,
+      : `https://graph.facebook.com/v26.0/${canal.phoneNumberId}/messages`,
     {
       method: 'POST',
       headers: canal.proveedor === '360dialog'
