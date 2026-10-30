@@ -162,6 +162,8 @@ async function enviarCorreoPedidoWhatsApp(pedido: any) {
       <p><strong>Pedido:</strong> #${escaparHtml(pedido.id)}</p>
       <p><strong>Cliente:</strong> ${escaparHtml(pedido.cliente)}</p>
       <p><strong>Teléfono:</strong> ${escaparHtml(pedido.telefono)}</p>
+      <p><strong>Dirección:</strong> ${escaparHtml(pedido.direccion || 'Sin dirección registrada')}</p>
+      <p><strong>Repartidor:</strong> ${escaparHtml(pedido.repartidor || 'Sin repartidor asignado')}</p>
       <p><strong>Fecha recepción:</strong> ${escaparHtml(pedido.fecha_retiro)}</p>
       <p><strong>Hora recepción:</strong> ${escaparHtml(pedido.hora_retiro)}</p>
       <h2>Productos</h2>
@@ -405,12 +407,14 @@ async function avisarResponsablesPedido(
     productos: Array<{ nombre: string; cantidad: number }>;
     total: number;
     observaciones?: string | null;
+    direccion?: string | null;
+    repartidor?: string | null;
   },
   phoneNumberId?: string | null
 ) {
   const { data: funcionarios, error } = await admin
     .from('funcionarios')
-    .select('id,nombre_completo,telefono')
+    .select('id,nombre_completo,telefono,email')
     .eq('empresa_id', empresaId)
     .eq('activo', true)
     .eq('recibe_avisos_pedidos_whatsapp', true);
@@ -420,11 +424,12 @@ async function avisarResponsablesPedido(
   const destinatarios = new Map<string, any>();
   for (const funcionario of funcionarios || []) {
     const telefono = String(funcionario.telefono || '').replace(/\D/g, '');
-    if (telefono) destinatarios.set(telefono, funcionario);
+    const email = String(funcionario.email || '').trim().toLowerCase();
+    if (telefono || email) destinatarios.set(String(funcionario.id), funcionario);
   }
 
   if (!destinatarios.size) {
-    return ['No hay trabajadores seleccionados para recibir pedidos con teléfono configurado.'];
+    return ['No hay trabajadores seleccionados para recibir pedidos con teléfono o correo configurado.'];
   }
 
   const detalleProductos = pedido.productos
@@ -434,6 +439,8 @@ async function avisarResponsablesPedido(
     `Nuevo pedido de pastelería #${pedido.id}`,
     `Cliente: ${pedido.cliente}`,
     `Teléfono: ${pedido.telefono}`,
+    `Dirección: ${pedido.direccion || 'Sin dirección registrada'}`,
+    `Repartidor: ${pedido.repartidor || 'Sin repartidor asignado'}`,
     `Productos: ${detalleProductos}`,
     `Total: $${Number(pedido.total || 0).toLocaleString('es-CL')}`,
     pedido.observaciones ? `Observaciones: ${pedido.observaciones}` : null,
@@ -443,12 +450,13 @@ async function avisarResponsablesPedido(
     .join('\n');
 
   const resultados = await Promise.all(
-    Array.from(destinatarios.entries()).map(async ([telefono, funcionario]) => {
-      const resultado = await enviarPlantillaNotificacionWhatsApp(
-        telefono,
-        texto,
-        phoneNumberId
-      );
+    Array.from(destinatarios.values()).map(async (funcionario) => {
+      const telefono = String(funcionario.telefono || '').replace(/\D/g, '');
+      const email = String(funcionario.email || '').trim().toLowerCase();
+      const nombreCompleto = String(funcionario.nombre_completo || 'Trabajador').trim();
+      const resultado = telefono
+        ? await enviarPlantillaNotificacionWhatsApp(telefono, texto, phoneNumberId)
+        : { error: null, messageId: null, respuesta: null };
 
       if (resultado.messageId) {
         await admin.from('whatsapp_eventos').insert({
@@ -468,9 +476,45 @@ async function avisarResponsablesPedido(
         });
       }
 
-      return resultado.error
-        ? `${funcionario.nombre_completo}: ${resultado.error}`
-        : null;
+      let errorCorreo: string | null = null;
+      if (email && resend) {
+        const productosHtml = pedido.productos
+          .map(
+            (producto) =>
+              `<li><strong>${escaparHtml(producto.cantidad)} x ${escaparHtml(producto.nombre)}</strong></li>`
+          )
+          .join('');
+        const { error: errorEnvio } = await resend.emails.send({
+          from: 'Panadería Maruxa <pedidos@panaderiamaruxa.cl>',
+          to: [email],
+          subject: `Nuevo pedido de pastelería #${pedido.id} — ${pedido.cliente}`,
+          html: `
+            <p>Hola ${escaparHtml(nombreCompleto)},</p>
+            <p>Se recibió un nuevo pedido de pastelería.</p>
+            <p><strong>Pedido:</strong> #${escaparHtml(pedido.id)}</p>
+            <p><strong>Razón social:</strong> ${escaparHtml(pedido.cliente)}</p>
+            <p><strong>Teléfono:</strong> ${escaparHtml(pedido.telefono)}</p>
+            <p><strong>Dirección:</strong> ${escaparHtml(pedido.direccion || 'Sin dirección registrada')}</p>
+            <p><strong>Repartidor:</strong> ${escaparHtml(pedido.repartidor || 'Sin repartidor asignado')}</p>
+            <h2>Productos</h2>
+            <ul>${productosHtml}</ul>
+            <p><strong>Total:</strong> $${Number(pedido.total || 0).toLocaleString('es-CL')}</p>
+            ${pedido.observaciones ? `<p><strong>Observaciones:</strong> ${escaparHtml(pedido.observaciones)}</p>` : ''}
+            <p><a href="https://panaderiamaruxa.cl/admin/pedidos">Abrir pedidos</a></p>
+          `,
+        });
+        errorCorreo = errorEnvio?.message || null;
+      } else if (email && !resend) {
+        errorCorreo = 'Resend no está configurado.';
+      } else {
+        errorCorreo = 'No tiene correo configurado.';
+      }
+
+      const errores = [
+        resultado.error ? `WhatsApp: ${resultado.error}` : null,
+        errorCorreo ? `Email: ${errorCorreo}` : null,
+      ].filter(Boolean);
+      return errores.length ? `${nombreCompleto}: ${errores.join(' | ')}` : null;
     })
   );
 
@@ -858,6 +902,22 @@ export async function POST(request: Request) {
       const telefonoCliente = formatearTelefonoWhatsApp(
         mensaje.from || contacto?.wa_id
       );
+      const telefonoClienteDigitos = telefonoCliente.replace(/\D/g, '');
+      const { data: clientesRegistrados } = await admin
+        .from('clientes')
+        .select('id,razon_social,direccion,repartidor_nombre,telefono')
+        .eq('empresa_id', empresaId)
+        .eq('activo', true);
+      const clienteRegistrado = (clientesRegistrados || []).find(
+        (cliente: any) =>
+          String(cliente.telefono || '').replace(/\D/g, '') === telefonoClienteDigitos
+      );
+      const nombreCliente =
+        clienteRegistrado?.razon_social ||
+        contacto?.profile?.name ||
+        `WhatsApp ${mensaje.from || ''}`;
+      const direccionCliente = clienteRegistrado?.direccion || null;
+      const repartidorCliente = clienteRegistrado?.repartidor_nombre || null;
       const observacionesPedido = faltantes.length
         ? `Revisar codigos sin coincidencia: ${faltantes.join(', ')}`
         : 'Pedido recibido desde el carro de WhatsApp. Confirmar fecha y hora de retiro con el cliente.';
@@ -866,7 +926,7 @@ export async function POST(request: Request) {
         .from('pedidos')
         .insert({
           empresa_id: empresaId,
-          cliente: contacto?.profile?.name || `WhatsApp ${mensaje.from || ''}`,
+          cliente: nombreCliente,
           telefono: telefonoCliente,
           email: '',
           productos: productosPedido,
@@ -887,8 +947,10 @@ export async function POST(request: Request) {
         pedido && !errorPedido
           ? await enviarCorreoPedidoWhatsApp({
               ...pedido,
-              cliente: contacto?.profile?.name || `WhatsApp ${mensaje.from || ''}`,
+              cliente: nombreCliente,
               telefono: telefonoCliente,
+              direccion: direccionCliente,
+              repartidor: repartidorCliente,
               productos: productosPedido,
               total,
               fecha_retiro: fechaHoraRecepcion.fecha,
@@ -911,12 +973,13 @@ export async function POST(request: Request) {
               empresaId,
               {
                 id: pedido.id,
-                cliente:
-                  contacto?.profile?.name || `WhatsApp ${mensaje.from || ''}`,
+                cliente: nombreCliente,
                 telefono: telefonoCliente,
                 productos: productosPedido,
                 total,
                 observaciones: observacionesPedido,
+                direccion: direccionCliente,
+                repartidor: repartidorCliente,
               },
               valor.metadata?.phone_number_id
             )
@@ -949,7 +1012,7 @@ export async function POST(request: Request) {
       if (pedido && !errorPedido) {
         const erroresAviso = await avisarAdministradores(admin, empresaId, {
           telefono: telefonoCliente,
-          nombre: contacto?.profile?.name || `WhatsApp ${mensaje.from || ''}`,
+          nombre: nombreCliente,
           resumen: `Pedido recibido por $${Number(total || 0).toLocaleString('es-CL')}.`,
           pedidoId: pedido.id,
           phoneNumberId: valor.metadata?.phone_number_id,
