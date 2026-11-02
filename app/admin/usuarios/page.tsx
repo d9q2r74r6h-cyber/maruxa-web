@@ -16,7 +16,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { useAdminSession } from '@/components/AdminSession';
 import { registrarAuditoria } from '@/lib/auditoria';
-import { imprimirListado } from '@/lib/imprimir-listado';
+import { exportarParaExcel } from '@/lib/exportar-excel';
 
 type Funcionario = {
   id: string;
@@ -128,10 +128,9 @@ export default function UsuariosPage() {
     [funcionarios, usuarios]
   );
 
-  function imprimirFuncionarios() {
-    imprimirListado({
-      titulo: 'Listado de trabajadores',
-      subtitulo: 'Funcionarios registrados en Panadería Maruxa',
+  function exportarFuncionarios() {
+    exportarParaExcel({
+      nombreArchivo: `trabajadores-maruxa-${new Date().toISOString().slice(0, 10)}`,
       columnas: [
         { titulo: 'Código', clave: 'codigo' },
         { titulo: 'Nombre completo', clave: 'nombre' },
@@ -142,7 +141,11 @@ export default function UsuariosPage() {
         { titulo: 'Correo', clave: 'email' },
         { titulo: 'Nacimiento', clave: 'nacimiento' },
         { titulo: 'Descanso', clave: 'descanso' },
+        { titulo: 'Recibe dominical', clave: 'dominical' },
+        { titulo: 'Ciclo dominical', clave: 'ciclo_dominical' },
         { titulo: 'Avisos pedidos', clave: 'avisos' },
+        { titulo: 'Trabaja con comisión', clave: 'trabaja_comision' },
+        { titulo: 'Comisión %', clave: 'comision' },
         { titulo: 'Estado', clave: 'estado' },
       ],
       filas: funcionarios.map((funcionario) => ({
@@ -158,7 +161,11 @@ export default function UsuariosPage() {
         email: funcionario.email || '',
         nacimiento: funcionario.fecha_nacimiento || '',
         descanso: funcionario.dia_descanso || 'Sin asignar',
+        dominical: funcionario.recibe_dominical ? 'Sí' : 'No',
+        ciclo_dominical: funcionario.ciclo_dominical || '',
         avisos: funcionario.recibe_avisos_pedidos_whatsapp ? 'Sí' : 'No',
+        trabaja_comision: funcionario.trabaja_comision ? 'Sí' : 'No',
+        comision: funcionario.trabaja_comision ? funcionario.porcentaje_comision : '',
         estado: funcionario.activo ? 'Activo' : 'Inactivo',
       })),
     });
@@ -575,12 +582,12 @@ export default function UsuariosPage() {
               </div>
               <button
                 type="button"
-                onClick={imprimirFuncionarios}
+                onClick={exportarFuncionarios}
                 disabled={funcionarios.length === 0}
                 className="inline-flex h-9 items-center gap-2 rounded-md bg-[#217346] px-4 text-sm font-black text-white shadow-sm transition hover:bg-[#185c37] disabled:opacity-50"
               >
                 <FileSpreadsheet className="h-4 w-4" />
-                Imprimir listado
+                Abrir en Excel
               </button>
             </div>
             <div className="overflow-x-auto">

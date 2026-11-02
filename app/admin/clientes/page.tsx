@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAdminSession } from '@/components/AdminSession';
-import { imprimirListado } from '@/lib/imprimir-listado';
+import { exportarParaExcel } from '@/lib/exportar-excel';
 
 type Cliente = {
   id: string;
@@ -253,32 +253,45 @@ export default function ClientesPage() {
     });
   }, [busqueda, clientes, filtroEstado, filtroRepartidor]);
 
-  function imprimirClientes() {
-    imprimirListado({
-      titulo: 'Listado de clientes',
-      subtitulo: `Filtros: ${filtroRepartidor === 'todos' ? 'todos los repartidores' : filtroRepartidor} · ${filtroEstado === 'todos' ? 'todos los estados' : filtroEstado}${busqueda ? ` · búsqueda: ${busqueda}` : ''}`,
+  function exportarClientes() {
+    exportarParaExcel({
+      nombreArchivo: `clientes-maruxa-${new Date().toISOString().slice(0, 10)}`,
       columnas: [
         { titulo: 'RUT', clave: 'rut' },
         { titulo: 'Razón social', clave: 'razon_social' },
         { titulo: 'Nombre corto', clave: 'sigla' },
+        { titulo: 'Código antiguo', clave: 'codigo_legacy' },
+        { titulo: 'Giro', clave: 'giro' },
         { titulo: 'Teléfono', clave: 'telefono' },
         { titulo: 'Correo', clave: 'email' },
         { titulo: 'Dirección', clave: 'direccion' },
         { titulo: 'Comuna', clave: 'comuna' },
+        { titulo: 'Ciudad', clave: 'ciudad' },
         { titulo: 'Repartidor', clave: 'repartidor' },
         { titulo: 'Forma de pago', clave: 'forma_pago' },
+        { titulo: 'Plazo de pago', clave: 'plazo_pago' },
+        { titulo: 'Precio base', clave: 'precio_base' },
+        { titulo: 'WhatsApp autorizado', clave: 'whatsapp_autorizado' },
+        { titulo: 'Recordatorio diario', clave: 'recordatorio_diario' },
         { titulo: 'Estado', clave: 'estado' },
       ],
       filas: clientesFiltrados.map((cliente) => ({
         rut: cliente.rut,
         razon_social: cliente.razon_social,
         sigla: cliente.sigla || '',
+        codigo_legacy: cliente.codigo_legacy || '',
+        giro: cliente.giro || '',
         telefono: cliente.telefono || '',
         email: cliente.email || '',
         direccion: cliente.direccion || '',
         comuna: cliente.comuna || '',
+        ciudad: cliente.ciudad || '',
         repartidor: repartidorOficial(cliente.repartidor_nombre) || 'Sin asignar',
-        forma_pago: [cliente.forma_pago, cliente.plazo_pago].filter(Boolean).join(' · '),
+        forma_pago: cliente.forma_pago || '',
+        plazo_pago: cliente.plazo_pago || '',
+        precio_base: cliente.precio_base ?? '',
+        whatsapp_autorizado: cliente.whatsapp_pedidos_autorizado ? 'Sí' : 'No',
+        recordatorio_diario: cliente.whatsapp_recordatorio_diario ? 'Sí' : 'No',
         estado: cliente.activo ? 'Activo' : 'Inactivo',
       })),
     });
@@ -899,12 +912,12 @@ export default function ClientesPage() {
 
             <button
               type="button"
-              onClick={imprimirClientes}
+              onClick={exportarClientes}
               disabled={clientesFiltrados.length === 0}
               className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[#217346] px-3 text-sm font-black text-white shadow-sm transition hover:bg-[#185c37] disabled:opacity-50"
             >
               <FileSpreadsheet className="h-4 w-4" />
-              Imprimir listado
+              Abrir en Excel
             </button>
           </div>
 
