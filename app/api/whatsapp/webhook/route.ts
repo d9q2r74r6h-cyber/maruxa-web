@@ -7,6 +7,7 @@ import {
   obtenerCanalesWhatsapp,
 } from '@/lib/whatsapp-canales';
 import { enviarPorWhatsapp, resolverPlantillaWhatsapp } from '@/lib/whatsapp-api';
+import { correspondeRepartidor } from '@/lib/repartidores';
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
@@ -502,15 +503,18 @@ async function avisarResponsablesPedido(
 ) {
   const { data: funcionarios, error } = await admin
     .from('funcionarios')
-    .select('id,nombre_completo,telefono,email')
+    .select('id,nombre_completo,telefono,email,recibe_avisos_pedidos_whatsapp')
     .eq('empresa_id', empresaId)
-    .eq('activo', true)
-    .eq('recibe_avisos_pedidos_whatsapp', true);
+    .eq('activo', true);
 
   if (error) return [`No se pudieron consultar destinatarios de pedidos: ${error.message}`];
 
   const destinatarios = new Map<string, any>();
   for (const funcionario of funcionarios || []) {
+    const debeRecibir =
+      funcionario.recibe_avisos_pedidos_whatsapp ||
+      correspondeRepartidor(funcionario.nombre_completo, pedido.repartidor);
+    if (!debeRecibir) continue;
     const telefono = String(funcionario.telefono || '').replace(/\D/g, '');
     const email = String(funcionario.email || '').trim().toLowerCase();
     if (telefono || email) destinatarios.set(String(funcionario.id), funcionario);

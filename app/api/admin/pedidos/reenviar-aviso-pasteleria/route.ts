@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { obtenerCanalPedidosWhatsapp } from '@/lib/whatsapp-canales';
 import { enviarPorWhatsapp, resolverPlantillaWhatsapp } from '@/lib/whatsapp-api';
+import { correspondeRepartidor } from '@/lib/repartidores';
 
 function crearAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -51,10 +52,9 @@ export async function POST(request: Request) {
       .maybeSingle(),
     admin
       .from('funcionarios')
-      .select('id,nombre_completo,telefono')
+      .select('id,nombre_completo,telefono,recibe_avisos_pedidos_whatsapp')
       .eq('empresa_id', perfil.empresa_id)
-      .eq('activo', true)
-      .eq('recibe_avisos_pedidos_whatsapp', true),
+      .eq('activo', true),
   ]);
   if (!pedido) {
     return NextResponse.json({ error: 'Pedido no encontrado.' }, { status: 404 });
@@ -82,10 +82,19 @@ export async function POST(request: Request) {
     .map((producto: any) => `${producto.cantidad} x ${producto.nombre}`)
     .join(', ')
     .slice(0, 700) || 'Sin productos detallados';
-  const destinatarios = (funcionarios || []).filter((item: any) => digitos(item.telefono));
+  const candidatos = (funcionarios || []).filter(
+    (item: any) =>
+      item.recibe_avisos_pedidos_whatsapp ||
+      correspondeRepartidor(item.nombre_completo, cliente?.repartidor_nombre)
+  );
+  const destinatarios = candidatos.filter((item: any) => digitos(item.telefono));
   if (!destinatarios.length) {
     return NextResponse.json(
-      { error: 'No hay trabajadores seleccionados con teléfono configurado.' },
+      {
+        error: candidatos.length
+          ? 'Los destinatarios seleccionados no tienen teléfono configurado.'
+          : 'No hay trabajadores ni repartidor seleccionados para este pedido.',
+      },
       { status: 400 }
     );
   }
@@ -108,7 +117,9 @@ export async function POST(request: Request) {
   }
 
   let enviados = 0;
-  const errores: string[] = [];
+  const errores: string[] = candidatos
+    .filter((item: any) => !digitos(item.telefono))
+    .map((item: any) => `${item.nombre_completo}: no tiene teléfono configurado`);
   for (const funcionario of destinatarios) {
     const valores = [
       funcionario.nombre_completo || 'Trabajador',
