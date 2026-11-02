@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   BadgeDollarSign,
   Edit3,
+  FileSpreadsheet,
   Loader2,
   Megaphone,
   Save,
@@ -15,6 +16,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAdminSession } from '@/components/AdminSession';
+import { imprimirListado } from '@/lib/imprimir-listado';
 
 type Cliente = {
   id: string;
@@ -250,6 +252,37 @@ export default function ClientesPage() {
       return coincideBusqueda && coincideRepartidor && coincideEstado;
     });
   }, [busqueda, clientes, filtroEstado, filtroRepartidor]);
+
+  function imprimirClientes() {
+    imprimirListado({
+      titulo: 'Listado de clientes',
+      subtitulo: `Filtros: ${filtroRepartidor === 'todos' ? 'todos los repartidores' : filtroRepartidor} · ${filtroEstado === 'todos' ? 'todos los estados' : filtroEstado}${busqueda ? ` · búsqueda: ${busqueda}` : ''}`,
+      columnas: [
+        { titulo: 'RUT', clave: 'rut' },
+        { titulo: 'Razón social', clave: 'razon_social' },
+        { titulo: 'Nombre corto', clave: 'sigla' },
+        { titulo: 'Teléfono', clave: 'telefono' },
+        { titulo: 'Correo', clave: 'email' },
+        { titulo: 'Dirección', clave: 'direccion' },
+        { titulo: 'Comuna', clave: 'comuna' },
+        { titulo: 'Repartidor', clave: 'repartidor' },
+        { titulo: 'Forma de pago', clave: 'forma_pago' },
+        { titulo: 'Estado', clave: 'estado' },
+      ],
+      filas: clientesFiltrados.map((cliente) => ({
+        rut: cliente.rut,
+        razon_social: cliente.razon_social,
+        sigla: cliente.sigla || '',
+        telefono: cliente.telefono || '',
+        email: cliente.email || '',
+        direccion: cliente.direccion || '',
+        comuna: cliente.comuna || '',
+        repartidor: repartidorOficial(cliente.repartidor_nombre) || 'Sin asignar',
+        forma_pago: [cliente.forma_pago, cliente.plazo_pago].filter(Boolean).join(' · '),
+        estado: cliente.activo ? 'Activo' : 'Inactivo',
+      })),
+    });
+  }
 
   const clienteRutExistente = useMemo(() => {
     const rut = normalizarRut(form.rut);
@@ -818,7 +851,7 @@ export default function ClientesPage() {
         </form>
 
         <div className="overflow-hidden rounded-lg border border-[#4B2818]/15 bg-white">
-          <div className="grid gap-3 border-b border-[#4B2818]/10 bg-[#FFF3DF] px-5 py-4 lg:grid-cols-[1fr_260px_190px_150px] lg:items-center">
+          <div className="grid gap-3 border-b border-[#4B2818]/10 bg-[#FFF3DF] px-5 py-4 lg:grid-cols-[1fr_230px_180px_135px_auto] lg:items-center">
             <div className="flex items-center gap-2">
               <UsersRound className="h-5 w-5 text-[#A51F2B]" />
               <div>
@@ -863,6 +896,16 @@ export default function ClientesPage() {
               <option value="activos">Activos</option>
               <option value="inactivos">Inactivos</option>
             </select>
+
+            <button
+              type="button"
+              onClick={imprimirClientes}
+              disabled={clientesFiltrados.length === 0}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[#217346] px-3 text-sm font-black text-white shadow-sm transition hover:bg-[#185c37] disabled:opacity-50"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Imprimir listado
+            </button>
           </div>
 
           {cargando ? (

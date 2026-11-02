@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   BadgePlus,
+  FileSpreadsheet,
   Mail,
   Pencil,
   Loader2,
@@ -15,6 +16,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { useAdminSession } from '@/components/AdminSession';
 import { registrarAuditoria } from '@/lib/auditoria';
+import { imprimirListado } from '@/lib/imprimir-listado';
 
 type Funcionario = {
   id: string;
@@ -125,6 +127,42 @@ export default function UsuariosPage() {
       ),
     [funcionarios, usuarios]
   );
+
+  function imprimirFuncionarios() {
+    imprimirListado({
+      titulo: 'Listado de trabajadores',
+      subtitulo: 'Funcionarios registrados en Panadería Maruxa',
+      columnas: [
+        { titulo: 'Código', clave: 'codigo' },
+        { titulo: 'Nombre completo', clave: 'nombre' },
+        { titulo: 'Nombre corto', clave: 'nombre_corto' },
+        { titulo: 'RUT', clave: 'rut' },
+        { titulo: 'Cargos', clave: 'cargos' },
+        { titulo: 'Teléfono', clave: 'telefono' },
+        { titulo: 'Correo', clave: 'email' },
+        { titulo: 'Nacimiento', clave: 'nacimiento' },
+        { titulo: 'Descanso', clave: 'descanso' },
+        { titulo: 'Avisos pedidos', clave: 'avisos' },
+        { titulo: 'Estado', clave: 'estado' },
+      ],
+      filas: funcionarios.map((funcionario) => ({
+        codigo: funcionario.codigo || '',
+        nombre: funcionario.nombre_completo,
+        nombre_corto: funcionario.nombre_corto || '',
+        rut: funcionario.rut || '',
+        cargos: (funcionario.funcionario_cargos || [])
+          .map((relacion) => nombreCargoRelacionado(relacion.cargos_empresa))
+          .filter(Boolean)
+          .join(', ') || funcionario.cargo || '',
+        telefono: funcionario.telefono || '',
+        email: funcionario.email || '',
+        nacimiento: funcionario.fecha_nacimiento || '',
+        descanso: funcionario.dia_descanso || 'Sin asignar',
+        avisos: funcionario.recibe_avisos_pedidos_whatsapp ? 'Sí' : 'No',
+        estado: funcionario.activo ? 'Activo' : 'Inactivo',
+      })),
+    });
+  }
 
   async function cargar() {
     if (!perfil) return;
@@ -528,11 +566,22 @@ export default function UsuariosPage() {
           </form>
 
           <section className="overflow-hidden rounded-lg border border-[#4B2818]/15 bg-white">
-            <div className="flex items-center gap-2 border-b border-[#4B2818]/10 bg-[#FFF3DF] px-5 py-4">
-              <UsersRound className="h-5 w-5 text-[#A51F2B]" />
-              <h2 className="font-black text-[#2A1710]">
-                Funcionarios registrados
-              </h2>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#4B2818]/10 bg-[#FFF3DF] px-5 py-4">
+              <div className="flex items-center gap-2">
+                <UsersRound className="h-5 w-5 text-[#A51F2B]" />
+                <h2 className="font-black text-[#2A1710]">
+                  Funcionarios registrados
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={imprimirFuncionarios}
+                disabled={funcionarios.length === 0}
+                className="inline-flex h-9 items-center gap-2 rounded-md bg-[#217346] px-4 text-sm font-black text-white shadow-sm transition hover:bg-[#185c37] disabled:opacity-50"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                Imprimir listado
+              </button>
             </div>
             <div className="overflow-x-auto">
               <div className="grid min-w-[995px] grid-cols-[170px_95px_110px_145px_105px_100px_80px_65px_75px] gap-1 border-b border-[#4B2818]/15 bg-[#2A1710] px-2 py-3 text-[10px] font-black uppercase tracking-wide text-white">
