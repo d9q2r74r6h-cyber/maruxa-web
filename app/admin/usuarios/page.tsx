@@ -102,7 +102,7 @@ export default function UsuariosPage() {
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [cargosEmpresa, setCargosEmpresa] = useState<CargoEmpresa[]>([]);
   const [nuevoCargo, setNuevoCargo] = useState({ nombre: '', modalidad_pago: 'mensual' as ModalidadPago, remuneracion: 0 });
-  const [funcionarioEditando, setFuncionarioEditando] = useState<(Funcionario & { cargo_ids: string[] }) | null>(null);
+  const [funcionarioEditando, setFuncionarioEditando] = useState<(Funcionario & { cargo_ids: string[]; cuenta_app_id: string }) | null>(null);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [modulos, setModulos] = useState<Modulo[]>([]);
   const [permisos, setPermisos] = useState<Permiso[]>([]);
@@ -322,7 +322,12 @@ export default function UsuariosPage() {
   }
 
   function abrirEdicion(funcionario: Funcionario) {
-    setFuncionarioEditando({ ...funcionario, cargo_ids: (funcionario.funcionario_cargos || []).map((item) => item.cargo_id) });
+    setFuncionarioEditando({
+      ...funcionario,
+      cargo_ids: (funcionario.funcionario_cargos || []).map((item) => item.cargo_id),
+      cuenta_app_id:
+        usuarios.find((usuario) => usuario.funcionario_id === funcionario.id)?.id || '',
+    });
   }
 
   async function guardarFuncionarioEditado(event: React.FormEvent) {
@@ -336,7 +341,25 @@ export default function UsuariosPage() {
       const { error: errorInsertar } = errorBorrar ? { error: errorBorrar } : await supabase.from('funcionario_cargos').insert(funcionarioEditando.cargo_ids.map((cargo_id) => ({ funcionario_id: funcionarioEditando.id, cargo_id })));
       if (errorInsertar) { setGuardando(false); return alert(errorInsertar.message); }
     }
-    setGuardando(false); if (error) return alert(error.message);
+    if (error) { setGuardando(false); return alert(error.message); }
+    const cuentaAnterior = usuarios.find((usuario) => usuario.funcionario_id === funcionarioEditando.id)?.id || '';
+    if (cuentaAnterior !== funcionarioEditando.cuenta_app_id) {
+      if (cuentaAnterior) {
+        const { error: errorDesvincular } = await supabase
+          .from('perfiles_usuario')
+          .update({ funcionario_id: null })
+          .eq('id', cuentaAnterior);
+        if (errorDesvincular) { setGuardando(false); return alert(errorDesvincular.message); }
+      }
+      if (funcionarioEditando.cuenta_app_id) {
+        const { error: errorVincular } = await supabase
+          .from('perfiles_usuario')
+          .update({ funcionario_id: funcionarioEditando.id })
+          .eq('id', funcionarioEditando.cuenta_app_id);
+        if (errorVincular) { setGuardando(false); return alert(errorVincular.message); }
+      }
+    }
+    setGuardando(false);
     await registrarAuditoria({ modulo: 'usuarios', accion: 'editar', tabla: 'funcionarios', registroId: funcionarioEditando.id, descripcion: `Funcionario actualizado: ${funcionarioEditando.nombre_completo}` });
     setFuncionarioEditando(null); await cargar(); alert('Funcionario actualizado.');
   }
@@ -481,7 +504,7 @@ export default function UsuariosPage() {
 
   return (
     <div className="space-y-6 pb-12">
-      {funcionarioEditando && <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/45 p-4"><form onSubmit={guardarFuncionarioEditado} className="my-6 w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl"><div className="flex items-center justify-between"><div><p className="text-xs font-black uppercase text-[#A51F2B]">Funcionario</p><h2 className="text-2xl font-black text-[#2A1710]">Editar datos</h2></div><button type="button" onClick={() => setFuncionarioEditando(null)} className="rounded-md px-3 py-2 font-black">Cerrar</button></div><div className="mt-5 grid gap-3 md:grid-cols-2">{([['codigo','Código','text'],['nombre_completo','Nombre completo','text'],['rut','RUT','text'],['email','Correo','email'],['telefono','Teléfono','text'],['fecha_nacimiento','Fecha de nacimiento','date']] as const).map(([campo,etiqueta,tipo]) => <label key={campo} className="grid gap-1 text-xs font-black text-[#4B2818]">{etiqueta}<input type={tipo} required={campo==='nombre_completo'} value={funcionarioEditando[campo] || ''} onChange={(event) => setFuncionarioEditando({ ...funcionarioEditando, [campo]: event.target.value })} className="h-11 rounded-md border px-3 text-sm font-bold" /></label>)}</div><fieldset className="mt-4 rounded-lg border p-4"><legend className="px-2 text-sm font-black">Cargos</legend><div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">{cargosEmpresa.map((cargo) => <label key={cargo.id} className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" checked={funcionarioEditando.cargo_ids.includes(cargo.id)} onChange={(event) => setFuncionarioEditando({ ...funcionarioEditando, cargo_ids: event.target.checked ? [...funcionarioEditando.cargo_ids,cargo.id] : funcionarioEditando.cargo_ids.filter((id) => id!==cargo.id) })} />{cargo.nombre}</label>)}</div></fieldset><div className="mt-4 grid gap-3 sm:grid-cols-3"><label className="flex h-11 items-center gap-2 rounded-md border px-3 text-sm font-black"><input type="checkbox" checked={funcionarioEditando.activo} onChange={(event) => setFuncionarioEditando({ ...funcionarioEditando, activo: event.target.checked })} />Funcionario activo</label><label className="flex h-11 items-center gap-2 rounded-md border px-3 text-sm font-black"><input type="checkbox" checked={funcionarioEditando.trabaja_comision} onChange={(event) => setFuncionarioEditando({ ...funcionarioEditando, trabaja_comision: event.target.checked })} />Trabaja a comisión</label><label className="flex h-11 items-center gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-3 text-sm font-black"><input type="checkbox" checked={funcionarioEditando.recibe_avisos_pedidos_whatsapp || false} onChange={(event) => setFuncionarioEditando({ ...funcionarioEditando, recibe_avisos_pedidos_whatsapp: event.target.checked })} />Avisos de pedidos</label>{funcionarioEditando.trabaja_comision && <label className="grid gap-1 text-xs font-black">Comisión %<input type="number" min="0" step="0.1" value={funcionarioEditando.porcentaje_comision || 0} onChange={(event) => setFuncionarioEditando({ ...funcionarioEditando, porcentaje_comision: Number(event.target.value) })} className="h-11 rounded-md border px-3 text-right text-sm font-black" /></label>}</div><div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setFuncionarioEditando(null)} className="h-11 rounded-md border px-5 font-black">Cancelar</button><button disabled={guardando} className="inline-flex h-11 items-center gap-2 rounded-md bg-[#A51F2B] px-6 font-black text-white"><Save className="h-4 w-4" />Guardar cambios</button></div></form></div>}
+      {funcionarioEditando && <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/45 p-4"><form onSubmit={guardarFuncionarioEditado} className="my-6 w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl"><div className="flex items-center justify-between"><div><p className="text-xs font-black uppercase text-[#A51F2B]">Funcionario</p><h2 className="text-2xl font-black text-[#2A1710]">Editar datos</h2></div><button type="button" onClick={() => setFuncionarioEditando(null)} className="rounded-md px-3 py-2 font-black">Cerrar</button></div><div className="mt-5 grid gap-3 md:grid-cols-2">{([['codigo','Código','text'],['nombre_completo','Nombre completo','text'],['rut','RUT','text'],['email','Correo','email'],['telefono','Teléfono','text'],['fecha_nacimiento','Fecha de nacimiento','date']] as const).map(([campo,etiqueta,tipo]) => <label key={campo} className="grid gap-1 text-xs font-black text-[#4B2818]">{etiqueta}<input type={tipo} required={campo==='nombre_completo'} value={funcionarioEditando[campo] || ''} onChange={(event) => setFuncionarioEditando({ ...funcionarioEditando, [campo]: event.target.value })} className="h-11 rounded-md border px-3 text-sm font-bold" /></label>)}</div><section className="mt-4 rounded-lg border border-emerald-300 bg-emerald-50 p-4"><label className="grid gap-1 text-xs font-black text-emerald-950">Perfil de la app<select value={funcionarioEditando.cuenta_app_id} onChange={(event) => setFuncionarioEditando({ ...funcionarioEditando, cuenta_app_id: event.target.value })} className="h-11 rounded-md border border-emerald-700/25 bg-white px-3 text-sm font-bold text-[#2A1710]"><option value="">Sin perfil vinculado</option>{usuarios.filter((usuario) => !usuario.funcionario_id || usuario.id === funcionarioEditando.cuenta_app_id).map((usuario) => <option key={usuario.id} value={usuario.id}>{usuario.nombre_visible} · {usuario.rol}</option>)}</select></label><p className="mt-2 text-xs font-semibold text-emerald-900/75">Vincula una cuenta existente para habilitar su acceso y la recuperación por WhatsApp.</p></section><fieldset className="mt-4 rounded-lg border p-4"><legend className="px-2 text-sm font-black">Cargos</legend><div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">{cargosEmpresa.map((cargo) => <label key={cargo.id} className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" checked={funcionarioEditando.cargo_ids.includes(cargo.id)} onChange={(event) => setFuncionarioEditando({ ...funcionarioEditando, cargo_ids: event.target.checked ? [...funcionarioEditando.cargo_ids,cargo.id] : funcionarioEditando.cargo_ids.filter((id) => id!==cargo.id) })} />{cargo.nombre}</label>)}</div></fieldset><div className="mt-4 grid gap-3 sm:grid-cols-3"><label className="flex h-11 items-center gap-2 rounded-md border px-3 text-sm font-black"><input type="checkbox" checked={funcionarioEditando.activo} onChange={(event) => setFuncionarioEditando({ ...funcionarioEditando, activo: event.target.checked })} />Funcionario activo</label><label className="flex h-11 items-center gap-2 rounded-md border px-3 text-sm font-black"><input type="checkbox" checked={funcionarioEditando.trabaja_comision} onChange={(event) => setFuncionarioEditando({ ...funcionarioEditando, trabaja_comision: event.target.checked })} />Trabaja a comisión</label><label className="flex h-11 items-center gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-3 text-sm font-black"><input type="checkbox" checked={funcionarioEditando.recibe_avisos_pedidos_whatsapp || false} onChange={(event) => setFuncionarioEditando({ ...funcionarioEditando, recibe_avisos_pedidos_whatsapp: event.target.checked })} />Avisos de pedidos</label>{funcionarioEditando.trabaja_comision && <label className="grid gap-1 text-xs font-black">Comisión %<input type="number" min="0" step="0.1" value={funcionarioEditando.porcentaje_comision || 0} onChange={(event) => setFuncionarioEditando({ ...funcionarioEditando, porcentaje_comision: Number(event.target.value) })} className="h-11 rounded-md border px-3 text-right text-sm font-black" /></label>}</div><div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setFuncionarioEditando(null)} className="h-11 rounded-md border px-5 font-black">Cancelar</button><button disabled={guardando} className="inline-flex h-11 items-center gap-2 rounded-md bg-[#A51F2B] px-6 font-black text-white"><Save className="h-4 w-4" />Guardar cambios</button></div></form></div>}
       <style jsx global>{`@media (min-width:640px){.fixed.inset-0 form > div.mt-4.grid{align-items:end}}`}</style>
       <header>
         <p className="text-xs font-black uppercase tracking-wide text-[#A51F2B]">
