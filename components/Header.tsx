@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import {
   ChevronRight,
@@ -15,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useCart } from '@/lib/cart';
 import { facebook, instagram, whatsapp } from '@/lib/datos';
+import { obtenerEmpresaActual } from '@/lib/empresa';
 
 const mensaje = encodeURIComponent(
   'Hola Maruxa, quiero hacer un pedido para retiro en local.'
@@ -22,9 +22,16 @@ const mensaje = encodeURIComponent(
 
 export function Header() {
   const [open, setOpen] = useState(false);
+  const [logoUrl, setLogoUrl] = useState('/logo-maruxa.png');
   const items = useCart((s) => s.items);
 
   const cantidad = items.reduce((acc, item) => acc + item.cantidad, 0);
+
+  useEffect(() => {
+    void obtenerEmpresaActual().then((empresa) => {
+      if (empresa?.logo_url) setLogoUrl(empresa.logo_url);
+    });
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -59,13 +66,10 @@ export function Header() {
       <header className="sticky top-0 z-50 border-b border-maruxa-cafe/10 bg-maruxa-crema/85 backdrop-blur-2xl">
       <div className="contenedor flex min-h-20 items-center justify-between py-2 sm:min-h-24">
           <Link href="/" className="flex items-center gap-4">
-            <Image
-              src="/logo-maruxa.png"
+            <img
+              src={logoUrl}
               alt="Panadería Maruxa"
-              width={170}
-              height={70}
               className="h-auto w-[128px] object-contain sm:w-[170px]"
-              priority
             />
           </Link>
 
@@ -161,11 +165,7 @@ export function Header() {
           }`}
         >
           <div className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-maruxa-rojo/10 bg-maruxa-crema/95 px-4 backdrop-blur sm:h-20 sm:px-6">
-            <Image src="/logo-maruxa.png" alt="Maruxa" width={140} height={60} className="object-contain" 
-               style={{
-                width: 'auto',
-                height: 'auto',
-              }}/>
+            <img src={logoUrl} alt="Maruxa" className="h-[60px] w-[140px] object-contain" />
 
             <button
               onClick={() => setOpen(false)}

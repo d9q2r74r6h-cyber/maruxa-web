@@ -11,9 +11,9 @@ export const metadata: Metadata = {
     'Panadería artesanal chilena. Tortas, pastelería y productos frescos con retiro en local.',
 
   icons: {
-    icon: '/favicon.ico',
-    shortcut: '/favicon.ico',
-    apple: '/apple-touch-icon.png',
+    icon: '/api/marca/icono',
+    shortcut: '/api/marca/icono',
+    apple: '/api/marca/icono',
   },
 
   verification: {

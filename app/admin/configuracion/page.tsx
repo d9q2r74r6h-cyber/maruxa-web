@@ -13,6 +13,7 @@ type EmpresaConfig = {
   telefono: string | null;
   email: string | null;
   whatsapp: string | null;
+  logo_url: string | null;
   instagram_url: string | null;
   facebook_url: string | null;
   iva_porcentaje: number;
@@ -109,6 +110,7 @@ export default function ConfiguracionPage() {
   const [conceptosBonoCaja, setConceptosBonoCaja] = useState<ConceptoBonoCaja[]>([]);
   const [cuentaEditando, setCuentaEditando] = useState<CuentaBancaria | null>(null);
   const [loading, setLoading] = useState(true);
+  const [subiendoLogo, setSubiendoLogo] = useState(false);
 
   const [nuevoTurno, setNuevoTurno] = useState({
     nombre: '',
@@ -292,6 +294,7 @@ export default function ConfiguracionPage() {
         telefono: formatearTelefonoChile(empresa.telefono) || null,
         email: empresa.email,
         whatsapp: formatearTelefonoChile(empresa.whatsapp) || null,
+        logo_url: empresa.logo_url,
         instagram_url: empresa.instagram_url,
         facebook_url: empresa.facebook_url,
         iva_porcentaje: Number(empresa.iva_porcentaje || 19),
@@ -314,6 +317,56 @@ export default function ConfiguracionPage() {
     }
 
     alert('Configuración guardada.');
+  }
+
+  async function subirLogo(file: File) {
+    if (!empresa) return;
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      alert('El logo debe ser PNG, JPG o WebP.');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      alert('El logo no puede pesar más de 2 MB.');
+      return;
+    }
+
+    setSubiendoLogo(true);
+    const urlTemporal = URL.createObjectURL(file);
+    try {
+      const imagen = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const elemento = new Image();
+        elemento.onload = () => resolve(elemento);
+        elemento.onerror = () => reject(new Error('No se pudo leer la imagen.'));
+        elemento.src = urlTemporal;
+      });
+      const diferencia = Math.abs(imagen.naturalWidth - imagen.naturalHeight);
+      if (imagen.naturalWidth < 192 || imagen.naturalHeight < 192 || diferencia > Math.max(imagen.naturalWidth, imagen.naturalHeight) * 0.05) {
+        alert('Usa una imagen cuadrada de al menos 192 × 192 píxeles.');
+        return;
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 512;
+      canvas.getContext('2d')?.drawImage(imagen, 0, 0, 512, 512);
+      const archivo = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', 0.92));
+      if (!archivo) throw new Error('No se pudo preparar el logo.');
+
+      const ruta = `${empresa.id}/marca/logo-${Date.now()}.webp`;
+      const { error } = await supabase.storage.from('productos').upload(ruta, archivo, {
+        cacheControl: '3600',
+        contentType: 'image/webp',
+        upsert: false,
+      });
+      if (error) throw error;
+      const { data } = supabase.storage.from('productos').getPublicUrl(ruta);
+      setEmpresa({ ...empresa, logo_url: data.publicUrl });
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'No se pudo subir el logo.');
+    } finally {
+      URL.revokeObjectURL(urlTemporal);
+      setSubiendoLogo(false);
+    }
   }
 
   async function agregarTurno() {
@@ -658,6 +711,37 @@ export default function ConfiguracionPage() {
           <h2 className="text-2xl font-black text-maruxa-chocolate">
             Datos de empresa
           </h2>
+
+          <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-[#4B2818]/15 bg-[#FFF9EF] p-4 sm:flex-row sm:items-center">
+            <div className="grid h-28 w-28 shrink-0 place-items-center overflow-hidden rounded-2xl border bg-white p-2">
+              <img
+                src={empresa.logo_url || '/logo-maruxa.png'}
+                alt="Logo del negocio"
+                className="h-full w-full object-contain"
+              />
+            </div>
+            <div className="flex-1">
+              <p className="font-black text-maruxa-chocolate">Logo del negocio</p>
+              <p className="mt-1 text-xs font-bold text-maruxa-cafe/65">
+                Se utilizará en la pestaña del navegador y en el encabezado principal. Imagen cuadrada, mínimo 192 × 192 px, PNG, JPG o WebP, máximo 2 MB. La app la ajustará a 512 × 512 px.
+              </p>
+              <label className="mt-3 inline-flex h-10 cursor-pointer items-center rounded-xl bg-[#A51F2B] px-5 text-sm font-black text-white">
+                {subiendoLogo ? 'Subiendo…' : 'Elegir logo'}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  disabled={subiendoLogo}
+                  onChange={(event) => {
+                    const archivo = event.target.files?.[0];
+                    if (archivo) void subirLogo(archivo);
+                    event.target.value = '';
+                  }}
+                  className="hidden"
+                />
+              </label>
+              <p className="mt-2 text-[11px] font-bold text-maruxa-cafe/55">Después de cargarlo, pulsa “Guardar configuración”.</p>
+            </div>
+          </div>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <input
