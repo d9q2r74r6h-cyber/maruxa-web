@@ -17,6 +17,7 @@ import { supabase } from '@/lib/supabase';
 import { useAdminSession } from '@/components/AdminSession';
 import { registrarAuditoria } from '@/lib/auditoria';
 import { exportarParaExcel } from '@/lib/exportar-excel';
+import { formatearTelefonoChile } from '@/lib/telefonos';
 
 type Funcionario = {
   id: string;
@@ -157,7 +158,7 @@ export default function UsuariosPage() {
           .map((relacion) => nombreCargoRelacionado(relacion.cargos_empresa))
           .filter(Boolean)
           .join(', ') || funcionario.cargo || '',
-        telefono: funcionario.telefono || '',
+        telefono: formatearTelefonoChile(funcionario.telefono),
         email: funcionario.email || '',
         nacimiento: funcionario.fecha_nacimiento || '',
         descanso: funcionario.dia_descanso || 'Sin asignar',
@@ -272,7 +273,7 @@ export default function UsuariosPage() {
         nombre_corto: formFuncionario.nombre_corto.trim() || formFuncionario.nombre_completo.trim().split(/\s+/)[0],
         rut: formFuncionario.rut || null,
         email: formFuncionario.email || null,
-        telefono: formFuncionario.telefono || null,
+        telefono: formatearTelefonoChile(formFuncionario.telefono) || null,
         fecha_nacimiento: formFuncionario.fecha_nacimiento || null,
         dia_descanso: formFuncionario.dia_descanso || null,
         cargo: cargosEmpresa.find((cargo) => cargo.id === formFuncionario.cargo_ids[0])?.nombre || 'Funcionario',
@@ -329,7 +330,7 @@ export default function UsuariosPage() {
     if (!funcionarioEditando?.nombre_completo.trim() || !funcionarioEditando.cargo_ids.length) return alert('Ingresa el nombre y al menos un cargo.');
     setGuardando(true);
     const cargoPrincipal = cargosEmpresa.find((cargo) => cargo.id === funcionarioEditando.cargo_ids[0])?.nombre || 'Funcionario';
-    const { error } = await supabase.from('funcionarios').update({ codigo: funcionarioEditando.codigo || null, nombre_completo: funcionarioEditando.nombre_completo.trim(), nombre_corto: funcionarioEditando.nombre_corto?.trim() || funcionarioEditando.nombre_completo.trim().split(/\s+/)[0], rut: funcionarioEditando.rut || null, email: funcionarioEditando.email || null, telefono: funcionarioEditando.telefono || null, fecha_nacimiento: funcionarioEditando.fecha_nacimiento || null, dia_descanso: funcionarioEditando.dia_descanso || null, cargo: cargoPrincipal, activo: funcionarioEditando.activo, trabaja_comision: funcionarioEditando.trabaja_comision, porcentaje_comision: funcionarioEditando.porcentaje_comision || 0, recibe_avisos_pedidos_whatsapp: funcionarioEditando.recibe_avisos_pedidos_whatsapp }).eq('id', funcionarioEditando.id);
+    const { error } = await supabase.from('funcionarios').update({ codigo: funcionarioEditando.codigo || null, nombre_completo: funcionarioEditando.nombre_completo.trim(), nombre_corto: funcionarioEditando.nombre_corto?.trim() || funcionarioEditando.nombre_completo.trim().split(/\s+/)[0], rut: funcionarioEditando.rut || null, email: funcionarioEditando.email || null, telefono: formatearTelefonoChile(funcionarioEditando.telefono) || null, fecha_nacimiento: funcionarioEditando.fecha_nacimiento || null, dia_descanso: funcionarioEditando.dia_descanso || null, cargo: cargoPrincipal, activo: funcionarioEditando.activo, trabaja_comision: funcionarioEditando.trabaja_comision, porcentaje_comision: funcionarioEditando.porcentaje_comision || 0, recibe_avisos_pedidos_whatsapp: funcionarioEditando.recibe_avisos_pedidos_whatsapp }).eq('id', funcionarioEditando.id);
     if (!error) {
       const { error: errorBorrar } = await supabase.from('funcionario_cargos').delete().eq('funcionario_id', funcionarioEditando.id);
       const { error: errorInsertar } = errorBorrar ? { error: errorBorrar } : await supabase.from('funcionario_cargos').insert(funcionarioEditando.cargo_ids.map((cargo_id) => ({ funcionario_id: funcionarioEditando.id, cargo_id })));

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 import { createHmac } from 'crypto';
+import { formatearTelefonoChile } from '@/lib/telefonos';
 
 const CORREO_ADMIN = 'panaderiamaruxa@hotmail.com';
 const REGIONES_CHILE = new Set([
@@ -94,9 +95,9 @@ export async function POST(request: Request) {
   if(!rutValido(datos.rut))return NextResponse.json({error:'El RUT ingresado no es válido. Revisa el número y su dígito verificador.'},{status:400});
 
   const email=texto(datos.email).toLowerCase();
-  const telefono=texto(datos.telefono).replace(/[\s()-]/g,'');
+  const telefono=formatearTelefonoChile(texto(datos.telefono));
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)||email.length>160)return NextResponse.json({error:'Ingresa un correo electrónico válido.'},{status:400});
-  if(!/^\+?\d{8,15}$/.test(telefono))return NextResponse.json({error:'Ingresa un teléfono válido, idealmente con código de país.'},{status:400});
+  if(!/^\d{8,15}$/.test(telefono.replace(/\D/g,'')))return NextResponse.json({error:'Ingresa un teléfono válido, idealmente con código de país.'},{status:400});
   if(!pareceTextoHumano(datos.razon_social,3,120)||!pareceNombreCompleto(datos.contacto_nombre)||!pareceTextoHumano(datos.empresa_direccion,5,160)||!pareceTextoHumano(datos.empresa_comuna,2,80)||!pareceTextoHumano(datos.empresa_ciudad,2,80)){
     await registrarIntento('contenido_aleatorio_o_no_humano');
     return NextResponse.json({error:'Revisa la razón social, el nombre completo del contacto y la dirección. Hay datos que no parecen válidos.'},{status:400});

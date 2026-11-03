@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAdminSession } from '@/components/AdminSession';
+import { formatearTelefonoChile } from '@/lib/telefonos';
 
 type Proveedor = {
   id: string;
@@ -145,10 +146,10 @@ export default function ProveedoresPage() {
       comuna: proveedor.comuna || '',
       ciudad: proveedor.ciudad || '',
       email: proveedor.email || '',
-      telefono: proveedor.telefono || '',
+      telefono: formatearTelefonoChile(proveedor.telefono),
       contacto_nombre: proveedor.contacto_nombre || '',
       contacto_email: proveedor.contacto_email || '',
-      contacto_telefono: proveedor.contacto_telefono || '',
+      contacto_telefono: formatearTelefonoChile(proveedor.contacto_telefono),
       condiciones_pago: proveedor.condiciones_pago || '',
       dias_credito: String(proveedor.dias_credito || 0),
       observaciones: proveedor.observaciones || '',
@@ -167,10 +168,10 @@ export default function ProveedoresPage() {
       comuna: limpiarTexto(form.comuna),
       ciudad: limpiarTexto(form.ciudad),
       email: limpiarTexto(form.email),
-      telefono: limpiarTexto(form.telefono),
+      telefono: formatearTelefonoChile(form.telefono) || null,
       contacto_nombre: limpiarTexto(form.contacto_nombre),
       contacto_email: limpiarTexto(form.contacto_email),
-      contacto_telefono: limpiarTexto(form.contacto_telefono),
+      contacto_telefono: formatearTelefonoChile(form.contacto_telefono) || null,
       condiciones_pago: limpiarTexto(form.condiciones_pago),
       dias_credito: Number(form.dias_credito || 0),
       observaciones: limpiarTexto(form.observaciones),
@@ -327,6 +328,11 @@ export default function ProveedoresPage() {
                   onChange={(event) =>
                     setForm({ ...form, [campo]: event.target.value })
                   }
+                  onBlur={(event) => {
+                    if (campo === 'telefono' || campo === 'contacto_telefono') {
+                      setForm({ ...form, [campo]: formatearTelefonoChile(event.target.value) });
+                    }
+                  }}
                   className="h-10 rounded-md border border-[#4B2818]/20 px-3 font-bold outline-none focus:border-[#A51F2B]"
                 />
               </label>

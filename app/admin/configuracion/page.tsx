@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { obtenerEmpresaActual } from '@/lib/empresa';
+import { formatearTelefonoChile } from '@/lib/telefonos';
 
 type EmpresaConfig = {
   id: string;
@@ -288,9 +289,9 @@ export default function ConfiguracionPage() {
         nombre_fantasia: empresa.nombre_fantasia,
         razon_social: empresa.razon_social,
         rut: empresa.rut,
-        telefono: empresa.telefono,
+        telefono: formatearTelefonoChile(empresa.telefono) || null,
         email: empresa.email,
-        whatsapp: empresa.whatsapp,
+        whatsapp: formatearTelefonoChile(empresa.whatsapp) || null,
         instagram_url: empresa.instagram_url,
         facebook_url: empresa.facebook_url,
         iva_porcentaje: Number(empresa.iva_porcentaje || 19),
@@ -691,6 +692,7 @@ export default function ConfiguracionPage() {
               onChange={(e) =>
                 setEmpresa({ ...empresa, telefono: e.target.value })
               }
+              onBlur={(e) => setEmpresa({ ...empresa, telefono: formatearTelefonoChile(e.target.value) })}
               placeholder="Teléfono"
               className="rounded-2xl border px-5 py-4 font-bold"
             />
@@ -709,7 +711,8 @@ export default function ConfiguracionPage() {
               onChange={(e) =>
                 setEmpresa({ ...empresa, whatsapp: e.target.value })
               }
-              placeholder="WhatsApp ej: 56986232447"
+              onBlur={(e) => setEmpresa({ ...empresa, whatsapp: formatearTelefonoChile(e.target.value) })}
+              placeholder="WhatsApp ej: +56 9 8623 2447"
               className="rounded-2xl border px-5 py-4 font-bold"
             />
 

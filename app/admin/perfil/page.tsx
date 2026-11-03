@@ -4,6 +4,7 @@ import { BadgeCheck, Clock3, Mail, UserRound } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAdminSession } from '@/components/AdminSession';
 import { supabase } from '@/lib/supabase';
+import { formatearTelefonoChile } from '@/lib/telefonos';
 
 export default function PerfilPage() {
   const { perfil, permisos, recargar } = useAdminSession();
@@ -44,7 +45,7 @@ export default function PerfilPage() {
       .update({
         notificar_whatsapp: notificarWhatsapp,
         notificar_email: notificarEmail,
-        notificacion_whatsapp: whatsappDestino.trim() || null,
+        notificacion_whatsapp: formatearTelefonoChile(whatsappDestino) || null,
         notificacion_email: emailDestino.trim() || null,
       })
       .eq('id', perfil.id);
@@ -139,7 +140,8 @@ export default function PerfilPage() {
               <input
                 value={whatsappDestino}
                 onChange={(event) => setWhatsappDestino(event.target.value)}
-                placeholder="569XXXXXXXX"
+                onBlur={(event) => setWhatsappDestino(formatearTelefonoChile(event.target.value))}
+                placeholder="+56 9 9842 8324"
                 className="h-11 rounded-md border border-[#4B2818]/15 px-4 font-bold"
               />
             )}

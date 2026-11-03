@@ -17,6 +17,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { useAdminSession } from '@/components/AdminSession';
 import { exportarParaExcel } from '@/lib/exportar-excel';
+import { formatearTelefonoChile } from '@/lib/telefonos';
 
 type Cliente = {
   id: string;
@@ -119,17 +120,6 @@ function repartidorOficial(nombre: string | null | undefined) {
 function numero(valor: string) {
   const n = Number(String(valor || '').replace(',', '.'));
   return Number.isFinite(n) ? n : 0;
-}
-
-function formatearWhatsappChile(valor: string | null | undefined) {
-  let digitos = String(valor || '').replace(/\D/g, '');
-  if (digitos.startsWith('56')) digitos = digitos.slice(2);
-  if (digitos.startsWith('0')) digitos = digitos.slice(1);
-  if (digitos.length === 8) digitos = `9${digitos}`;
-  if (digitos.length !== 9 || !digitos.startsWith('9')) {
-    return String(valor || '').trim();
-  }
-  return `+56 9 ${digitos.slice(1, 5)} ${digitos.slice(5, 9)}`;
 }
 
 export default function ClientesPage() {
@@ -292,7 +282,7 @@ export default function ClientesPage() {
         sigla: cliente.sigla || '',
         codigo_legacy: cliente.codigo_legacy || '',
         giro: cliente.giro || '',
-        telefono: formatearWhatsappChile(cliente.telefono),
+        telefono: formatearTelefonoChile(cliente.telefono),
         email: cliente.email || '',
         direccion: cliente.direccion || '',
         comuna: cliente.comuna || '',
@@ -461,7 +451,7 @@ export default function ClientesPage() {
       comuna: cliente.comuna || '',
       ciudad: cliente.ciudad || '',
       email: cliente.email || '',
-      telefono: formatearWhatsappChile(cliente.telefono),
+      telefono: formatearTelefonoChile(cliente.telefono),
       codigo_legacy: cliente.codigo_legacy || '',
       sigla: cliente.sigla || '',
       repartidor_nombre: repartidorOficial(cliente.repartidor_nombre),
@@ -500,7 +490,7 @@ export default function ClientesPage() {
       comuna: form.comuna.trim() || null,
       ciudad: form.ciudad.trim() || null,
       email: form.email.trim() || null,
-      telefono: formatearWhatsappChile(form.telefono) || null,
+      telefono: formatearTelefonoChile(form.telefono) || null,
       codigo_legacy: form.codigo_legacy.trim() || null,
       sigla: form.sigla.trim() || null,
       repartidor_nombre: repartidorOficial(form.repartidor_nombre) || null,
@@ -752,7 +742,7 @@ export default function ClientesPage() {
                       ? (event) =>
                           setForm({
                             ...form,
-                            telefono: formatearWhatsappChile(event.target.value),
+                            telefono: formatearTelefonoChile(event.target.value),
                           })
                       : undefined
                   }

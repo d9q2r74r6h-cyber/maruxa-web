@@ -7,6 +7,7 @@ import { es } from 'date-fns/locale';
 import { useCart } from '@/lib/cart';
 import { CalendarioRetiro } from '@/components/CalendarioRetiro';
 import { cumpleAnticipacionRetiro } from '@/lib/retiro';
+import { formatearTelefonoChile } from '@/lib/telefonos';
 
 export function CheckoutPage() {
   const { items, clearCart } = useCart();
@@ -44,7 +45,7 @@ export function CheckoutPage() {
     setLoading(true);
 
     const cliente = String(form.get('cliente'));
-    const telefono = String(form.get('telefono'));
+    const telefono = formatearTelefonoChile(String(form.get('telefono')));
     const observaciones = String(form.get('observaciones'));
 
     const fechaTexto = format(fecha, 'yyyy-MM-dd');
@@ -186,7 +187,7 @@ const pedidoCreado = resultado.pedido as { total: number };
             <input
               name="telefono"
               required
-              placeholder="Teléfono"
+              placeholder="Teléfono: +56 9 9842 8324"
               className="w-full rounded-[24px] border border-maruxa-rojo/10 bg-white px-5 py-5 font-bold outline-none"
             />
 

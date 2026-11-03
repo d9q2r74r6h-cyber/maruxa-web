@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { supabasePublic } from '@/lib/supabase-public';
 import { whatsapp } from '@/lib/datos';
+import { formatearTelefonoChile } from '@/lib/telefonos';
 
 export function FormularioTortas() {
   const [enviando, setEnviando] = useState(false);
@@ -15,7 +16,7 @@ export function FormularioTortas() {
 
     const pedido = {
       cliente: String(form.get('cliente') || ''),
-      telefono: String(form.get('telefono') || ''),
+      telefono: formatearTelefonoChile(String(form.get('telefono') || '')),
       sabor: String(form.get('sabor') || ''),
       tamano: String(form.get('tamano') || ''),
       dedicatoria: String(form.get('dedicatoria') || ''),
@@ -56,7 +57,7 @@ export function FormularioTortas() {
       className="card-premium rounded-[34px] bg-white/10 p-6"
     >
       <input name="cliente" required placeholder="Nombre" className="mb-3 w-full rounded-2xl border border-white/10 bg-white/90 px-4 py-4 text-maruxa-chocolate outline-none" />
-      <input name="telefono" required placeholder="Teléfono" className="mb-3 w-full rounded-2xl border border-white/10 bg-white/90 px-4 py-4 text-maruxa-chocolate outline-none" />
+      <input name="telefono" required placeholder="Teléfono: +56 9 9842 8324" className="mb-3 w-full rounded-2xl border border-white/10 bg-white/90 px-4 py-4 text-maruxa-chocolate outline-none" />
       <input name="sabor" required placeholder="Tipo de torta / sabor" className="mb-3 w-full rounded-2xl border border-white/10 bg-white/90 px-4 py-4 text-maruxa-chocolate outline-none" />
       <input name="tamano" placeholder="Tamaño" className="mb-3 w-full rounded-2xl border border-white/10 bg-white/90 px-4 py-4 text-maruxa-chocolate outline-none" />
       <input name="fecha_retiro" required type="date" className="mb-3 w-full rounded-2xl border border-white/10 bg-white/90 px-4 py-4 text-maruxa-chocolate outline-none" />
