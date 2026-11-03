@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { obtenerEmpresaActual } from '@/lib/empresa';
+import { formatearTelefonoChile } from '@/lib/telefonos';
 
 type WhatsappEvento = {
   id: string;
@@ -203,7 +204,7 @@ function nombreConversacion(eventos: WhatsappEvento[]) {
 
   return eventoConNombre
     ? nombreContacto(eventoConNombre)
-    : ultimoEvento.telefono || 'Cliente WhatsApp';
+    : formatearTelefonoChile(ultimoEvento.telefono) || 'Cliente WhatsApp';
 }
 
 function esMensajePropio(evento: WhatsappEvento) {
@@ -1144,7 +1145,7 @@ export default function AdminWhatsappPage() {
                           ? conversacionActiva.telefono
                           : conversacionActiva.ultimoEvento.origen === 'instagram'
                           ? 'Instagram'
-                          : conversacionActiva.telefono}
+                          : formatearTelefonoChile(conversacionActiva.telefono)}
                       </p>
                       {conversacionActiva.ultimoEvento.origen === 'whatsapp' && (
                         <p className="mt-0.5 text-[10px] font-black uppercase tracking-wide text-maruxa-rojo">
@@ -1391,7 +1392,7 @@ export default function AdminWhatsappPage() {
                         <div className="flex flex-wrap items-start justify-between gap-2">
                           <div>
                             <p className="font-black text-maruxa-chocolate">{item.cliente}</p>
-                            <p className="text-xs font-bold text-maruxa-cafe/55">{item.telefono} · {item.hora}</p>
+                            <p className="text-xs font-bold text-maruxa-cafe/55">{formatearTelefonoChile(item.telefono)} · {item.hora}</p>
                           </div>
                           <span className="rounded-full bg-white px-2 py-1 text-[10px] font-black uppercase">{item.estado}</span>
                         </div>
