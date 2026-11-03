@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { obtenerCanalWhatsapp } from '@/lib/whatsapp-canales';
+import { obtenerCanalPedidosWhatsapp } from '@/lib/whatsapp-canales';
 import { enviarPorWhatsapp } from '@/lib/whatsapp-api';
 
 const RESPUESTA_PUBLICA = {
@@ -46,7 +46,10 @@ export async function POST(request: Request) {
   const admin = createClient(url, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  const canal = obtenerCanalWhatsapp();
+  // La plantilla de recuperación está aprobada en la cuenta de pedidos.
+  // No usar el primer canal disponible: puede pertenecer a otro WABA y Meta
+  // rechaza una plantilla que no exista en esa cuenta.
+  const canal = obtenerCanalPedidosWhatsapp();
   if (!canal) return NextResponse.json(RESPUESTA_PUBLICA);
 
   const { data: usuarios } = await admin.auth.admin.listUsers({ perPage: 1000 });
