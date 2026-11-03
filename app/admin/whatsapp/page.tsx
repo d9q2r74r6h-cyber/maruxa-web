@@ -207,6 +207,15 @@ function nombreConversacion(eventos: WhatsappEvento[]) {
     : formatearTelefonoChile(ultimoEvento.telefono) || 'Cliente WhatsApp';
 }
 
+function claveTelefono(valor: string | null | undefined) {
+  return String(valor || '').replace(/\D/g, '');
+}
+
+function esCanal5041(canal: { telefono?: string | null; etiqueta?: string | null }) {
+  return claveTelefono(canal.telefono).endsWith('66785041') ||
+    String(canal.etiqueta || '').includes('5041');
+}
+
 function esMensajePropio(evento: WhatsappEvento) {
   return (
     evento.payload?.direccion === 'saliente' ||
@@ -305,6 +314,7 @@ function esEventoNotificable(evento: WhatsappEvento) {
 
 export default function AdminWhatsappPage() {
   const [eventos, setEventos] = useState<WhatsappEvento[]>([]);
+  const [clientesPorTelefono, setClientesPorTelefono] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState('');
   const [canalActivo, setCanalActivo] = useState<CanalActivo>('whatsapp');
@@ -380,6 +390,19 @@ export default function AdminWhatsappPage() {
       .maybeSingle();
 
     setCuentaPrincipal((cuentaData as CuentaBancaria | null) || null);
+
+    const { data: clientesData } = await supabase
+      .from('clientes')
+      .select('razon_social,telefono')
+      .eq('empresa_id', empresa.id)
+      .not('telefono', 'is', null);
+    setClientesPorTelefono(
+      Object.fromEntries(
+        (clientesData || [])
+          .map((cliente) => [claveTelefono(cliente.telefono), String(cliente.razon_social || '').trim()])
+          .filter(([telefono, nombre]) => telefono && nombre)
+      )
+    );
 
     const diagnosticoWhatsapp = await fetch('/api/whatsapp/webhook', {
       cache: 'no-store',
@@ -533,7 +556,10 @@ export default function AdminWhatsappPage() {
         return {
           clave,
           telefono: ultimoEvento.telefono || 'Sin telefono',
-          nombre: nombreConversacion(ordenados),
+          nombre:
+            ultimoEvento.origen === 'whatsapp' && esCanal5041(canal)
+              ? clientesPorTelefono[claveTelefono(ultimoEvento.telefono)] || nombreConversacion(ordenados)
+              : nombreConversacion(ordenados),
           canalPhoneNumberId: canal.phoneNumberId,
           canalTelefono: canal.telefono,
           canalEtiqueta: canal.etiqueta,
@@ -547,7 +573,7 @@ export default function AdminWhatsappPage() {
           new Date(b.ultimoEvento.created_at).getTime() -
           new Date(a.ultimoEvento.created_at).getTime()
       );
-  }, [eventosVisibles]);
+  }, [clientesPorTelefono, eventosVisibles]);
 
   useEffect(() => {
     cargarMensajes();
