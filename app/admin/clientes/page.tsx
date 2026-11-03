@@ -121,6 +121,17 @@ function numero(valor: string) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function formatearWhatsappChile(valor: string | null | undefined) {
+  let digitos = String(valor || '').replace(/\D/g, '');
+  if (digitos.startsWith('56')) digitos = digitos.slice(2);
+  if (digitos.startsWith('0')) digitos = digitos.slice(1);
+  if (digitos.length === 8) digitos = `9${digitos}`;
+  if (digitos.length !== 9 || !digitos.startsWith('9')) {
+    return String(valor || '').trim();
+  }
+  return `+56 9 ${digitos.slice(1, 5)} ${digitos.slice(5, 9)}`;
+}
+
 export default function ClientesPage() {
   const { perfil } = useAdminSession();
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -262,7 +273,7 @@ export default function ClientesPage() {
         { titulo: 'Nombre corto', clave: 'sigla' },
         { titulo: 'Código antiguo', clave: 'codigo_legacy' },
         { titulo: 'Giro', clave: 'giro' },
-        { titulo: 'Teléfono', clave: 'telefono' },
+        { titulo: 'WhatsApp', clave: 'telefono' },
         { titulo: 'Correo', clave: 'email' },
         { titulo: 'Dirección', clave: 'direccion' },
         { titulo: 'Comuna', clave: 'comuna' },
@@ -281,7 +292,7 @@ export default function ClientesPage() {
         sigla: cliente.sigla || '',
         codigo_legacy: cliente.codigo_legacy || '',
         giro: cliente.giro || '',
-        telefono: cliente.telefono || '',
+        telefono: formatearWhatsappChile(cliente.telefono),
         email: cliente.email || '',
         direccion: cliente.direccion || '',
         comuna: cliente.comuna || '',
@@ -450,7 +461,7 @@ export default function ClientesPage() {
       comuna: cliente.comuna || '',
       ciudad: cliente.ciudad || '',
       email: cliente.email || '',
-      telefono: cliente.telefono || '',
+      telefono: formatearWhatsappChile(cliente.telefono),
       codigo_legacy: cliente.codigo_legacy || '',
       sigla: cliente.sigla || '',
       repartidor_nombre: repartidorOficial(cliente.repartidor_nombre),
@@ -474,7 +485,7 @@ export default function ClientesPage() {
     }
 
     if ((form.whatsapp_pedidos_autorizado || form.whatsapp_recordatorio_diario) && !form.telefono.trim()) {
-      alert('Debes ingresar el teléfono del cliente para habilitar los mensajes de WhatsApp.');
+      alert('Debes ingresar el WhatsApp del cliente para habilitar los mensajes.');
       return;
     }
 
@@ -489,7 +500,7 @@ export default function ClientesPage() {
       comuna: form.comuna.trim() || null,
       ciudad: form.ciudad.trim() || null,
       email: form.email.trim() || null,
-      telefono: form.telefono.trim() || null,
+      telefono: formatearWhatsappChile(form.telefono) || null,
       codigo_legacy: form.codigo_legacy.trim() || null,
       sigla: form.sigla.trim() || null,
       repartidor_nombre: repartidorOficial(form.repartidor_nombre) || null,
@@ -721,7 +732,7 @@ export default function ClientesPage() {
               ['comuna', 'Comuna'],
               ['ciudad', 'Ciudad'],
               ['email', 'Correo'],
-              ['telefono', 'Telefono'],
+              ['telefono', 'WhatsApp'],
               ['precio_base', 'Precio base pan'],
             ].map(([campo, etiqueta]) => (
               <label
@@ -735,6 +746,15 @@ export default function ClientesPage() {
                   value={String(form[campo as keyof typeof form])}
                   onChange={(event) =>
                     setForm({ ...form, [campo]: event.target.value })
+                  }
+                  onBlur={
+                    campo === 'telefono'
+                      ? (event) =>
+                          setForm({
+                            ...form,
+                            telefono: formatearWhatsappChile(event.target.value),
+                          })
+                      : undefined
                   }
                   className="h-10 rounded-md border border-[#4B2818]/20 px-3 font-bold outline-none focus:border-[#A51F2B]"
                 />
