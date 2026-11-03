@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, LockKeyhole } from 'lucide-react';
+import { Loader2, LockKeyhole, MessageCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 export default function AdminLoginPage() {
@@ -77,6 +77,35 @@ export default function AdminLoginPage() {
     setCargando(false);
   }
 
+  async function recuperarPasswordPorWhatsapp() {
+    setError('');
+    setMensaje('');
+
+    if (!email.trim()) {
+      setError('Escribe primero el correo del usuario.');
+      return;
+    }
+
+    setCargando(true);
+    try {
+      const respuesta = await fetch('/api/admin/recuperar-password-whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      const datos = await respuesta.json().catch(() => null);
+      setMensaje(
+        datos?.mensaje ||
+          'Si existe una cuenta activa con un teléfono WhatsApp registrado, enviaremos un enlace temporal para restablecer la contraseña.'
+      );
+    } catch {
+      setMensaje(
+        'Si existe una cuenta activa con un teléfono WhatsApp registrado, enviaremos un enlace temporal para restablecer la contraseña.'
+      );
+    }
+    setCargando(false);
+  }
+
   return (
     <main className="grid min-h-screen place-items-center bg-[#FFF3DF] px-5 py-10">
       <form
@@ -146,6 +175,15 @@ export default function AdminLoginPage() {
           className="mt-3 w-full text-sm font-black text-[#A51F2B] hover:underline disabled:opacity-50"
         >
           Restablecer contraseña
+        </button>
+        <button
+          type="button"
+          disabled={cargando}
+          onClick={recuperarPasswordPorWhatsapp}
+          className="mt-2 inline-flex w-full items-center justify-center gap-2 text-sm font-black text-[#217346] hover:underline disabled:opacity-50"
+        >
+          <MessageCircle className="h-4 w-4" />
+          Recuperar por WhatsApp
         </button>
       </form>
     </main>
