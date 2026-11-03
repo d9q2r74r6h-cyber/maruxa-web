@@ -994,7 +994,9 @@ export default function AdminWhatsappPage() {
               >
                 <span className="block">{canal.etiqueta}</span>
                 <span className="block text-[10px] opacity-70">
-                  {canal.telefonoVisible || canal.phoneNumberId}
+                  {canal.telefonoVisible
+                    ? formatearTelefonoChile(canal.telefonoVisible)
+                    : canal.phoneNumberId}
                 </span>
               </button>
             ))}
@@ -1054,7 +1056,9 @@ export default function AdminWhatsappPage() {
                        ? 'Correo'
                        : evento.origen === 'instagram'
                          ? 'Instagram'
-                         : evento.telefono || 'Sin telefono'}
+                         : esCanal5041(datosCanalWhatsapp(evento))
+                           ? clientesPorTelefono[claveTelefono(evento.telefono)] || formatearTelefonoChile(evento.telefono) || 'Sin teléfono'
+                           : formatearTelefonoChile(evento.telefono) || 'Sin teléfono'}
                   </span>
                 </button>
               ))
@@ -1175,7 +1179,9 @@ export default function AdminWhatsappPage() {
                       </p>
                       {conversacionActiva.ultimoEvento.origen === 'whatsapp' && (
                         <p className="mt-0.5 text-[10px] font-black uppercase tracking-wide text-maruxa-rojo">
-                          Recibido en {conversacionActiva.canalTelefono || conversacionActiva.canalEtiqueta}
+                          Recibido en {conversacionActiva.canalTelefono
+                            ? formatearTelefonoChile(conversacionActiva.canalTelefono)
+                            : conversacionActiva.canalEtiqueta}
                         </p>
                       )}
                     </div>
