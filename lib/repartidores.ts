@@ -19,3 +19,38 @@ export function correspondeRepartidor(
   const partes = repartidor.split(' ').filter((parte) => parte.length > 2);
   return partes.length >= 2 && partes.every((parte) => funcionario.includes(parte));
 }
+
+type FuncionarioConCargos = {
+  cargo?: string | null;
+  funcionario_cargos?: Array<{
+    cargos_empresa?: { nombre?: string | null } | Array<{ nombre?: string | null }> | null;
+  }> | null;
+};
+
+export function funcionarioEsRepartidor(funcionario: FuncionarioConCargos) {
+  const cargos = [funcionario.cargo || ''];
+  for (const relacion of funcionario.funcionario_cargos || []) {
+    const relacionados = Array.isArray(relacion.cargos_empresa)
+      ? relacion.cargos_empresa
+      : relacion.cargos_empresa
+        ? [relacion.cargos_empresa]
+        : [];
+    cargos.push(...relacionados.map((cargo) => cargo.nombre || ''));
+  }
+  return cargos.some((cargo) => normalizarNombre(cargo).includes('repartidor'));
+}
+
+export function debeRecibirPedido(
+  funcionario: FuncionarioConCargos & {
+    nombre_completo?: string | null;
+    recibe_avisos_pedidos_whatsapp?: boolean | null;
+  },
+  repartidorAsignado: string | null | undefined
+) {
+  const esAsignado = correspondeRepartidor(
+    funcionario.nombre_completo,
+    repartidorAsignado
+  );
+  if (funcionarioEsRepartidor(funcionario)) return esAsignado;
+  return Boolean(funcionario.recibe_avisos_pedidos_whatsapp);
+}

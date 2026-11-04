@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { obtenerCanalPedidosWhatsapp } from '@/lib/whatsapp-canales';
 import { enviarPorWhatsapp, resolverPlantillaWhatsapp } from '@/lib/whatsapp-api';
-import { correspondeRepartidor } from '@/lib/repartidores';
+import { debeRecibirPedido } from '@/lib/repartidores';
 
 function crearAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
       .maybeSingle(),
     admin
       .from('funcionarios')
-      .select('id,nombre_completo,telefono,recibe_avisos_pedidos_whatsapp')
+      .select('id,nombre_completo,telefono,cargo,recibe_avisos_pedidos_whatsapp,funcionario_cargos(cargos_empresa(nombre))')
       .eq('empresa_id', perfil.empresa_id)
       .eq('activo', true),
   ]);
@@ -83,9 +83,7 @@ export async function POST(request: Request) {
     .join(', ')
     .slice(0, 700) || 'Sin productos detallados';
   const candidatos = (funcionarios || []).filter(
-    (item: any) =>
-      item.recibe_avisos_pedidos_whatsapp ||
-      correspondeRepartidor(item.nombre_completo, cliente?.repartidor_nombre)
+    (item: any) => debeRecibirPedido(item, cliente?.repartidor_nombre)
   );
   const destinatarios = candidatos.filter((item: any) => digitos(item.telefono));
   if (!destinatarios.length) {
