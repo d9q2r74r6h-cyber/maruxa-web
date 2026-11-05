@@ -238,6 +238,7 @@ const repartidoresPorDefecto = [
 ];
 
 const repartoMesonNombre = 'MESON';
+const repartoPanaderiaNombre = 'PANADERIA';
 
 function hoy() {
   const fecha = new Date();
@@ -393,6 +394,25 @@ function asegurarRepartoMeson(repartos: Reparto[]) {
     {
       id: 'base-meson',
       nombre: repartoMesonNombre,
+      kilos: 0,
+    },
+  ];
+}
+
+function asegurarRepartoPanaderia(repartos: Reparto[]) {
+  if (
+    repartos.some(
+      (item) => normalizar(item.nombre) === normalizar(repartoPanaderiaNombre)
+    )
+  ) {
+    return repartos;
+  }
+
+  return [
+    ...repartos,
+    {
+      id: 'base-panaderia',
+      nombre: repartoPanaderiaNombre,
       kilos: 0,
     },
   ];
@@ -1467,11 +1487,13 @@ export default function AdminPlanillasPage() {
         setRepartos(
           repartidoresActivos.length > 0
             ? asegurarRepartoMeson(
-                repartidoresActivos.map((item) => ({
-                  id: item.id,
-                  nombre: referenciaRepartidor(item.nombre_completo),
-                  kilos: 0,
-                }))
+                asegurarRepartoPanaderia(
+                  repartidoresActivos.map((item) => ({
+                    id: item.id,
+                    nombre: referenciaRepartidor(item.nombre_completo),
+                    kilos: 0,
+                  }))
+                )
               )
             : asegurarRepartoMeson(
                 repartidoresPorDefecto.map((nombre) => ({
@@ -2088,11 +2110,13 @@ export default function AdminPlanillasPage() {
   function repartosBase() {
     if (tablaFuncionariosDisponible && repartidoresConfigurados.length > 0) {
       return asegurarRepartoMeson(
-        repartidoresConfigurados.map((item) => ({
-          id: item.id,
-          nombre: referenciaRepartidor(item.nombre_completo),
-          kilos: 0,
-        }))
+        asegurarRepartoPanaderia(
+          repartidoresConfigurados.map((item) => ({
+            id: item.id,
+            nombre: referenciaRepartidor(item.nombre_completo),
+            kilos: 0,
+          }))
+        )
       );
     }
 
