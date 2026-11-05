@@ -2196,13 +2196,11 @@ export default function AdminPlanillasPage() {
 
   function abrirModuloProductosRinde(fechaCelda: string, orden?: number) {
     seleccionarCeldaGrilla(fechaCelda, orden);
-    setModuloOtrosAbierto(false);
     setModuloProductosRindeAbierto(true);
   }
 
   function abrirModuloOtros(fechaCelda: string, orden?: number) {
     seleccionarCeldaGrilla(fechaCelda, orden);
-    setModuloProductosRindeAbierto(false);
     setModuloOtrosAbierto(true);
   }
 
