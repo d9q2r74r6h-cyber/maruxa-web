@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Printer, Save } from 'lucide-react';
 import { useAdminSession } from '@/components/AdminSession';
 import { supabase } from '@/lib/supabase';
 
@@ -103,9 +103,23 @@ export default function RemuneracionesPanaderos() {
   }
 
   return (
-    <div className="space-y-5 pb-12">
+    <div className="remuneraciones-print space-y-5 pb-12">
+      <style jsx global>{`
+        @media print {
+          body * { visibility: hidden !important; }
+          .remuneraciones-print,
+          .remuneraciones-print * { visibility: visible !important; }
+          .remuneraciones-print {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            padding: 0 !important;
+          }
+          .no-print { display: none !important; }
+        }
+      `}</style>
       <header>
-        <Link href="/admin/usuarios" className="inline-flex items-center gap-2 text-xs font-black uppercase text-[#A51F2B]">
+        <Link href="/admin/usuarios" className="no-print inline-flex items-center gap-2 text-xs font-black uppercase text-[#A51F2B]">
           <ArrowLeft className="h-4 w-4" /> Funcionarios
         </Link>
         <h1 className="mt-2 text-3xl font-black text-[#2A1710]">Tabla especial de panaderos</h1>
@@ -166,9 +180,14 @@ export default function RemuneracionesPanaderos() {
         </label>
       </section>
 
-      <button disabled={guardando} onClick={() => void guardar()} className="inline-flex h-11 items-center gap-2 rounded-md bg-[#A51F2B] px-6 font-black text-white disabled:opacity-60">
-        <Save className="h-4 w-4" /> {guardando ? 'Guardando…' : 'Guardar nueva vigencia'}
-      </button>
+      <div className="no-print flex flex-wrap gap-2">
+        <button disabled={guardando} onClick={() => void guardar()} className="inline-flex h-11 items-center gap-2 rounded-md bg-[#A51F2B] px-6 font-black text-white disabled:opacity-60">
+          <Save className="h-4 w-4" /> {guardando ? 'Guardando…' : 'Guardar nueva vigencia'}
+        </button>
+        <button type="button" onClick={() => window.print()} className="inline-flex h-11 items-center gap-2 rounded-md border-2 border-[#2A1710] bg-white px-6 font-black text-[#2A1710]">
+          <Printer className="h-4 w-4" /> Imprimir
+        </button>
+      </div>
 
       <section className="rounded-xl border bg-white p-4">
         <h2 className="font-black">Historial de vigencias</h2>
