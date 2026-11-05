@@ -106,6 +106,7 @@ export default function RemuneracionesPanaderos() {
     <div className="remuneraciones-print space-y-5 pb-12">
       <style jsx global>{`
         @media print {
+          @page { size: A4 landscape; margin: 8mm; }
           body * { visibility: hidden !important; }
           .remuneraciones-print,
           .remuneraciones-print * { visibility: visible !important; }
@@ -114,8 +115,29 @@ export default function RemuneracionesPanaderos() {
             inset: 0;
             width: 100%;
             padding: 0 !important;
+            font-size: 10pt;
           }
           .no-print { display: none !important; }
+          .remuneraciones-print header { margin-bottom: 3mm; }
+          .remuneraciones-print header h1 { font-size: 18pt; }
+          .remuneraciones-print header p { font-size: 8pt; }
+          .remuneraciones-print > section { margin-top: 3mm; padding: 3mm; page-break-inside: avoid; }
+          .remuneraciones-print > .tabla-remuneracion {
+            display: inline-block;
+            width: calc(50% - 2mm);
+            margin-right: 3mm;
+            vertical-align: top;
+          }
+          .remuneraciones-print > .tabla-remuneracion + .tabla-remuneracion { margin-right: 0; }
+          .tabla-remuneracion h2 { font-size: 12pt; }
+          .tabla-remuneracion table { min-width: 0; font-size: 8.5pt; }
+          .tabla-remuneracion th,
+          .tabla-remuneracion td { padding: 1.5mm !important; }
+          .tabla-remuneracion input { height: 8mm; padding: 1.5mm !important; font-size: 9pt; }
+          .sueldo { color: #b42332 !important; }
+          .tabla-festivo h2,
+          .fila-externo th { color: #b42332 !important; }
+          .demasia-festiva { color: #b42332 !important; }
         }
       `}</style>
       <header>
@@ -136,8 +158,8 @@ export default function RemuneracionesPanaderos() {
       </section>
 
       {(['normal', 'festivo'] as Tipo[]).map((tipo) => (
-        <section key={tipo} className="rounded-xl border bg-white p-4">
-          <h2 className="text-lg font-black capitalize">Día {tipo}</h2>
+        <section key={tipo} className={`tabla-remuneracion rounded-xl border bg-white p-4 ${tipo === 'festivo' ? 'tabla-festivo' : ''}`}>
+          <h2 className={`text-lg font-black capitalize ${tipo === 'festivo' ? 'text-[#B42332]' : ''}`}>Día {tipo}</h2>
           <div className="mt-3 overflow-x-auto">
             <table className="w-full min-w-[620px] text-sm">
               <thead className="bg-[#2A1710] text-white">
@@ -150,14 +172,14 @@ export default function RemuneracionesPanaderos() {
               </thead>
               <tbody>
                 {(['casa', 'externo'] as Origen[]).map((origen) => (
-                  <tr key={origen} className="border-b">
-                    <th className="p-3 text-left capitalize">{origen}</th>
+                  <tr key={origen} className={`border-b ${origen === 'externo' ? 'fila-externo' : ''}`}>
+                    <th className={`p-3 text-left capitalize ${origen === 'externo' ? 'text-[#B42332]' : ''}`}>{origen}</th>
                     {(['batea', 'cocedor', 'oficial'] as Funcion[]).map((funcion) => (
                       <td key={funcion} className="p-2">
                         <input
                           value={pesos(config[tipo][origen][funcion])}
                           onChange={(e) => cambiar(tipo, origen, funcion, leer(e.target.value))}
-                          className="h-10 w-full rounded border px-3 text-right font-black"
+                          className="sueldo h-10 w-full rounded border px-3 text-right font-black text-[#B42332]"
                         />
                       </td>
                     ))}
@@ -174,9 +196,9 @@ export default function RemuneracionesPanaderos() {
           Demasía normal por QQ
           <input value={pesos(config.demasia_normal_qq)} onChange={(e) => setConfig({ ...config, demasia_normal_qq: leer(e.target.value) })} className="h-11 rounded border px-3 text-right text-lg font-black" />
         </label>
-        <label className="grid gap-1 text-xs font-black uppercase">
+        <label className="demasia-festiva grid gap-1 text-xs font-black uppercase text-[#B42332]">
           Demasía festiva por QQ
-          <input value={pesos(config.demasia_festivo_qq)} onChange={(e) => setConfig({ ...config, demasia_festivo_qq: leer(e.target.value) })} className="h-11 rounded border px-3 text-right text-lg font-black" />
+          <input value={pesos(config.demasia_festivo_qq)} onChange={(e) => setConfig({ ...config, demasia_festivo_qq: leer(e.target.value) })} className="h-11 rounded border px-3 text-right text-lg font-black text-[#B42332]" />
         </label>
       </section>
 
@@ -189,7 +211,7 @@ export default function RemuneracionesPanaderos() {
         </button>
       </div>
 
-      <section className="rounded-xl border bg-white p-4">
+      <section className="no-print rounded-xl border bg-white p-4">
         <h2 className="font-black">Historial de vigencias</h2>
         <div className="mt-3 flex flex-wrap gap-2">
           {versiones.map((version) => (
