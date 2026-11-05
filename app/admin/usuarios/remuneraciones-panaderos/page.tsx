@@ -106,7 +106,7 @@ export default function RemuneracionesPanaderos() {
     <div className="remuneraciones-print space-y-5 pb-12">
       <style jsx global>{`
         @media print {
-          @page { size: A4 landscape; margin: 8mm; }
+          @page { size: letter landscape; margin: 8mm; }
           body * { visibility: hidden !important; }
           .remuneraciones-print,
           .remuneraciones-print * { visibility: visible !important; }
