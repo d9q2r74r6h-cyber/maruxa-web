@@ -133,6 +133,16 @@ function correspondeAlRepartidor(
   );
 }
 
+function clienteCorrespondeAlRepartidor(
+  asignado: string | null | undefined,
+  seleccionado: string
+) {
+  // Un cliente sin repartidor debe quedar fuera de todas las planillas
+  // hasta que se le asigne uno explícitamente.
+  if (!normalizarNombre(asignado)) return false;
+  return correspondeAlRepartidor(asignado, seleccionado);
+}
+
 function apellidoPestana(nombre: string) {
   const normalizado = normalizarNombre(nombre);
   if (normalizado.includes('tapia')) return 'TAPIA';
@@ -675,11 +685,13 @@ export default function RepartosPage() {
   }, [abonos, dias, filas, saldoInicial]);
 
   function clientesDelRepartidor() {
-    const filtrados = clientes.filter(
-      (cliente) => correspondeAlRepartidor(cliente.repartidor_nombre, repartidor)
+    return clientes.filter(
+      (cliente) =>
+        clienteCorrespondeAlRepartidor(
+          cliente.repartidor_nombre,
+          repartidor
+        )
     );
-
-    return filtrados.length > 0 ? filtrados : clientes;
   }
 
   async function obtenerSaldoMesAnterior(): Promise<SaldosAnteriores | null> {
