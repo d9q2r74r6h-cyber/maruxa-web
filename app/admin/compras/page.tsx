@@ -292,6 +292,10 @@ export default function AdminComprasPage() {
   const [proveedores, setProveedores] = useState<ProveedorCompra[]>([]);
   const [proveedorId, setProveedorId] = useState('');
   const [proveedorTexto, setProveedorTexto] = useState('');
+  const [fechaFactura, setFechaFactura] = useState(
+    new Date().toISOString().slice(0, 10)
+  );
+  const [numeroFactura, setNumeroFactura] = useState('');
   const [precioIvaIncluido, setPrecioIvaIncluido] = useState(false);
   const [ivaPorcentaje, setIvaPorcentaje] = useState(19);
   const [mostrarProveedores, setMostrarProveedores] = useState(false);
@@ -2325,7 +2329,60 @@ export default function AdminComprasPage() {
       return;
     }
 
+    if (!proveedorId || !numeroFactura.trim()) {
+      alert('Selecciona el proveedor e ingresa el número de factura.');
+      return;
+    }
+
     setGuardando(true);
+
+    const { data: compra, error: errorCompra } = await supabase
+      .from('compras')
+      .insert({
+        empresa_id: empresa.id,
+        proveedor: proveedorTexto.trim(),
+        numero_factura: numeroFactura.trim(),
+        fecha: fechaFactura,
+        total: totalCompra,
+      })
+      .select('id')
+      .single();
+
+    if (errorCompra || !compra) {
+      alert(errorCompra?.message || 'No se pudo registrar la factura.');
+      setGuardando(false);
+      return;
+    }
+
+    const detallesFactura = itemsTrabajo
+      .filter(
+        (item) =>
+          item.producto_id &&
+          numero(item.cantidad) > 0 &&
+          numero(item.costo_unitario) > 0
+      )
+      .map((item) => {
+        const costo = desgloseIva(
+          costoUnitarioEfectivo(item),
+          ivaPorcentaje,
+          precioIvaIncluido
+        ).neto;
+        return {
+          compra_id: compra.id,
+          producto_id: Number(item.producto_id),
+          cantidad: numero(item.cantidad),
+          costo_unitario: costo,
+          subtotal: costo * numero(item.cantidad),
+        };
+      });
+    const { error: errorDetalle } = await supabase
+      .from('compra_detalle')
+      .insert(detallesFactura);
+    if (errorDetalle) {
+      alert(errorDetalle.message);
+      setGuardando(false);
+      return;
+    }
 
     const variacionesRegistradas = calcularVariaciones(
       itemsConsolidados,
@@ -2368,6 +2425,8 @@ export default function AdminComprasPage() {
       const margenIngresado = numero(itemIngresado?.margen_porcentaje);
 
       const variacion = variacionesPorProducto.get(producto.id);
+      const cantidad = item.cantidad;
+      const stockAnterior = numero(producto.stock_actual);
       const costoAnterior = variacion?.costo_anterior ?? numero(producto.costo_unitario);
       const costoCompra = variacion?.costo_compra ?? item.costo_unitario;
       const variacionPorcentaje = variacion?.variacion_porcentaje ?? 0;
@@ -2433,6 +2492,7 @@ export default function AdminComprasPage() {
       const { error: errorProducto } = await supabase
         .from('productos')
         .update({
+          stock_actual: stockAnterior + cantidad,
           costo_unitario: costoCompra,
           precio: precioVenta || numero(producto.precio),
           undxcaja:
@@ -2460,6 +2520,25 @@ export default function AdminComprasPage() {
         return;
       }
 
+      if (producto.controla_stock) {
+        const { error: errorMovimiento } = await supabase
+          .from('movimientos_stock')
+          .insert({
+            empresa_id: empresa.id,
+            producto_id: producto.id,
+            tipo_movimiento: 'compra',
+            cantidad,
+            referencia_tipo: 'compra',
+            referencia_id: compra.id,
+            observacion: `Factura ${numeroFactura.trim()}`,
+          });
+        if (errorMovimiento) {
+          alert(errorMovimiento.message);
+          setGuardando(false);
+          return;
+        }
+      }
+
       const { data: historialCreado, error: errorHistorialCosto } = await supabase
         .from('producto_costos_historial')
         .insert({
@@ -2470,7 +2549,8 @@ export default function AdminComprasPage() {
           variacion_porcentaje: variacionPorcentaje,
           margen_porcentaje: margenIngresado || null,
           precio_venta: precioVenta || null,
-          referencia_tipo: 'actualizacion_costo',
+          referencia_tipo: 'compra',
+          referencia_id: compra.id,
           created_at: fechaCompra.toISOString(),
         })
         .select('id,producto_id,created_at,costo_anterior,costo_nuevo,margen_porcentaje,precio_venta')
@@ -2531,6 +2611,7 @@ export default function AdminComprasPage() {
     await cargarProductos(false);
 
     setGuardando(false);
+    setNumeroFactura('');
     if (productoDesdeInforme) {
       window.location.assign('/admin/informes/precios');
     }
@@ -2539,7 +2620,7 @@ export default function AdminComprasPage() {
   return (
     <>
       <h1 className="text-2xl font-black text-maruxa-chocolate md:text-3xl">
-        Inventario <span className="text-maruxa-rojo">·</span> Costos y precios
+        Inventario <span className="text-maruxa-rojo">·</span> Ingreso de factura de compra
       </h1>
 
       <ImportarFactura onApply={cargarCostosFactura} />
@@ -2549,9 +2630,18 @@ export default function AdminComprasPage() {
           <p className="font-black">Cargando productos...</p>
         ) : (
           <>
-            <div className="relative grid max-w-xl gap-1.5">
+            <div className="grid max-w-3xl gap-3 md:grid-cols-3">
+              <label className="grid gap-1.5">
+                <span className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">Fecha factura</span>
+                <input type="date" value={fechaFactura} onChange={(e) => setFechaFactura(e.target.value)} className="rounded-2xl border bg-white px-4 py-3 font-bold text-maruxa-chocolate" />
+              </label>
+              <label className="grid gap-1.5">
+                <span className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">N° factura</span>
+                <input value={numeroFactura} onChange={(e) => setNumeroFactura(e.target.value)} placeholder="Ej. 12345" className="rounded-2xl border bg-white px-4 py-3 font-bold text-maruxa-chocolate" />
+              </label>
+              <div className="relative grid gap-1.5">
               <span className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
-                Proveedor (opcional)
+                Proveedor
               </span>
               <input
                 value={proveedorTexto}
@@ -2605,6 +2695,7 @@ export default function AdminComprasPage() {
                   )}
                 </div>
               )}
+              </div>
             </div>
 
             {proveedorId && (
@@ -2663,7 +2754,7 @@ export default function AdminComprasPage() {
             <div className="mt-6 rounded-[28px] bg-maruxa-crema p-5">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <h3 className="text-xl font-black text-maruxa-chocolate">
-                  Detalle de costos y precios
+                  Detalle de la factura
                 </h3>
               </div>
 
@@ -3942,10 +4033,10 @@ export default function AdminComprasPage() {
             <div className="mt-6 flex flex-col gap-4 rounded-[28px] bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-3xl font-black text-maruxa-chocolate">
-                  Total de valores ingresados: {dinero(totalCompra)}
+                  Total factura: {dinero(totalCompra)}
                 </p>
                 <p className="mt-1 text-xs font-bold text-maruxa-cafe/70">
-                  Suma referencial de los costos ingresados en esta actualización.
+                  Al guardar se registrará la factura, actualizarán los costos y se sumará el stock.
                 </p>
               </div>
 
@@ -3968,7 +4059,7 @@ export default function AdminComprasPage() {
                     ? 'Guardando...'
                     : productoDesdeInforme && totalCompra === 0
                       ? 'Guardar proveedor'
-                      : 'Guardar nuevos precios'}
+                    : 'Registrar factura'}
                 </button>
               </div>
             </div>
