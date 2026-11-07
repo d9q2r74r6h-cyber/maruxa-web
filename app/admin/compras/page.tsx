@@ -2814,9 +2814,9 @@ export default function AdminComprasPage() {
               </div>
 
               <div className="mt-4 grid gap-3">
-              <div className="hidden xl:grid xl:w-fit xl:grid-cols-[160px_105px_90px_65px_65px_90px_65px_60px_70px_60px_80px_70px] xl:gap-2 xl:rounded-t-xl xl:bg-maruxa-chocolate xl:px-3 xl:py-2">
+              <div className="grid w-fit grid-cols-[160px_105px_90px_65px_65px_90px_65px_60px_70px_60px_80px_70px] items-center gap-2 rounded-t-xl bg-[#4B2818] px-3 py-2">
                 {['Producto', 'Familia', 'Tipo', 'Cant.', 'Unid./caja', 'Costo un.', 'Neto', 'IVA', 'Total', 'Margen', 'P. venta', 'Acción'].map((titulo) => (
-                  <span key={titulo} className="min-w-0 text-[9px] font-black uppercase tracking-wide text-white/80">
+                  <span key={titulo} className="min-w-0 text-[9px] font-black uppercase tracking-wide text-white">
                     {titulo}
                   </span>
                 ))}
@@ -3184,7 +3184,7 @@ export default function AdminComprasPage() {
                     <div
                       key={index}
                       style={{ order: index }}
-                      className={`relative grid gap-2 rounded-2xl border border-maruxa-cafe/10 bg-white p-3 shadow-sm xl:rounded-none xl:border-x-0 xl:border-t-0 xl:shadow-none xl:[&>div>span:first-child]:hidden xl:[&>label>span:first-child]:hidden xl:[&>label>span:last-child]:hidden ${
+                      className={`relative grid gap-2 rounded-2xl border border-maruxa-cafe/10 bg-white p-3 shadow-sm xl:rounded-none xl:border-x-0 xl:border-t-0 xl:shadow-none xl:[&>div>input]:h-10 xl:[&>div.grid>div.flex]:h-10 xl:[&>label>input]:h-10 xl:[&>label>select]:h-10 xl:[&>button]:h-10 xl:[&>div>span:first-child]:hidden xl:[&>label>span:first-child]:hidden xl:[&>label>span:last-child]:hidden ${
                         mostrarDetalle
                           ? 'md:grid-cols-2 xl:w-fit xl:grid-cols-[160px_105px_90px_65px_65px_90px_65px_60px_70px_60px_80px_70px]'
                           : 'grid-cols-[minmax(0,1fr)_auto] items-end'
@@ -3931,7 +3931,7 @@ export default function AdminComprasPage() {
                         <button
                           type="button"
                           onClick={() => eliminarItem(index)}
-                          className="self-end justify-self-stretch rounded-xl border border-red-300 bg-red-50 px-3 py-2.5 text-xs font-black text-red-700"
+                          className="self-end justify-self-stretch rounded-xl border border-red-300 bg-red-50 px-3 py-0 text-xs font-black text-red-700"
                         >
                           Eliminar
                         </button>
