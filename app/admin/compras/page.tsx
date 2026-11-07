@@ -3225,14 +3225,14 @@ export default function AdminComprasPage() {
                     <div
                       key={index}
                       style={{ order: index }}
-                      className={`relative grid gap-3 rounded-2xl border border-maruxa-cafe/10 bg-white p-4 shadow-sm ${
+                      className={`relative grid gap-2 rounded-2xl border border-maruxa-cafe/10 bg-white p-3 shadow-sm ${
                         mostrarDetalle
                           ? 'md:grid-cols-2 xl:grid-cols-4'
                           : 'grid-cols-[minmax(0,1fr)_auto] items-end'
                       }`}
                     >
                       <div className={`relative z-20 grid min-w-0 gap-1 ${mostrarDetalle ? 'md:col-span-2' : ''}`}>
-                        <span className="flex min-h-7 items-end text-[11px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
+                        <span className="flex min-h-4 items-end text-[10px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
                           Producto
                         </span>
                         <input
@@ -3261,7 +3261,7 @@ export default function AdminComprasPage() {
                             )
                           }
                           placeholder="Buscar producto..."
-                          className="w-full rounded-xl border px-3 py-2 text-sm font-bold"
+                          className="w-full rounded-lg border px-2 py-1 text-xs font-bold"
                         />
                         {esProductoNuevo && (
                           <span className="w-fit rounded-full bg-amber-100 px-2 py-1 text-[10px] font-black uppercase text-amber-800">
@@ -3338,7 +3338,7 @@ export default function AdminComprasPage() {
 
                       {mostrarDetalle && (
                         <label className="grid min-w-0 content-start gap-1">
-                          <span className="flex min-h-7 items-end text-[11px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
+                          <span className="flex min-h-4 items-end text-[10px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
                             Familia de productos
                           </span>
                           <select
@@ -3352,7 +3352,7 @@ export default function AdminComprasPage() {
                                 actualizarItem(index, 'familia_id_nueva', event.target.value);
                               }
                             }}
-                            className="w-full min-w-0 rounded-xl border bg-white px-3 py-2 text-sm font-bold text-maruxa-chocolate disabled:opacity-60"
+                            className="w-full min-w-0 rounded-lg border bg-white px-2 py-1 text-xs font-bold text-maruxa-chocolate disabled:opacity-60"
                           >
                             <option value="" disabled={esProductoNuevo}>Sin familia asignada</option>
                             {producto?.familia_id && !familias.some((familia) => familia.id === producto.familia_id) && (
@@ -3373,7 +3373,7 @@ export default function AdminComprasPage() {
                       )}
 
                       <label className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
-                        <span className="flex min-h-7 items-end text-[11px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
+                        <span className="flex min-h-4 items-end text-[10px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
                           Cantidad recibida
                         </span>
                         <input
@@ -3383,7 +3383,7 @@ export default function AdminComprasPage() {
                           value={item.cantidad}
                           onChange={(e) => actualizarItem(index, 'cantidad', e.target.value)}
                           placeholder="0"
-                          className="w-full min-w-0 rounded-xl border px-3 py-2 text-right text-sm font-black text-maruxa-chocolate"
+                          className="w-full min-w-0 rounded-lg border px-2 py-1 text-right text-xs font-black text-maruxa-chocolate"
                         />
                         <span className="text-[10px] font-semibold text-maruxa-cafe/55">
                           Unidades que ingresan a inventario.
@@ -3391,7 +3391,7 @@ export default function AdminComprasPage() {
                       </label>
 
                       <label className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
-                        <span className="flex min-h-7 items-end text-[11px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
+                        <span className="flex min-h-4 items-end text-[10px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
                           Unid./caja
                         </span>
                         <input
@@ -3403,12 +3403,12 @@ export default function AdminComprasPage() {
                             actualizarItem(index, 'undxcaja', e.target.value)
                           }
                           placeholder="0"
-                          className="w-full min-w-0 rounded-xl border px-2 py-2 text-right text-sm font-bold"
+                          className="w-full min-w-0 rounded-lg border px-2 py-1 text-right text-xs font-bold"
                         />
                       </label>
 
                       <label className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
-                        <span className="flex min-h-7 items-end text-[11px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
+                        <span className="flex min-h-4 items-end text-[10px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
                           Costo unitario proveedor
                           {precioIvaIncluido ? ' bruto' : ' neto'}
                         </span>
@@ -3431,39 +3431,39 @@ export default function AdminComprasPage() {
                           }
                           placeholder="$0"
                           title="El IVA se aplicará según la configuración del proveedor"
-                          className="w-full min-w-0 rounded-xl border px-3 py-2 text-right text-sm font-bold"
+                          className="w-full min-w-0 rounded-lg border px-2 py-1 text-right text-xs font-bold"
                         />
                       </label>
 
                       <div className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
-                        <span className="flex min-h-7 items-end text-[11px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
+                        <span className="flex min-h-4 items-end text-[10px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
                           Neto línea
                         </span>
-                        <div className="flex items-center justify-end rounded-xl border border-maruxa-cafe/10 bg-maruxa-crema/60 px-3 py-2 text-sm font-black text-maruxa-chocolate">
+                        <div className="flex items-center justify-end rounded-lg border border-maruxa-cafe/10 bg-maruxa-crema/60 px-2 py-1 text-xs font-black text-maruxa-chocolate">
                           {dinero(impuestosItem.neto)}
                         </div>
                       </div>
 
                       <div className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
-                        <span className="flex min-h-7 items-end text-[11px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
+                        <span className="flex min-h-4 items-end text-[10px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
                           IVA línea
                         </span>
-                        <div className="flex items-center justify-end rounded-xl border border-maruxa-cafe/10 bg-maruxa-crema/60 px-3 py-2 text-sm font-black text-maruxa-chocolate">
+                        <div className="flex items-center justify-end rounded-lg border border-maruxa-cafe/10 bg-maruxa-crema/60 px-2 py-1 text-xs font-black text-maruxa-chocolate">
                           {dinero(impuestosItem.iva)}
                         </div>
                       </div>
 
                       <div className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
-                        <span className="flex min-h-7 items-end text-[11px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
+                        <span className="flex min-h-4 items-end text-[10px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
                           Total línea
                         </span>
-                        <div className="flex items-center justify-end rounded-xl border border-maruxa-rojo/15 bg-red-50 px-3 py-2 text-sm font-black text-maruxa-rojo">
+                        <div className="flex items-center justify-end rounded-lg border border-maruxa-rojo/15 bg-red-50 px-2 py-1 text-xs font-black text-maruxa-rojo">
                           {dinero(impuestosItem.total)}
                         </div>
                       </div>
 
                       <label className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
-                        <span className="flex min-h-7 items-end text-[11px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
+                        <span className="flex min-h-4 items-end text-[10px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
                           Margen
                         </span>
                         <input
@@ -3484,12 +3484,12 @@ export default function AdminComprasPage() {
                             avanzarConEnter(event, index, 'precio')
                           }
                           placeholder="0%"
-                          className="w-full min-w-0 rounded-xl border px-3 py-2 text-right text-sm font-bold"
+                          className="w-full min-w-0 rounded-lg border px-2 py-1 text-right text-xs font-bold"
                         />
                       </label>
 
                       <label className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
-                        <span className="flex min-h-7 items-end text-[11px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
+                        <span className="flex min-h-4 items-end text-[10px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
                           Precio venta
                         </span>
                         <input
@@ -3510,7 +3510,7 @@ export default function AdminComprasPage() {
                             avanzarConEnter(event, index, 'agregar')
                           }
                           placeholder="$0"
-                          className="w-full min-w-0 rounded-xl border px-3 py-2 text-right text-sm font-black text-maruxa-rojo"
+                          className="w-full min-w-0 rounded-lg border px-2 py-1 text-right text-xs font-black text-maruxa-rojo"
                         />
                       </label>
 
