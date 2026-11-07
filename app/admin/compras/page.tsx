@@ -2814,6 +2814,13 @@ export default function AdminComprasPage() {
               </div>
 
               <div className="mt-4 grid gap-3">
+              <div className="hidden xl:grid xl:w-fit xl:grid-cols-[160px_105px_90px_65px_65px_90px_65px_60px_70px_60px_80px_70px] xl:gap-2 xl:rounded-t-xl xl:bg-maruxa-chocolate xl:px-3 xl:py-2">
+                {['Producto', 'Familia', 'Tipo', 'Cant.', 'Unid./caja', 'Costo un.', 'Neto', 'IVA', 'Total', 'Margen', 'P. venta', 'Acción'].map((titulo) => (
+                  <span key={titulo} className="min-w-0 text-[9px] font-black uppercase tracking-wide text-white/80">
+                    {titulo}
+                  </span>
+                ))}
+              </div>
               {items.length === 0 && !mostrarCrearProducto && (
                 <div className="rounded-2xl border border-dashed border-maruxa-rojo/25 bg-white px-5 py-8 text-center">
                   <p className="font-black text-maruxa-chocolate">
@@ -3177,7 +3184,7 @@ export default function AdminComprasPage() {
                     <div
                       key={index}
                       style={{ order: index }}
-                      className={`relative grid gap-2 rounded-2xl border border-maruxa-cafe/10 bg-white p-3 shadow-sm ${
+                      className={`relative grid gap-2 rounded-2xl border border-maruxa-cafe/10 bg-white p-3 shadow-sm xl:rounded-none xl:border-x-0 xl:border-t-0 xl:shadow-none xl:[&>div>span:first-child]:hidden xl:[&>label>span:first-child]:hidden xl:[&>label>span:last-child]:hidden ${
                         mostrarDetalle
                           ? 'md:grid-cols-2 xl:w-fit xl:grid-cols-[160px_105px_90px_65px_65px_90px_65px_60px_70px_60px_80px_70px]'
                           : 'grid-cols-[minmax(0,1fr)_auto] items-end'
@@ -3216,12 +3223,12 @@ export default function AdminComprasPage() {
                           className="w-full rounded-lg border px-2 py-1 text-xs font-bold"
                         />
                         {esProductoNuevo && (
-                          <span className="w-fit rounded-full bg-amber-100 px-2 py-1 text-[10px] font-black uppercase text-amber-800">
+                          <span className="w-fit rounded-full bg-amber-100 px-2 py-1 text-[10px] font-black uppercase text-amber-800 xl:hidden">
                             Nuevo producto
                           </span>
                         )}
                         {!item.producto_id && !item.busqueda_producto && (
-                          <span className="text-[11px] font-bold text-maruxa-cafe/55">
+                          <span className="text-[11px] font-bold text-maruxa-cafe/55 xl:hidden">
                             Digita el nombre completo y selecciona una coincidencia.
                           </span>
                         )}
@@ -3348,6 +3355,21 @@ export default function AdminComprasPage() {
                             Nuevo.
                           </span>
                         </label>
+                      )}
+
+                      {mostrarDetalle && !esProductoNuevo && (
+                        <div className="grid min-w-0 content-start gap-1">
+                          <span className="flex min-h-4 items-end text-[10px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
+                            Tipo
+                          </span>
+                          <div className="flex min-w-0 items-center truncate rounded-lg border border-maruxa-cafe/10 bg-maruxa-crema/60 px-2 py-1 text-xs font-bold text-maruxa-chocolate">
+                            {producto?.tipo_producto === 'ingrediente'
+                              ? 'Materia prima'
+                              : producto?.tipo_producto === 'envase'
+                                ? 'Insumo'
+                                : 'Producto'}
+                          </div>
+                        </div>
                       )}
 
                       <label className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
