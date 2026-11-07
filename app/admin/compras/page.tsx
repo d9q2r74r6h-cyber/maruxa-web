@@ -2630,7 +2630,7 @@ export default function AdminComprasPage() {
           <p className="font-black">Cargando productos...</p>
         ) : (
           <>
-            <div className="grid max-w-3xl gap-3 md:grid-cols-3">
+            <div className="grid gap-3 rounded-2xl border border-[#4B2818]/15 bg-[#FFF8ED] p-4 md:grid-cols-[170px_170px_minmax(280px,1fr)]">
               <label className="grid gap-1.5">
                 <span className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">Fecha factura</span>
                 <input type="date" value={fechaFactura} onChange={(e) => setFechaFactura(e.target.value)} className="rounded-2xl border bg-white px-4 py-3 font-bold text-maruxa-chocolate" />
@@ -2659,10 +2659,6 @@ export default function AdminComprasPage() {
                 autoComplete="off"
                 className="rounded-2xl border bg-white px-4 py-3 font-bold text-maruxa-chocolate"
               />
-              <span className="text-[11px] font-bold text-maruxa-cafe/60">
-                Define si el costo viene con IVA incluido o neto + IVA.
-              </span>
-
               {mostrarProveedores && (
                 <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-72 overflow-y-auto rounded-2xl border bg-white shadow-xl">
                   {buscandoProveedores ? (
@@ -2699,7 +2695,7 @@ export default function AdminComprasPage() {
             </div>
 
             {proveedorId && (
-              <label className="mt-3 flex max-w-xl items-center gap-3 rounded-2xl border border-maruxa-rojo/15 bg-[#FFF8ED] px-4 py-3 text-sm font-black text-maruxa-chocolate sm:mx-5">
+              <label className="mt-3 flex items-center gap-3 rounded-2xl border border-maruxa-rojo/15 bg-[#FFF8ED] px-4 py-3 text-sm font-black text-maruxa-chocolate">
                 <input
                   type="checkbox"
                   checked={precioIvaIncluido}
@@ -2715,7 +2711,7 @@ export default function AdminComprasPage() {
               </label>
             )}
 
-            <div className="mt-3 grid max-w-3xl items-start gap-3 sm:mx-5 sm:grid-cols-[minmax(0,1fr)_180px]">
+            <div className="mt-3 grid items-start gap-3 rounded-2xl border border-[#4B2818]/10 bg-[#FFFDF9] p-4 md:grid-cols-[minmax(0,1fr)_180px]">
               <label className="grid min-w-0 gap-1">
                 <span className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
                   Familia para productos nuevos
