@@ -944,6 +944,8 @@ export default function AdminComprasPage() {
               : true,
         });
       }
+    }
+
     setFocoPendiente({ index, campo: 'costo' });
   }
 
