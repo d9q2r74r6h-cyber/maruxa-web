@@ -3179,11 +3179,11 @@ export default function AdminComprasPage() {
                       style={{ order: index }}
                       className={`relative grid gap-2 rounded-2xl border border-maruxa-cafe/10 bg-white p-3 shadow-sm ${
                         mostrarDetalle
-                          ? 'md:grid-cols-2 xl:grid-cols-4'
+                          ? 'md:grid-cols-2 xl:w-fit xl:grid-cols-[280px_170px_130px_150px]'
                           : 'grid-cols-[minmax(0,1fr)_auto] items-end'
                       }`}
                     >
-                      <div className={`relative z-20 grid min-w-0 gap-1 ${mostrarDetalle ? 'md:col-span-2' : ''}`}>
+                      <div className={`relative z-20 grid min-w-0 gap-1 ${mostrarDetalle ? 'md:col-span-2 xl:col-span-1' : ''}`}>
                         <span className="flex min-h-4 items-end text-[10px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
                           Producto
                         </span>
