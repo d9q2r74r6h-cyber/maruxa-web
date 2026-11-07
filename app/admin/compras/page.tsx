@@ -3179,7 +3179,7 @@ export default function AdminComprasPage() {
                       style={{ order: index }}
                       className={`relative grid gap-2 rounded-2xl border border-maruxa-cafe/10 bg-white p-3 shadow-sm ${
                         mostrarDetalle
-                          ? 'md:grid-cols-2 xl:w-fit xl:grid-cols-[280px_170px_130px_150px]'
+                          ? 'md:grid-cols-2 xl:w-fit xl:grid-cols-[160px_105px_90px_65px_65px_90px_65px_60px_70px_60px_80px_70px]'
                           : 'grid-cols-[minmax(0,1fr)_auto] items-end'
                       }`}
                     >
@@ -3217,7 +3217,7 @@ export default function AdminComprasPage() {
                         />
                         {esProductoNuevo && (
                           <span className="w-fit rounded-full bg-amber-100 px-2 py-1 text-[10px] font-black uppercase text-amber-800">
-                            Nuevo producto · {familiaProducto?.nombre || 'Sin familia'}
+                            Nuevo producto
                           </span>
                         )}
                         {!item.producto_id && !item.busqueda_producto && (
@@ -3291,7 +3291,7 @@ export default function AdminComprasPage() {
                       {mostrarDetalle && (
                         <label className="grid min-w-0 content-start gap-1">
                           <span className="flex min-h-4 items-end text-[10px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
-                            Familia de productos
+                            Familia
                           </span>
                           <select
                             aria-label={`Familia de ${producto?.nombre || item.busqueda_producto}`}
@@ -3319,7 +3319,7 @@ export default function AdminComprasPage() {
                               ? guardandoFamiliaId === producto.id
                                 ? 'Guardando familia…'
                                 : mensajeFamilia[producto.id] || 'Se guarda al seleccionar.'
-                              : 'Se guardará al crear el producto.'}
+                              : 'Al crear.'}
                           </span>
                         </label>
                       )}
@@ -3327,7 +3327,7 @@ export default function AdminComprasPage() {
                       {esProductoNuevo && (
                         <label className="grid min-w-0 content-start gap-1">
                           <span className="flex min-h-4 items-end text-[10px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
-                            Tipo de artículo
+                            Tipo
                           </span>
                           <select
                             value={item.tipo_producto_nuevo || 'producto'}
@@ -3345,14 +3345,14 @@ export default function AdminComprasPage() {
                             <option value="ingrediente">Materia prima</option>
                           </select>
                           <span className="text-[10px] font-semibold text-maruxa-cafe/55">
-                            Define su clasificación al crearlo.
+                            Nuevo.
                           </span>
                         </label>
                       )}
 
                       <label className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
                         <span className="flex min-h-4 items-end text-[10px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
-                          Cantidad recibida
+                          Cant.
                         </span>
                         <input
                           type="number"
@@ -3364,7 +3364,7 @@ export default function AdminComprasPage() {
                           className="w-full min-w-0 rounded-lg border px-2 py-1 text-right text-xs font-black text-maruxa-chocolate"
                         />
                         <span className="text-[10px] font-semibold text-maruxa-cafe/55">
-                          Unidades que ingresan a inventario.
+                          Stock.
                         </span>
                       </label>
 
@@ -3387,7 +3387,7 @@ export default function AdminComprasPage() {
 
                       <label className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
                         <span className="flex min-h-4 items-end text-[10px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
-                          Costo unitario proveedor
+                          Costo un.
                           {precioIvaIncluido ? ' bruto' : ' neto'}
                         </span>
                         <input
@@ -3415,7 +3415,7 @@ export default function AdminComprasPage() {
 
                       <div className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
                         <span className="flex min-h-4 items-end text-[10px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
-                          Neto línea
+                          Neto
                         </span>
                         <div className="flex items-center justify-end rounded-lg border border-maruxa-cafe/10 bg-maruxa-crema/60 px-2 py-1 text-xs font-black text-maruxa-chocolate">
                           {dinero(impuestosItem.neto)}
@@ -3424,7 +3424,7 @@ export default function AdminComprasPage() {
 
                       <div className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
                         <span className="flex min-h-4 items-end text-[10px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
-                          IVA línea
+                          IVA
                         </span>
                         <div className="flex items-center justify-end rounded-lg border border-maruxa-cafe/10 bg-maruxa-crema/60 px-2 py-1 text-xs font-black text-maruxa-chocolate">
                           {dinero(impuestosItem.iva)}
@@ -3433,7 +3433,7 @@ export default function AdminComprasPage() {
 
                       <div className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
                         <span className="flex min-h-4 items-end text-[10px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
-                          Total línea
+                          Total
                         </span>
                         <div className="flex items-center justify-end rounded-lg border border-maruxa-rojo/15 bg-red-50 px-2 py-1 text-xs font-black text-maruxa-rojo">
                           {dinero(impuestosItem.total)}
@@ -3468,7 +3468,7 @@ export default function AdminComprasPage() {
 
                       <label className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
                         <span className="flex min-h-4 items-end text-[10px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
-                          Precio venta
+                          P. venta
                         </span>
                         <input
                           ref={(elemento) => {
@@ -3493,7 +3493,7 @@ export default function AdminComprasPage() {
                       </label>
 
                       {producto && (
-                        <section className="rounded-2xl border-2 border-maruxa-rojo/20 bg-[#FFF8ED] p-4 md:col-span-2 xl:col-span-4">
+                        <section className="rounded-2xl border-2 border-maruxa-rojo/20 bg-[#FFF8ED] p-4 md:col-span-2 xl:col-span-12">
                           <div className="flex flex-wrap items-end justify-between gap-2 border-b border-maruxa-rojo/15 pb-3">
                             <div>
                               <p className="text-[11px] font-black uppercase tracking-[.2em] text-maruxa-rojo">
@@ -3915,7 +3915,7 @@ export default function AdminComprasPage() {
                         </button>
 
                       {producto && productoEditandoId === producto.id && (
-                        <div className="grid gap-4 rounded-2xl border border-red-100 bg-red-50/60 p-4 md:col-span-2 xl:col-span-4">
+                        <div className="grid gap-4 rounded-2xl border border-red-100 bg-red-50/60 p-4 md:col-span-2 xl:col-span-12">
                           <div className="grid gap-3 md:grid-cols-12">
                             <label className="grid gap-1 md:col-span-2">
                               <span className="text-[11px] font-black uppercase text-maruxa-cafe/60">
