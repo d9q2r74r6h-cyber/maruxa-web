@@ -85,6 +85,7 @@ type ItemCompra = {
   texto_listado_2: string;
   nuevo_producto?: boolean;
   familia_id_nueva?: string;
+  tipo_producto_nuevo?: TipoProductoCompra;
 };
 
 type CampoFocoItem = 'producto' | 'costo' | 'margen' | 'precio';
@@ -313,11 +314,6 @@ export default function AdminComprasPage() {
   const [guardandoFamiliaId, setGuardandoFamiliaId] = useState<number | null>(null);
   const [mensajeFamilia, setMensajeFamilia] = useState<Record<number, string>>({});
   const guardadoFamiliaEnCurso = useRef(false);
-  const [familiaGeneralId, setFamiliaGeneralId] = useState('');
-  const [margenGeneral, setMargenGeneral] = useState('');
-  const [tipoMargenGeneral, setTipoMargenGeneral] = useState<
-    'markup' | 'margen_comercial'
-  >('markup');
   const [items, setItems] = useState<ItemCompra[]>([]);
   const [focoPendiente, setFocoPendiente] = useState<{
     index: number;
@@ -925,25 +921,6 @@ export default function AdminComprasPage() {
     actualizarItem(index, 'producto_id', String(producto.id));
     setIndiceBusquedaActivo(null);
 
-    if (producto.familia_id) {
-      const familiaProducto = familias.find(
-        (familia) => familia.id === producto.familia_id
-      );
-      const { margen, tipoMargen } = configuracionMargenProducto(producto);
-
-      setFamiliaGeneralId(producto.familia_id);
-      setMargenGeneral(String(margen || ''));
-      setTipoMargenGeneral(
-        producto.usar_configuracion_familia === false
-          ? tipoMargen
-          : familiaProducto?.tipo_margen || tipoMargen
-      );
-    } else {
-      setFamiliaGeneralId('');
-      setMargenGeneral('');
-      setTipoMargenGeneral('markup');
-    }
-
     if (producto.proveedor_id) {
       let proveedorProducto = producto.proveedor;
 
@@ -984,11 +961,6 @@ export default function AdminComprasPage() {
       alert('Selecciona el proveedor en la parte superior.');
       return;
     }
-    if (!familiaGeneralId) {
-      alert('Selecciona la familia en la parte superior.');
-      return;
-    }
-
     setItems((actuales) =>
       actuales.map((actual, indice) =>
         indice === index
@@ -996,9 +968,10 @@ export default function AdminComprasPage() {
               ...actual,
               producto_id: `nuevo-${index}`,
               nuevo_producto: true,
-              familia_id_nueva: familiaGeneralId,
-              margen_porcentaje: margenGeneral,
-              tipo_margen: tipoMargenGeneral,
+              familia_id_nueva: '',
+              tipo_producto_nuevo: 'producto',
+              margen_porcentaje: '',
+              tipo_margen: 'markup',
               precio_venta: '',
             }
           : actual
@@ -1055,11 +1028,22 @@ export default function AdminComprasPage() {
     setFocoPendiente({ index, campo: siguiente });
   }
 
-  function seleccionarFamiliaGeneral(familiaId: string) {
+  function seleccionarFamiliaItemNuevo(index: number, familiaId: string) {
     const familia = familias.find((item) => item.id === familiaId);
-    setFamiliaGeneralId(familiaId);
-    setMargenGeneral(familia ? String(numero(familia.margen_porcentaje) || '') : '');
-    setTipoMargenGeneral(familia?.tipo_margen || 'markup');
+    setItems((actuales) =>
+      actuales.map((item, indice) =>
+        indice === index
+          ? {
+              ...item,
+              familia_id_nueva: familiaId,
+              margen_porcentaje: familia
+                ? String(numero(familia.margen_porcentaje) || '')
+                : '',
+              tipo_margen: familia?.tipo_margen || 'markup',
+            }
+          : item
+      )
+    );
   }
 
   async function cambiarFamiliaProducto(producto: Producto, familiaId: string) {
@@ -2242,8 +2226,15 @@ export default function AdminComprasPage() {
           itemNuevo.undxcaja
         );
         const nombre = datosNombre.nombre;
-        const familiaId = itemNuevo.familia_id_nueva || familiaGeneralId;
+        const familiaId = itemNuevo.familia_id_nueva;
         const familia = familias.find((item) => item.id === familiaId);
+        const tipoProducto = itemNuevo.tipo_producto_nuevo || 'producto';
+        const categoria =
+          tipoProducto === 'producto'
+            ? 'Productos'
+            : tipoProducto === 'ingrediente'
+              ? 'Materias primas'
+              : 'Insumos';
         const costoNeto = desgloseIva(
           numero(itemNuevo.costo_unitario),
           ivaPorcentaje,
@@ -2262,7 +2253,7 @@ export default function AdminComprasPage() {
             empresa.id,
             nombre,
             familiaId,
-            'producto'
+            tipoProducto
           );
         } catch (error) {
           setGuardando(false);
@@ -2285,11 +2276,11 @@ export default function AdminComprasPage() {
             undxcaja: datosNombre.undxcaja,
             descripcion: '',
             precio: numero(itemNuevo.precio_venta),
-            categoria: 'Productos',
+            categoria,
             imagen: null,
             destacado: false,
             slug: crearSlug(nombre),
-            tipo_producto: 'producto',
+            tipo_producto: tipoProducto,
             familia_id: familiaId,
             unidad_base: 'KG',
             costo_unitario: costoNeto,
@@ -2635,9 +2626,6 @@ export default function AdminComprasPage() {
     setResultadosBusqueda({});
     setIndiceBusquedaActivo(null);
     setFocoPendiente(null);
-    setFamiliaGeneralId('');
-    setMargenGeneral('');
-    setTipoMargenGeneral('markup');
     setUltimasCompras((actuales) => {
       const siguientes = { ...actuales };
 
@@ -2818,42 +2806,6 @@ export default function AdminComprasPage() {
               </label>
             )}
 
-            <div className="mt-3 grid items-start gap-3 rounded-2xl border border-[#4B2818]/10 bg-[#FFFDF9] p-4 md:grid-cols-[minmax(0,1fr)_180px]">
-              <label className="grid min-w-0 gap-1">
-                <span className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
-                  Familia para productos nuevos
-                </span>
-                <select
-                  value={familiaGeneralId}
-                  onChange={(e) => seleccionarFamiliaGeneral(e.target.value)}
-                  className="w-full min-w-0 rounded-2xl border bg-white px-4 py-3 font-bold text-maruxa-chocolate"
-                >
-                  <option value="">Seleccionar familia</option>
-                  {familias.map((familia) => (
-                    <option key={familia.id} value={familia.id}>
-                      {familia.nombre}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="grid min-w-0 gap-1">
-                <span className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
-                  Margen
-                </span>
-                <input
-                  value={entradaPorcentaje(margenGeneral)}
-                  onChange={(e) => setMargenGeneral(valorPorcentajeEntrada(e.target.value))}
-                  inputMode="decimal"
-                  placeholder="0%"
-                  className="w-full min-w-0 rounded-2xl border bg-white px-4 py-3 text-right font-black text-maruxa-chocolate"
-                />
-                <span className="text-[10px] font-bold text-maruxa-cafe/55">
-                  {tipoMargenGeneral === 'markup' ? 'Markup' : 'Margen comercial'}
-                </span>
-              </label>
-            </div>
-
             <div className="mt-6 rounded-[28px] bg-maruxa-crema p-5">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <h3 className="text-xl font-black text-maruxa-chocolate">
@@ -3005,7 +2957,7 @@ export default function AdminComprasPage() {
                         className="rounded-2xl border px-4 py-3 font-bold"
                       >
                         <option value="producto">Producto</option>
-                        <option value="ingrediente">Ingrediente</option>
+                        <option value="ingrediente">Materia prima</option>
                         <option value="envase">Insumo</option>
                       </select>
                     </label>
@@ -3349,7 +3301,7 @@ export default function AdminComprasPage() {
                               if (producto) {
                                 void cambiarFamiliaProducto(producto, event.target.value);
                               } else {
-                                actualizarItem(index, 'familia_id_nueva', event.target.value);
+                                seleccionarFamiliaItemNuevo(index, event.target.value);
                               }
                             }}
                             className="w-full min-w-0 rounded-lg border bg-white px-2 py-1 text-xs font-bold text-maruxa-chocolate disabled:opacity-60"
@@ -3368,6 +3320,32 @@ export default function AdminComprasPage() {
                                 ? 'Guardando familia…'
                                 : mensajeFamilia[producto.id] || 'Se guarda al seleccionar.'
                               : 'Se guardará al crear el producto.'}
+                          </span>
+                        </label>
+                      )}
+
+                      {esProductoNuevo && (
+                        <label className="grid min-w-0 content-start gap-1">
+                          <span className="flex min-h-4 items-end text-[10px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
+                            Tipo de artículo
+                          </span>
+                          <select
+                            value={item.tipo_producto_nuevo || 'producto'}
+                            onChange={(event) =>
+                              actualizarItem(
+                                index,
+                                'tipo_producto_nuevo',
+                                event.target.value
+                              )
+                            }
+                            className="w-full min-w-0 rounded-lg border bg-white px-2 py-1 text-xs font-bold text-maruxa-chocolate"
+                          >
+                            <option value="producto">Producto</option>
+                            <option value="envase">Insumo</option>
+                            <option value="ingrediente">Materia prima</option>
+                          </select>
+                          <span className="text-[10px] font-semibold text-maruxa-cafe/55">
+                            Define su clasificación al crearlo.
                           </span>
                         </label>
                       )}
@@ -4005,7 +3983,7 @@ export default function AdminComprasPage() {
                                 className="rounded-xl border px-3 py-2 text-sm font-bold"
                               >
                                 <option value="producto">Producto</option>
-                                <option value="ingrediente">Ingrediente</option>
+                                <option value="ingrediente">Materia prima</option>
                                 <option value="envase">Insumo</option>
                               </select>
                             </label>
