@@ -1153,15 +1153,15 @@ export default function AdminComprasPage() {
 
         if (campo === 'cantidad') {
           const cantidad = numero(valor);
-          const totalLinea = numero(item.costo_total);
+          const costoUnitario = numero(item.costo_unitario);
 
           return {
             ...item,
             cantidad: valor,
-            costo_unitario:
-              cantidad > 0 && totalLinea > 0
-                ? String(entero(totalLinea / cantidad))
-                : item.costo_unitario,
+            costo_total:
+              cantidad > 0 && costoUnitario > 0
+                ? String(cantidad * costoUnitario)
+                : item.costo_total,
           };
         }
 
@@ -3194,7 +3194,7 @@ export default function AdminComprasPage() {
                           ]
                         : [];
                   const impuestosItem = desgloseIva(
-                    numero(item.costo_unitario),
+                    totalFinalItem(item),
                     ivaPorcentaje,
                     precioIvaIncluido
                   );
@@ -3374,6 +3374,24 @@ export default function AdminComprasPage() {
 
                       <label className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
                         <span className="flex min-h-7 items-end text-[11px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
+                          Cantidad recibida
+                        </span>
+                        <input
+                          type="number"
+                          min="0.001"
+                          step="0.001"
+                          value={item.cantidad}
+                          onChange={(e) => actualizarItem(index, 'cantidad', e.target.value)}
+                          placeholder="0"
+                          className="w-full min-w-0 rounded-xl border px-3 py-2 text-right text-sm font-black text-maruxa-chocolate"
+                        />
+                        <span className="text-[10px] font-semibold text-maruxa-cafe/55">
+                          Unidades que ingresan a inventario.
+                        </span>
+                      </label>
+
+                      <label className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
+                        <span className="flex min-h-7 items-end text-[11px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
                           Unid./caja
                         </span>
                         <input
@@ -3391,7 +3409,7 @@ export default function AdminComprasPage() {
 
                       <label className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
                         <span className="flex min-h-7 items-end text-[11px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
-                          Costo proveedor
+                          Costo unitario proveedor
                           {precioIvaIncluido ? ' bruto' : ' neto'}
                         </span>
                         <input
@@ -3419,7 +3437,7 @@ export default function AdminComprasPage() {
 
                       <div className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
                         <span className="flex min-h-7 items-end text-[11px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
-                          Neto
+                          Neto línea
                         </span>
                         <div className="flex items-center justify-end rounded-xl border border-maruxa-cafe/10 bg-maruxa-crema/60 px-3 py-2 text-sm font-black text-maruxa-chocolate">
                           {dinero(impuestosItem.neto)}
@@ -3428,7 +3446,7 @@ export default function AdminComprasPage() {
 
                       <div className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
                         <span className="flex min-h-7 items-end text-[11px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
-                          IVA
+                          IVA línea
                         </span>
                         <div className="flex items-center justify-end rounded-xl border border-maruxa-cafe/10 bg-maruxa-crema/60 px-3 py-2 text-sm font-black text-maruxa-chocolate">
                           {dinero(impuestosItem.iva)}
@@ -3437,7 +3455,7 @@ export default function AdminComprasPage() {
 
                       <div className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
                         <span className="flex min-h-7 items-end text-[11px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
-                          Total
+                          Total línea
                         </span>
                         <div className="flex items-center justify-end rounded-xl border border-maruxa-rojo/15 bg-red-50 px-3 py-2 text-sm font-black text-maruxa-rojo">
                           {dinero(impuestosItem.total)}
