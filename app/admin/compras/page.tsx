@@ -296,6 +296,15 @@ export default function AdminComprasPage() {
     new Date().toISOString().slice(0, 10)
   );
   const [numeroFactura, setNumeroFactura] = useState('');
+  const [tipoDocumento, setTipoDocumento] = useState('factura');
+  const [fechaVencimiento, setFechaVencimiento] = useState('');
+  const [condicionPago, setCondicionPago] = useState('contado');
+  const [ordenCompra, setOrdenCompra] = useState('');
+  const [referenciaDocumento, setReferenciaDocumento] = useState('');
+  const [observacionesFactura, setObservacionesFactura] = useState('');
+  const [descuentoFactura, setDescuentoFactura] = useState('');
+  const [valorDespachoFactura, setValorDespachoFactura] = useState('');
+  const [impuestoAdicionalFactura, setImpuestoAdicionalFactura] = useState('');
   const [precioIvaIncluido, setPrecioIvaIncluido] = useState(false);
   const [ivaPorcentaje, setIvaPorcentaje] = useState(19);
   const [mostrarProveedores, setMostrarProveedores] = useState(false);
@@ -383,15 +392,47 @@ export default function AdminComprasPage() {
   const [recetasAfectadas, setRecetasAfectadas] = useState<RecetaAfectada[]>([]);
   const [cargandoRecetasAfectadas, setCargandoRecetasAfectadas] = useState(false);
 
-  const subtotalProductos = useMemo(() => {
-    return items.reduce((total, item) => {
-      return (
-        total +
-        desgloseIva(totalFinalItem(item), ivaPorcentaje, precioIvaIncluido).total
-      );
-    }, 0);
-  }, [items, ivaPorcentaje, precioIvaIncluido]);
-  const totalCompra = subtotalProductos;
+  const resumenFactura = useMemo(() => {
+    const productos = items.reduce(
+      (acumulado, item) => {
+        const desglose = desgloseIva(
+          totalFinalItem(item),
+          ivaPorcentaje,
+          precioIvaIncluido
+        );
+        return {
+          neto: acumulado.neto + desglose.neto,
+          iva: acumulado.iva + desglose.iva,
+        };
+      },
+      { neto: 0, iva: 0 }
+    );
+    const descuento = numero(descuentoFactura);
+    const despacho = numero(valorDespachoFactura);
+    const impuestoAdicional = numero(impuestoAdicionalFactura);
+    const baseAfecta = Math.max(0, productos.neto - descuento + despacho + impuestoAdicional);
+    const tasaIva = tipoDocumento === 'factura_exenta' ? 0 : ivaPorcentaje;
+    const iva = baseAfecta * (tasaIva / 100);
+
+    return {
+      netoProductos: productos.neto,
+      descuento,
+      despacho,
+      impuestoAdicional,
+      baseAfecta,
+      iva,
+      total: baseAfecta + iva,
+    };
+  }, [
+    descuentoFactura,
+    impuestoAdicionalFactura,
+    items,
+    ivaPorcentaje,
+    precioIvaIncluido,
+    tipoDocumento,
+    valorDespachoFactura,
+  ]);
+  const totalCompra = resumenFactura.total;
 
   const familiaNuevoProducto = familias.find(
     (familia) => familia.id === nuevoProducto.familia_id
@@ -2343,6 +2384,16 @@ export default function AdminComprasPage() {
         proveedor: proveedorTexto.trim(),
         numero_factura: numeroFactura.trim(),
         fecha: fechaFactura,
+        tipo_documento: tipoDocumento,
+        fecha_vencimiento: fechaVencimiento || null,
+        condicion_pago: condicionPago,
+        orden_compra: ordenCompra.trim() || null,
+        referencia: referenciaDocumento.trim() || null,
+        observaciones: observacionesFactura.trim() || null,
+        subtotal_productos: resumenFactura.netoProductos,
+        valor_despacho: resumenFactura.despacho,
+        impuesto_adicional: resumenFactura.impuestoAdicional,
+        descuento: resumenFactura.descuento,
         total: totalCompra,
       })
       .select('id')
@@ -2612,6 +2663,13 @@ export default function AdminComprasPage() {
 
     setGuardando(false);
     setNumeroFactura('');
+    setFechaVencimiento('');
+    setOrdenCompra('');
+    setReferenciaDocumento('');
+    setObservacionesFactura('');
+    setDescuentoFactura('');
+    setValorDespachoFactura('');
+    setImpuestoAdicionalFactura('');
     if (productoDesdeInforme) {
       window.location.assign('/admin/informes/precios');
     }
@@ -2630,16 +2688,49 @@ export default function AdminComprasPage() {
           <p className="font-black">Cargando productos...</p>
         ) : (
           <>
-            <div className="grid gap-3 rounded-2xl border border-[#4B2818]/15 bg-[#FFF8ED] p-4 md:grid-cols-[170px_170px_minmax(280px,1fr)]">
-              <label className="grid gap-1.5">
+            <div className="rounded-[28px] border border-[#4B2818]/15 bg-[#FFF8ED] p-5">
+              <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[.18em] text-maruxa-rojo">Documento de compra</p>
+                  <h2 className="mt-1 text-lg font-black text-maruxa-chocolate">Identificación y condiciones comerciales</h2>
+                </div>
+                <span className="rounded-full bg-white px-3 py-1 text-[11px] font-black text-maruxa-cafe/65">Paso 1 de 3</span>
+              </div>
+              <div className="grid gap-3 md:grid-cols-12">
+              <label className="grid gap-1.5 md:col-span-2">
+                <span className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">Tipo documento</span>
+                <select value={tipoDocumento} onChange={(e) => setTipoDocumento(e.target.value)} className="rounded-2xl border bg-white px-4 py-3 font-bold text-maruxa-chocolate">
+                  <option value="factura">Factura</option>
+                  <option value="factura_exenta">Factura exenta</option>
+                  <option value="nota_credito">Nota de crédito</option>
+                  <option value="guia_despacho">Guía de despacho</option>
+                  <option value="otro">Otro documento</option>
+                </select>
+              </label>
+              <label className="grid gap-1.5 md:col-span-2">
                 <span className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">Fecha factura</span>
                 <input type="date" value={fechaFactura} onChange={(e) => setFechaFactura(e.target.value)} className="rounded-2xl border bg-white px-4 py-3 font-bold text-maruxa-chocolate" />
               </label>
-              <label className="grid gap-1.5">
-                <span className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">N° factura</span>
+              <label className="grid gap-1.5 md:col-span-2">
+                <span className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">Vencimiento</span>
+                <input type="date" value={fechaVencimiento} onChange={(e) => setFechaVencimiento(e.target.value)} className="rounded-2xl border bg-white px-4 py-3 font-bold text-maruxa-chocolate" />
+              </label>
+              <label className="grid gap-1.5 md:col-span-2">
+                <span className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">Folio / N° documento</span>
                 <input value={numeroFactura} onChange={(e) => setNumeroFactura(e.target.value)} placeholder="Ej. 12345" className="rounded-2xl border bg-white px-4 py-3 font-bold text-maruxa-chocolate" />
               </label>
-              <div className="relative grid gap-1.5">
+              <label className="grid gap-1.5 md:col-span-2">
+                <span className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">Condición de pago</span>
+                <select value={condicionPago} onChange={(e) => setCondicionPago(e.target.value)} className="rounded-2xl border bg-white px-4 py-3 font-bold text-maruxa-chocolate">
+                  <option value="contado">Contado</option>
+                  <option value="credito_15">Crédito 15 días</option>
+                  <option value="credito_30">Crédito 30 días</option>
+                  <option value="credito_60">Crédito 60 días</option>
+                  <option value="transferencia">Transferencia</option>
+                  <option value="otro">Otra condición</option>
+                </select>
+              </label>
+              <div className="relative grid gap-1.5 md:col-span-4">
               <span className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
                 Proveedor
               </span>
@@ -2691,6 +2782,22 @@ export default function AdminComprasPage() {
                   )}
                 </div>
               )}
+              </div>
+              </div>
+
+              <div className="mt-4 grid gap-3 border-t border-maruxa-cafe/10 pt-4 md:grid-cols-12">
+                <label className="grid gap-1.5 md:col-span-3">
+                  <span className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">Orden de compra</span>
+                  <input value={ordenCompra} onChange={(e) => setOrdenCompra(e.target.value)} placeholder="Ej. OC-1042" className="rounded-2xl border bg-white px-4 py-3 font-bold text-maruxa-chocolate" />
+                </label>
+                <label className="grid gap-1.5 md:col-span-3">
+                  <span className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">Guía / referencia</span>
+                  <input value={referenciaDocumento} onChange={(e) => setReferenciaDocumento(e.target.value)} placeholder="Guía, recepción u otra referencia" className="rounded-2xl border bg-white px-4 py-3 font-bold text-maruxa-chocolate" />
+                </label>
+                <label className="grid gap-1.5 md:col-span-6">
+                  <span className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">Observaciones internas</span>
+                  <input value={observacionesFactura} onChange={(e) => setObservacionesFactura(e.target.value)} placeholder="Notas para administración, recepción o bodega" className="rounded-2xl border bg-white px-4 py-3 font-bold text-maruxa-chocolate" />
+                </label>
               </div>
             </div>
 
@@ -4022,39 +4129,70 @@ export default function AdminComprasPage() {
             </div>
 
             {(items.some((item) => Boolean(item.producto_id)) || productoDesdeInforme) && (
-            <div className="mt-6 flex flex-col gap-4 rounded-[28px] bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-3xl font-black text-maruxa-chocolate">
-                  Total factura: {dinero(totalCompra)}
-                </p>
-                <p className="mt-1 text-xs font-bold text-maruxa-cafe/70">
-                  Al guardar se registrará la factura, actualizarán los costos y se sumará el stock.
-                </p>
-              </div>
+              <>
+                <section className="mt-6 rounded-[28px] border border-[#4B2818]/12 bg-[#FFF8ED] p-5">
+                  <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+                    <div>
+                      <p className="text-[11px] font-black uppercase tracking-[.18em] text-maruxa-rojo">Ajustes del documento</p>
+                      <h3 className="mt-1 text-lg font-black text-maruxa-chocolate">Descuentos, despacho e impuestos</h3>
+                    </div>
+                    <span className="text-xs font-bold text-maruxa-cafe/60">Todos los ajustes se ingresan en valor neto.</span>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <label className="grid gap-1.5">
+                      <span className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">Descuento global</span>
+                      <input value={entradaPeso(descuentoFactura)} onChange={(e) => setDescuentoFactura(valorPesoEntrada(e.target.value))} inputMode="numeric" placeholder="$0" className="rounded-2xl border bg-white px-4 py-3 text-right font-black text-maruxa-chocolate" />
+                    </label>
+                    <label className="grid gap-1.5">
+                      <span className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">Flete / despacho</span>
+                      <input value={entradaPeso(valorDespachoFactura)} onChange={(e) => setValorDespachoFactura(valorPesoEntrada(e.target.value))} inputMode="numeric" placeholder="$0" className="rounded-2xl border bg-white px-4 py-3 text-right font-black text-maruxa-chocolate" />
+                    </label>
+                    <label className="grid gap-1.5">
+                      <span className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">Impuesto o recargo</span>
+                      <input value={entradaPeso(impuestoAdicionalFactura)} onChange={(e) => setImpuestoAdicionalFactura(valorPesoEntrada(e.target.value))} inputMode="numeric" placeholder="$0" className="rounded-2xl border bg-white px-4 py-3 text-right font-black text-maruxa-chocolate" />
+                    </label>
+                  </div>
+                </section>
 
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={calcularVariacionesPrevias}
-                  className="rounded-full border-2 border-red-700 bg-white px-8 py-4 font-black text-red-700 shadow-lg transition hover:bg-red-50"
-                >
-                  Ver variación de costos
-                </button>
+                <section className="mt-4 rounded-[28px] bg-maruxa-chocolate p-5 text-white shadow-lg">
+                  <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-black uppercase tracking-[.18em] text-white/65">Resumen de la factura</p>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                        <div className="rounded-2xl bg-white/10 px-4 py-3"><p className="text-[10px] font-black uppercase text-white/60">Neto productos</p><p className="mt-1 font-black">{dinero(resumenFactura.netoProductos)}</p></div>
+                        <div className="rounded-2xl bg-white/10 px-4 py-3"><p className="text-[10px] font-black uppercase text-white/60">Descuento</p><p className="mt-1 font-black">− {dinero(resumenFactura.descuento)}</p></div>
+                        <div className="rounded-2xl bg-white/10 px-4 py-3"><p className="text-[10px] font-black uppercase text-white/60">Ajustes</p><p className="mt-1 font-black">{dinero(resumenFactura.despacho + resumenFactura.impuestoAdicional)}</p></div>
+                        <div className="rounded-2xl bg-white/10 px-4 py-3"><p className="text-[10px] font-black uppercase text-white/60">IVA {tipoDocumento === 'factura_exenta' ? 'exento' : `${ivaPorcentaje}%`}</p><p className="mt-1 font-black">{dinero(resumenFactura.iva)}</p></div>
+                        <div className="rounded-2xl bg-maruxa-rojo px-4 py-3"><p className="text-[10px] font-black uppercase text-white/75">Total documento</p><p className="mt-1 text-xl font-black">{dinero(totalCompra)}</p></div>
+                      </div>
+                      <p className="mt-3 text-xs font-bold text-white/65">Al registrar se guarda el documento, su detalle, los costos, el stock y la trazabilidad del proveedor.</p>
+                    </div>
 
-                <button
-                  type="button"
-                  onClick={guardarCompra}
-                  disabled={guardando || guardandoFamiliaId !== null}
-                  className="rounded-full bg-red-700 px-8 py-4 font-black text-white shadow-lg disabled:opacity-50"
-                >
-                  {guardando
-                    ? 'Guardando...'
-                    : productoDesdeInforme && totalCompra === 0
-                      ? 'Guardar proveedor'
-                    : 'Registrar factura'}
-                </button>
-              </div>
-            </div>
+                    <div className="flex shrink-0 flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={calcularVariacionesPrevias}
+                        className="rounded-full border-2 border-white/60 bg-transparent px-6 py-3 font-black text-white transition hover:bg-white/10"
+                      >
+                        Ver variación de costos
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={guardarCompra}
+                        disabled={guardando || guardandoFamiliaId !== null}
+                        className="rounded-full bg-white px-6 py-3 font-black text-maruxa-rojo shadow-lg disabled:opacity-50"
+                      >
+                        {guardando
+                          ? 'Guardando...'
+                          : productoDesdeInforme && totalCompra === 0
+                            ? 'Guardar proveedor'
+                            : 'Registrar factura'}
+                      </button>
+                    </div>
+                  </div>
+                </section>
+              </>
             )}
           </>
         )}
