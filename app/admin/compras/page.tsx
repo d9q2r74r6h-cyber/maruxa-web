@@ -944,12 +944,6 @@ export default function AdminComprasPage() {
               : true,
         });
       }
-    } else {
-      setProveedorId('');
-      setProveedorTexto('');
-      setPrecioIvaIncluido(false);
-    }
-
     setFocoPendiente({ index, campo: 'costo' });
   }
 
