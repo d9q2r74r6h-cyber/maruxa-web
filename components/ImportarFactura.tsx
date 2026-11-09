@@ -1,11 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import type { Worker } from 'tesseract.js';
 import FacturasRecibidas from '@/components/FacturasRecibidas';
 import { supabase } from '@/lib/supabase';
 import { obtenerEmpresaActual } from '@/lib/empresa';
-import { leerXmlFactura, leerTextoFactura, normalizarRut, problemasFactura, type FacturaLectura, type LineaFactura } from '@/lib/importar-factura';
+import { leerXmlFactura, normalizarRut, problemasFactura, type FacturaLectura, type LineaFactura } from '@/lib/importar-factura';
 
 export type ProductoFactura = {
   id: number; nombre: string; codigo: string | null; tipo_producto: string;
@@ -66,14 +65,13 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
   const [error, setError] = useState('');
   const [mensaje, setMensaje] = useState('');
   const [imagenes, setImagenes] = useState<string[]>([]);
-  const workerRef = useRef<Worker | null>(null);
   const operacion = useRef(0);
   const lectorXml = useRef<HTMLInputElement>(null);
   const lectorFotos = useRef<HTMLInputElement>(null);
   const camara = useRef<HTMLInputElement>(null);
   const factura = documentos[indice];
   useEffect(() => () => { imagenes.forEach(url => URL.revokeObjectURL(url)); }, [imagenes]);
-  useEffect(() => () => { operacion.current++; void workerRef.current?.terminate(); }, []);
+  useEffect(() => () => { operacion.current++; }, []);
   useEffect(() => {
     if (!abierto) return;
     let vigente = true;
@@ -102,15 +100,26 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
     );
     if (coincidencia) setProveedor(coincidencia as ProveedorFactura);
   }
+  async function leerFotoConVision(archivos: File[]): Promise<FacturaLectura> {
+    const { data: sesion } = await supabase.auth.getSession();
+    if (!sesion.session?.access_token) throw new Error('Tu sesión venció. Ingresa nuevamente antes de leer la factura.');
+    const formulario = new FormData();
+    archivos.forEach(archivo => formulario.append('fotos', archivo));
+    const respuesta = await fetch('/api/facturas/leer-foto', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${sesion.session.access_token}` },
+      body: formulario,
+    });
+    const datos = await respuesta.json().catch(() => ({}));
+    if (!respuesta.ok) throw new Error(typeof datos.error === 'string' ? datos.error : 'No se pudo leer la factura.');
+    return datos as FacturaLectura;
+  }
   async function leer(archivos: File[], tipo: 'xml' | 'foto') {
     if (!archivos.length) return;
     if (documentos.length && !window.confirm('¿Reemplazar la revisión actual con este archivo?')) return;
     const id = ++operacion.current;
     setOcupado(true); setError(''); setMensaje(''); setProgreso('Preparando lectura…');
     setProveedor(null); setProductos({}); setRevisado(false);
-    let worker: Worker | null = null;
-    let activo = true;
-    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       if (tipo === 'xml') {
         if (archivos.length !== 1 || archivos[0].size > 5_000_000) throw new Error('Selecciona un XML de hasta 5 MB.');
@@ -124,26 +133,9 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
         await seleccionarProveedorAutomatico(resultado[0]);
       } else {
         if (archivos.length > 5 || archivos.some(a => a.size > 12_000_000 || !/\.(jpe?g|png|webp)$/i.test(a.name))) throw new Error('Selecciona hasta 5 fotos JPG, PNG o WebP de 12 MB cada una.');
-        const trabajo = async () => {
-          const { createWorker } = await import('tesseract.js');
-          worker = await createWorker('spa', 1, { errorHandler: () => {}, logger: m => {
-            if (id === operacion.current) setProgreso(m.status === 'recognizing text' ? `Leyendo página: ${Math.round(m.progress * 100)}%` : 'Cargando lector de fotos… La primera vez puede tardar.');
-          } });
-          if (!activo || id !== operacion.current) { await worker.terminate(); return ''; }
-          workerRef.current = worker;
-          await worker.setParameters({ preserve_interword_spaces: '1' });
-          const textos: string[] = [];
-          for (const archivo of archivos) {
-            if (id !== operacion.current) return '';
-            const { data } = await worker.recognize(archivo);
-            textos.push(data.text);
-          }
-          return textos.join('\n\n');
-        };
-        const texto = await Promise.race([trabajo(), new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('La lectura tardó demasiado. Prueba con una foto más nítida o menos páginas.')), 120000); })]);
+        setProgreso('Analizando la factura y sus líneas…');
+        const resultado = await leerFotoConVision(archivos);
         if (id !== operacion.current) return;
-        if (!texto.trim()) throw new Error('No se pudo leer texto. Prueba una foto enfocada y sin reflejos.');
-        const resultado = leerTextoFactura(texto);
         setDocumentos([resultado]);
         setImagenes(archivos.map(a => URL.createObjectURL(a)));
         await seleccionarProveedorAutomatico(resultado);
@@ -152,10 +144,7 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
     } catch (e) {
       if (id === operacion.current) setError(e instanceof Error ? e.message : 'No se pudo leer el archivo.');
     } finally {
-      activo = false;
-      clearTimeout(timer);
-      if (worker) await (worker as Worker).terminate().catch(() => {});
-      if (id === operacion.current) { workerRef.current = null; setOcupado(false); }
+      if (id === operacion.current) setOcupado(false);
     }
   }
   const problemas = factura ? problemasFactura(factura) : [];
@@ -194,8 +183,8 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
       <input hidden ref={camara} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={e => { void leer(Array.from(e.target.files || []), 'foto'); e.target.value = ''; }} />
       <input hidden ref={lectorFotos} type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={e => { void leer(Array.from(e.target.files || []), 'foto'); e.target.value = ''; }} />
       <input hidden ref={lectorXml} type="file" accept=".xml,application/xml,text/xml" onChange={e => { void leer(Array.from(e.target.files || []), 'xml'); e.target.value = ''; }} />
-      <p className="text-xs">Las fotos se leen en tu navegador. Se necesita conexión para descargar el lector la primera vez. No se requiere token del SII.</p>
-      {ocupado && <div><p role="status">{progreso}</p><button type="button" className="mt-2 underline" onClick={() => { operacion.current++; void workerRef.current?.terminate(); workerRef.current = null; setOcupado(false); }}>Cancelar lectura</button></div>}
+      <p className="text-xs">Las fotos se envían de forma puntual al lector visual para reconocer la factura; no se almacenan en la aplicación. No se requiere token del SII.</p>
+      {ocupado && <div><p role="status">{progreso}</p><button type="button" className="mt-2 underline" onClick={() => { operacion.current++; setOcupado(false); }}>Cancelar lectura</button></div>}
       {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-red-800">{error}</p>}
       {factura && !ocupado && <fieldset disabled={aplicando} className="space-y-4">
         {documentos.length > 1 && <label>Documento del XML<select className={campo} value={indice} onChange={e => { setIndice(Number(e.target.value)); setProveedor(null); setRevisado(false); setMensaje(''); }}>{documentos.map((f, i) => <option key={i} value={i}>{f.proveedor} · Folio {f.folio} · {pesos(f.total)}</option>)}</select></label>}
