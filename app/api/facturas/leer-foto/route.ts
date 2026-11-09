@@ -128,7 +128,7 @@ function mensajeErrorOpenAI(estado: number, detalle: { codigo: string; mensaje: 
 }
 
 async function pedirLecturaVisual(imagenes: { type: string; image_url: string; detail: string }[]) {
-  const modelos = process.env.OPENAI_VISION_MODEL ? [process.env.OPENAI_VISION_MODEL] : ['gpt-6-astra', 'gpt-4o'];
+  const modelos = process.env.OPENAI_VISION_MODEL ? [process.env.OPENAI_VISION_MODEL] : ['gpt-6.1-sol', 'gpt-4o'];
   let ultimaRespuesta: Response | null = null;
   let ultimosDatos: unknown = null;
 
