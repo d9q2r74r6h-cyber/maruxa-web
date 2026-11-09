@@ -88,11 +88,26 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
   function linea(i: number, cambios: Partial<LineaFactura>) {
     modificar({ lineas: factura.lineas.map((l, n) => n === i ? { ...l, ...cambios } : l) });
   }
+  async function seleccionarProveedorAutomatico(documento: FacturaLectura) {
+    const empresaActual = empresa || await obtenerEmpresaActual();
+    const rutEmisor = normalizarRut(documento.rutEmisor);
+    if (!empresaActual || !rutEmisor) return;
+    const { data } = await supabase
+      .from('proveedores')
+      .select('id,razon_social,nombre_fantasia,rut,precio_iva_incluido')
+      .eq('empresa_id', empresaActual.id)
+      .eq('activo', true);
+    const coincidencia = (data || []).find(
+      (item) => normalizarRut(item.rut || '') === rutEmisor
+    );
+    if (coincidencia) setProveedor(coincidencia as ProveedorFactura);
+  }
   async function leer(archivos: File[], tipo: 'xml' | 'foto') {
     if (!archivos.length) return;
     if (documentos.length && !window.confirm('¿Reemplazar la revisión actual con este archivo?')) return;
     const id = ++operacion.current;
     setOcupado(true); setError(''); setMensaje(''); setProgreso('Preparando lectura…');
+    setProveedor(null); setProductos({}); setRevisado(false);
     let worker: Worker | null = null;
     let activo = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -106,6 +121,7 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
         const resultado = leerXmlFactura(xml);
         if (id !== operacion.current) return;
         setDocumentos(resultado); setImagenes([]);
+        await seleccionarProveedorAutomatico(resultado[0]);
       } else {
         if (archivos.length > 5 || archivos.some(a => a.size > 12_000_000 || !/\.(jpe?g|png|webp)$/i.test(a.name))) throw new Error('Selecciona hasta 5 fotos JPG, PNG o WebP de 12 MB cada una.');
         const trabajo = async () => {
@@ -127,10 +143,12 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
         const texto = await Promise.race([trabajo(), new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('La lectura tardó demasiado. Prueba con una foto más nítida o menos páginas.')), 120000); })]);
         if (id !== operacion.current) return;
         if (!texto.trim()) throw new Error('No se pudo leer texto. Prueba una foto enfocada y sin reflejos.');
-        setDocumentos([leerTextoFactura(texto)]);
+        const resultado = leerTextoFactura(texto);
+        setDocumentos([resultado]);
         setImagenes(archivos.map(a => URL.createObjectURL(a)));
+        await seleccionarProveedorAutomatico(resultado);
       }
-      setIndice(0); setProveedor(null); setProductos({}); setRevisado(false);
+      setIndice(0);
     } catch (e) {
       if (id === operacion.current) setError(e instanceof Error ? e.message : 'No se pudo leer el archivo.');
     } finally {
@@ -150,7 +168,7 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
     setAplicando(true); setError('');
     try {
       await onApply({ factura, proveedor, productos: Object.values(productos) });
-      setMensaje('Costos cargados en el formulario. Revísalos y usa Guardar costos y precios para confirmarlos. Esta acción solo prepara costos; no confirma la compra ni registra mercadería.');
+      setMensaje('La factura quedó preparada en el formulario. Revisa la grilla y usa Registrar factura para confirmar la compra, costos y stock.');
     } catch (e) { setError(e instanceof Error ? e.message : 'No se pudieron cargar los costos.'); }
     finally { setAplicando(false); }
   }
@@ -182,31 +200,50 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
       {factura && !ocupado && <fieldset disabled={aplicando} className="space-y-4">
         {documentos.length > 1 && <label>Documento del XML<select className={campo} value={indice} onChange={e => { setIndice(Number(e.target.value)); setProveedor(null); setRevisado(false); setMensaje(''); }}>{documentos.map((f, i) => <option key={i} value={i}>{f.proveedor} · Folio {f.folio} · {pesos(f.total)}</option>)}</select></label>}
         {factura.avisos.map((a, i) => <p key={i} className="rounded-lg bg-amber-50 p-3 text-sm">{a}</p>)}
+        <section className="rounded-xl border border-[#D9C4A7] bg-[#FFF8ED] p-4">
+          <p className="text-[11px] font-black uppercase tracking-wide text-[#A51F2B]">Revisión rápida</p>
+          <h3 className="mt-1 font-black text-[#2A1710]">Solo confirma proveedor y productos</h3>
+          <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
+            <p><span className="font-bold">Folio:</span> {factura.folio || 'Sin leer'}</p>
+            <p><span className="font-bold">Fecha:</span> {factura.fecha || 'Sin leer'}</p>
+            <p><span className="font-bold">Total:</span> {pesos(factura.total)}</p>
+          </div>
+          <label className="mt-4 block font-bold">Proveedor del sistema {proveedor && <strong>· {proveedor.razon_social}</strong>}
+            <Buscador tabla="proveedores" empresaId={empresa?.id || ''} onSelect={p => { setProveedor(p); setRevisado(false); }} />
+          </label>
+          <p className="mt-2 text-xs text-[#5F4030]">Si el RUT de la foto coincide con uno registrado, el proveedor se selecciona automáticamente.</p>
+        </section>
         <details><summary className="cursor-pointer font-bold">Ver original y texto leído</summary>
           <div className="flex flex-wrap gap-3">{imagenes.map((url, i) => <a key={url} href={url} target="_blank" rel="noreferrer"><img src={url} alt={`Factura, página ${i + 1}`} className="max-h-96 max-w-full object-contain" /></a>)}</div>
           <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-lg bg-gray-50 p-3 text-xs">{factura.original}</pre>
         </details>
-        <div className="grid gap-3 md:grid-cols-3">
-          <label>Tipo<select className={campo} value={factura.tipo} onChange={e => modificar({ tipo: e.target.value })}><option value="33">Factura electrónica</option><option value="34">Factura exenta</option></select></label>
-          {(['folio', 'rutEmisor', 'proveedor', 'rutReceptor', 'fecha'] as const).map(k => <label key={k}>{({ folio: 'Folio', rutEmisor: 'RUT proveedor', proveedor: 'Razón social proveedor', rutReceptor: 'RUT receptor', fecha: 'Fecha de emisión' })[k]}<input className={campo} type={k === 'fecha' ? 'date' : 'text'} value={factura[k]} onChange={e => modificar({ [k]: e.target.value })} /></label>)}
-        </div>
-        <label className="block">Proveedor del sistema {proveedor && <strong>· {proveedor.razon_social} ({proveedor.rut})</strong>}
-          <Buscador tabla="proveedores" empresaId={empresa?.id || ''} onSelect={p => { setProveedor(p); setRevisado(false); }} />
-        </label>
-        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">{(['neto', 'exento', 'iva', 'otros', 'total'] as const).map(k => <label key={k}>{({ neto: 'Neto afecto', exento: 'Exento', iva: 'IVA', otros: 'Otros (+/−)', total: 'Total factura' })[k]}<input type="number" step="any" className={campo} value={Number.isFinite(factura[k]) ? factura[k] : ''} onChange={e => modificar({ [k]: e.target.value === '' ? NaN : Number(e.target.value) })} /></label>)}</div>
-        <h3 className="font-bold">Detalle · montos netos después de descuentos</h3>
-        <p className="text-sm">La cantidad debe estar expresada en la unidad del producto del catálogo. Si compras cajas y el catálogo usa kilos o unidades, convierte la cantidad antes de continuar; el monto de la línea se conserva.</p>
-        {factura.lineas.map((l, i) => <div key={i} className="grid gap-3 rounded-xl border p-3 md:grid-cols-3">
-          <label>Descripción<input className={campo} value={l.nombre} onChange={e => linea(i, { nombre: e.target.value })} /><span className="text-xs">Código origen: {l.codigo || '—'} · Unidad origen: {l.unidad || 'Sin indicar'}</span></label>
-          <label>Cantidad<input className={campo} type="number" min="0" step="any" value={l.cantidad} onChange={e => linea(i, { cantidad: Number(e.target.value) })} /></label>
-          <label>Monto neto de la línea<input className={campo} type="number" min="0" step="any" value={Number(l.montoNeto.toFixed(4))} onChange={e => linea(i, { montoNeto: Number(e.target.value) })} /></label>
-          <div className="md:col-span-2"><p className="text-sm font-bold">{productos[l.productoId] ? `${productos[l.productoId].nombre} · Unidad: ${productos[l.productoId].unidad_base || 'Sin indicar'}` : 'Selecciona el producto del catálogo'}</p><Buscador tabla="productos" empresaId={empresa?.id || ''} onSelect={(p: ProductoFactura) => { setProductos(actual => ({ ...actual, [p.id]: p })); linea(i, { productoId: String(p.id) }); }} /></div>
-          <div><label><input type="checkbox" checked={l.exento} onChange={e => linea(i, { exento: e.target.checked })} /> Exento</label><p className="text-sm">Costo neto por unidad: {l.cantidad > 0 ? pesos(l.montoNeto / l.cantidad) : '—'}</p><button type="button" className="text-red-800 underline" onClick={() => modificar({ lineas: factura.lineas.filter((_, n) => n !== i) })}>Quitar línea</button></div>
+        <details className="rounded-xl border border-[#D9C4A7] bg-white p-3">
+          <summary className="cursor-pointer text-sm font-bold">Corregir datos leídos de la factura</summary>
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
+            <label>Tipo<select className={campo} value={factura.tipo} onChange={e => modificar({ tipo: e.target.value })}><option value="33">Factura electrónica</option><option value="34">Factura exenta</option></select></label>
+            {(['folio', 'rutEmisor', 'proveedor', 'rutReceptor', 'fecha'] as const).map(k => <label key={k}>{({ folio: 'Folio', rutEmisor: 'RUT proveedor', proveedor: 'Razón social proveedor', rutReceptor: 'RUT receptor', fecha: 'Fecha de emisión' })[k]}<input className={campo} type={k === 'fecha' ? 'date' : 'text'} value={factura[k]} onChange={e => modificar({ [k]: e.target.value })} /></label>)}
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">{(['neto', 'exento', 'iva', 'otros', 'total'] as const).map(k => <label key={k}>{({ neto: 'Neto afecto', exento: 'Exento', iva: 'IVA', otros: 'Otros (+/−)', total: 'Total factura' })[k]}<input type="number" step="any" className={campo} value={Number.isFinite(factura[k]) ? factura[k] : ''} onChange={e => modificar({ [k]: e.target.value === '' ? NaN : Number(e.target.value) })} /></label>)}</div>
+        </details>
+        <h3 className="font-bold">Asocia los productos de la factura</h3>
+        <p className="text-sm">Solo busca el producto equivalente en tu catálogo. Cantidad y valor se aplicarán automáticamente; edítalos solo si la foto leyó algo mal.</p>
+        {factura.lineas.map((l, i) => <div key={i} className="grid gap-3 rounded-xl border p-3 md:grid-cols-[minmax(220px,1fr)_minmax(260px,1.4fr)]">
+          <div>
+            <p className="font-black text-[#2A1710]">{l.nombre || `Línea ${i + 1}`}</p>
+            <p className="mt-1 text-xs text-[#5F4030]">{l.cantidad} {l.unidad || 'un.'} · Neto {pesos(l.montoNeto)} · Unitario {l.cantidad > 0 ? pesos(l.montoNeto / l.cantidad) : '—'}</p>
+          </div>
+          <div><p className="text-sm font-bold">{productos[l.productoId] ? `✓ ${productos[l.productoId].nombre}` : 'Buscar producto del catálogo'}</p><Buscador tabla="productos" empresaId={empresa?.id || ''} onSelect={(p: ProductoFactura) => { setProductos(actual => ({ ...actual, [p.id]: p })); linea(i, { productoId: String(p.id) }); }} /></div>
+          <details className="md:col-span-2"><summary className="cursor-pointer text-xs font-bold text-[#5F4030]">Corregir esta línea</summary><div className="mt-2 grid gap-3 md:grid-cols-3">
+            <label>Descripción<input className={campo} value={l.nombre} onChange={e => linea(i, { nombre: e.target.value })} /><span className="text-xs">Código: {l.codigo || '—'} · Unidad: {l.unidad || 'Sin indicar'}</span></label>
+            <label>Cantidad<input className={campo} type="number" min="0" step="any" value={l.cantidad} onChange={e => linea(i, { cantidad: Number(e.target.value) })} /></label>
+            <label>Monto neto<input className={campo} type="number" min="0" step="any" value={Number(l.montoNeto.toFixed(4))} onChange={e => linea(i, { montoNeto: Number(e.target.value) })} /></label>
+            <label><input type="checkbox" checked={l.exento} onChange={e => linea(i, { exento: e.target.checked })} /> Exento</label><button type="button" className="text-left text-red-800 underline" onClick={() => modificar({ lineas: factura.lineas.filter((_, n) => n !== i) })}>Quitar línea</button>
+          </div></details>
         </div>)}
         <button type="button" className="rounded-lg border px-4 py-2" onClick={() => modificar({ lineas: [...factura.lineas, { nombre: '', codigo: '', unidad: '', cantidad: 1, montoNeto: 0, exento: factura.tipo === '34', productoId: '' }] })}>+ Agregar línea</button>
         {problemas.length > 0 && <ul className="list-disc rounded-lg bg-amber-50 py-3 pl-8 text-sm">{problemas.map((p, i) => <li key={i}>{p}</li>)}</ul>}
-        <label className="flex items-start gap-2 font-bold"><input type="checkbox" checked={revisado} onChange={e => setRevisado(e.target.checked)} /> Revisé el original, los montos y las unidades de todos los productos.</label>
-        <div className="flex flex-wrap gap-3"><button type="button" className={boton} disabled={!empresa || problemas.length > 0 || !revisado || aplicando || !!mensaje} onClick={() => void aplicar()}>{aplicando ? 'Cargando…' : 'Cargar costos revisados'}</button><button type="button" className="rounded-lg border px-4 py-2" onClick={descargar}>Descargar revisión</button></div>
+        <label className="flex items-start gap-2 font-bold"><input type="checkbox" checked={revisado} onChange={e => setRevisado(e.target.checked)} /> Confirmo que la foto y los productos asociados están correctos.</label>
+        <div className="flex flex-wrap gap-3"><button type="button" className={boton} disabled={!empresa || problemas.length > 0 || !revisado || aplicando || !!mensaje} onClick={() => void aplicar()}>{aplicando ? 'Cargando…' : 'Llevar a la factura'}</button><button type="button" className="rounded-lg border px-4 py-2" onClick={descargar}>Descargar revisión</button></div>
         {mensaje && <p role="status" className="rounded-lg bg-green-50 p-3">{mensaje}</p>}
       </fieldset>}
     </div>}

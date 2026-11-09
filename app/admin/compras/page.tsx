@@ -2177,6 +2177,9 @@ export default function AdminComprasPage() {
     });
     setProveedorId(proveedor.id);
     setProveedorTexto(proveedor.nombre_fantasia || proveedor.razon_social);
+    setNumeroFactura(factura.folio);
+    setFechaFactura(factura.fecha || new Date().toISOString().slice(0, 10));
+    setTipoDocumento(factura.tipo === '34' ? 'factura_exenta' : 'factura');
     // El lector convierte cada línea a neto; no modificar la preferencia del proveedor.
     setPrecioIvaIncluido(false);
     setItems(nuevosItems);
