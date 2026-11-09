@@ -18,6 +18,46 @@ export type CargaFactura = { factura: FacturaLectura; proveedor: ProveedorFactur
 const campo = 'w-full rounded-lg border border-[#D9C4A7] bg-white p-2 text-sm text-[#2A1710]';
 const boton = 'rounded-xl bg-[#A51F2B] px-4 py-3 font-bold text-white disabled:opacity-50';
 const pesos = (n: number) => '$' + Math.round(n).toLocaleString('es-CL');
+const MAX_BYTES_ENVIO_FOTOS = 4_000_000;
+
+async function convertirFotoParaVision(archivo: File, ladoMaximo: number, calidad: number): Promise<File> {
+  const imagen = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const url = URL.createObjectURL(archivo);
+    const elemento = new Image();
+    elemento.onload = () => { URL.revokeObjectURL(url); resolve(elemento); };
+    elemento.onerror = () => { URL.revokeObjectURL(url); reject(new Error('No se pudo preparar una de las fotos.')); };
+    elemento.src = url;
+  });
+  const escala = Math.min(1, ladoMaximo / Math.max(imagen.naturalWidth, imagen.naturalHeight));
+  const ancho = Math.max(1, Math.round(imagen.naturalWidth * escala));
+  const alto = Math.max(1, Math.round(imagen.naturalHeight * escala));
+  const lienzo = document.createElement('canvas');
+  lienzo.width = ancho;
+  lienzo.height = alto;
+  const contexto = lienzo.getContext('2d');
+  if (!contexto) throw new Error('Tu navegador no pudo preparar la foto.');
+  contexto.fillStyle = '#FFFFFF';
+  contexto.fillRect(0, 0, ancho, alto);
+  contexto.drawImage(imagen, 0, 0, ancho, alto);
+  const blob = await new Promise<Blob | null>(resolve => lienzo.toBlob(resolve, 'image/jpeg', calidad));
+  if (!blob) throw new Error('No se pudo comprimir una de las fotos.');
+  return new File([blob], `${archivo.name.replace(/\.[^.]+$/, '') || 'factura'}.jpg`, { type: 'image/jpeg' });
+}
+
+async function prepararFotosParaVision(archivos: File[]): Promise<File[]> {
+  if (archivos.reduce((total, archivo) => total + archivo.size, 0) <= MAX_BYTES_ENVIO_FOTOS) return archivos;
+  let fotos = await Promise.all(archivos.map(archivo => convertirFotoParaVision(archivo, 2400, 0.9)));
+  if (fotos.reduce((total, foto) => total + foto.size, 0) > MAX_BYTES_ENVIO_FOTOS) {
+    fotos = await Promise.all(archivos.map(archivo => convertirFotoParaVision(archivo, 1800, 0.82)));
+  }
+  if (fotos.reduce((total, foto) => total + foto.size, 0) > MAX_BYTES_ENVIO_FOTOS) {
+    fotos = await Promise.all(archivos.map(archivo => convertirFotoParaVision(archivo, 1400, 0.74)));
+  }
+  if (fotos.reduce((total, foto) => total + foto.size, 0) > MAX_BYTES_ENVIO_FOTOS) {
+    throw new Error('Las fotos pesan demasiado incluso después de prepararlas. Sube menos páginas o toma una foto más cercana de cada página.');
+  }
+  return fotos;
+}
 
 function Buscador({ empresaId, tabla, onSelect }: { empresaId: string; tabla: 'productos' | 'proveedores'; onSelect: (valor: any) => void }) {
   const [texto, setTexto] = useState('');
@@ -103,8 +143,11 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
   async function leerFotoConVision(archivos: File[]): Promise<FacturaLectura> {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session?.access_token) throw new Error('Tu sesión venció. Ingresa nuevamente antes de leer la factura.');
+    setProgreso('Preparando las fotos para su lectura…');
+    const fotos = await prepararFotosParaVision(archivos);
+    setProgreso('Analizando la factura y sus líneas…');
     const formulario = new FormData();
-    archivos.forEach(archivo => formulario.append('fotos', archivo));
+    fotos.forEach(foto => formulario.append('fotos', foto));
     const respuesta = await fetch('/api/facturas/leer-foto', {
       method: 'POST',
       headers: { Authorization: `Bearer ${sesion.session.access_token}` },
@@ -133,7 +176,6 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
         await seleccionarProveedorAutomatico(resultado[0]);
       } else {
         if (archivos.length > 5 || archivos.some(a => a.size > 12_000_000 || !/\.(jpe?g|png|webp)$/i.test(a.name))) throw new Error('Selecciona hasta 5 fotos JPG, PNG o WebP de 12 MB cada una.');
-        setProgreso('Analizando la factura y sus líneas…');
         const resultado = await leerFotoConVision(archivos);
         if (id !== operacion.current) return;
         setDocumentos([resultado]);
@@ -183,7 +225,7 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
       <input hidden ref={camara} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={e => { void leer(Array.from(e.target.files || []), 'foto'); e.target.value = ''; }} />
       <input hidden ref={lectorFotos} type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={e => { void leer(Array.from(e.target.files || []), 'foto'); e.target.value = ''; }} />
       <input hidden ref={lectorXml} type="file" accept=".xml,application/xml,text/xml" onChange={e => { void leer(Array.from(e.target.files || []), 'xml'); e.target.value = ''; }} />
-      <p className="text-xs">Las fotos se envían de forma puntual al lector visual para reconocer la factura; no se almacenan en la aplicación. No se requiere token del SII.</p>
+      <p className="text-xs">Las fotos se preparan automáticamente para enviarlas al lector visual y reconocer la factura; no se almacenan en la aplicación. No se requiere token del SII.</p>
       {ocupado && <div><p role="status">{progreso}</p><button type="button" className="mt-2 underline" onClick={() => { operacion.current++; setOcupado(false); }}>Cancelar lectura</button></div>}
       {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-red-800">{error}</p>}
       {factura && !ocupado && <fieldset disabled={aplicando} className="space-y-4">

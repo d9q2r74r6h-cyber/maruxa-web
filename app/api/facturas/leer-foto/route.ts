@@ -110,6 +110,48 @@ function textoDeRespuesta(respuesta: unknown): string {
   return '';
 }
 
+function detalleErrorOpenAI(respuesta: unknown): { codigo: string; mensaje: string } {
+  const error = respuesta && typeof respuesta === 'object' ? (respuesta as { error?: unknown }).error : null;
+  if (!error || typeof error !== 'object') return { codigo: '', mensaje: '' };
+  const datos = error as { code?: unknown; message?: unknown };
+  return {
+    codigo: typeof datos.code === 'string' ? datos.code : '',
+    mensaje: typeof datos.message === 'string' ? datos.message.slice(0, 240) : '',
+  };
+}
+
+function mensajeErrorOpenAI(estado: number, detalle: { codigo: string; mensaje: string }): string {
+  if (estado === 401) return 'OpenAI rechazó la clave configurada. Revisa OPENAI_API_KEY en Vercel.';
+  if (estado === 429) return 'OpenAI no tiene saldo disponible o alcanzó su límite. Revisa la facturación de la cuenta de API.';
+  if (estado === 400 || estado === 404) return `OpenAI rechazó la configuración del lector${detalle.mensaje ? `: ${detalle.mensaje}` : '.'}`;
+  return `El lector visual fue rechazado por OpenAI (${estado})${detalle.codigo ? `: ${detalle.codigo}` : '.'}`;
+}
+
+async function pedirLecturaVisual(imagenes: { type: string; image_url: string; detail: string }[]) {
+  const modelos = process.env.OPENAI_VISION_MODEL ? [process.env.OPENAI_VISION_MODEL] : ['gpt-6-astra', 'gpt-4o'];
+  let ultimaRespuesta: Response | null = null;
+  let ultimosDatos: unknown = null;
+
+  for (const modelo of modelos) {
+    const respuesta = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: modelo,
+        store: false,
+        input: [{ role: 'user', content: [{ type: 'input_text', text: instrucciones }, ...imagenes] }],
+        text: { format: { type: 'json_schema', name: 'factura_compra_chile', strict: true, schema: esquemaFactura } },
+      }),
+    });
+    const datos: unknown = await respuesta.json().catch(() => null);
+    if (respuesta.ok || process.env.OPENAI_VISION_MODEL || ![400, 404].includes(respuesta.status)) return { respuesta, datos };
+    ultimaRespuesta = respuesta;
+    ultimosDatos = datos;
+  }
+
+  return { respuesta: ultimaRespuesta!, datos: ultimosDatos };
+}
+
 export async function POST(request: Request) {
   const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -150,26 +192,20 @@ export async function POST(request: Request) {
     detail: 'high',
   })));
 
-  let respuesta: Response;
+  let lectura: { respuesta: Response; datos: unknown };
   try {
-    respuesta = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: process.env.OPENAI_VISION_MODEL || 'gpt-6-astra',
-        store: false,
-        input: [{ role: 'user', content: [{ type: 'input_text', text: instrucciones }, ...imagenes] }],
-        text: { format: { type: 'json_schema', name: 'factura_compra_chile', strict: true, schema: esquemaFactura } },
-      }),
-    });
+    lectura = await pedirLecturaVisual(imagenes);
   } catch {
     return NextResponse.json({ error: 'No fue posible contactar el lector visual. Inténtalo nuevamente.' }, { status: 502 });
   }
 
-  const datosRespuesta: unknown = await respuesta.json().catch(() => null);
-  if (!respuesta.ok) return NextResponse.json({ error: 'El lector visual no pudo analizar la foto. Prueba una imagen nítida y completa.' }, { status: 502 });
+  if (!lectura.respuesta.ok) {
+    const detalle = detalleErrorOpenAI(lectura.datos);
+    console.error('Lector visual de factura rechazado por OpenAI.', { estado: lectura.respuesta.status, codigo: detalle.codigo });
+    return NextResponse.json({ error: mensajeErrorOpenAI(lectura.respuesta.status, detalle) }, { status: 502 });
+  }
 
-  const salida = textoDeRespuesta(datosRespuesta);
+  const salida = textoDeRespuesta(lectura.datos);
   if (!salida) return NextResponse.json({ error: 'El lector visual no devolvió datos utilizables. Prueba otra foto.' }, { status: 422 });
 
   try {
