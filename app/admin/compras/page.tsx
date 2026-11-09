@@ -86,6 +86,7 @@ type ItemCompra = {
   nuevo_producto?: boolean;
   familia_id_nueva?: string;
   tipo_producto_nuevo?: TipoProductoCompra;
+  codigo_proveedor?: string;
 };
 
 type CampoFocoItem = 'producto' | 'costo' | 'margen' | 'precio';
@@ -2155,12 +2156,29 @@ export default function AdminComprasPage() {
     await cargarRecetasAfectadas(variaciones);
   }
 
-  async function cargarCostosFactura({ factura, proveedor, productos: seleccionados }: CargaFactura) {
+  async function cargarCostosFactura({ factura, proveedor, productos: seleccionados, nuevos }: CargaFactura) {
     if (guardando || loading) throw new Error('Espera a que termine la operación actual.');
     if (items.length || mostrarCrearProducto) throw new Error('Guarda o quita los productos pendientes del formulario antes de cargar esta factura.');
-    const nuevosItems = factura.lineas.map((linea) => {
+    const tipoNuevoPorLinea = new Map(nuevos.map(item => [item.indice, item.tipo_producto]));
+    const nuevosItems = factura.lineas.map((linea, indiceLinea) => {
       const producto = seleccionados.find(p => String(p.id) === linea.productoId);
-      if (!producto) throw new Error('Falta asociar un producto.');
+      const tipoProductoNuevo = tipoNuevoPorLinea.get(indiceLinea);
+      const codigoProveedor = linea.codigo.trim().toLocaleUpperCase('es-CL').replace(/[^\p{L}\p{N}]/gu, '');
+      if (!producto && !tipoProductoNuevo) throw new Error('Falta asociar un producto o definir el tipo de uno nuevo.');
+      if (!producto) {
+        return {
+          ...itemCompraVacio(),
+          producto_id: `nuevo-importado-${indiceLinea}`,
+          busqueda_producto: linea.nombre,
+          cantidad: String(linea.cantidad),
+          costo_unitario: String(linea.montoNeto / linea.cantidad),
+          costo_total: String(linea.montoNeto),
+          nuevo_producto: true,
+          familia_id_nueva: '',
+          tipo_producto_nuevo: tipoProductoNuevo,
+          codigo_proveedor: codigoProveedor || undefined,
+        };
+      }
       const { margen, tipoMargen } = configuracionMargenProducto(producto);
       return {
         ...itemCompraVacio(), producto_id: String(producto.id),
@@ -2168,6 +2186,7 @@ export default function AdminComprasPage() {
         costo_unitario: String(linea.montoNeto / linea.cantidad), costo_total: String(linea.montoNeto),
         margen_porcentaje: String(margen || ''), tipo_margen: tipoMargen,
         precio_venta: String(producto.precio || ''),
+        codigo_proveedor: codigoProveedor || undefined,
       };
     });
     setProductos(actuales => {
@@ -2618,6 +2637,35 @@ export default function AdminComprasPage() {
             ? null
             : numero(historialCreado.precio_venta),
       });
+    }
+
+    const equivalenciasPorCodigo = new Map<string, {
+      empresa_id: string;
+      proveedor_id: string;
+      producto_id: number;
+      codigo_proveedor: string;
+    }>();
+    for (const item of itemsTrabajo) {
+      const codigoProveedor = item.codigo_proveedor?.trim();
+      const productoId = Number(item.producto_id);
+      if (!codigoProveedor || !Number.isFinite(productoId) || productoId <= 0) continue;
+      equivalenciasPorCodigo.set(codigoProveedor, {
+        empresa_id: empresa.id,
+        proveedor_id: proveedorId,
+        producto_id: productoId,
+        codigo_proveedor: codigoProveedor,
+      });
+    }
+    if (equivalenciasPorCodigo.size) {
+      const { error: errorEquivalencias } = await supabase
+        .from('productos_proveedor')
+        .upsert([...equivalenciasPorCodigo.values()], {
+          onConflict: 'empresa_id,proveedor_id,codigo_proveedor',
+        });
+      if (errorEquivalencias) {
+        console.error('No se pudieron guardar los códigos del proveedor.', errorEquivalencias);
+        alert('La factura se registró, pero no se pudieron guardar sus códigos de proveedor para la próxima importación.');
+      }
     }
 
     // El lote ya fue guardado: la siguiente carga debe empezar sin valores anteriores.
@@ -3346,7 +3394,7 @@ export default function AdminComprasPage() {
                             }
                             className="w-full min-w-0 rounded-lg border bg-white px-2 py-1 text-xs font-bold text-maruxa-chocolate"
                           >
-                            <option value="producto">Producto</option>
+                            <option value="producto">Producto terminado</option>
                             <option value="envase">Insumo</option>
                             <option value="ingrediente">Materia prima</option>
                           </select>

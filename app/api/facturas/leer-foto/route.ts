@@ -50,6 +50,7 @@ Reglas obligatorias:
 - Usa tipo "33" para factura afecta y "34" para factura exenta/no afecta. Si el tipo no es legible, usa "33" y adviértelo en avisos.
 - Entrega fecha como YYYY-MM-DD. No inventes datos: usa cadena vacía, 0 o una advertencia cuando algo no se pueda leer.
 - RUT, folio, razón social, cantidades, códigos, unidades, precios y montos deben venir de la foto. Normaliza montos a números CLP sin símbolo, puntos ni separadores.
+- Para cada línea, copia en "codigo" el código, SKU, código de artículo o código interno impreso por el proveedor. Busca especialmente columnas como "Código", "Cod.", "SKU" o "Item". No uses el número correlativo de línea como código y no inventes códigos: si no hay uno legible, entrega una cadena vacía.
 - montoNeto de cada línea es el total neto de la línea, no el precio unitario. Considera descuentos por línea cuando sean visibles.
 - Separa neto afecto, exento, IVA, otros y total de la cabecera. "otros" puede ser negativo por descuentos o positivo por recargos.
 - Incluye todas las líneas visibles, incluso las exentas. No agrupes productos diferentes.
