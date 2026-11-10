@@ -87,11 +87,13 @@ type ItemCompra = {
   familia_id_nueva?: string;
   tipo_producto_nuevo?: TipoProductoCompra;
   codigo_proveedor?: string;
+  unidad_compra?: UnidadCompra;
 };
 
 type CampoFocoItem = 'producto' | 'costo' | 'margen' | 'precio';
 
 type TipoProductoCompra = 'producto' | 'ingrediente' | 'envase';
+type UnidadCompra = 'unidad' | 'caja';
 
 type ProductoEdicion = {
   codigo: string;
@@ -151,6 +153,7 @@ function itemCompraVacio(): ItemCompra {
     precio_listado: true,
     texto_listado_1: '',
     texto_listado_2: '',
+    unidad_compra: 'unidad',
   };
 }
 
@@ -198,8 +201,23 @@ function totalFinalItem(item: ItemCompra) {
   return totalBaseItem(item);
 }
 
-function costoUnitarioEfectivo(item: ItemCompra) {
+function unidadesPorCompra(item: ItemCompra) {
+  return item.unidad_compra === 'caja'
+    ? Math.max(1, entero(numero(item.undxcaja)))
+    : 1;
+}
+
+function cantidadInventario(item: ItemCompra) {
+  return numero(item.cantidad) * unidadesPorCompra(item);
+}
+
+function costoUnitarioCompra(item: ItemCompra) {
   const cantidad = numero(item.cantidad);
+  return cantidad > 0 ? entero(totalFinalItem(item) / cantidad) : 0;
+}
+
+function costoUnitarioEfectivo(item: ItemCompra) {
+  const cantidad = cantidadInventario(item);
 
   if (cantidad <= 0) return 0;
 
@@ -1118,6 +1136,7 @@ export default function AdminComprasPage() {
             precio_venta: '',
             texto_listado_1: '',
             texto_listado_2: '',
+            unidad_compra: 'unidad',
           };
         }
 
@@ -1149,8 +1168,9 @@ export default function AdminComprasPage() {
         if (campo === 'costo_unitario') {
           const cantidad = numero(item.cantidad);
           const costoUnitario = numero(valor);
-          const costoTotal = desgloseIva(
-            costoUnitario,
+          const itemActualizado = { ...item, costo_unitario: valor };
+          const costoVenta = desgloseIva(
+            costoUnitarioEfectivo(itemActualizado),
             ivaPorcentaje,
             precioIvaIncluido
           ).total;
@@ -1164,7 +1184,7 @@ export default function AdminComprasPage() {
                 : item.costo_total,
             precio_venta: String(
               precioVentaDesdeMargen(
-                costoTotal,
+                costoVenta,
                 numero(item.margen_porcentaje),
                 item.tipo_margen,
                 redondeoVentaItem(item)
@@ -1180,7 +1200,7 @@ export default function AdminComprasPage() {
             precio_venta: String(
               precioVentaDesdeMargen(
                 desgloseIva(
-                  numero(item.costo_unitario),
+                  costoUnitarioEfectivo(item),
                   ivaPorcentaje,
                   precioIvaIncluido
                 ).total,
@@ -1203,6 +1223,26 @@ export default function AdminComprasPage() {
               cantidad > 0 && totalLinea > 0
                 ? String(entero(totalLinea / cantidad))
                 : item.costo_unitario,
+          };
+        }
+
+        if (campo === 'unidad_compra' || campo === 'undxcaja') {
+          const itemActualizado = { ...item, [campo]: valor } as ItemCompra;
+          const costoVenta = desgloseIva(
+            costoUnitarioEfectivo(itemActualizado),
+            ivaPorcentaje,
+            precioIvaIncluido
+          ).total;
+          return {
+            ...itemActualizado,
+            precio_venta: String(
+              precioVentaDesdeMargen(
+                costoVenta,
+                numero(item.margen_porcentaje),
+                item.tipo_margen,
+                redondeoVentaItem(item)
+              ) || ''
+            ),
           };
         }
 
@@ -1907,7 +1947,7 @@ export default function AdminComprasPage() {
         continue;
       }
 
-      const cantidad = numero(item.cantidad);
+      const cantidad = cantidadInventario(item);
       const costoUnitario = desgloseIva(
         costoUnitarioEfectivo(item),
         ivaPorcentaje,
@@ -2156,13 +2196,15 @@ export default function AdminComprasPage() {
     await cargarRecetasAfectadas(variaciones);
   }
 
-  async function cargarCostosFactura({ factura, proveedor, productos: seleccionados, nuevos }: CargaFactura) {
+  async function cargarCostosFactura({ factura, proveedor, productos: seleccionados, nuevos, presentaciones }: CargaFactura) {
     if (guardando || loading) throw new Error('Espera a que termine la operación actual.');
     if (items.length || mostrarCrearProducto) throw new Error('Guarda o quita los productos pendientes del formulario antes de cargar esta factura.');
     const tipoNuevoPorLinea = new Map(nuevos.map(item => [item.indice, item.tipo_producto]));
-    const nuevosItems = factura.lineas.map((linea, indiceLinea) => {
+    const compraPorCajaPorLinea = new Map(presentaciones.map(item => [item.indice, item.compra_por_caja]));
+    const nuevosItems: ItemCompra[] = factura.lineas.map((linea, indiceLinea) => {
       const producto = seleccionados.find(p => String(p.id) === linea.productoId);
       const tipoProductoNuevo = tipoNuevoPorLinea.get(indiceLinea);
+      const compraPorCaja = Boolean(compraPorCajaPorLinea.get(indiceLinea));
       const codigoProveedor = linea.codigo.trim().toLocaleUpperCase('es-CL').replace(/[^\p{L}\p{N}]/gu, '');
       if (!producto && !tipoProductoNuevo) throw new Error('Falta asociar un producto o definir el tipo de uno nuevo.');
       if (!producto) {
@@ -2176,6 +2218,7 @@ export default function AdminComprasPage() {
           nuevo_producto: true,
           familia_id_nueva: '',
           tipo_producto_nuevo: tipoProductoNuevo,
+          unidad_compra: compraPorCaja ? 'caja' : 'unidad',
           codigo_proveedor: codigoProveedor || undefined,
         };
       }
@@ -2186,6 +2229,8 @@ export default function AdminComprasPage() {
         costo_unitario: String(linea.montoNeto / linea.cantidad), costo_total: String(linea.montoNeto),
         margen_porcentaje: String(margen || ''), tipo_margen: tipoMargen,
         precio_venta: String(producto.precio || ''),
+        undxcaja: producto.undxcaja ? String(producto.undxcaja) : '',
+        unidad_compra: compraPorCaja && Number(producto.undxcaja) > 1 ? 'caja' : 'unidad',
         codigo_proveedor: codigoProveedor || undefined,
       };
     });
@@ -2423,7 +2468,7 @@ export default function AdminComprasPage() {
       )
       .map((item) => {
         const costo = desgloseIva(
-          costoUnitarioEfectivo(item),
+          costoUnitarioCompra(item),
           ivaPorcentaje,
           precioIvaIncluido
         ).neto;
@@ -2644,6 +2689,7 @@ export default function AdminComprasPage() {
       proveedor_id: string;
       producto_id: number;
       codigo_proveedor: string;
+      compra_por_caja: boolean;
     }>();
     for (const item of itemsTrabajo) {
       const codigoProveedor = item.codigo_proveedor?.trim();
@@ -2654,6 +2700,7 @@ export default function AdminComprasPage() {
         proveedor_id: proveedorId,
         producto_id: productoId,
         codigo_proveedor: codigoProveedor,
+        compra_por_caja: item.unidad_compra === 'caja',
       });
     }
     if (equivalenciasPorCodigo.size) {
@@ -2861,8 +2908,8 @@ export default function AdminComprasPage() {
               </div>
 
               <div className="mt-4 grid gap-3">
-              <div className="grid w-fit grid-cols-[160px_105px_90px_65px_65px_90px_65px_60px_70px_60px_80px_70px] items-center gap-2 rounded-t-xl bg-[#4B2818] px-3 py-2">
-                {['Producto', 'Familia', 'Tipo', 'Cant.', 'Unid./caja', 'Costo un.', 'Neto', 'IVA', 'Total', 'Margen', 'P. venta', 'Acción'].map((titulo) => (
+              <div className="grid w-fit grid-cols-[160px_105px_90px_65px_65px_75px_90px_65px_60px_70px_60px_80px_70px] items-center gap-2 rounded-t-xl bg-[#4B2818] px-3 py-2">
+                {['Producto', 'Familia', 'Tipo', 'Cant.', 'Unid./caja', 'Compra', 'Costo', 'Neto', 'IVA', 'Total', 'Margen', 'P. venta', 'Acción'].map((titulo) => (
                   <span key={titulo} className="min-w-0 text-[9px] font-black uppercase tracking-wide text-white">
                     {titulo}
                   </span>
@@ -3233,7 +3280,7 @@ export default function AdminComprasPage() {
                       style={{ order: index }}
                       className={`relative grid gap-2 rounded-2xl border border-maruxa-cafe/10 bg-white p-3 shadow-sm xl:rounded-none xl:border-x-0 xl:border-t-0 xl:shadow-none xl:[&>div>input]:h-10 xl:[&>div.grid>div.flex]:h-10 xl:[&>label>input]:h-10 xl:[&>label>select]:h-10 xl:[&>button]:h-10 xl:[&>div>span:first-child]:hidden xl:[&>label>span:first-child]:hidden xl:[&>label>span:last-child]:hidden ${
                         mostrarDetalle
-                          ? 'md:grid-cols-2 xl:w-fit xl:grid-cols-[160px_105px_90px_65px_65px_90px_65px_60px_70px_60px_80px_70px]'
+                          ? 'md:grid-cols-2 xl:w-fit xl:grid-cols-[160px_105px_90px_65px_65px_75px_90px_65px_60px_70px_60px_80px_70px]'
                           : 'grid-cols-[minmax(0,1fr)_auto] items-end'
                       }`}
                     >
@@ -3421,7 +3468,7 @@ export default function AdminComprasPage() {
 
                       <label className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
                         <span className="flex min-h-4 items-end text-[10px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
-                          Cant.
+                          {item.unidad_compra === 'caja' ? 'Cajas' : 'Cant.'}
                         </span>
                         <input
                           type="number"
@@ -3456,7 +3503,28 @@ export default function AdminComprasPage() {
 
                       <label className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
                         <span className="flex min-h-4 items-end text-[10px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
-                          Costo un.
+                          Compra
+                        </span>
+                        <select
+                          value={item.unidad_compra || 'unidad'}
+                          onChange={(e) =>
+                            actualizarItem(index, 'unidad_compra', e.target.value)
+                          }
+                          className="w-full min-w-0 rounded-lg border bg-white px-2 py-1 text-xs font-bold text-maruxa-chocolate"
+                        >
+                          <option value="unidad">Unidad</option>
+                          <option value="caja" disabled={unidadesCajaVista <= 1}>Caja</option>
+                        </select>
+                        <span className="text-[10px] font-semibold text-maruxa-cafe/55">
+                          {item.unidad_compra === 'caja' && unidadesCajaVista > 1
+                            ? `${cantidadInventario(item).toLocaleString('es-CL')} un.`
+                            : 'Factura.'}
+                        </span>
+                      </label>
+
+                      <label className={mostrarDetalle ? 'grid min-w-0 gap-1' : 'hidden'}>
+                        <span className="flex min-h-4 items-end text-[10px] font-black uppercase leading-tight tracking-wide text-maruxa-cafe/60">
+                          {item.unidad_compra === 'caja' ? 'Costo caja' : 'Costo un.'}
                           {precioIvaIncluido ? ' bruto' : ' neto'}
                         </span>
                         <input
