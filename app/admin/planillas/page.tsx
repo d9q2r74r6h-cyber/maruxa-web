@@ -1520,7 +1520,7 @@ export default function AdminPlanillasPage() {
         )
         .eq('empresa_id', empresa.id)
         .eq('activo', true)
-        .eq('tipo_producto', 'ingrediente')
+        .or('tipo_producto.eq.ingrediente,es_materia_prima.eq.true')
         .or('contabiliza_como_saco.eq.true,mostrar_en_planilla_rinde.eq.true')
         .order('nombre', { ascending: true });
 

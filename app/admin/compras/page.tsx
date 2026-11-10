@@ -86,6 +86,7 @@ type ItemCompra = {
   nuevo_producto?: boolean;
   familia_id_nueva?: string;
   tipo_producto_nuevo?: TipoProductoCompra;
+  es_materia_prima_nueva?: boolean;
   unidad_base_nueva?: string;
   codigo_proveedor?: string;
   unidad_compra?: UnidadCompra;
@@ -1842,6 +1843,7 @@ export default function AdminComprasPage() {
         destacado: false,
         slug: crearSlug(datosNombre.nombre),
         tipo_producto: tipo,
+        es_materia_prima: tipo === 'ingrediente',
         familia_id: nuevoProducto.familia_id || null,
         unidad_base: nuevoProducto.unidad_base,
         costo_unitario: costo,
@@ -2181,12 +2183,14 @@ export default function AdminComprasPage() {
     if (guardando || loading) throw new Error('Espera a que termine la operación actual.');
     if (items.length || mostrarCrearProducto) throw new Error('Guarda o quita los productos pendientes del formulario antes de cargar esta factura.');
     const tipoNuevoPorLinea = new Map(nuevos.map(item => [item.indice, item.tipo_producto]));
+    const materiaPrimaNuevaPorLinea = new Map(nuevos.map(item => [item.indice, Boolean(item.es_materia_prima)]));
     const unidadBaseNuevaPorLinea = new Map(nuevos.map(item => [item.indice, item.unidad_base]));
     const unidadesCajaNuevaPorLinea = new Map(nuevos.map(item => [item.indice, item.undxcaja]));
     const compraPorCajaPorLinea = new Map(presentaciones.map(item => [item.indice, item.compra_por_caja]));
     const nuevosItems: ItemCompra[] = factura.lineas.map((linea, indiceLinea) => {
       const producto = seleccionados.find(p => String(p.id) === linea.productoId);
       const tipoProductoNuevo = tipoNuevoPorLinea.get(indiceLinea);
+      const esMateriaPrimaNueva = Boolean(materiaPrimaNuevaPorLinea.get(indiceLinea));
       const unidadBaseNueva = unidadBaseNuevaPorLinea.get(indiceLinea) || 'UN';
       const unidadesCajaNueva = Number(unidadesCajaNuevaPorLinea.get(indiceLinea));
       const compraPorCaja = Boolean(compraPorCajaPorLinea.get(indiceLinea));
@@ -2203,6 +2207,7 @@ export default function AdminComprasPage() {
           nuevo_producto: true,
           familia_id_nueva: '',
           tipo_producto_nuevo: tipoProductoNuevo,
+          es_materia_prima_nueva: esMateriaPrimaNueva,
           unidad_base_nueva: unidadBaseNueva,
           undxcaja: Number.isInteger(unidadesCajaNueva) && unidadesCajaNueva > 1 ? String(unidadesCajaNueva) : '',
           unidad_compra: compraPorCaja && unidadesCajaNueva > 1 ? 'caja' : 'unidad',
@@ -2331,6 +2336,7 @@ export default function AdminComprasPage() {
             destacado: false,
             slug: crearSlug(nombre),
             tipo_producto: tipoProducto,
+            es_materia_prima: tipoProducto === 'ingrediente' || Boolean(itemNuevo.es_materia_prima_nueva),
             familia_id: familiaId,
             unidad_base: itemNuevo.unidad_base_nueva || 'UN',
             costo_unitario: costoNeto,

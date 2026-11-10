@@ -16,6 +16,7 @@ type Producto = {
   nombre: string;
   categoria: string | null;
   tipo_producto?: string | null;
+  es_materia_prima?: boolean | null;
   unidad_base?: string | null;
   costo_unitario?: number | null;
   familia_id: string | null;
@@ -49,6 +50,7 @@ type Recurso = {
   impuesto_adicional_porcentaje: number | null;
   activo: boolean;
   tipo_producto: TipoRecurso | string;
+  es_materia_prima?: boolean | null;
   receta_id?: string | null;
 };
 
@@ -192,7 +194,7 @@ export default function AdminRecetasPage() {
     return [
       ...recursos.filter(
         (recurso) =>
-          recurso.tipo_producto === 'ingrediente' &&
+          (recurso.tipo_producto === 'ingrediente' || recurso.es_materia_prima) &&
           !productosConReceta.has(String(recurso.id))
       ),
       ...recetasComoIngredientes,
@@ -429,6 +431,7 @@ export default function AdminRecetasPage() {
           nombre,
           categoria,
           tipo_producto,
+          es_materia_prima,
           unidad_base,
           costo_unitario,
           familia_id,
@@ -458,14 +461,11 @@ export default function AdminRecetasPage() {
           iva_porcentaje,
           impuesto_adicional_porcentaje,
           activo,
-          tipo_producto
+          tipo_producto,
+          es_materia_prima
         `)
         .eq('empresa_id', empresa.id)
-        .in('tipo_producto', [
-          'ingrediente',
-          'envase',
-          'mano_obra',
-        ])
+        .or('tipo_producto.in.(ingrediente,envase,mano_obra),es_materia_prima.eq.true')
         .eq('activo', true)
         .order('nombre', { ascending: true }),
     ]);
@@ -695,7 +695,7 @@ export default function AdminRecetasPage() {
         const recurso = recursosCalculables.find(
           (recursoItem) => String(recursoItem.id) === item.ingrediente_id
         );
-        return recurso?.tipo_producto === 'ingrediente' || recurso?.tipo_producto === 'receta';
+        return recurso?.tipo_producto === 'ingrediente' || recurso?.es_materia_prima || recurso?.tipo_producto === 'receta';
       })
     );
 
@@ -1048,7 +1048,9 @@ export default function AdminRecetasPage() {
                         {producto.nombre}
                         {producto.tipo_producto === 'ingrediente'
                           ? ' · materia prima'
-                          : ' · producto'}
+                          : producto.es_materia_prima
+                            ? ' · producto y materia prima'
+                            : ' · producto'}
                       </option>
                     ))}
                   </select>

@@ -33,6 +33,7 @@ type Producto = {
   precio_25: number | null;
   familia_id: string | null;
   tipo_producto: TipoProducto | null;
+  es_materia_prima?: boolean | null;
   unidad_base: string | null;
   undxcaja: number | null;
   costo_unitario: number | null;
@@ -79,6 +80,7 @@ const formInicial = {
   redondeo_personalizado: '',
 
   tipo_producto: 'producto' as TipoProducto,
+  es_materia_prima: false,
   unidad_base: 'KG',
   undxcaja: '',
   costo_unitario: '',
@@ -159,7 +161,10 @@ export default function AdminProductosPage() {
 
     return productos.filter((producto) => {
       const tipo = producto.tipo_producto || 'producto';
-      const coincideTipo = filtroTipo === 'todos' || tipo === filtroTipo;
+      const coincideTipo =
+        filtroTipo === 'todos' ||
+        tipo === filtroTipo ||
+        (filtroTipo === 'ingrediente' && Boolean(producto.es_materia_prima));
       if (!coincideTipo) return false;
       if (!termino) return true;
 
@@ -170,6 +175,7 @@ export default function AdminProductosPage() {
         producto.categoria,
         producto.familias_productos?.nombre,
         tipo,
+        producto.es_materia_prima ? 'materia prima' : '',
       ]
         .map(normalizarTexto)
         .join(' ');
@@ -179,6 +185,8 @@ export default function AdminProductosPage() {
   }, [productos, busqueda, filtroTipo]);
 
   const esProducto = form.tipo_producto === 'producto';
+  const esMateriaPrima =
+    form.tipo_producto === 'ingrediente' || form.es_materia_prima;
   const esInsumo = form.tipo_producto !== 'producto';
   const esManoObra = form.tipo_producto === 'mano_obra';
   const ivaProducto = ivaEmpresa;
@@ -419,6 +427,8 @@ export default function AdminProductosPage() {
       ),
 
       tipo_producto: tipoProducto,
+      es_materia_prima:
+        producto.es_materia_prima ?? tipoProducto === 'ingrediente',
       unidad_base: producto.unidad_base || 'KG',
       undxcaja: String(producto.undxcaja || ''),
       costo_unitario: producto.costo_unitario
@@ -570,6 +580,7 @@ export default function AdminProductosPage() {
           : null,
 
       tipo_producto: form.tipo_producto,
+      es_materia_prima: esMateriaPrima,
       unidad_base: form.unidad_base,
       costo_unitario: Number(form.costo_unitario || 0),
       iva_porcentaje: ivaEmpresa,
@@ -584,11 +595,11 @@ export default function AdminProductosPage() {
           ? false
           : form.controla_stock,
       contabiliza_como_saco:
-        form.tipo_producto === 'ingrediente'
+        esMateriaPrima
           ? form.contabiliza_como_saco
           : false,
       mostrar_en_planilla_rinde:
-        form.tipo_producto === 'ingrediente'
+        esMateriaPrima
           ? form.mostrar_en_planilla_rinde
           : false,
       activo: form.activo,
@@ -855,6 +866,22 @@ export default function AdminProductosPage() {
             >
               {tiposProductoConfigurados.map((tipo) => <option key={tipo.codigo} value={tipo.codigo}>{tipo.nombre}</option>)}
             </select>
+
+            {form.tipo_producto === 'producto' && (
+              <label className="flex items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4 font-black text-maruxa-chocolate">
+                <input
+                  type="checkbox"
+                  checked={form.es_materia_prima}
+                  onChange={(e) =>
+                    setForm({ ...form, es_materia_prima: e.target.checked })
+                  }
+                />
+                También es materia prima
+                <span className="text-xs font-semibold text-maruxa-cafe/65">
+                  Puede usarse en recetas sin dejar de venderse como producto terminado.
+                </span>
+              </label>
+            )}
 
             {esProducto && (
               <>
@@ -1240,7 +1267,7 @@ export default function AdminProductosPage() {
               Controla stock
             </label>
 
-            {form.tipo_producto === 'ingrediente' && (
+            {esMateriaPrima && (
               <label className="flex items-center gap-3 font-black text-maruxa-chocolate">
                 <input
                   type="checkbox"
@@ -1259,7 +1286,7 @@ export default function AdminProductosPage() {
               </label>
             )}
 
-            {form.tipo_producto === 'ingrediente' && (
+            {esMateriaPrima && (
               <label className="flex items-center gap-3 font-black text-maruxa-chocolate">
                 <input
                   type="checkbox"
@@ -1478,6 +1505,12 @@ export default function AdminProductosPage() {
                           Margen personalizado
                         </span>
                       )}
+
+                    {producto.es_materia_prima && tipo === 'producto' && (
+                      <span className="mt-1 ml-2 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-black text-amber-800">
+                        También materia prima
+                      </span>
+                    )}
 
                     {!producto.activo && (
                       <span className="mt-1 ml-2 inline-flex rounded-full bg-gray-200 px-2 py-0.5 text-xs font-black text-gray-700">
