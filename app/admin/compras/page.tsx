@@ -2180,10 +2180,12 @@ export default function AdminComprasPage() {
     if (guardando || loading) throw new Error('Espera a que termine la operación actual.');
     if (items.length || mostrarCrearProducto) throw new Error('Guarda o quita los productos pendientes del formulario antes de cargar esta factura.');
     const tipoNuevoPorLinea = new Map(nuevos.map(item => [item.indice, item.tipo_producto]));
+    const unidadesCajaNuevaPorLinea = new Map(nuevos.map(item => [item.indice, item.undxcaja]));
     const compraPorCajaPorLinea = new Map(presentaciones.map(item => [item.indice, item.compra_por_caja]));
     const nuevosItems: ItemCompra[] = factura.lineas.map((linea, indiceLinea) => {
       const producto = seleccionados.find(p => String(p.id) === linea.productoId);
       const tipoProductoNuevo = tipoNuevoPorLinea.get(indiceLinea);
+      const unidadesCajaNueva = Number(unidadesCajaNuevaPorLinea.get(indiceLinea));
       const compraPorCaja = Boolean(compraPorCajaPorLinea.get(indiceLinea));
       const codigoProveedor = linea.codigo.trim().toLocaleUpperCase('es-CL').replace(/[^\p{L}\p{N}]/gu, '');
       if (!producto && !tipoProductoNuevo) throw new Error('Falta asociar un producto o definir el tipo de uno nuevo.');
@@ -2198,7 +2200,8 @@ export default function AdminComprasPage() {
           nuevo_producto: true,
           familia_id_nueva: '',
           tipo_producto_nuevo: tipoProductoNuevo,
-          unidad_compra: compraPorCaja ? 'caja' : 'unidad',
+          undxcaja: Number.isInteger(unidadesCajaNueva) && unidadesCajaNueva > 1 ? String(unidadesCajaNueva) : '',
+          unidad_compra: compraPorCaja && unidadesCajaNueva > 1 ? 'caja' : 'unidad',
           codigo_proveedor: codigoProveedor || undefined,
         };
       }
