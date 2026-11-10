@@ -518,22 +518,24 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
                 </select>
                 <span className="mt-1 block text-xs font-normal text-[#5F4030]">Luego podrás asignar la familia y revisar el costo antes de registrarlo.</span>
               </label>}
-              {!productoAsociado && tipoNuevo && <label className="mt-3 block text-sm font-bold">Unidad base
-                <select className={campo} aria-label={`Unidad base para ${l.nombre || `línea ${i + 1}`}`} value={unidadBaseNueva} onChange={e => {
-                  setUnidadesBaseNuevas(actual => ({ ...actual, [i]: e.target.value }));
-                  setRevisado(false);
-                }}>
-                  {unidadesConfiguradas.map(unidad => <option key={unidad.codigo} value={unidad.codigo}>{unidad.nombre}</option>)}
-                </select>
-                <span className="mt-1 block text-xs font-normal text-[#5F4030]">Se configura en Productos: tipos y unidades. Define cómo se mide el stock y costo.</span>
-              </label>}
-              {!productoAsociado && tipoNuevo && <label className="mt-3 block text-sm font-bold">Unidades por caja
-                <input className={campo} aria-label={`Unidades por caja para ${l.nombre || `línea ${i + 1}`}`} type="number" min="2" step="1" value={unidadesCajaNueva} placeholder={sugerenciaCaja ? String(sugerenciaCaja) : 'Ej.: 12'} onChange={e => {
-                  setUnidadesCajaNuevas(actual => ({ ...actual, [i]: e.target.value }));
-                  setRevisado(false);
-                }} />
-                <span className="mt-1 block text-xs font-normal text-[#5F4030]">{sugerenciaCaja ? `Sugerido: ${sugerenciaCaja} por “${l.nombre}”. No cambia las ${l.cantidad} unidades facturadas.` : 'Indícalo sólo si el producto se compra o vende por caja.'}</span>
-              </label>}
+              {!productoAsociado && <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className="block text-sm font-bold">Unidad base
+                  <select className={campo} aria-label={`Unidad base para ${l.nombre || `línea ${i + 1}`}`} value={unidadBaseNueva} onChange={e => {
+                    setUnidadesBaseNuevas(actual => ({ ...actual, [i]: e.target.value }));
+                    setRevisado(false);
+                  }}>
+                    {unidadesConfiguradas.map(unidad => <option key={unidad.codigo} value={unidad.codigo}>{unidad.nombre}</option>)}
+                  </select>
+                  <span className="mt-1 block text-xs font-normal text-[#5F4030]">Cómo se mide el stock y costo.</span>
+                </label>
+                <label className="block text-sm font-bold">Unidades por caja
+                  <input className={campo} aria-label={`Unidades por caja para ${l.nombre || `línea ${i + 1}`}`} type="number" min="2" step="1" value={unidadesCajaNueva} placeholder={sugerenciaCaja ? String(sugerenciaCaja) : 'Ej.: 12'} onChange={e => {
+                    setUnidadesCajaNuevas(actual => ({ ...actual, [i]: e.target.value }));
+                    setRevisado(false);
+                  }} />
+                  <span className="mt-1 block text-xs font-normal text-[#5F4030]">{sugerenciaCaja ? `Detectado: ${sugerenciaCaja} por caja. No multiplica las ${l.cantidad} unidades facturadas.` : 'Indícalo sólo si el producto se compra o vende por caja.'}</span>
+                </label>
+              </div>}
             </div>
             <details className="md:col-span-2"><summary className="cursor-pointer text-xs font-bold text-[#5F4030]">Corregir esta línea</summary><div className="mt-2 grid gap-3 md:grid-cols-3">
               <label>Descripción<input className={campo} value={l.nombre} onChange={e => linea(i, { nombre: e.target.value })} /><span className="text-xs">Código proveedor: {l.codigo || '—'} · Unidad: {l.unidad || 'Sin indicar'}</span></label>
