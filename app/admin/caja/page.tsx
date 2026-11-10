@@ -222,6 +222,48 @@ function imprimirHojaDiaria(fecha: string, turnos: Turno[], esFestivo: boolean, 
   ventana.document.close();
 }
 
+function imprimirGastoDeCaja(fecha: string, turnos: Turno[], gastos: Linea[], totalVentas: number, tarjetas: number, efectivo: number, esFestivo: boolean, configPago: ConfigPago, funcionarios: Funcionario[], septimos: Map<string, { monto: number }>) {
+  const ventana = window.open('', '_blank', 'width=1200,height=800');
+  if (!ventana) return alert('El navegador bloqueó la ventana de impresión. Permite las ventanas emergentes para este sitio.');
+
+  const septimosUsados = new Set<string>();
+  let totalPanaderos = 0;
+  const seccionesTurnos = turnos.map((turno, indice) => {
+    const lineas = lineasCalculadas(turno, esFestivo, configPago, fecha, funcionarios)
+      .filter((linea) => linea.nombre.trim());
+    if (!lineas.length) return '';
+    const participantes = lineas.filter(recibeDemasia).length;
+    const demasiaTotal = numeroDecimal(turno.qq) * (esFestivo ? configPago.demasia_festivo_qq : configPago.demasia_normal_qq);
+    const demasiaIndividual = participantes ? demasiaTotal / participantes : 0;
+
+    const filas = lineas.map((linea) => {
+      const septimo = linea.funcionario_id && !septimosUsados.has(linea.funcionario_id)
+        ? numero(septimos.get(linea.funcionario_id)?.monto)
+        : 0;
+      if (septimo && linea.funcionario_id) septimosUsados.add(linea.funcionario_id);
+      const total = numero(linea.total_pago) + septimo;
+      totalPanaderos += total;
+      const demasia = recibeDemasia(linea) ? demasiaIndividual : 0;
+      return `<tr><td>${escaparHtml(linea.nombre)}</td><td>${escaparHtml((linea.funcion || '').toUpperCase())}</td><td class="monto">${dinero(linea.monto)}</td><td class="monto">${dinero(demasia)}</td><td class="monto">${dinero(totalBonos(linea))}</td><td class="monto">${dinero(linea.dominical || 0)}</td><td class="monto">${dinero(septimo)}</td><td class="monto total">${dinero(total)}</td></tr>`;
+    }).join('');
+    const nombreTurno = indice === 0 ? '1RA' : indice === 1 ? '2DA' : turno.nombre.toUpperCase();
+    return `<section class="turno"><div class="turno-titulo"><strong>PANADEROS ${escaparHtml(nombreTurno)}</strong><span>QQ: ${String(turno.qq || 0).replace('.', ',')}</span></div><table><thead><tr><th>Panadero</th><th>Función</th><th>Base</th><th>Demasía</th><th>Bonos</th><th>Dominical</th><th>7mo</th><th>Total</th></tr></thead><tbody>${filas}</tbody></table></section>`;
+  }).filter(Boolean).join('');
+
+  const gastosValidos = gastos.filter((gasto) => gasto.nombre.trim() || numero(gasto.monto));
+  const totalComprasGastos = gastosValidos.reduce((suma, gasto) => suma + numero(gasto.monto), 0);
+  const filasGastos = gastosValidos.length
+    ? gastosValidos.map((gasto) => `<tr><td>${escaparHtml(gasto.nombre.trim() || 'Gasto sin detalle')}</td><td class="monto">${dinero(gasto.monto)}</td></tr>`).join('')
+    : '<tr><td colspan="2" class="vacio">Sin gastos registrados</td></tr>';
+  const totalGastos = totalPanaderos + totalComprasGastos;
+  const totalComprobado = tarjetas + totalGastos + efectivo;
+  const diferencia = totalVentas - totalComprobado;
+  const cuadrada = Math.abs(diferencia) < 0.5;
+
+  ventana.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Gasto de caja ${fecha}</title><style>@page{size:A4 landscape;margin:8mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#24150f;margin:0}header{border-bottom:3px solid #9f1d2b;padding-bottom:7px;margin-bottom:8px}h1{font-family:Georgia,serif;font-size:20px;margin:0 0 5px}.datos{display:flex;gap:22px;font-size:11px;font-weight:700}.contenido{display:grid;grid-template-columns:minmax(0,2fr) minmax(250px,1fr);gap:10px;align-items:start}.turno{margin-bottom:8px}.turno:last-child{margin-bottom:0}.turno-titulo{display:flex;justify-content:space-between;padding:5px 7px;background:#fff3df;border:1px solid #d5bfa1;font-size:11px}.gastos{border:1px solid #d5bfa1}.gastos h2{margin:0;padding:7px;background:#2a1710;color:#fff;font-size:11px}.gastos table{border:0}table{width:100%;border-collapse:collapse;font-size:9px}th{background:#2a1710;color:#fff;text-align:left;padding:5px 4px}td{border:1px solid #d5bfa1;padding:5px 4px;height:10mm}.monto{text-align:right;font-weight:700;white-space:nowrap}.total{color:#9f1d2b;font-size:10px;font-weight:800}.vacio{text-align:center;color:#745f51;font-style:italic}.pie{margin-top:10px;border:2px solid #2a1710}.pie h2{margin:0;padding:6px 8px;background:#2a1710;color:#fff;font-size:11px}.resumen{display:grid;grid-template-columns:repeat(5,1fr)}.item{min-height:18mm;padding:6px 8px;border-right:1px solid #d5bfa1}.item:last-child{border-right:0}.etiqueta{font-size:8px;font-weight:800;text-transform:uppercase;color:#745f51}.valor{margin-top:3px;font-size:14px;font-weight:800;text-align:right}.formula{margin:0;padding:6px 8px;border-top:1px solid #d5bfa1;background:#fff9ef;font-size:10px;font-weight:700}.ok{color:#137348}.error{color:#a51f2b}</style></head><body><header><h1>Panadería Maruxa · Gasto diario de Caja</h1><div class="datos"><span>Fecha: ${new Date(`${fecha}T12:00:00`).toLocaleDateString('es-CL')}</span><span>${esFestivo ? 'Día festivo' : 'Día normal'}</span></div></header><main class="contenido"><div>${seccionesTurnos || '<section class="turno"><p class="vacio">Sin panaderos registrados.</p></section>'}</div><aside class="gastos"><h2>GASTOS DEL DÍA</h2><table><thead><tr><th>Detalle</th><th class="monto">Monto</th></tr></thead><tbody>${filasGastos}</tbody><tfoot><tr><td><strong>TOTAL GASTOS</strong></td><td class="monto total">${dinero(totalComprasGastos)}</td></tr></tfoot></table></aside></main><section class="pie"><h2>CUADRE CONTRA VALE TOTAL DE VENTAS</h2><div class="resumen"><div class="item"><p class="etiqueta">Vale total ventas</p><p class="valor">${dinero(totalVentas)}</p></div><div class="item"><p class="etiqueta">Tarjetas</p><p class="valor">${dinero(tarjetas)}</p></div><div class="item"><p class="etiqueta">Gasto panaderos</p><p class="valor">${dinero(totalPanaderos)}</p></div><div class="item"><p class="etiqueta">Otros gastos</p><p class="valor">${dinero(totalComprasGastos)}</p></div><div class="item"><p class="etiqueta">Efectivo</p><p class="valor">${dinero(efectivo)}</p></div></div><p class="formula">Tarjetas ${dinero(tarjetas)} + Gastos ${dinero(totalGastos)} + Efectivo ${dinero(efectivo)} = <strong>${dinero(totalComprobado)}</strong> · Vale total: <strong>${dinero(totalVentas)}</strong> · <span class="${cuadrada ? 'ok' : 'error'}">${cuadrada ? 'CAJA CUADRADA' : `Diferencia ${dinero(diferencia)}`}</span></p></section><script>window.onload=()=>window.print()<\/script></body></html>`);
+  ventana.document.close();
+}
+
 function EditorLineas({ titulo, fecha, lineas, onChange, onRemove, panaderos, posicionTurno = 0, qq = 0, esFestivo = false, onQq, configPago = CONFIG_PAGO_BASE, funcionariosPanaderos = [], conceptosBono = [] }: { titulo: string; fecha?: string; lineas: Linea[]; onChange: (lineas: Linea[]) => void; onRemove?: () => void; panaderos?: boolean; posicionTurno?: number; qq?: number; esFestivo?: boolean; onQq?: (valor: number) => void; configPago?: ConfigPago; funcionariosPanaderos?: Funcionario[]; conceptosBono?: ConceptoBono[] }) {
   const [qqTexto, setQqTexto] = useState(qq ? String(qq).replace('.', ',') : '');
   useEffect(() => { setQqTexto(qq ? String(qq).replace('.', ',') : ''); }, [qq]);
@@ -485,6 +527,7 @@ export default function CajaDiariaPage() {
       </fieldset>
 
       <div className="flex flex-wrap justify-end gap-3">
+        <button type="button" onClick={() => imprimirGastoDeCaja(fecha, turnos, gastos, totalVentas, tarjetas, efectivo, esFestivo, configPago, funcionariosPanaderos, septimos)} className="inline-flex h-11 items-center gap-2 rounded-md border border-[#2A1710] bg-white px-5 text-sm font-black text-[#2A1710] hover:bg-[#FFF3DF]"><Printer className="h-4 w-4" />Imprimir gasto de caja</button>
         {!bloqueada && <><button type="button" disabled={guardando} onClick={() => void guardar('borrador')} className="inline-flex h-11 items-center gap-2 rounded-md border border-[#A51F2B] bg-white px-5 text-sm font-black text-[#A51F2B]"><Save className="h-4 w-4" />Guardar borrador</button><button type="button" disabled={guardando} onClick={() => void guardar('cerrada')} className="inline-flex h-11 items-center gap-2 rounded-md bg-[#A51F2B] px-6 text-sm font-black text-white"><CheckCircle2 className="h-4 w-4" />Cerrar caja</button></>}
         {bloqueada && <span className="rounded-full bg-emerald-100 px-4 py-2 text-sm font-black text-emerald-800">Cierre bloqueado</span>}
       </div>
