@@ -21,6 +21,13 @@ export type CargaFactura = {
   factura: FacturaLectura; proveedor: ProveedorFactura; productos: ProductoFactura[];
   nuevos: ProductoNuevoFactura[]; presentaciones: PresentacionCompraFactura[];
 };
+type LecturaPendiente = {
+  id: string;
+  datos: FacturaLectura;
+  cantidad_fotos: number;
+  estado: 'pendiente' | 'en_revision';
+  created_at: string;
+};
 const campo = 'w-full rounded-lg border border-[#D9C4A7] bg-white p-2 text-sm text-[#2A1710]';
 const boton = 'rounded-xl bg-[#A51F2B] px-4 py-3 font-bold text-white disabled:opacity-50';
 const pesos = (n: number) => '$' + Math.round(n).toLocaleString('es-CL');
@@ -115,6 +122,10 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
   const [error, setError] = useState('');
   const [mensaje, setMensaje] = useState('');
   const [imagenes, setImagenes] = useState<string[]>([]);
+  const [lecturasPendientes, setLecturasPendientes] = useState<LecturaPendiente[]>([]);
+  const [lecturaSeleccionada, setLecturaSeleccionada] = useState('');
+  const [cargandoBandeja, setCargandoBandeja] = useState(false);
+  const [errorBandeja, setErrorBandeja] = useState('');
   const operacion = useRef(0);
   const lectorXml = useRef<HTMLInputElement>(null);
   const lectorFotos = useRef<HTMLInputElement>(null);
@@ -128,6 +139,36 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
     obtenerEmpresaActual().then(e => { if (vigente) { setEmpresa(e); if (!e) setError('No se pudo identificar la empresa.'); } });
     return () => { vigente = false; };
   }, [abierto]);
+  async function cargarBandeja(empresaId = empresa?.id) {
+    if (!empresaId) return;
+    setCargandoBandeja(true);
+    const { data, error: fallo } = await supabase
+      .from('lecturas_facturas_pendientes')
+      .select('id,datos,cantidad_fotos,estado,created_at')
+      .eq('empresa_id', empresaId)
+      .order('created_at', { ascending: false });
+    setCargandoBandeja(false);
+    if (fallo) {
+      setErrorBandeja('No se pudo cargar la bandeja de lecturas. Actualiza e inténtalo nuevamente.');
+      return;
+    }
+    const lecturas: LecturaPendiente[] = (data || []).map(item => ({
+      id: String(item.id),
+      datos: item.datos as FacturaLectura,
+      cantidad_fotos: Number(item.cantidad_fotos) || 1,
+      estado: item.estado === 'en_revision' ? 'en_revision' : 'pendiente',
+      created_at: String(item.created_at),
+    }));
+    setLecturasPendientes(lecturas);
+    setLecturaSeleccionada(actual => lecturas.some(item => item.id === actual) ? actual : '');
+    setErrorBandeja('');
+  }
+  useEffect(() => {
+    if (!abierto || !empresa) return;
+    void cargarBandeja();
+    const intervalo = window.setInterval(() => { void cargarBandeja(); }, 12_000);
+    return () => window.clearInterval(intervalo);
+  }, [abierto, empresa?.id]);
   function modificar(cambios: Partial<FacturaLectura>) {
     setDocumentos(actuales => actuales.map((f, i) => i === indice ? { ...f, ...cambios } : f));
     setRevisado(false);
@@ -222,37 +263,77 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
     if (!respuesta.ok) throw new Error(typeof datos.error === 'string' ? datos.error : 'No se pudo leer la factura.');
     return datos as FacturaLectura;
   }
-  async function leer(archivos: File[], tipo: 'xml' | 'foto') {
+  async function leerXml(archivos: File[]) {
     if (!archivos.length) return;
     if (documentos.length && !window.confirm('¿Reemplazar la revisión actual con este archivo?')) return;
     const id = ++operacion.current;
     setOcupado(true); setError(''); setMensaje(''); setProgreso('Preparando lectura…');
     setProveedor(null); setProductos({}); setTiposProductoNuevo({}); setComprasPorCaja({}); setAsociadosPorCodigo({}); setRevisado(false);
     try {
-      if (tipo === 'xml') {
-        if (archivos.length !== 1 || archivos[0].size > 5_000_000) throw new Error('Selecciona un XML de hasta 5 MB.');
-        const buffer = await archivos[0].arrayBuffer();
-        const cabecera = new TextDecoder().decode(buffer.slice(0, 200));
-        const encoding = /encoding\s*=\s*["']([^"']+)/i.exec(cabecera)?.[1] || 'utf-8';
-        const xml = new TextDecoder(encoding, { fatal: true }).decode(buffer);
-        const resultado = leerXmlFactura(xml);
-        if (id !== operacion.current) return;
-        setDocumentos(resultado); setImagenes([]);
-        await seleccionarProveedorAutomatico(resultado[0], 0);
-      } else {
-        if (archivos.length > 5 || archivos.some(a => a.size > 12_000_000 || !/\.(jpe?g|png|webp)$/i.test(a.name))) throw new Error('Selecciona hasta 5 fotos JPG, PNG o WebP de 12 MB cada una.');
-        const resultado = await leerFotoConVision(archivos);
-        if (id !== operacion.current) return;
-        setDocumentos([resultado]);
-        setImagenes(archivos.map(a => URL.createObjectURL(a)));
-        await seleccionarProveedorAutomatico(resultado, 0);
-      }
+      if (archivos.length !== 1 || archivos[0].size > 5_000_000) throw new Error('Selecciona un XML de hasta 5 MB.');
+      const buffer = await archivos[0].arrayBuffer();
+      const cabecera = new TextDecoder().decode(buffer.slice(0, 200));
+      const encoding = /encoding\s*=\s*["']([^"']+)/i.exec(cabecera)?.[1] || 'utf-8';
+      const xml = new TextDecoder(encoding, { fatal: true }).decode(buffer);
+      const resultado = leerXmlFactura(xml);
+      if (id !== operacion.current) return;
+      setDocumentos(resultado); setImagenes([]);
+      await seleccionarProveedorAutomatico(resultado[0], 0);
       setIndice(0);
     } catch (e) {
       if (id === operacion.current) setError(e instanceof Error ? e.message : 'No se pudo leer el archivo.');
     } finally {
       if (id === operacion.current) setOcupado(false);
     }
+  }
+  async function agregarFotosABandeja(archivos: File[]) {
+    if (!archivos.length) return;
+    if (archivos.length > 5 || archivos.some(a => a.size > 12_000_000 || !['image/jpeg', 'image/png', 'image/webp'].includes(a.type))) {
+      setError('Selecciona hasta 5 fotos JPG, PNG o WebP de 12 MB cada una.');
+      return;
+    }
+    const empresaActual = empresa || await obtenerEmpresaActual();
+    if (!empresaActual) { setError('No se pudo identificar la empresa.'); return; }
+    const id = ++operacion.current;
+    setOcupado(true); setError(''); setMensaje(''); setProgreso('Preparando las fotos para la bandeja…');
+    try {
+      const resultado = await leerFotoConVision(archivos);
+      if (id !== operacion.current) return;
+      setProgreso('Guardando los datos leídos en la bandeja…');
+      const { data: autenticacion } = await supabase.auth.getUser();
+      if (!autenticacion.user) throw new Error('Tu sesión venció. Ingresa nuevamente antes de guardar la lectura.');
+      const { error: fallo } = await supabase.from('lecturas_facturas_pendientes').insert({
+        empresa_id: empresaActual.id,
+        usuario_id: autenticacion.user.id,
+        datos: resultado,
+        cantidad_fotos: archivos.length,
+      });
+      if (fallo) throw new Error('No se pudo agregar la lectura a la bandeja. Inténtalo nuevamente.');
+      await cargarBandeja(empresaActual.id);
+      if (id === operacion.current) setMensaje('La lectura quedó en la bandeja. Selecciónala cuando quieras continuar con proveedor, productos y costos.');
+    } catch (e) {
+      if (id === operacion.current) setError(e instanceof Error ? e.message : 'No se pudo leer la foto.');
+    } finally {
+      if (id === operacion.current) setOcupado(false);
+    }
+  }
+  async function abrirLecturaPendiente() {
+    const pendiente = lecturasPendientes.find(item => item.id === lecturaSeleccionada);
+    if (!pendiente) { setErrorBandeja('Selecciona una lectura de la bandeja.'); return; }
+    if (documentos.length && !window.confirm('¿Reemplazar la revisión actual con la lectura seleccionada?')) return;
+    const documento = JSON.parse(JSON.stringify(pendiente.datos)) as FacturaLectura;
+    setDocumentos([documento]); setIndice(0); setProveedor(null); setProductos({}); setTiposProductoNuevo({}); setComprasPorCaja({}); setAsociadosPorCodigo({}); setRevisado(false); setImagenes([]); setError(''); setMensaje('');
+    const { error: fallo } = await supabase.from('lecturas_facturas_pendientes').update({ estado: 'en_revision' }).eq('id', pendiente.id);
+    if (!fallo) await cargarBandeja();
+    await seleccionarProveedorAutomatico(documento, 0);
+  }
+  async function eliminarLecturaPendiente(id: string) {
+    const pendiente = lecturasPendientes.find(item => item.id === id);
+    if (!pendiente || !window.confirm(`¿Eliminar la lectura de ${pendiente.datos.proveedor || 'esta factura'}? Esta acción no elimina ninguna factura registrada.`)) return;
+    setErrorBandeja('');
+    const { error: fallo } = await supabase.from('lecturas_facturas_pendientes').delete().eq('id', id);
+    if (fallo) { setErrorBandeja('No se pudo eliminar la lectura. Inténtalo nuevamente.'); return; }
+    await cargarBandeja();
   }
   const problemas = factura ? problemasFactura(factura) : [];
   const rutDistinto = factura?.rutReceptor && empresa?.rut && normalizarRut(factura.rutReceptor) !== normalizarRut(empresa.rut);
@@ -292,17 +373,33 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
         setDocumentos([f]); setIndice(0); setProveedor(null); setProductos({}); setTiposProductoNuevo({}); setComprasPorCaja({}); setAsociadosPorCodigo({}); setRevisado(false); setImagenes([]); setError(''); setMensaje('');
         void seleccionarProveedorAutomatico(f, 0);
       }} />
-      <h2 className="text-xl font-bold">Revisar factura</h2>
-      <p className="text-sm">Sube el XML o fotos de todas las páginas de una misma factura. Revisa los datos y vincula los productos antes de cargar sus costos. La carga manual no registra la factura ni sus archivos en el sistema; puedes descargar la revisión. Los XML recibidos por correo sí se conservan en la bandeja.</p>
+      <h2 className="text-xl font-bold">Bandeja y revisión de facturas</h2>
+      <p className="text-sm">Toma o sube las fotos de todas las páginas de una factura. Se leen en ese momento y queda pendiente sólo la información extraída, para continuarla luego desde este equipo o desde otro con la misma cuenta.</p>
       <div className="flex flex-wrap gap-3">
-        <button className={boton} type="button" disabled={ocupado || aplicando} onClick={() => camara.current?.click()}>Tomar foto</button>
-        <button className={boton} type="button" disabled={ocupado || aplicando} onClick={() => lectorFotos.current?.click()}>Subir fotos</button>
+        <button className={boton} type="button" disabled={ocupado || aplicando} onClick={() => camara.current?.click()}>Tomar foto y agregar</button>
+        <button className={boton} type="button" disabled={ocupado || aplicando} onClick={() => lectorFotos.current?.click()}>Subir fotos a la bandeja</button>
         <button className={boton} type="button" disabled={ocupado || aplicando} onClick={() => lectorXml.current?.click()}>Importar XML</button>
       </div>
-      <input hidden ref={camara} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={e => { void leer(Array.from(e.target.files || []), 'foto'); e.target.value = ''; }} />
-      <input hidden ref={lectorFotos} type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={e => { void leer(Array.from(e.target.files || []), 'foto'); e.target.value = ''; }} />
-      <input hidden ref={lectorXml} type="file" accept=".xml,application/xml,text/xml" onChange={e => { void leer(Array.from(e.target.files || []), 'xml'); e.target.value = ''; }} />
-      <p className="text-xs">Las fotos se preparan automáticamente para enviarlas al lector visual y reconocer la factura; no se almacenan en la aplicación. No se requiere token del SII.</p>
+      <input hidden ref={camara} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={e => { void agregarFotosABandeja(Array.from(e.target.files || [])); e.target.value = ''; }} />
+      <input hidden ref={lectorFotos} type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={e => { void agregarFotosABandeja(Array.from(e.target.files || [])); e.target.value = ''; }} />
+      <input hidden ref={lectorXml} type="file" accept=".xml,application/xml,text/xml" onChange={e => { void leerXml(Array.from(e.target.files || [])); e.target.value = ''; }} />
+      <p className="text-xs">La aplicación no conserva las fotos: se envían al lector visual para extraer los datos y luego se descartan. La bandeja guarda sólo esa información; entra con la misma cuenta en el teléfono y en el PC. No se requiere token del SII.</p>
+      <section className="rounded-xl border border-[#D9C4A7] bg-[#FFF8ED] p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div><h3 className="font-black text-[#2A1710]">Lecturas pendientes</h3><p className="text-xs text-[#5F4030]">Selecciona una para revisar y luego cargar sus productos y costos.</p></div>
+          <button type="button" className="rounded-lg border border-[#A51F2B] px-3 py-2 text-sm font-bold text-[#A51F2B]" disabled={cargandoBandeja} onClick={() => void cargarBandeja()}>{cargandoBandeja ? 'Actualizando…' : 'Actualizar bandeja'}</button>
+        </div>
+        {errorBandeja && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-800">{errorBandeja}</p>}
+        {!cargandoBandeja && !lecturasPendientes.length && <p className="mt-3 text-sm text-[#5F4030]">Aún no hay lecturas pendientes. Puedes agregarlas desde el teléfono y aparecerán aquí automáticamente.</p>}
+        <div className="mt-3 space-y-2">
+          {lecturasPendientes.map(lectura => <label key={lectura.id} className="flex cursor-pointer items-center gap-3 rounded-lg border border-[#D9C4A7] bg-white p-3">
+            <input type="radio" name="lectura-pendiente" checked={lecturaSeleccionada === lectura.id} onChange={() => { setLecturaSeleccionada(lectura.id); setErrorBandeja(''); }} />
+            <span className="min-w-0 flex-1 text-sm"><strong className="block truncate text-[#2A1710]">{lectura.datos.proveedor || 'Proveedor sin reconocer'} · Folio {lectura.datos.folio || 'sin folio'}</strong><span className="block text-xs text-[#5F4030]">{lectura.cantidad_fotos} {lectura.cantidad_fotos === 1 ? 'foto leída' : 'fotos leídas'} · {lectura.datos.fecha || 'fecha sin reconocer'} · {pesos(lectura.datos.total || 0)} · {lectura.estado === 'en_revision' ? 'en revisión' : 'pendiente'}</span></span>
+            <button type="button" className="text-sm font-bold text-red-800 underline" onClick={e => { e.preventDefault(); void eliminarLecturaPendiente(lectura.id); }}>Eliminar</button>
+          </label>)}
+        </div>
+        <button type="button" className={`${boton} mt-3`} disabled={!lecturaSeleccionada || ocupado || aplicando} onClick={() => void abrirLecturaPendiente()}>Revisar lectura seleccionada</button>
+      </section>
       {ocupado && <div><p role="status">{progreso}</p><button type="button" className="mt-2 underline" onClick={() => { operacion.current++; setOcupado(false); }}>Cancelar lectura</button></div>}
       {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-red-800">{error}</p>}
       {factura && !ocupado && <fieldset disabled={aplicando} className="space-y-4">
