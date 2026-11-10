@@ -1226,26 +1226,6 @@ export default function AdminComprasPage() {
           };
         }
 
-        if (campo === 'unidad_compra' || campo === 'undxcaja') {
-          const itemActualizado = { ...item, [campo]: valor } as ItemCompra;
-          const costoVenta = desgloseIva(
-            costoUnitarioEfectivo(itemActualizado),
-            ivaPorcentaje,
-            precioIvaIncluido
-          ).total;
-          return {
-            ...itemActualizado,
-            precio_venta: String(
-              precioVentaDesdeMargen(
-                costoVenta,
-                numero(item.margen_porcentaje),
-                item.tipo_margen,
-                redondeoVentaItem(item)
-              ) || ''
-            ),
-          };
-        }
-
         return {
           ...item,
           [campo]: valor,
