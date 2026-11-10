@@ -101,7 +101,7 @@ function nombreTipo(tipo?: string | null) {
   if (tipo === 'receta') return 'Receta';
   if (tipo === 'envase') return 'Envase';
   if (tipo === 'mano_obra') return 'Mano de obra';
-  return 'Ingrediente';
+  return 'Materia prima';
 }
 
 export default function AdminRecetasPage() {
@@ -781,7 +781,7 @@ export default function AdminRecetasPage() {
     );
 
     if (itemsValidos.length === 0) {
-      alert('Agrega ingredientes válidos.');
+      alert('Agrega materias primas válidas.');
       return;
     }
 
@@ -1034,7 +1034,7 @@ export default function AdminRecetasPage() {
               <div className="mt-6 grid gap-5 md:grid-cols-3">
                 <div className="rounded-2xl border bg-white p-4">
                   <label className="mb-2 block text-xs font-black uppercase tracking-wide text-gray-500">
-                    Producto o ingrediente producido
+                    Producto o materia prima producida
                   </label>
 
                   <select
@@ -1042,12 +1042,12 @@ export default function AdminRecetasPage() {
                     onChange={(e) => setProductoId(e.target.value)}
                     className="w-full bg-transparent text-lg font-black outline-none"
                   >
-                    <option value="">Seleccionar producto o ingrediente</option>
+                    <option value="">Seleccionar producto o materia prima</option>
                     {productosDisponiblesParaReceta.map((producto) => (
                       <option key={producto.id} value={producto.id}>
                         {producto.nombre}
                         {producto.tipo_producto === 'ingrediente'
-                          ? ' · ingrediente'
+                          ? ' · materia prima'
                           : ' · producto'}
                       </option>
                     ))}
@@ -1135,7 +1135,7 @@ export default function AdminRecetasPage() {
 
               <div className="mt-8 flex flex-wrap gap-2 rounded-2xl bg-white p-2 shadow-sm">
                 {[
-                  { id: 'ingredientes', label: '🥣 Ingredientes' },
+                  { id: 'ingredientes', label: '🥣 Materias primas' },
                   { id: 'insumos', label: '📦 Insumos' },
                   { id: 'resumen', label: '📊 Resumen' },
                   { id: 'subproductos', label: '🎂 Subproductos' },
@@ -1162,7 +1162,7 @@ export default function AdminRecetasPage() {
               <div className="mt-8 rounded-[28px] bg-maruxa-crema p-5">
                 <div className="flex items-center justify-between gap-4">
                   <h3 className="text-xl font-black text-maruxa-chocolate">
-                    Ingredientes base de la receta
+                    Materias primas de la receta
                   </h3>
 
                   <button
@@ -1170,7 +1170,7 @@ export default function AdminRecetasPage() {
                     onClick={agregarIngrediente}
                     className="rounded-full border-2 border-red-700 bg-red-700 px-6 py-3 text-sm font-black text-white shadow-lg transition hover:bg-red-800"
                   >
-                    + Agregar ingrediente
+                    + Agregar materia prima
                   </button>
                 </div>
 
@@ -1193,7 +1193,7 @@ export default function AdminRecetasPage() {
                           }
                           className="rounded-2xl border px-4 py-3 font-bold"
                         >
-                          <option value="">Ingrediente</option>
+                          <option value="">Materia prima</option>
                           {ingredientesBase.map((ingrediente) => (
                             <option key={ingrediente.id} value={ingrediente.id}>
                               {ingrediente.nombre}
@@ -1257,7 +1257,7 @@ export default function AdminRecetasPage() {
                     <table className="w-full text-sm">
                       <thead className="bg-red-700 text-white">
                         <tr>
-                          <th className="px-4 py-3 text-left">Ingrediente</th>
+                          <th className="px-4 py-3 text-left">Materia prima</th>
                           <th className="px-4 py-3 text-right">Cantidad</th>
                           <th className="px-4 py-3 text-center">Unidad</th>
                           <th className="px-4 py-3 text-right">IVA referencial</th>
@@ -1305,7 +1305,7 @@ export default function AdminRecetasPage() {
                         ))}
 
                         <tr className="bg-maruxa-crema font-black text-maruxa-chocolate">
-                          <td className="px-4 py-4">TOTAL INGREDIENTES</td>
+                          <td className="px-4 py-4">TOTAL MATERIAS PRIMAS</td>
                           <td className="px-4 py-4 text-right">
                             {totalCantidadReceta.toLocaleString('es-CL', {
                               maximumFractionDigits: 4,
@@ -1329,14 +1329,14 @@ export default function AdminRecetasPage() {
                   </h3>
 
                   <p className="mt-1 text-sm font-bold text-maruxa-cafe/70">
-                    Proporción matemática de ingredientes base a 1,0000.
+                    Proporción matemática de materias primas a 1,0000.
                   </p>
 
                   <div className="mt-5 overflow-x-auto rounded-2xl border border-maruxa-crema bg-white">
                     <table className="w-full text-sm">
                       <thead className="bg-red-700 text-white">
                         <tr>
-                          <th className="px-4 py-3 text-left">Ingrediente</th>
+                          <th className="px-4 py-3 text-left">Materia prima</th>
                           <th className="px-4 py-3 text-right">Cantidad normalizada</th>
                           <th className="px-4 py-3 text-center">Unidad</th>
                           <th className="px-4 py-3 text-right">Costo neto proporcional</th>
@@ -1378,7 +1378,7 @@ export default function AdminRecetasPage() {
 
                         <tr className="bg-maruxa-crema font-black">
                           <td className="px-4 py-4">
-                            TOTAL FÓRMULA (SOLO INGREDIENTES)
+                            TOTAL FÓRMULA (SOLO MATERIAS PRIMAS)
                           </td>
                           <td className="px-4 py-4 text-right">1,0000</td>
                           <td className="px-4 py-4 text-center">base</td>
@@ -1525,7 +1525,7 @@ export default function AdminRecetasPage() {
                   Costos indirectos netos
                 </h3>
                 <p className="mt-1 text-sm font-bold text-maruxa-cafe/70">
-                  Porcentaje editable aplicado sobre los costos netos de ingredientes + envases + mano de obra.
+                  Porcentaje editable aplicado sobre los costos netos de materias primas + envases + mano de obra.
                 </p>
 
                 <div className="mt-4 grid gap-4 md:grid-cols-3">
@@ -1656,7 +1656,7 @@ export default function AdminRecetasPage() {
                 <div className="mt-5 grid gap-4 md:grid-cols-3">
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
                     <p className="text-sm font-black uppercase text-amber-800">
-                      Ingredientes base · neto
+                      Materias primas · neto
                     </p>
                     <p className="mt-2 text-3xl font-black text-amber-900">
                       {dinero(costoIngredientes)}
@@ -1724,7 +1724,7 @@ export default function AdminRecetasPage() {
                 {recetaProduceIngrediente ? (
                   <div className="mt-5 rounded-2xl border border-blue-200 bg-blue-50 p-4">
                     <p className="font-black text-blue-900">
-                      Esta receta produce un ingrediente.
+                      Esta receta produce una materia prima.
                     </p>
                     <p className="mt-1 text-sm font-bold text-blue-700">
                       Al guardar, el sistema actualizará su costo unitario con el costo neto final por kg calculado.

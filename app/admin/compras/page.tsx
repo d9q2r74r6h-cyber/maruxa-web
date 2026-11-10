@@ -86,6 +86,7 @@ type ItemCompra = {
   nuevo_producto?: boolean;
   familia_id_nueva?: string;
   tipo_producto_nuevo?: TipoProductoCompra;
+  unidad_base_nueva?: string;
   codigo_proveedor?: string;
   unidad_compra?: UnidadCompra;
 };
@@ -1791,7 +1792,7 @@ export default function AdminComprasPage() {
       tipo === 'producto'
         ? 'Productos'
         : tipo === 'ingrediente'
-          ? 'Ingredientes'
+          ? 'Materias primas'
           : 'Insumos';
     const costo = numero(nuevoProducto.costo_unitario);
     const stockInicial = numero(nuevoProducto.stock_actual);
@@ -2180,11 +2181,13 @@ export default function AdminComprasPage() {
     if (guardando || loading) throw new Error('Espera a que termine la operación actual.');
     if (items.length || mostrarCrearProducto) throw new Error('Guarda o quita los productos pendientes del formulario antes de cargar esta factura.');
     const tipoNuevoPorLinea = new Map(nuevos.map(item => [item.indice, item.tipo_producto]));
+    const unidadBaseNuevaPorLinea = new Map(nuevos.map(item => [item.indice, item.unidad_base]));
     const unidadesCajaNuevaPorLinea = new Map(nuevos.map(item => [item.indice, item.undxcaja]));
     const compraPorCajaPorLinea = new Map(presentaciones.map(item => [item.indice, item.compra_por_caja]));
     const nuevosItems: ItemCompra[] = factura.lineas.map((linea, indiceLinea) => {
       const producto = seleccionados.find(p => String(p.id) === linea.productoId);
       const tipoProductoNuevo = tipoNuevoPorLinea.get(indiceLinea);
+      const unidadBaseNueva = unidadBaseNuevaPorLinea.get(indiceLinea) || 'UN';
       const unidadesCajaNueva = Number(unidadesCajaNuevaPorLinea.get(indiceLinea));
       const compraPorCaja = Boolean(compraPorCajaPorLinea.get(indiceLinea));
       const codigoProveedor = linea.codigo.trim().toLocaleUpperCase('es-CL').replace(/[^\p{L}\p{N}]/gu, '');
@@ -2200,6 +2203,7 @@ export default function AdminComprasPage() {
           nuevo_producto: true,
           familia_id_nueva: '',
           tipo_producto_nuevo: tipoProductoNuevo,
+          unidad_base_nueva: unidadBaseNueva,
           undxcaja: Number.isInteger(unidadesCajaNueva) && unidadesCajaNueva > 1 ? String(unidadesCajaNueva) : '',
           unidad_compra: compraPorCaja && unidadesCajaNueva > 1 ? 'caja' : 'unidad',
           codigo_proveedor: codigoProveedor || undefined,
@@ -2328,7 +2332,7 @@ export default function AdminComprasPage() {
             slug: crearSlug(nombre),
             tipo_producto: tipoProducto,
             familia_id: familiaId,
-            unidad_base: 'KG',
+            unidad_base: itemNuevo.unidad_base_nueva || 'UN',
             costo_unitario: costoNeto,
             iva_porcentaje: Number(empresa.iva_porcentaje ?? 19),
             impuesto_adicional_porcentaje: 0,

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import FacturasRecibidas from '@/components/FacturasRecibidas';
 import { supabase } from '@/lib/supabase';
 import { obtenerEmpresaActual } from '@/lib/empresa';
+import { configuracionPorGrupo, configuracionProductosPredeterminada, type ConfiguracionProducto } from '@/lib/configuracion-productos';
 import { leerXmlFactura, normalizarRut, problemasFactura, type FacturaLectura, type LineaFactura } from '@/lib/importar-factura';
 
 export type ProductoFactura = {
@@ -14,7 +15,7 @@ export type ProductoFactura = {
   margen_personalizado?: number | null; tipo_margen_personalizado?: 'markup' | 'margen_comercial' | null;
 };
 export type TipoProductoFactura = 'producto' | 'ingrediente' | 'envase';
-export type ProductoNuevoFactura = { indice: number; tipo_producto: TipoProductoFactura; undxcaja?: number };
+export type ProductoNuevoFactura = { indice: number; tipo_producto: TipoProductoFactura; unidad_base: string; undxcaja?: number };
 export type PresentacionCompraFactura = { indice: number; compra_por_caja: boolean };
 export type ProveedorFactura = { id: string; razon_social: string; nombre_fantasia: string | null; rut: string | null; precio_iva_incluido: boolean };
 export type CargaFactura = {
@@ -118,7 +119,9 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
   const [proveedor, setProveedor] = useState<ProveedorFactura | null>(null);
   const [productos, setProductos] = useState<Record<string, ProductoFactura>>({});
   const [tiposProductoNuevo, setTiposProductoNuevo] = useState<Record<number, TipoProductoFactura>>({});
+  const [unidadesBaseNuevas, setUnidadesBaseNuevas] = useState<Record<number, string>>({});
   const [unidadesCajaNuevas, setUnidadesCajaNuevas] = useState<Record<number, string>>({});
+  const [configuracionesProducto, setConfiguracionesProducto] = useState<ConfiguracionProducto[]>(configuracionProductosPredeterminada);
   const [comprasPorCaja, setComprasPorCaja] = useState<Record<number, boolean>>({});
   const [asociadosPorCodigo, setAsociadosPorCodigo] = useState<Record<string, boolean>>({});
   const [revisado, setRevisado] = useState(false);
@@ -137,12 +140,27 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
   const lectorFotos = useRef<HTMLInputElement>(null);
   const camara = useRef<HTMLInputElement>(null);
   const factura = documentos[indice];
+  const unidadBasePorDefecto = configuracionPorGrupo(configuracionesProducto, 'unidad')
+    .find((unidad) => unidad.activo && unidad.codigo === 'UN')?.codigo
+    || configuracionPorGrupo(configuracionesProducto, 'unidad').find((unidad) => unidad.activo)?.codigo
+    || 'UN';
   useEffect(() => () => { imagenes.forEach(url => URL.revokeObjectURL(url)); }, [imagenes]);
   useEffect(() => () => { operacion.current++; }, []);
   useEffect(() => {
     if (!abierto) return;
     let vigente = true;
-    obtenerEmpresaActual().then(e => { if (vigente) { setEmpresa(e); if (!e) setError('No se pudo identificar la empresa.'); } });
+    obtenerEmpresaActual().then(async e => {
+      if (!vigente) return;
+      setEmpresa(e);
+      if (!e) { setError('No se pudo identificar la empresa.'); return; }
+      const { data, error: fallo } = await supabase
+        .from('configuraciones_productos')
+        .select('id,empresa_id,grupo,codigo,nombre,orden,activo')
+        .eq('empresa_id', e.id)
+        .order('grupo')
+        .order('orden');
+      if (vigente && !fallo && data?.length) setConfiguracionesProducto(data as ConfiguracionProducto[]);
+    });
     return () => { vigente = false; };
   }, [abierto]);
   async function cargarBandeja(empresaId = empresa?.id) {
@@ -274,7 +292,7 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
     if (documentos.length && !window.confirm('¿Reemplazar la revisión actual con este archivo?')) return;
     const id = ++operacion.current;
     setOcupado(true); setError(''); setMensaje(''); setProgreso('Preparando lectura…');
-    setProveedor(null); setProductos({}); setTiposProductoNuevo({}); setUnidadesCajaNuevas({}); setComprasPorCaja({}); setAsociadosPorCodigo({}); setRevisado(false);
+    setProveedor(null); setProductos({}); setTiposProductoNuevo({}); setUnidadesBaseNuevas({}); setUnidadesCajaNuevas({}); setComprasPorCaja({}); setAsociadosPorCodigo({}); setRevisado(false);
     try {
       if (archivos.length !== 1 || archivos[0].size > 5_000_000) throw new Error('Selecciona un XML de hasta 5 MB.');
       const buffer = await archivos[0].arrayBuffer();
@@ -328,7 +346,7 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
     if (!pendiente) { setErrorBandeja('Selecciona una lectura de la bandeja.'); return; }
     if (documentos.length && !window.confirm('¿Reemplazar la revisión actual con la lectura seleccionada?')) return;
     const documento = JSON.parse(JSON.stringify(pendiente.datos)) as FacturaLectura;
-    setDocumentos([documento]); setIndice(0); setProveedor(null); setProductos({}); setTiposProductoNuevo({}); setUnidadesCajaNuevas({}); setComprasPorCaja({}); setAsociadosPorCodigo({}); setRevisado(false); setImagenes([]); setError(''); setMensaje('');
+    setDocumentos([documento]); setIndice(0); setProveedor(null); setProductos({}); setTiposProductoNuevo({}); setUnidadesBaseNuevas({}); setUnidadesCajaNuevas({}); setComprasPorCaja({}); setAsociadosPorCodigo({}); setRevisado(false); setImagenes([]); setError(''); setMensaje('');
     const { error: fallo } = await supabase.from('lecturas_facturas_pendientes').update({ estado: 'en_revision' }).eq('id', pendiente.id);
     if (!fallo) await cargarBandeja();
     await seleccionarProveedorAutomatico(documento, 0);
@@ -359,6 +377,7 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
         return tipo ? [{
           indice: lineaIndice,
           tipo_producto: tipo,
+          unidad_base: unidadesBaseNuevas[lineaIndice] || unidadBasePorDefecto,
           undxcaja: Number.isInteger(unidades) && unidades > 1 ? unidades : undefined,
         }] : [];
       });
@@ -381,7 +400,7 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
     {abierto && <div className="mt-4 space-y-4">
       <FacturasRecibidas disabled={ocupado || aplicando} onReview={f => {
         if (documentos.length && !window.confirm('¿Reemplazar la revisión actual con la factura recibida?')) return;
-        setDocumentos([f]); setIndice(0); setProveedor(null); setProductos({}); setTiposProductoNuevo({}); setUnidadesCajaNuevas({}); setComprasPorCaja({}); setAsociadosPorCodigo({}); setRevisado(false); setImagenes([]); setError(''); setMensaje('');
+        setDocumentos([f]); setIndice(0); setProveedor(null); setProductos({}); setTiposProductoNuevo({}); setUnidadesBaseNuevas({}); setUnidadesCajaNuevas({}); setComprasPorCaja({}); setAsociadosPorCodigo({}); setRevisado(false); setImagenes([]); setError(''); setMensaje('');
         void seleccionarProveedorAutomatico(f, 0);
       }} />
       <h2 className="text-xl font-bold">Bandeja y revisión de facturas</h2>
@@ -416,7 +435,7 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
       {factura && !ocupado && <fieldset disabled={aplicando} className="space-y-4">
         {documentos.length > 1 && <label>Documento del XML<select className={campo} value={indice} onChange={e => {
           const nuevoIndice = Number(e.target.value);
-          setIndice(nuevoIndice); setProveedor(null); setProductos({}); setTiposProductoNuevo({}); setUnidadesCajaNuevas({}); setComprasPorCaja({}); setAsociadosPorCodigo({}); setRevisado(false); setMensaje('');
+          setIndice(nuevoIndice); setProveedor(null); setProductos({}); setTiposProductoNuevo({}); setUnidadesBaseNuevas({}); setUnidadesCajaNuevas({}); setComprasPorCaja({}); setAsociadosPorCodigo({}); setRevisado(false); setMensaje('');
           void seleccionarProveedorAutomatico(documentos[nuevoIndice], nuevoIndice);
         }}>{documentos.map((f, i) => <option key={i} value={i}>{f.proveedor} · Folio {f.folio} · {pesos(f.total)}</option>)}</select></label>}
         {factura.avisos.map((a, i) => <p key={i} className="rounded-lg bg-amber-50 p-3 text-sm">{a}</p>)}
@@ -454,6 +473,11 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
           const productoAsociado = productos[l.productoId];
           const tipoNuevo = tiposProductoNuevo[i];
           const unidadesPorCaja = Number(productoAsociado?.undxcaja || 0);
+          const tiposConfigurados = configuracionPorGrupo(configuracionesProducto, 'tipo')
+            .filter((tipo) => tipo.activo && ['producto', 'ingrediente', 'envase'].includes(tipo.codigo));
+          const unidadesConfiguradas = configuracionPorGrupo(configuracionesProducto, 'unidad')
+            .filter((unidad) => unidad.activo);
+          const unidadBaseNueva = unidadesBaseNuevas[i] || unidadBasePorDefecto;
           const sugerenciaCaja = sugerirUnidadesPorCaja(l.nombre);
           const unidadesCajaNueva = unidadesCajaNuevas[i] ?? (sugerenciaCaja ? String(sugerenciaCaja) : '');
           return <div key={i} className="grid gap-3 rounded-xl border p-3 md:grid-cols-[minmax(220px,1fr)_minmax(260px,1.4fr)]">
@@ -468,6 +492,7 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
               <Buscador tabla="productos" empresaId={empresa?.id || ''} onSelect={(p: ProductoFactura) => {
                 setProductos(actual => ({ ...actual, [p.id]: p }));
                 setTiposProductoNuevo(actual => { const siguiente = { ...actual }; delete siguiente[i]; return siguiente; });
+                setUnidadesBaseNuevas(actual => { const siguiente = { ...actual }; delete siguiente[i]; return siguiente; });
                 setUnidadesCajaNuevas(actual => { const siguiente = { ...actual }; delete siguiente[i]; return siguiente; });
                 setComprasPorCaja(actual => { const siguiente = { ...actual }; delete siguiente[i]; return siguiente; });
                 linea(i, { productoId: String(p.id) });
@@ -489,11 +514,18 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
                   setRevisado(false);
                 }}>
                   <option value="">Selecciona el tipo…</option>
-                  <option value="ingrediente">Materia prima</option>
-                  <option value="envase">Insumo</option>
-                  <option value="producto">Producto terminado</option>
+                  {tiposConfigurados.map(tipo => <option key={tipo.codigo} value={tipo.codigo}>{tipo.nombre}</option>)}
                 </select>
                 <span className="mt-1 block text-xs font-normal text-[#5F4030]">Luego podrás asignar la familia y revisar el costo antes de registrarlo.</span>
+              </label>}
+              {!productoAsociado && tipoNuevo && <label className="mt-3 block text-sm font-bold">Unidad base
+                <select className={campo} aria-label={`Unidad base para ${l.nombre || `línea ${i + 1}`}`} value={unidadBaseNueva} onChange={e => {
+                  setUnidadesBaseNuevas(actual => ({ ...actual, [i]: e.target.value }));
+                  setRevisado(false);
+                }}>
+                  {unidadesConfiguradas.map(unidad => <option key={unidad.codigo} value={unidad.codigo}>{unidad.nombre}</option>)}
+                </select>
+                <span className="mt-1 block text-xs font-normal text-[#5F4030]">Se configura en Productos: tipos y unidades. Define cómo se mide el stock y costo.</span>
               </label>}
               {!productoAsociado && tipoNuevo && <label className="mt-3 block text-sm font-bold">Unidades por caja
                 <input className={campo} aria-label={`Unidades por caja para ${l.nombre || `línea ${i + 1}`}`} type="number" min="2" step="1" value={unidadesCajaNueva} placeholder={sugerenciaCaja ? String(sugerenciaCaja) : 'Ej.: 12'} onChange={e => {

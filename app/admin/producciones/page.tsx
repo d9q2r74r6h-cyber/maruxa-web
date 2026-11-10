@@ -192,7 +192,7 @@ export default function AdminProduccionPage() {
     if (!recetaSeleccionada) return;
 
     if (hayFaltantes) {
-      alert('Hay ingredientes sin stock suficiente.');
+      alert('Hay materias primas sin stock suficiente.');
       return;
     }
 
@@ -342,7 +342,7 @@ export default function AdminProduccionPage() {
             <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
               <div>
                 <h2 className="text-2xl font-black text-maruxa-chocolate">
-                  Ingredientes necesarios
+                  Materias primas necesarias
                 </h2>
 
                 <p className="mt-1 font-bold text-gray-600">
@@ -362,7 +362,7 @@ export default function AdminProduccionPage() {
               <table className="w-full text-sm">
                 <thead className="bg-red-700 text-white">
                   <tr>
-                    <th className="px-4 py-3 text-left">Ingrediente</th>
+                    <th className="px-4 py-3 text-left">Materia prima</th>
                     <th className="px-4 py-3 text-right">Stock</th>
                     <th className="px-4 py-3 text-right">Necesario</th>
                     <th className="px-4 py-3 text-right">Diferencia</th>
@@ -420,7 +420,7 @@ export default function AdminProduccionPage() {
 
             {hayFaltantes && (
               <div className="mt-5 rounded-2xl border border-red-300 bg-red-50 p-4 font-black text-red-700">
-                Hay ingredientes con stock insuficiente. No se puede confirmar la
+                Hay materias primas con stock insuficiente. No se puede confirmar la
                 producción.
               </div>
             )}

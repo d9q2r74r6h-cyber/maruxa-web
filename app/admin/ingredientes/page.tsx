@@ -108,7 +108,7 @@ export default function AdminIngredientesPage() {
 
   async function guardarIngrediente() {
     if (!form.nombre) {
-      alert('Ingresa el nombre del ingrediente.');
+      alert('Ingresa el nombre de la materia prima.');
       return;
     }
 
@@ -188,12 +188,12 @@ const costoFinalConImpuestos =
         </p>
 
         <h1 className="mt-3 text-5xl font-black text-maruxa-chocolate">
-          Ingredientes
+          Materias primas
         </h1>
 
         <section className="mt-10 rounded-[34px] bg-white p-6 shadow-premium">
           <h2 className="text-2xl font-black text-maruxa-chocolate">
-            {editando ? 'Editar ingrediente' : 'Nuevo ingrediente'}
+            {editando ? 'Editar materia prima' : 'Nueva materia prima'}
           </h2>
 
           <div className="mt-6 grid gap-4 md:grid-cols-3">
@@ -370,7 +370,7 @@ const costoFinalConImpuestos =
               onClick={guardarIngrediente}
               className="rounded-full bg-maruxa-rojo px-8 py-4 font-black text-white"
             >
-              {editando ? 'Guardar cambios' : 'Guardar ingrediente'}
+              {editando ? 'Guardar cambios' : 'Guardar materia prima'}
             </button>
 
             <button
@@ -386,19 +386,19 @@ const costoFinalConImpuestos =
         <section className="mt-10 rounded-[34px] bg-white p-6 shadow-premium">
           <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
             <h2 className="text-2xl font-black text-maruxa-chocolate">
-              Lista de ingredientes
+              Lista de materias primas
             </h2>
 
             <input
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar ingrediente..."
+              placeholder="Buscar materia prima..."
               className="rounded-2xl border px-5 py-4 font-bold"
             />
           </div>
 
           {loading ? (
-            <p className="mt-6 font-black">Cargando ingredientes...</p>
+            <p className="mt-6 font-black">Cargando materias primas...</p>
           ) : (
             <div className="mt-6 grid gap-3">
               {ingredientesFiltrados.map((item) => {

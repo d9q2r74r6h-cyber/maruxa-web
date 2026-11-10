@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { obtenerEmpresaActual } from '@/lib/empresa';
 import { presentacionesProducto, validarPresentaciones, type Presentacion } from '@/lib/presentaciones';
 import { separarUnidadesCaja } from '@/lib/nombre-producto-publico';
+import { configuracionPorGrupo, configuracionProductosPredeterminada, nombreTipoProducto, type ConfiguracionProducto } from '@/lib/configuracion-productos';
 import { Search, X } from 'lucide-react';
 type TipoProducto = 'producto' | 'ingrediente' | 'envase' | 'mano_obra';
 
@@ -148,6 +149,7 @@ export default function AdminProductosPage() {
     ImpuestoAdicional[]
   >([]);
   const [ivaEmpresa, setIvaEmpresa] = useState(19);
+  const [configuracionesProducto, setConfiguracionesProducto] = useState<ConfiguracionProducto[]>(configuracionProductosPredeterminada);
 
   const [form, setForm] = useState(formInicial);
 
@@ -188,6 +190,10 @@ export default function AdminProductosPage() {
   const impuestoSeleccionado = impuestosAdicionales.find(
     (impuesto) => impuesto.id === form.impuesto_adicional_id
   );
+  const tiposProductoConfigurados = configuracionPorGrupo(configuracionesProducto, 'tipo')
+    .filter((tipo) => tipo.activo || tipo.codigo === form.tipo_producto);
+  const unidadesBaseConfiguradas = configuracionPorGrupo(configuracionesProducto, 'unidad')
+    .filter((unidad) => unidad.activo || unidad.codigo === form.unidad_base);
   const familiaFormSeleccionada = familias.find(
     (familia) => familia.id === form.familia_id
   );
@@ -269,6 +275,16 @@ export default function AdminProductosPage() {
     }
 
     setIvaEmpresa(numero(empresa.iva_porcentaje ?? 19) || 19);
+
+    const { data: configuracionesData, error: configuracionesError } = await supabase
+      .from('configuraciones_productos')
+      .select('id,empresa_id,grupo,codigo,nombre,orden,activo')
+      .eq('empresa_id', empresa.id)
+      .order('grupo')
+      .order('orden');
+    if (!configuracionesError && configuracionesData?.length) {
+      setConfiguracionesProducto(configuracionesData as ConfiguracionProducto[]);
+    }
 
     const { data, error } = await supabase
       .from('productos')
@@ -522,7 +538,7 @@ export default function AdminProductosPage() {
         form.tipo_producto === 'producto'
           ? categoriaFamiliaForm
           : form.tipo_producto === 'ingrediente'
-            ? 'Ingredientes'
+            ? 'Materias primas'
             : form.tipo_producto === 'envase'
               ? 'Insumos'
               : 'Mano de obra',
@@ -635,8 +651,11 @@ export default function AdminProductosPage() {
       }
     }
 
-    const datos = construirDatosProducto(undefined, codigoFinal);
-    delete datos.empresa_id;
+    const {
+      empresa_id: _empresaId,
+      codigo: _codigo,
+      ...datos
+    } = construirDatosProducto(undefined, codigoFinal);
 
     const precioAnterior = Number(productoEditando.precio || 0);
     const precioNuevo = Number(datos.precio || 0);
@@ -706,6 +725,15 @@ export default function AdminProductosPage() {
       return;
     }
 
+    const { error: errorCodigo } = await supabase.rpc('cambiar_codigo_producto', {
+      p_producto_id: productoEditando.id,
+      p_codigo_nuevo: codigoFinal,
+    });
+    if (errorCodigo) {
+      alert(`El producto se actualizó, pero no fue posible cambiar su código: ${errorCodigo.message}`);
+      return;
+    }
+
     if (registrosPrecio.length > 0) {
       const { error: errorHistorial } = await supabase
         .from('producto_costos_historial')
@@ -767,7 +795,7 @@ export default function AdminProductosPage() {
           </p>
 
           <h1 className="mt-3 text-5xl font-black text-maruxa-chocolate">
-            Productos, ingredientes, insumos y servicios
+            Productos, materias primas, insumos y servicios
           </h1>
 
           <p className="mt-3 font-bold text-maruxa-cafe/70">
@@ -778,8 +806,8 @@ export default function AdminProductosPage() {
         <section className="mb-10 rounded-[34px] bg-white p-6 shadow-premium">
           <h2 className="text-2xl font-black text-maruxa-chocolate">
             {productoEditando
-              ? 'Editar producto, ingrediente, insumo o servicio'
-              : 'Crear producto, ingrediente, insumo o servicio'}
+              ? 'Editar producto, materia prima, insumo o servicio'
+              : 'Crear producto, materia prima, insumo o servicio'}
           </h2>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -825,10 +853,7 @@ export default function AdminProductosPage() {
               }
               className="rounded-2xl border border-maruxa-rojo/10 px-5 py-4 font-bold outline-none"
             >
-              <option value="producto">Producto terminado</option>
-              <option value="ingrediente">Ingrediente</option>
-              <option value="envase">Insumo</option>
-              <option value="mano_obra">Mano de obra</option>
+              {tiposProductoConfigurados.map((tipo) => <option key={tipo.codigo} value={tipo.codigo}>{tipo.nombre}</option>)}
             </select>
 
             {esProducto && (
@@ -922,7 +947,7 @@ export default function AdminProductosPage() {
                   className="h-14 w-full rounded-2xl border border-maruxa-rojo/10 px-5 font-bold outline-none"
                 />
                 <span className="block text-xs font-semibold text-maruxa-cafe/60">
-                  {form.tipo_producto === 'ingrediente' && 'Si también lo vendes, ingresa un precio para incluirlo en los listados de precios. Déjalo vacío o en cero si solo se usa en recetas. '}
+                  {form.tipo_producto === 'ingrediente' && 'Si también la vendes, ingresa un precio para incluirla en los listados. Déjalo vacío o en cero si sólo se usa en recetas. '}
                   Ingrese el precio que paga el cliente. Neto aprox:{' '}
                   {dinero(precioVentaNeto)} | IVA:{' '}
                   {dinero(ivaVentaCalculado)}
@@ -955,13 +980,7 @@ export default function AdminProductosPage() {
                   }
                   className="h-14 w-full rounded-2xl border border-maruxa-rojo/10 px-5 font-bold outline-none"
                 >
-                  <option value="KG">KG</option>
-                  <option value="LT">LT</option>
-                  <option value="UN">UN</option>
-                  <option value="GR">GR</option>
-                  <option value="ML">ML</option>
-                  <option value="CC">CC</option>
-                  <option value="MIN">MIN</option>
+                  {unidadesBaseConfiguradas.map((unidad) => <option key={unidad.codigo} value={unidad.codigo}>{unidad.nombre}</option>)}
                 </select>
                   <span className="block text-xs font-semibold text-maruxa-cafe/60">
                     Como se mide en compras, recetas e inventario.
@@ -1375,10 +1394,7 @@ export default function AdminProductosPage() {
                   className="h-11 rounded-md border border-maruxa-cafe/20 bg-white px-3 text-sm font-black text-maruxa-chocolate outline-none focus:border-maruxa-rojo"
                 >
                   <option value="todos">Todos los tipos</option>
-                  <option value="producto">Productos terminados</option>
-                  <option value="ingrediente">Ingredientes</option>
-                  <option value="envase">Insumos</option>
-                  <option value="mano_obra">Mano de obra</option>
+                  {configuracionPorGrupo(configuracionesProducto, 'tipo').filter((tipo) => tipo.activo).map((tipo) => <option key={tipo.codigo} value={tipo.codigo}>{tipo.nombre}</option>)}
                 </select>
               </div>
             </div>
@@ -1438,13 +1454,7 @@ export default function AdminProductosPage() {
 
                     <div className="min-w-0">
                     <p className="text-xs font-black uppercase tracking-widest text-maruxa-rojo">
-                      {tipo === 'producto'
-                        ? nombreFamiliaProducto
-                        : tipo === 'ingrediente'
-                          ? 'Ingrediente'
-                          : tipo === 'envase'
-                            ? 'Insumo'
-                            : 'Mano de obra'}
+                      {tipo === 'producto' ? nombreFamiliaProducto : nombreTipoProducto(tipo, configuracionesProducto)}
                     </p>
 
                     {tipo === 'producto' &&

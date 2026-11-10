@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { obtenerEmpresaActual } from '@/lib/empresa';
 import { formatearTelefonoChile } from '@/lib/telefonos';
+import { configuracionPorGrupo, configuracionProductosPredeterminada, type ConfiguracionProducto } from '@/lib/configuracion-productos';
 
 type EmpresaConfig = {
   id: string;
@@ -108,6 +109,7 @@ export default function ConfiguracionPage() {
   const [cuentasBancarias, setCuentasBancarias] = useState<CuentaBancaria[]>([]);
   const [politicasVehiculos, setPoliticasVehiculos] = useState<PoliticaAlertaVehiculo[]>([]);
   const [conceptosBonoCaja, setConceptosBonoCaja] = useState<ConceptoBonoCaja[]>([]);
+  const [configuracionesProductos, setConfiguracionesProductos] = useState<ConfiguracionProducto[]>([]);
   const [cuentaEditando, setCuentaEditando] = useState<CuentaBancaria | null>(null);
   const [loading, setLoading] = useState(true);
   const [subiendoLogo, setSubiendoLogo] = useState(false);
@@ -138,6 +140,7 @@ export default function ConfiguracionPage() {
     km_anticipacion: '500',
   });
   const [nuevoConceptoBono, setNuevoConceptoBono] = useState({ nombre: '', monto: '' });
+  const [nuevaUnidadProducto, setNuevaUnidadProducto] = useState({ codigo: '', nombre: '' });
 
   async function cargarDatos() {
     setLoading(true);
@@ -171,6 +174,19 @@ export default function ConfiguracionPage() {
     }
 
     setEmpresa(empresaData as EmpresaConfig);
+
+    const { data: configuracionesData, error: configuracionesError } = await supabase
+      .from('configuraciones_productos')
+      .select('id,empresa_id,grupo,codigo,nombre,orden,activo')
+      .eq('empresa_id', empresaActual.id)
+      .order('grupo')
+      .order('orden')
+      .order('nombre');
+    setConfiguracionesProductos(
+      configuracionesError
+        ? configuracionProductosPredeterminada
+        : (configuracionesData as ConfiguracionProducto[]) || configuracionProductosPredeterminada
+    );
 
     const { data: turnosData, error: turnosError } = await supabase
       .from('turnos')
@@ -279,6 +295,38 @@ export default function ConfiguracionPage() {
   async function guardarConceptoBono(concepto: ConceptoBonoCaja) {
     const { error } = await supabase.from('caja_conceptos_bono').update({ nombre: concepto.nombre.trim(), monto: Number(concepto.monto) || 0, activo: concepto.activo }).eq('id', concepto.id);
     if (error) return alert(error.message);
+    await cargarDatos();
+  }
+
+  async function guardarConfiguracionProducto(configuracion: ConfiguracionProducto) {
+    if (!configuracion.id) return;
+    const nombre = configuracion.nombre.trim();
+    if (!nombre) return alert('Ingresa un nombre para esta configuración.');
+    const { error } = await supabase
+      .from('configuraciones_productos')
+      .update({ nombre, activo: configuracion.activo })
+      .eq('id', configuracion.id);
+    if (error) return alert(error.message);
+    await cargarDatos();
+  }
+
+  async function agregarUnidadProducto() {
+    if (!empresa) return;
+    const codigo = nuevaUnidadProducto.codigo.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '');
+    const nombre = nuevaUnidadProducto.nombre.trim();
+    if (!codigo || !nombre) return alert('Ingresa código y nombre de la unidad.');
+    const orden = configuracionPorGrupo(configuracionesProductos, 'unidad')
+      .reduce((mayor, item) => Math.max(mayor, item.orden), 0) + 10;
+    const { error } = await supabase.from('configuraciones_productos').insert({
+      empresa_id: empresa.id,
+      grupo: 'unidad',
+      codigo,
+      nombre,
+      orden,
+      activo: true,
+    });
+    if (error) return alert(error.code === '23505' ? 'Esta unidad ya está configurada.' : error.message);
+    setNuevaUnidadProducto({ codigo: '', nombre: '' });
     await cargarDatos();
   }
 
@@ -1459,6 +1507,40 @@ export default function ConfiguracionPage() {
               <label className="flex h-10 items-center gap-2 rounded-lg border bg-white px-3 text-xs font-black"><input type="checkbox" checked={concepto.activo} onChange={(e) => setConceptosBonoCaja((lista) => lista.map((item) => item.id === concepto.id ? { ...item, activo: e.target.checked } : item))} />Activo</label>
               <button type="button" onClick={() => void guardarConceptoBono(concepto)} className="h-10 rounded-lg border border-[#A51F2B] px-4 text-xs font-black text-[#A51F2B]">Guardar</button>
             </div>)}
+          </div>
+        </section>
+
+        <section className="mt-8 rounded-[2rem] border border-[#4B2818]/15 bg-white p-6 shadow-sm">
+          <h2 className="text-2xl font-black text-maruxa-chocolate">Productos: tipos y unidades</h2>
+          <p className="mt-1 text-sm font-bold text-maruxa-cafe/65">Define cómo se muestran los tipos y qué unidades pueden seleccionarse al crear productos o importar una factura.</p>
+          <div className="mt-5 grid gap-8 lg:grid-cols-2">
+            <div>
+              <h3 className="text-sm font-black uppercase tracking-wide text-maruxa-cafe/70">Tipos de producto</h3>
+              <div className="mt-3 space-y-2">
+                {configuracionPorGrupo(configuracionesProductos, 'tipo').map((configuracion) => <div key={configuracion.codigo} className="grid gap-2 rounded-xl bg-[#FFF9EF] p-3 md:grid-cols-[120px_1fr_auto_auto]">
+                  <span className="flex h-10 items-center rounded-lg border bg-white px-3 text-xs font-black text-maruxa-cafe/60">{configuracion.codigo}</span>
+                  <input value={configuracion.nombre} onChange={(e) => setConfiguracionesProductos((lista) => lista.map((item) => item.id === configuracion.id || (!item.id && item.codigo === configuracion.codigo && item.grupo === 'tipo') ? { ...item, nombre: e.target.value } : item))} className="h-10 rounded-lg border px-3 font-bold" />
+                  <label className="flex h-10 items-center gap-2 rounded-lg border bg-white px-3 text-xs font-black"><input type="checkbox" checked={configuracion.activo} onChange={(e) => setConfiguracionesProductos((lista) => lista.map((item) => item.id === configuracion.id || (!item.id && item.codigo === configuracion.codigo && item.grupo === 'tipo') ? { ...item, activo: e.target.checked } : item))} />Activo</label>
+                  <button type="button" disabled={!configuracion.id} onClick={() => void guardarConfiguracionProducto(configuracion)} className="h-10 rounded-lg border border-[#A51F2B] px-4 text-xs font-black text-[#A51F2B] disabled:opacity-50">Guardar</button>
+                </div>)}
+              </div>
+            </div>
+            <div>
+              <h3 className="text-sm font-black uppercase tracking-wide text-maruxa-cafe/70">Unidades de medida</h3>
+              <div className="mt-3 grid gap-2 md:grid-cols-[120px_1fr_auto]">
+                <input value={nuevaUnidadProducto.codigo} onChange={(e) => setNuevaUnidadProducto({ ...nuevaUnidadProducto, codigo: e.target.value.toUpperCase() })} placeholder="Código: LT" maxLength={16} className="h-10 rounded-lg border px-3 font-bold uppercase" />
+                <input value={nuevaUnidadProducto.nombre} onChange={(e) => setNuevaUnidadProducto({ ...nuevaUnidadProducto, nombre: e.target.value })} placeholder="Nombre: Litro" className="h-10 rounded-lg border px-3 font-bold" />
+                <button type="button" onClick={() => void agregarUnidadProducto()} className="h-10 rounded-lg bg-[#A51F2B] px-4 text-xs font-black text-white">Agregar</button>
+              </div>
+              <div className="mt-3 space-y-2">
+                {configuracionPorGrupo(configuracionesProductos, 'unidad').map((configuracion) => <div key={configuracion.codigo} className="grid gap-2 rounded-xl bg-[#FFF9EF] p-3 md:grid-cols-[120px_1fr_auto_auto]">
+                  <span className="flex h-10 items-center rounded-lg border bg-white px-3 text-xs font-black text-maruxa-cafe/60">{configuracion.codigo}</span>
+                  <input value={configuracion.nombre} onChange={(e) => setConfiguracionesProductos((lista) => lista.map((item) => item.id === configuracion.id || (!item.id && item.codigo === configuracion.codigo && item.grupo === 'unidad') ? { ...item, nombre: e.target.value } : item))} className="h-10 rounded-lg border px-3 font-bold" />
+                  <label className="flex h-10 items-center gap-2 rounded-lg border bg-white px-3 text-xs font-black"><input type="checkbox" checked={configuracion.activo} onChange={(e) => setConfiguracionesProductos((lista) => lista.map((item) => item.id === configuracion.id || (!item.id && item.codigo === configuracion.codigo && item.grupo === 'unidad') ? { ...item, activo: e.target.checked } : item))} />Activo</label>
+                  <button type="button" disabled={!configuracion.id} onClick={() => void guardarConfiguracionProducto(configuracion)} className="h-10 rounded-lg border border-[#A51F2B] px-4 text-xs font-black text-[#A51F2B] disabled:opacity-50">Guardar</button>
+                </div>)}
+              </div>
+            </div>
           </div>
         </section>
 
