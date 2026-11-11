@@ -660,9 +660,16 @@ export default function AdminComprasPage() {
     const producto = productos.find(
       (actual) => String(actual.id) === String(item.producto_id)
     );
+    return redondeoVentaProducto(producto, item.familia_id_nueva);
+  }
+
+  function redondeoVentaProducto(
+    producto: Pick<Producto, 'familia_id'> | undefined,
+    familiaIdAlternativa?: string
+  ) {
     const familia = familias.find(
       (actual) =>
-        actual.id === (producto?.familia_id || item.familia_id_nueva)
+        actual.id === (producto?.familia_id || familiaIdAlternativa)
     );
 
     return Math.max(1, numero(familia?.redondeo_precio) || 10);
@@ -2189,7 +2196,11 @@ export default function AdminComprasPage() {
     const unidadesCajaNuevaPorLinea = new Map(nuevos.map(item => [item.indice, item.undxcaja]));
     const compraPorCajaPorLinea = new Map(presentaciones.map(item => [item.indice, item.compra_por_caja]));
     const nuevosItems: ItemCompra[] = factura.lineas.map((linea, indiceLinea) => {
-      const producto = seleccionados.find(p => String(p.id) === linea.productoId);
+      // La asociación viene del revisor de factura. Como respaldo se consulta el
+      // catálogo ya cargado: así un ID numérico/restaurado no convierte un producto
+      // existente en uno nuevo ni reemplaza su nombre por el de la factura.
+      const producto = seleccionados.find(p => String(p.id) === String(linea.productoId))
+        || productos.find(p => String(p.id) === String(linea.productoId));
       const tipoProductoNuevo = tipoNuevoPorLinea.get(indiceLinea);
       const esMateriaPrimaNueva = Boolean(materiaPrimaNuevaPorLinea.get(indiceLinea));
       const unidadBaseNueva = unidadBaseNuevaPorLinea.get(indiceLinea) || 'UN';
@@ -2216,16 +2227,34 @@ export default function AdminComprasPage() {
         };
       }
       const { margen, tipoMargen } = configuracionMargenProducto(producto);
-      return {
+      const itemImportado: ItemCompra = {
         ...itemCompraVacio(), producto_id: String(producto.id),
         busqueda_producto: producto.nombre, cantidad: String(linea.cantidad),
         costo_unitario: String(linea.montoNeto / linea.cantidad), costo_total: String(linea.montoNeto),
         margen_porcentaje: String(margen || ''), tipo_margen: tipoMargen,
-        precio_venta: String(producto.precio || ''),
         unidad_base_catalogo: producto.unidad_base || 'UN',
         undxcaja: producto.undxcaja ? String(producto.undxcaja) : '',
         unidad_compra: compraPorCaja && Number(producto.undxcaja) > 1 ? 'caja' : 'unidad',
         codigo_proveedor: codigoProveedor || undefined,
+      };
+      const costoVenta = desgloseIva(
+        costoUnitarioEfectivo(itemImportado),
+        ivaPorcentaje,
+        false
+      ).total;
+
+      return {
+        ...itemImportado,
+        // El precio se propone con el costo recién leído, no con un precio antiguo
+        // (o vacío) de la ficha. El usuario aún puede ajustarlo en la grilla.
+        precio_venta: String(
+          precioVentaDesdeMargen(
+            costoVenta,
+            margen,
+            tipoMargen,
+            redondeoVentaProducto(producto)
+          ) || ''
+        ),
       };
     });
     setProductos(actuales => {
