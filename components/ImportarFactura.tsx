@@ -247,7 +247,11 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
       const equivalencia = productoPorCodigo.get(normalizarCodigoProveedor(linea.codigo));
       if (!equivalencia) return linea;
       const { producto: productoEncontrado, compraPorCaja } = equivalencia;
-      encontrados[String(productoEncontrado.id)] = productoEncontrado;
+      const unidadesDetectadas = sugerirUnidadesPorCaja(linea.nombre);
+      const productoConPresentacion = !productoEncontrado.undxcaja && unidadesDetectadas
+        ? { ...productoEncontrado, undxcaja: unidadesDetectadas }
+        : productoEncontrado;
+      encontrados[String(productoEncontrado.id)] = productoConPresentacion;
       clavesAsociadas[`${documentoIndice}:${lineaIndice}`] = true;
       cajasAsociadas[lineaIndice] = compraPorCaja;
       return { ...linea, productoId: String(productoEncontrado.id) };
@@ -498,7 +502,9 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
               <p className="text-sm font-bold">{productoAsociado ? `✓ ${productoAsociado.nombre}` : 'Buscar producto del catálogo'}</p>
               {asociadosPorCodigo[`${indice}:${i}`] && <p className="mt-1 text-xs font-bold text-emerald-700">Asociado automáticamente por código de proveedor.</p>}
               <Buscador tabla="productos" empresaId={empresa?.id || ''} onSelect={(p: ProductoFactura) => {
-                setProductos(actual => ({ ...actual, [p.id]: p }));
+                const unidadesDetectadas = sugerirUnidadesPorCaja(l.nombre);
+                const productoConPresentacion = !p.undxcaja && unidadesDetectadas ? { ...p, undxcaja: unidadesDetectadas } : p;
+                setProductos(actual => ({ ...actual, [p.id]: productoConPresentacion }));
                 setTiposProductoNuevo(actual => { const siguiente = { ...actual }; delete siguiente[i]; return siguiente; });
                 setMateriasPrimasNuevas(actual => { const siguiente = { ...actual }; delete siguiente[i]; return siguiente; });
                 setUnidadesBaseNuevas(actual => { const siguiente = { ...actual }; delete siguiente[i]; return siguiente; });
@@ -515,16 +521,26 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
                 </select>
                 <span className="mt-1 block text-xs font-normal text-[#5F4030]">Define cómo se registra el stock y costo de este producto. Se actualizará al registrar la factura.</span>
               </label>}
-              {productoAsociado && unidadesPorCaja > 1 && <label className="mt-3 block text-sm font-bold">La factura cobra
-                <select className={campo} aria-label={`Presentación de compra para ${l.nombre || `línea ${i + 1}`}`} value={comprasPorCaja[i] ? 'caja' : 'unidad'} onChange={e => {
-                  setComprasPorCaja(actual => ({ ...actual, [i]: e.target.value === 'caja' }));
-                  setRevisado(false);
-                }}>
-                  <option value="unidad">Por unidad</option>
-                  <option value="caja">Por caja de {unidadesPorCaja.toLocaleString('es-CL')} unidades</option>
-                </select>
-                <span className="mt-1 block text-xs font-normal text-[#5F4030]">Al elegir caja, el stock y costo se convierten automáticamente a unidades vendibles.</span>
-              </label>}
+              {productoAsociado && <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className="block text-sm font-bold">Unidades por caja
+                  <input className={campo} aria-label={`Unidades por caja para ${productoAsociado.nombre}`} type="number" min="2" step="1" value={unidadesPorCaja || ''} placeholder={sugerenciaCaja ? String(sugerenciaCaja) : 'Ej.: 12'} onChange={e => {
+                    const unidades = Math.floor(Number(e.target.value));
+                    setProductos(actual => ({ ...actual, [productoAsociado.id]: { ...productoAsociado, undxcaja: Number.isInteger(unidades) && unidades > 0 ? unidades : null } }));
+                    setRevisado(false);
+                  }} />
+                  <span className="mt-1 block text-xs font-normal text-[#5F4030]">{sugerenciaCaja && !unidadesPorCaja ? `Sugerido: ${sugerenciaCaja} unidades.` : 'Déjalo vacío si no se compra por caja.'}</span>
+                </label>
+                {unidadesPorCaja > 1 && <label className="block text-sm font-bold">La factura cobra
+                  <select className={campo} aria-label={`Presentación de compra para ${l.nombre || `línea ${i + 1}`}`} value={comprasPorCaja[i] ? 'caja' : 'unidad'} onChange={e => {
+                    setComprasPorCaja(actual => ({ ...actual, [i]: e.target.value === 'caja' }));
+                    setRevisado(false);
+                  }}>
+                    <option value="unidad">Por unidad</option>
+                    <option value="caja">Por caja de {unidadesPorCaja.toLocaleString('es-CL')} unidades</option>
+                  </select>
+                  <span className="mt-1 block text-xs font-normal text-[#5F4030]">Al elegir caja, el stock y costo se convierten automáticamente a unidades vendibles.</span>
+                </label>}
+              </div>}
               {!productoAsociado && <label className="mt-3 block text-sm font-bold">Tipo al crear
                 <select className={campo} aria-label={`Tipo para ${l.nombre || `línea ${i + 1}`}`} value={tipoNuevo || ''} onChange={e => {
                   const tipo = e.target.value as TipoProductoFactura;
