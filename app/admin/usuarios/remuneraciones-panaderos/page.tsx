@@ -298,13 +298,18 @@ export default function RemuneracionesPanaderos() {
               key={version.id}
               className={`flex max-w-full items-start gap-2 rounded-lg border p-1 transition ${cargada ? 'border-[#A51F2B] bg-[#FFF0F2] ring-2 ring-[#A51F2B]/20' : 'bg-[#FFF9EF] hover:border-[#A51F2B]/50'}`}
             >
-              <div className="min-w-0 flex-1 px-3 py-2">
+              <button
+                type="button"
+                aria-pressed={cargada}
+                onClick={() => editar(version)}
+                className="min-w-0 flex-1 px-3 py-2 text-left"
+              >
                 <span className="flex items-center gap-2 text-sm font-black">
                   Desde {fecha}
                   {cargada && <span className="rounded-full bg-[#A51F2B] px-2 py-0.5 text-[10px] uppercase text-white">Cargada</span>}
                 </span>
                 <span className="mt-1 block text-xs font-bold leading-5 text-[#4B2818]/70">{resumenVersion(version.configuracion)}</span>
-              </div>
+              </button>
               <button
                 type="button"
                 onClick={() => editar(version)}
