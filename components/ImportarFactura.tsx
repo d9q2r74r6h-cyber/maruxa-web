@@ -109,9 +109,9 @@ function Buscador({ empresaId, tabla, onSelect }: { empresaId: string; tabla: 'p
     }, 300);
     return () => { vigente = false; clearTimeout(timer); };
   }, [texto, empresaId, tabla]);
-  return <div>
+  return <div className="relative">
     <input className={campo} aria-label={tabla === 'productos' ? 'Buscar producto del catálogo' : 'Buscar proveedor por razón social'} placeholder={tabla === 'productos' ? 'Buscar por nombre…' : 'Buscar proveedor por razón social…'} value={texto} onChange={e => setTexto(e.target.value)} />
-    {buscando && <p className="text-xs">Buscando…</p>}
+    {buscando && <p role="status" aria-live="polite" className="absolute bottom-full right-0 mb-1 text-xs font-bold text-[#5F4030]">Buscando…</p>}
     {error && <p role="alert">{error}</p>}
     <div className="max-h-48 overflow-auto">{opciones.map(o => <button key={o.id} type="button" className="block w-full border-b bg-white p-2 text-left text-sm hover:bg-amber-50" onClick={() => { onSelect(o); setTexto(''); setOpciones([]); }}>{o.nombre || o.razon_social} · {o.unidad_base || o.rut || o.codigo || ''}</button>)}</div>
   </div>;
