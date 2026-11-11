@@ -22,6 +22,8 @@ type Producto = {
   familia_id: string | null;
   unidad_base: string | null;
   undxcaja?: number | null;
+  contenido_por_unidad?: number | null;
+  unidad_contenido?: string | null;
   stock_actual: number | null;
   costo_unitario: number | null;
   precio: number | null;
@@ -89,6 +91,10 @@ type ItemCompra = {
   es_materia_prima_nueva?: boolean;
   unidad_base_nueva?: string;
   unidad_base_catalogo?: string;
+  contenido_por_unidad_nuevo?: string;
+  unidad_contenido_nueva?: string;
+  contenido_por_unidad_catalogo?: string;
+  unidad_contenido_catalogo?: string;
   codigo_proveedor?: string;
   unidad_compra?: UnidadCompra;
 };
@@ -105,6 +111,8 @@ type ProductoEdicion = {
   familia_id: string;
   unidad_base: string;
   undxcaja: string;
+  contenido_por_unidad: string;
+  unidad_contenido: string;
   costo_unitario: string;
   stock_actual: string;
   controla_stock: boolean;
@@ -360,6 +368,8 @@ export default function AdminComprasPage() {
     familia_id: '',
     unidad_base: 'KG',
     undxcaja: '',
+    contenido_por_unidad: '',
+    unidad_contenido: 'GR',
     costo_unitario: '',
     stock_actual: '',
     controla_stock: true,
@@ -374,6 +384,8 @@ export default function AdminComprasPage() {
     familia_id: '',
     unidad_base: 'KG',
     undxcaja: '',
+    contenido_por_unidad: '',
+    unidad_contenido: 'GR',
     costo_unitario: '',
     stock_actual: '',
     controla_stock: true,
@@ -520,6 +532,8 @@ export default function AdminComprasPage() {
         familia_id,
         unidad_base,
         undxcaja,
+        contenido_por_unidad,
+        unidad_contenido,
         stock_actual,
         costo_unitario,
         precio,
@@ -912,6 +926,8 @@ export default function AdminComprasPage() {
           familia_id,
           unidad_base,
           undxcaja,
+          contenido_por_unidad,
+          unidad_contenido,
           stock_actual,
           costo_unitario,
           controla_stock
@@ -1253,6 +1269,8 @@ export default function AdminComprasPage() {
       familia_id: producto.familia_id || '',
       unidad_base: producto.unidad_base || 'KG',
       undxcaja: String(producto.undxcaja || ''),
+      contenido_por_unidad: String(producto.contenido_por_unidad || ''),
+      unidad_contenido: producto.unidad_contenido || 'GR',
       costo_unitario: String(producto.costo_unitario || ''),
       stock_actual: String(producto.stock_actual || ''),
       controla_stock: producto.controla_stock ?? true,
@@ -1268,6 +1286,8 @@ export default function AdminComprasPage() {
       familia_id: '',
       unidad_base: 'KG',
       undxcaja: '',
+      contenido_por_unidad: '',
+      unidad_contenido: 'GR',
       costo_unitario: '',
       stock_actual: '',
       controla_stock: true,
@@ -1304,6 +1324,8 @@ export default function AdminComprasPage() {
       tipo_producto: productoEditando.tipo_producto,
       familia_id: productoEditando.familia_id || null,
       unidad_base: productoEditando.unidad_base,
+      contenido_por_unidad: numero(productoEditando.contenido_por_unidad) || null,
+      unidad_contenido: productoEditando.unidad_contenido || null,
       costo_unitario: numero(productoEditando.costo_unitario),
       stock_actual: numero(productoEditando.stock_actual),
       controla_stock: productoEditando.controla_stock,
@@ -1918,6 +1940,8 @@ export default function AdminComprasPage() {
       familia_id: '',
       unidad_base: 'KG',
       undxcaja: '',
+      contenido_por_unidad: '',
+      unidad_contenido: 'GR',
       costo_unitario: '',
       stock_actual: '',
       controla_stock: true,
@@ -2194,6 +2218,8 @@ export default function AdminComprasPage() {
     const materiaPrimaNuevaPorLinea = new Map(nuevos.map(item => [item.indice, Boolean(item.es_materia_prima)]));
     const unidadBaseNuevaPorLinea = new Map(nuevos.map(item => [item.indice, item.unidad_base]));
     const unidadesCajaNuevaPorLinea = new Map(nuevos.map(item => [item.indice, item.undxcaja]));
+    const contenidoNuevoPorLinea = new Map(nuevos.map(item => [item.indice, item.contenido_por_unidad]));
+    const unidadContenidoNuevaPorLinea = new Map(nuevos.map(item => [item.indice, item.unidad_contenido]));
     const compraPorCajaPorLinea = new Map(presentaciones.map(item => [item.indice, item.compra_por_caja]));
     const nuevosItems: ItemCompra[] = factura.lineas.map((linea, indiceLinea) => {
       // La asociación viene del revisor de factura. Como respaldo se consulta el
@@ -2205,6 +2231,8 @@ export default function AdminComprasPage() {
       const esMateriaPrimaNueva = Boolean(materiaPrimaNuevaPorLinea.get(indiceLinea));
       const unidadBaseNueva = unidadBaseNuevaPorLinea.get(indiceLinea) || 'UN';
       const unidadesCajaNueva = Number(unidadesCajaNuevaPorLinea.get(indiceLinea));
+      const contenidoNuevo = Number(contenidoNuevoPorLinea.get(indiceLinea));
+      const unidadContenidoNueva = unidadContenidoNuevaPorLinea.get(indiceLinea);
       const compraPorCaja = Boolean(compraPorCajaPorLinea.get(indiceLinea));
       const codigoProveedor = linea.codigo.trim().toLocaleUpperCase('es-CL').replace(/[^\p{L}\p{N}]/gu, '');
       if (!producto && !tipoProductoNuevo) throw new Error('Falta asociar un producto o definir el tipo de uno nuevo.');
@@ -2222,6 +2250,8 @@ export default function AdminComprasPage() {
           es_materia_prima_nueva: esMateriaPrimaNueva,
           unidad_base_nueva: unidadBaseNueva,
           undxcaja: Number.isInteger(unidadesCajaNueva) && unidadesCajaNueva > 1 ? String(unidadesCajaNueva) : '',
+          contenido_por_unidad_nuevo: Number.isFinite(contenidoNuevo) && contenidoNuevo > 0 ? String(contenidoNuevo) : '',
+          unidad_contenido_nueva: unidadContenidoNueva || '',
           unidad_compra: compraPorCaja && unidadesCajaNueva > 1 ? 'caja' : 'unidad',
           codigo_proveedor: codigoProveedor || undefined,
         };
@@ -2234,6 +2264,8 @@ export default function AdminComprasPage() {
         margen_porcentaje: String(margen || ''), tipo_margen: tipoMargen,
         unidad_base_catalogo: producto.unidad_base || 'UN',
         undxcaja: producto.undxcaja ? String(producto.undxcaja) : '',
+        contenido_por_unidad_catalogo: producto.contenido_por_unidad ? String(producto.contenido_por_unidad) : '',
+        unidad_contenido_catalogo: producto.unidad_contenido || '',
         unidad_compra: compraPorCaja && Number(producto.undxcaja) > 1 ? 'caja' : 'unidad',
         codigo_proveedor: codigoProveedor || undefined,
       };
@@ -2370,6 +2402,8 @@ export default function AdminComprasPage() {
             es_materia_prima: tipoProducto === 'ingrediente' || Boolean(itemNuevo.es_materia_prima_nueva),
             familia_id: familiaId,
             unidad_base: itemNuevo.unidad_base_nueva || 'UN',
+            contenido_por_unidad: numero(itemNuevo.contenido_por_unidad_nuevo) || null,
+            unidad_contenido: itemNuevo.unidad_contenido_nueva || null,
             costo_unitario: costoNeto,
             iva_porcentaje: Number(empresa.iva_porcentaje ?? 19),
             impuesto_adicional_porcentaje: 0,
@@ -2384,7 +2418,7 @@ export default function AdminComprasPage() {
               : itemNuevo.tipo_margen,
           })
           .select(`
-            id,codigo,nombre,tipo_producto,familia_id,unidad_base,undxcaja,stock_actual,
+            id,codigo,nombre,tipo_producto,familia_id,unidad_base,undxcaja,contenido_por_unidad,unidad_contenido,stock_actual,
             costo_unitario,precio,proveedor_id,controla_stock,
             usar_configuracion_familia,margen_personalizado,tipo_margen_personalizado
           `)
@@ -2625,6 +2659,12 @@ export default function AdminComprasPage() {
           costo_unitario: costoCompra,
           precio: precioVenta || numero(producto.precio),
           unidad_base: itemIngresado?.unidad_base_catalogo || producto.unidad_base || 'UN',
+          contenido_por_unidad:
+            itemIngresado?.contenido_por_unidad_catalogo !== undefined
+              ? numero(itemIngresado.contenido_por_unidad_catalogo) || null
+              : producto.contenido_por_unidad || null,
+          unidad_contenido:
+            itemIngresado?.unidad_contenido_catalogo || producto.unidad_contenido || null,
           undxcaja:
             itemIngresado?.undxcaja !== undefined
               ? numero(itemIngresado.undxcaja) || null
@@ -3046,6 +3086,8 @@ export default function AdminComprasPage() {
                                     familia_id: '',
                                     unidad_base: 'KG',
                                     undxcaja: '',
+                                    contenido_por_unidad: '',
+                                    unidad_contenido: 'GR',
                                     costo_unitario: '',
                                     stock_actual: '',
                                     controla_stock: true,

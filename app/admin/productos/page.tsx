@@ -36,6 +36,8 @@ type Producto = {
   es_materia_prima?: boolean | null;
   unidad_base: string | null;
   undxcaja: number | null;
+  contenido_por_unidad: number | null;
+  unidad_contenido: string | null;
   costo_unitario: number | null;
   iva_porcentaje: number | null;
   impuesto_adicional_porcentaje: number | null;
@@ -83,6 +85,8 @@ const formInicial = {
   es_materia_prima: false,
   unidad_base: 'KG',
   undxcaja: '',
+  contenido_por_unidad: '',
+  unidad_contenido: 'GR',
   costo_unitario: '',
   iva_porcentaje: '19',
   impuesto_adicional_porcentaje: '',
@@ -202,6 +206,8 @@ export default function AdminProductosPage() {
     .filter((tipo) => tipo.activo || tipo.codigo === form.tipo_producto);
   const unidadesBaseConfiguradas = configuracionPorGrupo(configuracionesProducto, 'unidad')
     .filter((unidad) => unidad.activo || unidad.codigo === form.unidad_base);
+  const unidadesContenidoConfiguradas = unidadesBaseConfiguradas
+    .filter((unidad) => ['GR', 'KG', 'ML', 'LT', 'CC'].includes(unidad.codigo));
   const familiaFormSeleccionada = familias.find(
     (familia) => familia.id === form.familia_id
   );
@@ -431,6 +437,8 @@ export default function AdminProductosPage() {
         producto.es_materia_prima ?? tipoProducto === 'ingrediente',
       unidad_base: producto.unidad_base || 'KG',
       undxcaja: String(producto.undxcaja || ''),
+      contenido_por_unidad: String(producto.contenido_por_unidad || ''),
+      unidad_contenido: producto.unidad_contenido || 'GR',
       costo_unitario: producto.costo_unitario
         ? String(Number(Number(producto.costo_unitario).toFixed(4)))
         : '',
@@ -582,6 +590,8 @@ export default function AdminProductosPage() {
       tipo_producto: form.tipo_producto,
       es_materia_prima: esMateriaPrima,
       unidad_base: form.unidad_base,
+      contenido_por_unidad: Number(form.contenido_por_unidad || 0) || null,
+      unidad_contenido: form.contenido_por_unidad ? form.unidad_contenido : null,
       costo_unitario: Number(form.costo_unitario || 0),
       iva_porcentaje: ivaEmpresa,
       impuesto_adicional_id: impuestoSeleccionado?.id || null,
@@ -1035,6 +1045,52 @@ export default function AdminProductosPage() {
                   />
                   <span className="block text-xs font-semibold text-maruxa-cafe/60">
                     Cantidad contenida en la caja, separada del nombre comercial.
+                  </span>
+                </label>
+
+                <label className="space-y-2">
+                  <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
+                    Contenido por unidad
+                  </span>
+                  <input
+                    placeholder="Ej: 1"
+                    type="number"
+                    min="0.001"
+                    step="any"
+                    value={form.contenido_por_unidad}
+                    disabled={esManoObra}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        contenido_por_unidad: e.target.value,
+                      })
+                    }
+                    className="h-14 w-full rounded-2xl border border-maruxa-rojo/10 px-5 font-bold outline-none disabled:bg-gray-100 disabled:text-gray-400"
+                  />
+                  <span className="block text-xs font-semibold text-maruxa-cafe/60">
+                    Ej.: 1 para una leche de 1 LT; 155 para un yoghurt de 155 GR.
+                  </span>
+                </label>
+
+                <label className="space-y-2">
+                  <span className="block text-xs font-black uppercase tracking-wide text-maruxa-cafe/60">
+                    Unidad del contenido
+                  </span>
+                  <select
+                    value={form.unidad_contenido}
+                    disabled={esManoObra || !form.contenido_por_unidad}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        unidad_contenido: e.target.value,
+                      })
+                    }
+                    className="h-14 w-full rounded-2xl border border-maruxa-rojo/10 px-5 font-bold outline-none disabled:bg-gray-100 disabled:text-gray-400"
+                  >
+                    {unidadesContenidoConfiguradas.map((unidad) => <option key={unidad.codigo} value={unidad.codigo}>{unidad.nombre}</option>)}
+                  </select>
+                  <span className="block text-xs font-semibold text-maruxa-cafe/60">
+                    Se guarda por separado del nombre y de las unidades por caja.
                   </span>
                 </label>
 
@@ -1535,6 +1591,12 @@ export default function AdminProductosPage() {
                     {producto.undxcaja ? (
                       <p className="mt-0.5 text-xs font-black uppercase tracking-wide text-maruxa-cafe/55">
                         Caja: {producto.undxcaja.toLocaleString('es-CL')} unidades
+                      </p>
+                    ) : null}
+
+                    {producto.contenido_por_unidad && producto.unidad_contenido ? (
+                      <p className="mt-0.5 text-xs font-black uppercase tracking-wide text-maruxa-cafe/55">
+                        Contenido: {Number(producto.contenido_por_unidad).toLocaleString('es-CL')} {producto.unidad_contenido}
                       </p>
                     ) : null}
 
