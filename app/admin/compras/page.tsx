@@ -2215,6 +2215,7 @@ export default function AdminComprasPage() {
     if (guardando || loading) throw new Error('Espera a que termine la operación actual.');
     if (items.length || mostrarCrearProducto) throw new Error('Guarda o quita los productos pendientes del formulario antes de cargar esta factura.');
     const tipoNuevoPorLinea = new Map(nuevos.map(item => [item.indice, item.tipo_producto]));
+    const nombreNuevoPorLinea = new Map(nuevos.map(item => [item.indice, item.nombre?.trim()]));
     const materiaPrimaNuevaPorLinea = new Map(nuevos.map(item => [item.indice, Boolean(item.es_materia_prima)]));
     const unidadBaseNuevaPorLinea = new Map(nuevos.map(item => [item.indice, item.unidad_base]));
     const unidadesCajaNuevaPorLinea = new Map(nuevos.map(item => [item.indice, item.undxcaja]));
@@ -2228,6 +2229,7 @@ export default function AdminComprasPage() {
       const producto = seleccionados.find(p => String(p.id) === String(linea.productoId))
         || productos.find(p => String(p.id) === String(linea.productoId));
       const tipoProductoNuevo = tipoNuevoPorLinea.get(indiceLinea);
+      const nombreProductoNuevo = nombreNuevoPorLinea.get(indiceLinea);
       const esMateriaPrimaNueva = Boolean(materiaPrimaNuevaPorLinea.get(indiceLinea));
       const unidadBaseNueva = unidadBaseNuevaPorLinea.get(indiceLinea) || 'UN';
       const unidadesCajaNueva = Number(unidadesCajaNuevaPorLinea.get(indiceLinea));
@@ -2240,7 +2242,7 @@ export default function AdminComprasPage() {
         return {
           ...itemCompraVacio(),
           producto_id: `nuevo-importado-${indiceLinea}`,
-          busqueda_producto: linea.nombre,
+          busqueda_producto: nombreProductoNuevo || linea.nombre,
           cantidad: String(linea.cantidad),
           costo_unitario: String(linea.montoNeto / linea.cantidad),
           costo_total: String(linea.montoNeto),

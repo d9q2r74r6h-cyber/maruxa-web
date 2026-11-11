@@ -18,6 +18,7 @@ export type ProductoFactura = {
 export type TipoProductoFactura = 'producto' | 'ingrediente' | 'envase';
 export type ProductoNuevoFactura = {
   indice: number;
+  nombre?: string;
   tipo_producto: TipoProductoFactura;
   unidad_base: string;
   undxcaja?: number;
@@ -40,6 +41,7 @@ type LecturaPendiente = {
 };
 type RevisionFacturaPendiente = {
   productos?: Record<string, ProductoFactura>;
+  nombresNuevos?: Record<number, string>;
   tiposProductoNuevo?: Record<number, TipoProductoFactura>;
   materiasPrimasNuevas?: Record<number, boolean>;
   unidadesBaseNuevas?: Record<number, string>;
@@ -109,11 +111,18 @@ async function prepararFotosParaVision(archivos: File[]): Promise<File[]> {
   return fotos;
 }
 
-function Buscador({ empresaId, tabla, onSelect }: { empresaId: string; tabla: 'productos' | 'proveedores'; onSelect: (valor: any) => void }) {
+function Buscador({ empresaId, tabla, onSelect, textoInicial = '', onTextoChange }: {
+  empresaId: string;
+  tabla: 'productos' | 'proveedores';
+  onSelect: (valor: any) => void;
+  textoInicial?: string;
+  onTextoChange?: (texto: string) => void;
+}) {
   const [texto, setTexto] = useState('');
   const [opciones, setOpciones] = useState<any[]>([]);
   const [error, setError] = useState('');
   const [buscando, setBuscando] = useState(false);
+  useEffect(() => { setTexto(textoInicial); }, [textoInicial]);
   useEffect(() => {
     let vigente = true;
     setOpciones([]);
@@ -134,10 +143,10 @@ function Buscador({ empresaId, tabla, onSelect }: { empresaId: string; tabla: 'p
     return () => { vigente = false; clearTimeout(timer); };
   }, [texto, empresaId, tabla]);
   return <div className="relative">
-    <input className={campo} aria-label={tabla === 'productos' ? 'Buscar producto del catálogo' : 'Buscar proveedor por razón social'} placeholder={tabla === 'productos' ? 'Buscar por nombre…' : 'Buscar proveedor por razón social…'} value={texto} onChange={e => setTexto(e.target.value)} />
+    <input className={campo} aria-label={tabla === 'productos' ? 'Buscar producto del catálogo' : 'Buscar proveedor por razón social'} placeholder={tabla === 'productos' ? 'Buscar por nombre…' : 'Buscar proveedor por razón social…'} value={texto} onChange={e => { setTexto(e.target.value); onTextoChange?.(e.target.value); }} />
     {buscando && <p role="status" aria-live="polite" className="absolute bottom-full right-0 mb-1 text-xs font-bold text-[#5F4030]">Buscando…</p>}
     {error && <p role="alert">{error}</p>}
-    <div className="max-h-48 overflow-auto">{opciones.map(o => <button key={o.id} type="button" className="block w-full border-b bg-white p-2 text-left text-sm hover:bg-amber-50" onClick={() => { onSelect(o); setTexto(''); setOpciones([]); }}>{o.nombre || o.razon_social} · {o.unidad_base || o.rut || o.codigo || ''}</button>)}</div>
+    <div className="max-h-48 overflow-auto">{opciones.map(o => <button key={o.id} type="button" className="block w-full border-b bg-white p-2 text-left text-sm hover:bg-amber-50" onClick={() => { onSelect(o); setTexto(''); setOpciones([]); onTextoChange?.(''); }}>{o.nombre || o.razon_social} · {o.unidad_base || o.rut || o.codigo || ''}</button>)}</div>
   </div>;
 }
 
@@ -148,6 +157,7 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
   const [indice, setIndice] = useState(0);
   const [proveedor, setProveedor] = useState<ProveedorFactura | null>(null);
   const [productos, setProductos] = useState<Record<string, ProductoFactura>>({});
+  const [nombresNuevos, setNombresNuevos] = useState<Record<number, string>>({});
   const [tiposProductoNuevo, setTiposProductoNuevo] = useState<Record<number, TipoProductoFactura>>({});
   const [materiasPrimasNuevas, setMateriasPrimasNuevas] = useState<Record<number, boolean>>({});
   const [unidadesBaseNuevas, setUnidadesBaseNuevas] = useState<Record<number, string>>({});
@@ -235,6 +245,7 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
       ...factura,
       revision_importacion: {
         productos,
+        nombresNuevos,
         tiposProductoNuevo,
         materiasPrimasNuevas,
         unidadesBaseNuevas,
@@ -258,7 +269,7 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
     }, 450);
     return () => window.clearTimeout(espera);
   }, [
-    lecturaEnRevision, persistirRevision, factura, productos, tiposProductoNuevo,
+    lecturaEnRevision, persistirRevision, factura, productos, nombresNuevos, tiposProductoNuevo,
     materiasPrimasNuevas, unidadesBaseNuevas, unidadesCajaNuevas,
     contenidosPorUnidadNuevos, unidadesContenidoNuevas, comprasPorCaja,
     asociadosPorCodigo,
@@ -386,7 +397,7 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
     if (documentos.length && !window.confirm('¿Reemplazar la revisión actual con este archivo?')) return;
     const id = ++operacion.current;
     setOcupado(true); setError(''); setMensaje(''); setProgreso('Preparando lectura…');
-    setLecturaEnRevision(''); setPersistirRevision(false); setProveedor(null); setProductos({}); setTiposProductoNuevo({}); setMateriasPrimasNuevas({}); setUnidadesBaseNuevas({}); setUnidadesCajaNuevas({}); setContenidosPorUnidadNuevos({}); setUnidadesContenidoNuevas({}); setComprasPorCaja({}); setAsociadosPorCodigo({}); setRevisado(false);
+    setLecturaEnRevision(''); setPersistirRevision(false); setProveedor(null); setProductos({}); setNombresNuevos({}); setTiposProductoNuevo({}); setMateriasPrimasNuevas({}); setUnidadesBaseNuevas({}); setUnidadesCajaNuevas({}); setContenidosPorUnidadNuevos({}); setUnidadesContenidoNuevas({}); setComprasPorCaja({}); setAsociadosPorCodigo({}); setRevisado(false);
     try {
       if (archivos.length !== 1 || archivos[0].size > 5_000_000) throw new Error('Selecciona un XML de hasta 5 MB.');
       const buffer = await archivos[0].arrayBuffer();
@@ -442,7 +453,7 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
     const datosGuardados = JSON.parse(JSON.stringify(pendiente.datos)) as FacturaLecturaConRevision;
     const { revision_importacion: revision, ...documento } = datosGuardados;
     setPersistirRevision(false); setLecturaEnRevision(pendiente.id);
-    setDocumentos([documento]); setIndice(0); setProveedor(null); setProductos(revision?.productos || {}); setTiposProductoNuevo(revision?.tiposProductoNuevo || {}); setMateriasPrimasNuevas(revision?.materiasPrimasNuevas || {}); setUnidadesBaseNuevas(revision?.unidadesBaseNuevas || {}); setUnidadesCajaNuevas(revision?.unidadesCajaNuevas || {}); setContenidosPorUnidadNuevos(revision?.contenidosPorUnidadNuevos || {}); setUnidadesContenidoNuevas(revision?.unidadesContenidoNuevas || {}); setComprasPorCaja(revision?.comprasPorCaja || {}); setAsociadosPorCodigo(revision?.asociadosPorCodigo || {}); setRevisado(false); setImagenes([]); setError(''); setMensaje('');
+    setDocumentos([documento]); setIndice(0); setProveedor(null); setProductos(revision?.productos || {}); setNombresNuevos(revision?.nombresNuevos || {}); setTiposProductoNuevo(revision?.tiposProductoNuevo || {}); setMateriasPrimasNuevas(revision?.materiasPrimasNuevas || {}); setUnidadesBaseNuevas(revision?.unidadesBaseNuevas || {}); setUnidadesCajaNuevas(revision?.unidadesCajaNuevas || {}); setContenidosPorUnidadNuevos(revision?.contenidosPorUnidadNuevos || {}); setUnidadesContenidoNuevas(revision?.unidadesContenidoNuevas || {}); setComprasPorCaja(revision?.comprasPorCaja || {}); setAsociadosPorCodigo(revision?.asociadosPorCodigo || {}); setRevisado(false); setImagenes([]); setError(''); setMensaje('');
     const { error: fallo } = await supabase.from('lecturas_facturas_pendientes').update({ estado: 'en_revision' }).eq('id', pendiente.id);
     if (!fallo) await cargarBandeja();
     await cargarProductosDeRevision(documento);
@@ -477,6 +488,7 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
         const unidadContenido = unidadesContenidoNuevas[lineaIndice] || contenidoDetectado?.unidad;
         return tipo ? [{
           indice: lineaIndice,
+          nombre: nombresNuevos[lineaIndice]?.trim() || undefined,
           tipo_producto: tipo,
           unidad_base: unidadesBaseNuevas[lineaIndice] || unidadBasePorDefecto,
           undxcaja: Number.isInteger(unidades) && unidades > 1 ? unidades : undefined,
@@ -504,7 +516,7 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
     {abierto && <div className="mt-4 space-y-4">
       <FacturasRecibidas disabled={ocupado || aplicando} onReview={f => {
         if (documentos.length && !window.confirm('¿Reemplazar la revisión actual con la factura recibida?')) return;
-        setLecturaEnRevision(''); setPersistirRevision(false); setDocumentos([f]); setIndice(0); setProveedor(null); setProductos({}); setTiposProductoNuevo({}); setMateriasPrimasNuevas({}); setUnidadesBaseNuevas({}); setUnidadesCajaNuevas({}); setContenidosPorUnidadNuevos({}); setUnidadesContenidoNuevas({}); setComprasPorCaja({}); setAsociadosPorCodigo({}); setRevisado(false); setImagenes([]); setError(''); setMensaje('');
+        setLecturaEnRevision(''); setPersistirRevision(false); setDocumentos([f]); setIndice(0); setProveedor(null); setProductos({}); setNombresNuevos({}); setTiposProductoNuevo({}); setMateriasPrimasNuevas({}); setUnidadesBaseNuevas({}); setUnidadesCajaNuevas({}); setContenidosPorUnidadNuevos({}); setUnidadesContenidoNuevas({}); setComprasPorCaja({}); setAsociadosPorCodigo({}); setRevisado(false); setImagenes([]); setError(''); setMensaje('');
         void seleccionarProveedorAutomatico(f, 0);
       }} />
       <h2 className="text-xl font-bold">Bandeja y revisión de facturas</h2>
@@ -539,7 +551,7 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
       {factura && !ocupado && <fieldset disabled={aplicando} className="space-y-4">
         {documentos.length > 1 && <label>Documento del XML<select className={campo} value={indice} onChange={e => {
           const nuevoIndice = Number(e.target.value);
-          setIndice(nuevoIndice); setProveedor(null); setProductos({}); setTiposProductoNuevo({}); setMateriasPrimasNuevas({}); setUnidadesBaseNuevas({}); setUnidadesCajaNuevas({}); setContenidosPorUnidadNuevos({}); setUnidadesContenidoNuevas({}); setComprasPorCaja({}); setAsociadosPorCodigo({}); setRevisado(false); setMensaje('');
+          setIndice(nuevoIndice); setProveedor(null); setProductos({}); setNombresNuevos({}); setTiposProductoNuevo({}); setMateriasPrimasNuevas({}); setUnidadesBaseNuevas({}); setUnidadesCajaNuevas({}); setContenidosPorUnidadNuevos({}); setUnidadesContenidoNuevas({}); setComprasPorCaja({}); setAsociadosPorCodigo({}); setRevisado(false); setMensaje('');
           void seleccionarProveedorAutomatico(documentos[nuevoIndice], nuevoIndice);
         }}>{documentos.map((f, i) => <option key={i} value={i}>{f.proveedor} · Folio {f.folio} · {pesos(f.total)}</option>)}</select></label>}
         {factura.avisos.map((a, i) => <p key={i} className="rounded-lg bg-amber-50 p-3 text-sm">{a}</p>)}
@@ -591,6 +603,7 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
           const sugerenciaContenido = sugerirContenidoPorUnidad(l.nombre);
           const contenidoNuevo = contenidosPorUnidadNuevos[i] ?? (sugerenciaContenido ? String(sugerenciaContenido.cantidad) : '');
           const unidadContenidoNueva = unidadesContenidoNuevas[i] || sugerenciaContenido?.unidad || unidadesContenidoConfiguradas[0]?.codigo || 'GR';
+          const nombreNuevo = nombresNuevos[i] || '';
           return <div key={i} className="grid gap-3 rounded-xl border p-3 md:grid-cols-[minmax(220px,1fr)_minmax(260px,1.4fr)]">
             <div>
               <p className="font-black text-[#2A1710]">{l.nombre || `Línea ${i + 1}`}</p>
@@ -600,7 +613,16 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
             <div>
               <p className="text-sm font-bold">{productoAsociado ? `✓ ${productoAsociado.nombre}` : 'Buscar producto del catálogo'}</p>
               {asociadosPorCodigo[`${indice}:${i}`] && <p className="mt-1 text-xs font-bold text-emerald-700">Asociado automáticamente por código de proveedor.</p>}
-              <Buscador tabla="productos" empresaId={empresa?.id || ''} onSelect={(p: ProductoFactura) => {
+              <Buscador tabla="productos" empresaId={empresa?.id || ''} textoInicial={nombreNuevo} onTextoChange={texto => {
+                const nombre = texto.trim();
+                setNombresNuevos(actual => nombre ? { ...actual, [i]: texto } : Object.fromEntries(Object.entries(actual).filter(([clave]) => Number(clave) !== i)) as Record<number, string>);
+                if (productoAsociado && nombre) {
+                  linea(i, { productoId: '' });
+                  setAsociadosPorCodigo(actual => Object.fromEntries(Object.entries(actual).filter(([clave]) => clave !== `${indice}:${i}`)) as Record<string, boolean>);
+                  setComprasPorCaja(actual => Object.fromEntries(Object.entries(actual).filter(([clave]) => Number(clave) !== i)) as Record<number, boolean>);
+                }
+                setRevisado(false);
+              }} onSelect={(p: ProductoFactura) => {
                 const unidadesDetectadas = sugerirUnidadesPorCaja(l.nombre);
                 const contenidoDetectado = sugerirContenidoPorUnidad(l.nombre);
                 const productoConPresentacion = {
@@ -612,6 +634,7 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
                   } : {}),
                 };
                 setProductos(actual => ({ ...actual, [p.id]: productoConPresentacion }));
+                setNombresNuevos(actual => Object.fromEntries(Object.entries(actual).filter(([clave]) => Number(clave) !== i)) as Record<number, string>);
                 setTiposProductoNuevo(actual => { const siguiente = { ...actual }; delete siguiente[i]; return siguiente; });
                 setMateriasPrimasNuevas(actual => { const siguiente = { ...actual }; delete siguiente[i]; return siguiente; });
                 setUnidadesBaseNuevas(actual => { const siguiente = { ...actual }; delete siguiente[i]; return siguiente; });
@@ -621,6 +644,7 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
                 setComprasPorCaja(actual => { const siguiente = { ...actual }; delete siguiente[i]; return siguiente; });
                 linea(i, { productoId: String(p.id) });
               }} />
+              {!productoAsociado && nombreNuevo.trim() && <p className="mt-1 text-xs font-bold text-[#5F4030]">Se creará con el nombre: {nombreNuevo.trim()}</p>}
               {productoAsociado && <label className="mt-3 block text-sm font-bold">Unidad base del producto
                 <select className={campo} aria-label={`Unidad base para ${productoAsociado.nombre}`} value={productoAsociado.unidad_base || unidadBasePorDefecto} onChange={e => {
                   setProductos(actual => ({ ...actual, [productoAsociado.id]: { ...productoAsociado, unidad_base: e.target.value } }));
