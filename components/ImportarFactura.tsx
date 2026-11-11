@@ -576,6 +576,16 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
                   }} />
                   <span className="mt-1 block text-xs font-normal text-[#5F4030]">{sugerenciaCaja ? `Detectado: ${sugerenciaCaja} por caja. No multiplica las ${l.cantidad} unidades facturadas.` : 'Indícalo sólo si el producto se compra o vende por caja.'}</span>
                 </label>
+                {Number(unidadesCajaNueva) > 1 && <label className="block text-sm font-bold">La factura cobra
+                  <select className={campo} aria-label={`Presentación de compra para ${l.nombre || `línea ${i + 1}`}`} value={comprasPorCaja[i] ? 'caja' : 'unidad'} onChange={e => {
+                    setComprasPorCaja(actual => ({ ...actual, [i]: e.target.value === 'caja' }));
+                    setRevisado(false);
+                  }}>
+                    <option value="unidad">Por unidad</option>
+                    <option value="caja">Por caja de {Number(unidadesCajaNueva).toLocaleString('es-CL')} unidades</option>
+                  </select>
+                  <span className="mt-1 block text-xs font-normal text-[#5F4030]">Al elegir caja, {l.cantidad.toLocaleString('es-CL')} {l.cantidad === 1 ? 'caja facturada se convertirá' : 'cajas facturadas se convertirán'} en {(l.cantidad * Number(unidadesCajaNueva)).toLocaleString('es-CL')} unidades de inventario.</span>
+                </label>}
               </div>}
             </div>
             <details className="md:col-span-2"><summary className="cursor-pointer text-xs font-bold text-[#5F4030]">Corregir esta línea</summary><div className="mt-2 grid gap-3 md:grid-cols-3">
