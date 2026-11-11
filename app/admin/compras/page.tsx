@@ -88,6 +88,7 @@ type ItemCompra = {
   tipo_producto_nuevo?: TipoProductoCompra;
   es_materia_prima_nueva?: boolean;
   unidad_base_nueva?: string;
+  unidad_base_catalogo?: string;
   codigo_proveedor?: string;
   unidad_compra?: UnidadCompra;
 };
@@ -2221,6 +2222,7 @@ export default function AdminComprasPage() {
         costo_unitario: String(linea.montoNeto / linea.cantidad), costo_total: String(linea.montoNeto),
         margen_porcentaje: String(margen || ''), tipo_margen: tipoMargen,
         precio_venta: String(producto.precio || ''),
+        unidad_base_catalogo: producto.unidad_base || 'UN',
         undxcaja: producto.undxcaja ? String(producto.undxcaja) : '',
         unidad_compra: compraPorCaja && Number(producto.undxcaja) > 1 ? 'caja' : 'unidad',
         codigo_proveedor: codigoProveedor || undefined,
@@ -2593,6 +2595,7 @@ export default function AdminComprasPage() {
           stock_actual: stockAnterior + cantidad,
           costo_unitario: costoCompra,
           precio: precioVenta || numero(producto.precio),
+          unidad_base: itemIngresado?.unidad_base_catalogo || producto.unidad_base || 'UN',
           undxcaja:
             itemIngresado?.undxcaja !== undefined
               ? numero(itemIngresado.undxcaja) || null

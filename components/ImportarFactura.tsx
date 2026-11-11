@@ -506,6 +506,15 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
                 setComprasPorCaja(actual => { const siguiente = { ...actual }; delete siguiente[i]; return siguiente; });
                 linea(i, { productoId: String(p.id) });
               }} />
+              {productoAsociado && <label className="mt-3 block text-sm font-bold">Unidad base del producto
+                <select className={campo} aria-label={`Unidad base para ${productoAsociado.nombre}`} value={productoAsociado.unidad_base || unidadBasePorDefecto} onChange={e => {
+                  setProductos(actual => ({ ...actual, [productoAsociado.id]: { ...productoAsociado, unidad_base: e.target.value } }));
+                  setRevisado(false);
+                }}>
+                  {unidadesConfiguradas.map(unidad => <option key={unidad.codigo} value={unidad.codigo}>{unidad.nombre}</option>)}
+                </select>
+                <span className="mt-1 block text-xs font-normal text-[#5F4030]">Define cómo se registra el stock y costo de este producto. Se actualizará al registrar la factura.</span>
+              </label>}
               {productoAsociado && unidadesPorCaja > 1 && <label className="mt-3 block text-sm font-bold">La factura cobra
                 <select className={campo} aria-label={`Presentación de compra para ${l.nombre || `línea ${i + 1}`}`} value={comprasPorCaja[i] ? 'caja' : 'unidad'} onChange={e => {
                   setComprasPorCaja(actual => ({ ...actual, [i]: e.target.value === 'caja' }));
