@@ -33,6 +33,11 @@ const base: Config = {
 const hoy = new Date().toISOString().slice(0, 10);
 const pesos = (n: number) => (n ? `$${Math.round(n).toLocaleString('es-CL')}` : '');
 const leer = (s: string) => Number(s.replace(/\D/g, '')) || 0;
+const resumenVersion = (configuracion: Config) => {
+  const normal = configuracion.normal.casa;
+  const festivo = configuracion.festivo.casa;
+  return `Casa normal: B ${pesos(normal.batea)} · C ${pesos(normal.cocedor)} · O ${pesos(normal.oficial)} | Festivo: B ${pesos(festivo.batea)} · C ${pesos(festivo.cocedor)} · O ${pesos(festivo.oficial)}`;
+};
 
 export default function RemuneracionesPanaderos() {
   const { perfil } = useAdminSession();
@@ -40,6 +45,7 @@ export default function RemuneracionesPanaderos() {
   const [versiones, setVersiones] = useState<Version[]>([]);
   const [vigente, setVigente] = useState(hoy);
   const [config, setConfig] = useState<Config>(base);
+  const [vigenciaCargadaId, setVigenciaCargadaId] = useState('');
   const [guardando, setGuardando] = useState(false);
 
   async function cargar() {
@@ -60,8 +66,16 @@ export default function RemuneracionesPanaderos() {
         .order('vigente_desde', { ascending: false }),
     ]);
 
+    const versionesCargadas = (historial || []) as Version[];
+    const ultimaVersion = versionesCargadas[0];
+
     setCargoIdTecnico(cargos?.[0]?.id || '');
-    setVersiones((historial || []) as Version[]);
+    setVersiones(versionesCargadas);
+    if (ultimaVersion) {
+      setVigente(ultimaVersion.vigente_desde);
+      setConfig(ultimaVersion.configuracion);
+      setVigenciaCargadaId(ultimaVersion.id);
+    }
   }
 
   useEffect(() => {
@@ -153,7 +167,7 @@ export default function RemuneracionesPanaderos() {
       <section className="rounded-xl border bg-white p-4">
         <label className="grid max-w-md gap-1 text-xs font-black uppercase">
           Vigente desde
-          <input type="date" value={vigente} onChange={(e) => setVigente(e.target.value)} className="h-11 rounded-md border px-3 text-sm font-bold" />
+          <input type="date" value={vigente} onChange={(e) => { setVigente(e.target.value); setVigenciaCargadaId(''); }} className="h-11 rounded-md border px-3 text-sm font-bold" />
         </label>
       </section>
 
@@ -213,16 +227,24 @@ export default function RemuneracionesPanaderos() {
 
       <section className="no-print rounded-xl border bg-white p-4">
         <h2 className="font-black">Historial de vigencias</h2>
+        <p className="mt-1 text-xs font-bold text-[#4B2818]/65">Cada tarjeta carga la tabla completa guardada en esa fecha. La seleccionada queda marcada para que puedas comprobar el cambio antes de editar o guardar.</p>
         <div className="mt-3 flex flex-wrap gap-2">
-          {versiones.map((version) => (
-            <button
+          {versiones.map((version) => {
+            const cargada = version.id === vigenciaCargadaId;
+            return <button
               key={version.id}
-              onClick={() => { setVigente(version.vigente_desde); setConfig(version.configuracion); }}
-              className="rounded-lg border bg-[#FFF9EF] px-4 py-2 text-sm font-black"
+              type="button"
+              aria-pressed={cargada}
+              onClick={() => { setVigente(version.vigente_desde); setConfig(version.configuracion); setVigenciaCargadaId(version.id); }}
+              className={`max-w-full rounded-lg border px-4 py-3 text-left transition ${cargada ? 'border-[#A51F2B] bg-[#FFF0F2] ring-2 ring-[#A51F2B]/20' : 'bg-[#FFF9EF] hover:border-[#A51F2B]/50'}`}
             >
-              Desde {new Date(`${version.vigente_desde}T12:00:00`).toLocaleDateString('es-CL')}
-            </button>
-          ))}
+              <span className="flex items-center gap-2 text-sm font-black">
+                Desde {new Date(`${version.vigente_desde}T12:00:00`).toLocaleDateString('es-CL')}
+                {cargada && <span className="rounded-full bg-[#A51F2B] px-2 py-0.5 text-[10px] uppercase text-white">Cargada</span>}
+              </span>
+              <span className="mt-1 block text-xs font-bold leading-5 text-[#4B2818]/70">{resumenVersion(version.configuracion)}</span>
+            </button>;
+          })}
         </div>
       </section>
     </div>
