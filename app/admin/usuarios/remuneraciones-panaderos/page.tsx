@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Printer, Save } from 'lucide-react';
+import { ArrowLeft, Pencil, Printer, Save, Trash2 } from 'lucide-react';
 import { useAdminSession } from '@/components/AdminSession';
 import { supabase } from '@/lib/supabase';
 
@@ -47,6 +47,7 @@ export default function RemuneracionesPanaderos() {
   const [config, setConfig] = useState<Config>(base);
   const [vigenciaCargadaId, setVigenciaCargadaId] = useState('');
   const [guardando, setGuardando] = useState(false);
+  const [eliminandoId, setEliminandoId] = useState('');
 
   async function cargar() {
     if (!perfil) return;
@@ -114,6 +115,36 @@ export default function RemuneracionesPanaderos() {
     if (error) return alert(error.message);
     alert('Tabla especial guardada.');
     await cargar();
+  }
+
+  async function eliminar(version: Version) {
+    if (!perfil) return;
+    if (versiones.length <= 1) {
+      alert('Debe mantenerse al menos una vigencia para calcular los pagos de Caja.');
+      return;
+    }
+
+    const fecha = new Date(`${version.vigente_desde}T12:00:00`).toLocaleDateString('es-CL');
+    if (!window.confirm(`¿Eliminar la vigencia desde ${fecha}?\n\nLos días de Caja que dependían de ella usarán la vigencia anterior al volver a calcularse. Esta acción no elimina cierres ya guardados.`)) return;
+
+    setEliminandoId(version.id);
+    const { error } = await supabase
+      .from('cargo_remuneraciones_especiales')
+      .delete()
+      .eq('id', version.id)
+      .eq('empresa_id', perfil.empresa_id);
+    setEliminandoId('');
+
+    if (error) return alert(error.message);
+    alert(`Vigencia desde ${fecha} eliminada.`);
+    await cargar();
+  }
+
+  function editar(version: Version) {
+    setVigente(version.vigente_desde);
+    setConfig(version.configuracion);
+    setVigenciaCargadaId(version.id);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   return (
@@ -218,7 +249,7 @@ export default function RemuneracionesPanaderos() {
 
       <div className="no-print flex flex-wrap gap-2">
         <button disabled={guardando} onClick={() => void guardar()} className="inline-flex h-11 items-center gap-2 rounded-md bg-[#A51F2B] px-6 font-black text-white disabled:opacity-60">
-          <Save className="h-4 w-4" /> {guardando ? 'Guardando…' : 'Guardar nueva vigencia'}
+          <Save className="h-4 w-4" /> {guardando ? 'Guardando…' : vigenciaCargadaId ? 'Actualizar vigencia' : 'Guardar nueva vigencia'}
         </button>
         <button type="button" onClick={() => window.print()} className="inline-flex h-11 items-center gap-2 rounded-md border-2 border-[#2A1710] bg-white px-6 font-black text-[#2A1710]">
           <Printer className="h-4 w-4" /> Imprimir
@@ -227,23 +258,42 @@ export default function RemuneracionesPanaderos() {
 
       <section className="no-print rounded-xl border bg-white p-4">
         <h2 className="font-black">Historial de vigencias</h2>
-        <p className="mt-1 text-xs font-bold text-[#4B2818]/65">Cada tarjeta carga la tabla completa guardada en esa fecha. La seleccionada queda marcada para que puedas comprobar el cambio antes de editar o guardar.</p>
+        <p className="mt-1 text-xs font-bold text-[#4B2818]/65">Usa el lápiz para cargar y modificar una tabla; al guardar la misma fecha se actualiza esa vigencia. El basurero elimina la versión tras pedir confirmación.</p>
         <div className="mt-3 flex flex-wrap gap-2">
           {versiones.map((version) => {
             const cargada = version.id === vigenciaCargadaId;
-            return <button
+            const fecha = new Date(`${version.vigente_desde}T12:00:00`).toLocaleDateString('es-CL');
+            return <div
               key={version.id}
-              type="button"
-              aria-pressed={cargada}
-              onClick={() => { setVigente(version.vigente_desde); setConfig(version.configuracion); setVigenciaCargadaId(version.id); }}
-              className={`max-w-full rounded-lg border px-4 py-3 text-left transition ${cargada ? 'border-[#A51F2B] bg-[#FFF0F2] ring-2 ring-[#A51F2B]/20' : 'bg-[#FFF9EF] hover:border-[#A51F2B]/50'}`}
+              className={`flex max-w-full items-start gap-2 rounded-lg border p-1 transition ${cargada ? 'border-[#A51F2B] bg-[#FFF0F2] ring-2 ring-[#A51F2B]/20' : 'bg-[#FFF9EF] hover:border-[#A51F2B]/50'}`}
             >
-              <span className="flex items-center gap-2 text-sm font-black">
-                Desde {new Date(`${version.vigente_desde}T12:00:00`).toLocaleDateString('es-CL')}
-                {cargada && <span className="rounded-full bg-[#A51F2B] px-2 py-0.5 text-[10px] uppercase text-white">Cargada</span>}
-              </span>
-              <span className="mt-1 block text-xs font-bold leading-5 text-[#4B2818]/70">{resumenVersion(version.configuracion)}</span>
-            </button>;
+              <div className="min-w-0 flex-1 px-3 py-2">
+                <span className="flex items-center gap-2 text-sm font-black">
+                  Desde {fecha}
+                  {cargada && <span className="rounded-full bg-[#A51F2B] px-2 py-0.5 text-[10px] uppercase text-white">Cargada</span>}
+                </span>
+                <span className="mt-1 block text-xs font-bold leading-5 text-[#4B2818]/70">{resumenVersion(version.configuracion)}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => editar(version)}
+                title={`Editar vigencia desde ${fecha}`}
+                aria-label={`Editar vigencia desde ${fecha}`}
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-[#A51F2B] hover:bg-[#FFF0F2]"
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                disabled={versiones.length <= 1 || Boolean(eliminandoId)}
+                onClick={() => void eliminar(version)}
+                title={versiones.length <= 1 ? 'Debe mantenerse al menos una vigencia' : `Eliminar vigencia desde ${fecha}`}
+                aria-label={`Eliminar vigencia desde ${fecha}`}
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>;
           })}
         </div>
       </section>
