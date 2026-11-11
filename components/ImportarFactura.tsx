@@ -33,10 +33,24 @@ export type CargaFactura = {
 };
 type LecturaPendiente = {
   id: string;
-  datos: FacturaLectura;
+  datos: FacturaLecturaConRevision;
   cantidad_fotos: number;
   estado: 'pendiente' | 'en_revision';
   created_at: string;
+};
+type RevisionFacturaPendiente = {
+  productos?: Record<string, ProductoFactura>;
+  tiposProductoNuevo?: Record<number, TipoProductoFactura>;
+  materiasPrimasNuevas?: Record<number, boolean>;
+  unidadesBaseNuevas?: Record<number, string>;
+  unidadesCajaNuevas?: Record<number, string>;
+  contenidosPorUnidadNuevos?: Record<number, string>;
+  unidadesContenidoNuevas?: Record<number, string>;
+  comprasPorCaja?: Record<number, boolean>;
+  asociadosPorCodigo?: Record<string, boolean>;
+};
+type FacturaLecturaConRevision = FacturaLectura & {
+  revision_importacion?: RevisionFacturaPendiente;
 };
 const campo = 'w-full rounded-lg border border-[#D9C4A7] bg-white p-2 text-sm text-[#2A1710]';
 const boton = 'rounded-xl bg-[#A51F2B] px-4 py-3 font-bold text-white disabled:opacity-50';
@@ -152,6 +166,9 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
   const [imagenes, setImagenes] = useState<string[]>([]);
   const [lecturasPendientes, setLecturasPendientes] = useState<LecturaPendiente[]>([]);
   const [lecturaSeleccionada, setLecturaSeleccionada] = useState('');
+  const [lecturaEnRevision, setLecturaEnRevision] = useState('');
+  const [persistirRevision, setPersistirRevision] = useState(false);
+  const [guardandoRevision, setGuardandoRevision] = useState(false);
   const [cargandoBandeja, setCargandoBandeja] = useState(false);
   const [errorBandeja, setErrorBandeja] = useState('');
   const operacion = useRef(0);
@@ -212,6 +229,40 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
     const intervalo = window.setInterval(() => { void cargarBandeja(); }, 12_000);
     return () => window.clearInterval(intervalo);
   }, [abierto, empresa?.id]);
+  useEffect(() => {
+    if (!lecturaEnRevision || !factura || !persistirRevision) return;
+    const datos: FacturaLecturaConRevision = {
+      ...factura,
+      revision_importacion: {
+        productos,
+        tiposProductoNuevo,
+        materiasPrimasNuevas,
+        unidadesBaseNuevas,
+        unidadesCajaNuevas,
+        contenidosPorUnidadNuevos,
+        unidadesContenidoNuevas,
+        comprasPorCaja,
+        asociadosPorCodigo,
+      },
+    };
+    const espera = window.setTimeout(() => {
+      setGuardandoRevision(true);
+      void supabase
+        .from('lecturas_facturas_pendientes')
+        .update({ datos, estado: 'en_revision' })
+        .eq('id', lecturaEnRevision)
+        .then(({ error: fallo }) => {
+          setGuardandoRevision(false);
+          if (fallo) setErrorBandeja('No se pudo guardar esta revisión. Inténtalo nuevamente antes de cerrarla.');
+        });
+    }, 450);
+    return () => window.clearTimeout(espera);
+  }, [
+    lecturaEnRevision, persistirRevision, factura, productos, tiposProductoNuevo,
+    materiasPrimasNuevas, unidadesBaseNuevas, unidadesCajaNuevas,
+    contenidosPorUnidadNuevos, unidadesContenidoNuevas, comprasPorCaja,
+    asociadosPorCodigo,
+  ]);
   function modificar(cambios: Partial<FacturaLectura>) {
     setDocumentos(actuales => actuales.map((f, i) => i === indice ? { ...f, ...cambios } : f));
     setRevisado(false);
@@ -299,6 +350,20 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
       await asociarProductosPorCodigo(documento, proveedorEncontrado, documentoIndice);
     }
   }
+  async function cargarProductosDeRevision(documento: FacturaLectura) {
+    const empresaActual = empresa || await obtenerEmpresaActual();
+    const ids = [...new Set(documento.lineas.map(linea => Number(linea.productoId)).filter(Number.isFinite))];
+    if (!empresaActual || !ids.length) return;
+    const { data, error: fallo } = await supabase
+      .from('productos')
+      .select('id,nombre,codigo,tipo_producto,familia_id,unidad_base,undxcaja,contenido_por_unidad,unidad_contenido,stock_actual,costo_unitario,precio,proveedor_id,controla_stock,usar_configuracion_familia,margen_personalizado,tipo_margen_personalizado')
+      .eq('empresa_id', empresaActual.id)
+      .eq('activo', true)
+      .in('id', ids);
+    if (fallo || !data?.length) return;
+    const encontrados = Object.fromEntries((data as ProductoFactura[]).map(producto => [String(producto.id), producto]));
+    setProductos(actual => ({ ...encontrados, ...actual }));
+  }
   async function leerFotoConVision(archivos: File[]): Promise<FacturaLectura> {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session?.access_token) throw new Error('Tu sesión venció. Ingresa nuevamente antes de leer la factura.');
@@ -321,7 +386,7 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
     if (documentos.length && !window.confirm('¿Reemplazar la revisión actual con este archivo?')) return;
     const id = ++operacion.current;
     setOcupado(true); setError(''); setMensaje(''); setProgreso('Preparando lectura…');
-    setProveedor(null); setProductos({}); setTiposProductoNuevo({}); setMateriasPrimasNuevas({}); setUnidadesBaseNuevas({}); setUnidadesCajaNuevas({}); setContenidosPorUnidadNuevos({}); setUnidadesContenidoNuevas({}); setComprasPorCaja({}); setAsociadosPorCodigo({}); setRevisado(false);
+    setLecturaEnRevision(''); setPersistirRevision(false); setProveedor(null); setProductos({}); setTiposProductoNuevo({}); setMateriasPrimasNuevas({}); setUnidadesBaseNuevas({}); setUnidadesCajaNuevas({}); setContenidosPorUnidadNuevos({}); setUnidadesContenidoNuevas({}); setComprasPorCaja({}); setAsociadosPorCodigo({}); setRevisado(false);
     try {
       if (archivos.length !== 1 || archivos[0].size > 5_000_000) throw new Error('Selecciona un XML de hasta 5 MB.');
       const buffer = await archivos[0].arrayBuffer();
@@ -374,11 +439,15 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
     const pendiente = lecturasPendientes.find(item => item.id === lecturaSeleccionada);
     if (!pendiente) { setErrorBandeja('Selecciona una lectura de la bandeja.'); return; }
     if (documentos.length && !window.confirm('¿Reemplazar la revisión actual con la lectura seleccionada?')) return;
-    const documento = JSON.parse(JSON.stringify(pendiente.datos)) as FacturaLectura;
-    setDocumentos([documento]); setIndice(0); setProveedor(null); setProductos({}); setTiposProductoNuevo({}); setMateriasPrimasNuevas({}); setUnidadesBaseNuevas({}); setUnidadesCajaNuevas({}); setContenidosPorUnidadNuevos({}); setUnidadesContenidoNuevas({}); setComprasPorCaja({}); setAsociadosPorCodigo({}); setRevisado(false); setImagenes([]); setError(''); setMensaje('');
+    const datosGuardados = JSON.parse(JSON.stringify(pendiente.datos)) as FacturaLecturaConRevision;
+    const { revision_importacion: revision, ...documento } = datosGuardados;
+    setPersistirRevision(false); setLecturaEnRevision(pendiente.id);
+    setDocumentos([documento]); setIndice(0); setProveedor(null); setProductos(revision?.productos || {}); setTiposProductoNuevo(revision?.tiposProductoNuevo || {}); setMateriasPrimasNuevas(revision?.materiasPrimasNuevas || {}); setUnidadesBaseNuevas(revision?.unidadesBaseNuevas || {}); setUnidadesCajaNuevas(revision?.unidadesCajaNuevas || {}); setContenidosPorUnidadNuevos(revision?.contenidosPorUnidadNuevos || {}); setUnidadesContenidoNuevas(revision?.unidadesContenidoNuevas || {}); setComprasPorCaja(revision?.comprasPorCaja || {}); setAsociadosPorCodigo(revision?.asociadosPorCodigo || {}); setRevisado(false); setImagenes([]); setError(''); setMensaje('');
     const { error: fallo } = await supabase.from('lecturas_facturas_pendientes').update({ estado: 'en_revision' }).eq('id', pendiente.id);
     if (!fallo) await cargarBandeja();
+    await cargarProductosDeRevision(documento);
     await seleccionarProveedorAutomatico(documento, 0);
+    setPersistirRevision(true);
   }
   async function eliminarLecturaPendiente(id: string) {
     const pendiente = lecturasPendientes.find(item => item.id === id);
@@ -435,7 +504,7 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
     {abierto && <div className="mt-4 space-y-4">
       <FacturasRecibidas disabled={ocupado || aplicando} onReview={f => {
         if (documentos.length && !window.confirm('¿Reemplazar la revisión actual con la factura recibida?')) return;
-        setDocumentos([f]); setIndice(0); setProveedor(null); setProductos({}); setTiposProductoNuevo({}); setMateriasPrimasNuevas({}); setUnidadesBaseNuevas({}); setUnidadesCajaNuevas({}); setContenidosPorUnidadNuevos({}); setUnidadesContenidoNuevas({}); setComprasPorCaja({}); setAsociadosPorCodigo({}); setRevisado(false); setImagenes([]); setError(''); setMensaje('');
+        setLecturaEnRevision(''); setPersistirRevision(false); setDocumentos([f]); setIndice(0); setProveedor(null); setProductos({}); setTiposProductoNuevo({}); setMateriasPrimasNuevas({}); setUnidadesBaseNuevas({}); setUnidadesCajaNuevas({}); setContenidosPorUnidadNuevos({}); setUnidadesContenidoNuevas({}); setComprasPorCaja({}); setAsociadosPorCodigo({}); setRevisado(false); setImagenes([]); setError(''); setMensaje('');
         void seleccionarProveedorAutomatico(f, 0);
       }} />
       <h2 className="text-xl font-bold">Bandeja y revisión de facturas</h2>
@@ -504,6 +573,7 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
         </details>
         <h3 className="font-bold">Asociación de productos</h3>
         <p className="text-sm">Se asocia automáticamente por el código del proveedor. Si no existe una equivalencia, busca un producto o define el tipo para crearlo al cargar la factura.</p>
+        {lecturaEnRevision && <p role="status" className="text-xs font-bold text-emerald-700">{guardandoRevision ? 'Guardando revisión…' : 'Esta revisión se guarda automáticamente en la bandeja.'}</p>}
         {factura.lineas.map((l, i) => {
           const productoAsociado = productos[l.productoId];
           const tipoNuevo = tiposProductoNuevo[i];
