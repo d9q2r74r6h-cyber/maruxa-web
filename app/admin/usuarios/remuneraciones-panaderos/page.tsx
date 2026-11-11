@@ -93,12 +93,42 @@ export default function RemuneracionesPanaderos() {
     });
   }
 
+  async function puedeCambiarVigencia(vigenteDesde: string, excluirId: string | undefined, accion: 'crear' | 'actualizar' | 'eliminar') {
+    if (!perfil) return false;
+    const vigenciaPosterior = versiones
+      .filter((version) => version.id !== excluirId && version.vigente_desde > vigenteDesde)
+      .sort((a, b) => a.vigente_desde.localeCompare(b.vigente_desde))[0];
+    let consulta = supabase
+      .from('caja_cierres')
+      .select('fecha')
+      .eq('empresa_id', perfil.empresa_id)
+      .eq('estado', 'cerrada')
+      .gte('fecha', vigenteDesde)
+      .order('fecha')
+      .limit(4);
+    if (vigenciaPosterior) consulta = consulta.lt('fecha', vigenciaPosterior.vigente_desde);
+
+    const { data, error } = await consulta;
+    if (error) {
+      alert(`No se pudo verificar los cierres de Caja: ${error.message}`);
+      return false;
+    }
+    if (!data?.length) return true;
+
+    const desde = new Date(`${vigenteDesde}T12:00:00`).toLocaleDateString('es-CL');
+    const hasta = vigenciaPosterior ? ` hasta ${new Date(`${vigenciaPosterior.vigente_desde}T12:00:00`).toLocaleDateString('es-CL')}` : ' en adelante';
+    const fechas = data.map((cierre) => new Date(`${cierre.fecha}T12:00:00`).toLocaleDateString('es-CL')).join(', ');
+    alert(`No se puede ${accion} la vigencia desde ${desde}.\n\nAfectaría pagos de Caja ya cerrados para el período ${desde}${hasta}. Hay cierres en: ${fechas}.\n\nLos cierres se mantienen protegidos; puedes trabajar con vigencias que solo afecten borradores o fechas aún no cerradas.`);
+    return false;
+  }
+
   async function guardar() {
     if (!perfil) return;
     if (!cargoIdTecnico) {
       alert('Primero debe existir al menos un cargo con remuneración especial de panadero.');
       return;
     }
+    if (!await puedeCambiarVigencia(vigente, vigenciaCargadaId || undefined, vigenciaCargadaId ? 'actualizar' : 'crear')) return;
 
     setGuardando(true);
     const { error } = await supabase.from('cargo_remuneraciones_especiales').upsert(
@@ -123,9 +153,10 @@ export default function RemuneracionesPanaderos() {
       alert('Debe mantenerse al menos una vigencia para calcular los pagos de Caja.');
       return;
     }
+    if (!await puedeCambiarVigencia(version.vigente_desde, version.id, 'eliminar')) return;
 
     const fecha = new Date(`${version.vigente_desde}T12:00:00`).toLocaleDateString('es-CL');
-    if (!window.confirm(`¿Eliminar la vigencia desde ${fecha}?\n\nLos días de Caja que dependían de ella usarán la vigencia anterior al volver a calcularse. Esta acción no elimina cierres ya guardados.`)) return;
+    if (!window.confirm(`¿Eliminar la vigencia desde ${fecha}?\n\nLos borradores de Caja que dependían de ella usarán la vigencia anterior al volver a calcularse. Los cierres ya guardados están protegidos.`)) return;
 
     setEliminandoId(version.id);
     const { error } = await supabase
@@ -258,7 +289,7 @@ export default function RemuneracionesPanaderos() {
 
       <section className="no-print rounded-xl border bg-white p-4">
         <h2 className="font-black">Historial de vigencias</h2>
-        <p className="mt-1 text-xs font-bold text-[#4B2818]/65">Usa el lápiz para cargar y modificar una tabla; al guardar la misma fecha se actualiza esa vigencia. El basurero elimina la versión tras pedir confirmación.</p>
+        <p className="mt-1 text-xs font-bold text-[#4B2818]/65">Usa el lápiz para cargar y modificar una tabla; al guardar la misma fecha se actualiza esa vigencia. El basurero elimina la versión tras pedir confirmación. Las versiones que afecten cajas cerradas quedan protegidas.</p>
         <div className="mt-3 flex flex-wrap gap-2">
           {versiones.map((version) => {
             const cargada = version.id === vigenciaCargadaId;
