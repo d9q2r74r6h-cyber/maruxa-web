@@ -171,6 +171,7 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
   const [ocupado, setOcupado] = useState(false);
   const [aplicando, setAplicando] = useState(false);
   const [progreso, setProgreso] = useState('');
+  const [porcentajeCarga, setPorcentajeCarga] = useState(0);
   const [error, setError] = useState('');
   const [mensaje, setMensaje] = useState('');
   const [imagenes, setImagenes] = useState<string[]>([]);
@@ -182,6 +183,7 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
   const [cargandoBandeja, setCargandoBandeja] = useState(false);
   const [errorBandeja, setErrorBandeja] = useState('');
   const operacion = useRef(0);
+  const temporizadorProgreso = useRef<number | null>(null);
   const lectorXml = useRef<HTMLInputElement>(null);
   const lectorFotos = useRef<HTMLInputElement>(null);
   const camara = useRef<HTMLInputElement>(null);
@@ -191,7 +193,10 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
     || configuracionPorGrupo(configuracionesProducto, 'unidad').find((unidad) => unidad.activo)?.codigo
     || 'UN';
   useEffect(() => () => { imagenes.forEach(url => URL.revokeObjectURL(url)); }, [imagenes]);
-  useEffect(() => () => { operacion.current++; }, []);
+  useEffect(() => () => {
+    operacion.current++;
+    if (temporizadorProgreso.current !== null) window.clearInterval(temporizadorProgreso.current);
+  }, []);
   useEffect(() => {
     if (!abierto) return;
     let vigente = true;
@@ -378,8 +383,10 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
   async function leerFotoConVision(archivos: File[]): Promise<FacturaLectura> {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session?.access_token) throw new Error('Tu sesión venció. Ingresa nuevamente antes de leer la factura.');
+    setPorcentajeCarga(8);
     setProgreso('Preparando las fotos para su lectura…');
     const fotos = await prepararFotosParaVision(archivos);
+    setPorcentajeCarga(30);
     setProgreso('Analizando la factura y sus líneas…');
     const formulario = new FormData();
     fotos.forEach(foto => formulario.append('fotos', foto));
@@ -390,6 +397,7 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
     });
     const datos = await respuesta.json().catch(() => ({}));
     if (!respuesta.ok) throw new Error(typeof datos.error === 'string' ? datos.error : 'No se pudo leer la factura.');
+    setPorcentajeCarga(82);
     return datos as FacturaLectura;
   }
   async function leerXml(archivos: File[]) {
@@ -424,10 +432,16 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
     const empresaActual = empresa || await obtenerEmpresaActual();
     if (!empresaActual) { setError('No se pudo identificar la empresa.'); return; }
     const id = ++operacion.current;
+    if (temporizadorProgreso.current !== null) window.clearInterval(temporizadorProgreso.current);
+    setPorcentajeCarga(3);
+    temporizadorProgreso.current = window.setInterval(() => {
+      setPorcentajeCarga(actual => actual < 88 ? Math.min(88, actual + Math.max(1, Math.ceil((88 - actual) / 9))) : actual);
+    }, 900);
     setOcupado(true); setError(''); setMensaje(''); setProgreso('Preparando las fotos para la bandeja…');
     try {
       const resultado = await leerFotoConVision(archivos);
       if (id !== operacion.current) return;
+      setPorcentajeCarga(90);
       setProgreso('Guardando los datos leídos en la bandeja…');
       const { data: autenticacion } = await supabase.auth.getUser();
       if (!autenticacion.user) throw new Error('Tu sesión venció. Ingresa nuevamente antes de guardar la lectura.');
@@ -439,10 +453,15 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
       });
       if (fallo) throw new Error('No se pudo agregar la lectura a la bandeja. Inténtalo nuevamente.');
       await cargarBandeja(empresaActual.id);
+      setPorcentajeCarga(100);
       if (id === operacion.current) setMensaje('La lectura quedó en la bandeja. Selecciónala cuando quieras continuar con proveedor, productos y costos.');
     } catch (e) {
       if (id === operacion.current) setError(e instanceof Error ? e.message : 'No se pudo leer la foto.');
     } finally {
+      if (temporizadorProgreso.current !== null) {
+        window.clearInterval(temporizadorProgreso.current);
+        temporizadorProgreso.current = null;
+      }
       if (id === operacion.current) setOcupado(false);
     }
   }
@@ -546,7 +565,12 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
         </div>
         <button type="button" className={`${boton} mt-3`} disabled={!lecturaSeleccionada || ocupado || aplicando} onClick={() => void abrirLecturaPendiente()}>Revisar lectura seleccionada</button>
       </section>
-      {ocupado && <div><p role="status">{progreso}</p><button type="button" className="mt-2 underline" onClick={() => { operacion.current++; setOcupado(false); }}>Cancelar lectura</button></div>}
+      {ocupado && <div role="status" aria-live="polite" className="rounded-xl border border-[#D9C4A7] bg-[#FFF8ED] p-4">
+        <div className="flex items-center justify-between gap-4 text-sm font-black text-[#2A1710]"><span>{progreso || 'Iniciando lectura…'}</span><strong aria-label={`${porcentajeCarga}% completado`}>{porcentajeCarga}%</strong></div>
+        <div className="mt-3 h-3 overflow-hidden rounded-full bg-[#E9D7BC]" aria-hidden="true"><div className="h-full rounded-full bg-[#A51F2B] transition-[width] duration-500" style={{ width: `${porcentajeCarga}%` }} /></div>
+        <p className="mt-2 text-xs text-[#5F4030]">Progreso estimado según las etapas de preparación, lectura y guardado.</p>
+        <button type="button" className="mt-2 text-sm font-bold text-[#A51F2B] underline" onClick={() => { operacion.current++; if (temporizadorProgreso.current !== null) { window.clearInterval(temporizadorProgreso.current); temporizadorProgreso.current = null; } setOcupado(false); setPorcentajeCarga(0); }}>Cancelar lectura</button>
+      </div>}
       {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-red-800">{error}</p>}
       {factura && !ocupado && <fieldset disabled={aplicando} className="space-y-4">
         {documentos.length > 1 && <label>Documento del XML<select className={campo} value={indice} onChange={e => {
