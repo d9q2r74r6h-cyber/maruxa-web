@@ -44,7 +44,10 @@ const nuevoTurno = (numeroTurno: number): Turno => ({
   lineas: [nuevaLinea(true)],
 });
 const dinero = (valor: number) => `$${Math.round(valor || 0).toLocaleString('es-CL')}`;
-const numero = (valor: unknown) => Number(String(valor ?? '').replace(/\./g, '').replace(',', '.')) || 0;
+const numero = (valor: unknown) => {
+  if (typeof valor === 'number') return Number.isFinite(valor) ? valor : 0;
+  return Number(String(valor ?? '').replace(/\./g, '').replace(',', '.')) || 0;
+};
 const numeroDecimal = (valor: unknown) => {
   if (typeof valor === 'number') return Number.isFinite(valor) ? valor : 0;
   const texto = String(valor ?? '').trim().replace(/\s/g, '');
