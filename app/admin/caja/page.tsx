@@ -46,7 +46,24 @@ const nuevoTurno = (numeroTurno: number): Turno => ({
 const dinero = (valor: number) => `$${Math.round(valor || 0).toLocaleString('es-CL')}`;
 const numero = (valor: unknown) => {
   if (typeof valor === 'number') return Number.isFinite(valor) ? valor : 0;
-  return Number(String(valor ?? '').replace(/\./g, '').replace(',', '.')) || 0;
+  const texto = String(valor ?? '').trim().replace(/\s/g, '').replace(/[^\d,.-]/g, '');
+  if (!texto) return 0;
+  const negativo = texto.startsWith('-');
+  const sinSigno = texto.replace(/-/g, '');
+  let normalizado = sinSigno;
+  if (sinSigno.includes(',')) {
+    const ultimaComa = sinSigno.lastIndexOf(',');
+    const ultimoPunto = sinSigno.lastIndexOf('.');
+    normalizado = ultimoPunto > ultimaComa
+      ? sinSigno.replace(/,/g, '')
+      : sinSigno.replace(/\./g, '').replace(',', '.');
+  } else {
+    const partes = sinSigno.split('.');
+    const puntoEsDecimal = partes.length === 2 && partes[1].length !== 3;
+    normalizado = puntoEsDecimal ? sinSigno : sinSigno.replace(/\./g, '');
+  }
+  const resultado = Number(`${negativo ? '-' : ''}${normalizado}`);
+  return Number.isFinite(resultado) ? resultado : 0;
 };
 const numeroDecimal = (valor: unknown) => {
   if (typeof valor === 'number') return Number.isFinite(valor) ? valor : 0;
