@@ -772,17 +772,30 @@ export default function AdminProductosPage() {
     cargarProductos();
   }
 
-  async function eliminarProducto(id: number) {
-    const confirmar = confirm('¿Eliminar este producto?');
+  async function eliminarProducto(producto: Producto) {
+    const confirmar = confirm(`¿Eliminar ${producto.nombre}?\n\nSi ya tiene movimientos de stock, se archivará para conservar el historial.`);
 
     if (!confirmar) return;
 
     const { error } = await supabase
       .from('productos')
       .delete()
-      .eq('id', id);
+      .eq('id', producto.id);
 
     if (error) {
+      if (error.message.includes('movimientos_stock_producto_id_fkey')) {
+        const { error: errorArchivo } = await supabase
+          .from('productos')
+          .update({ activo: false })
+          .eq('id', producto.id);
+        if (errorArchivo) {
+          alert(`El producto tiene movimientos de stock y no se pudo archivar: ${errorArchivo.message}`);
+          return;
+        }
+        alert(`${producto.nombre} no se eliminó porque tiene movimientos de stock. Quedó archivado (inactivo) y su historial se conserva.`);
+        cargarProductos();
+        return;
+      }
       alert(error.message);
       return;
     }
@@ -1647,7 +1660,7 @@ export default function AdminProductosPage() {
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        eliminarProducto(producto.id);
+                        eliminarProducto(producto);
                       }}
                       className="rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white"
                     >
