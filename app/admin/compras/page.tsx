@@ -4356,7 +4356,7 @@ export default function AdminComprasPage() {
                   </div>
                 </section>
 
-                <section className="mt-4 rounded-[28px] bg-maruxa-chocolate p-5 text-white shadow-lg">
+                <section className="mt-4 rounded-[28px] bg-[#2A1710] p-5 text-white shadow-lg">
                   <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
                     <div className="min-w-0">
                       <p className="text-[11px] font-black uppercase tracking-[.18em] text-white/65">Resumen de la factura</p>
@@ -4365,7 +4365,7 @@ export default function AdminComprasPage() {
                         <div className="rounded-2xl bg-white/10 px-4 py-3"><p className="text-[10px] font-black uppercase text-white/60">Descuento</p><p className="mt-1 font-black">− {dinero(resumenFactura.descuento)}</p></div>
                         <div className="rounded-2xl bg-white/10 px-4 py-3"><p className="text-[10px] font-black uppercase text-white/60">Ajustes</p><p className="mt-1 font-black">{dinero(resumenFactura.despacho + resumenFactura.impuestoAdicional)}</p></div>
                         <div className="rounded-2xl bg-white/10 px-4 py-3"><p className="text-[10px] font-black uppercase text-white/60">IVA {tipoDocumento === 'factura_exenta' ? 'exento' : `${ivaPorcentaje}%`}</p><p className="mt-1 font-black">{dinero(resumenFactura.iva)}</p></div>
-                        <div className="rounded-2xl bg-maruxa-rojo px-4 py-3"><p className="text-[10px] font-black uppercase text-white/75">Total documento</p><p className="mt-1 text-xl font-black">{dinero(totalCompra)}</p></div>
+                        <div className="rounded-2xl bg-[#A51F2B] px-4 py-3"><p className="text-[10px] font-black uppercase text-white/75">Total documento</p><p className="mt-1 text-xl font-black">{dinero(totalCompra)}</p></div>
                       </div>
                       <p className="mt-3 text-xs font-bold text-white/65">Al registrar se guarda el documento, su detalle, los costos, el stock y la trazabilidad del proveedor.</p>
                     </div>
@@ -4383,7 +4383,7 @@ export default function AdminComprasPage() {
                         type="button"
                         onClick={guardarCompra}
                         disabled={guardando || guardandoFamiliaId !== null}
-                        className="rounded-full bg-white px-6 py-3 font-black text-maruxa-rojo shadow-lg disabled:opacity-50"
+                        className="rounded-full bg-white px-6 py-3 font-black text-[#A51F2B] shadow-lg disabled:opacity-50"
                       >
                         {guardando
                           ? 'Guardando...'
