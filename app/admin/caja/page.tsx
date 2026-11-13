@@ -377,6 +377,8 @@ export default function CajaDiariaPage() {
   const [historial, setHistorial] = useState<Cierre[]>([]);
   const [septimosManuales, setSeptimosManuales] = useState<Record<string, number>>({});
   const [cargando, setCargando] = useState(true);
+  const [cargandoFecha, setCargandoFecha] = useState(false);
+  const [errorCargaFecha, setErrorCargaFecha] = useState('');
   const [guardando, setGuardando] = useState(false);
 
   const septimos = useMemo(() => {
@@ -481,13 +483,35 @@ export default function CajaDiariaPage() {
   useEffect(() => { if (!perfil) return; void (async()=>{ const { data }=await supabase.from('cargo_remuneraciones_especiales').select('configuracion').eq('empresa_id',perfil.empresa_id).lte('vigente_desde',fecha).order('vigente_desde',{ascending:false}).limit(1).maybeSingle(); setConfigPago((data?.configuracion as ConfigPago)||CONFIG_PAGO_BASE); })(); }, [perfil,fecha]);
   useEffect(() => {
     if (cargando || !perfil) return;
-    const existente = historial.find((item) => item.fecha === fecha) || null;
-    if (existente) return cargarCierre(existente);
-    cargarCierre(null);
-    setEsFestivo(esFeriadoChile(fecha));
-    const sugerida = dotacionParaFecha(plantillas, fecha);
-    if (sugerida) aplicarDotacion(sugerida.id);
-  }, [fecha, cargando, historial, perfil, plantillas]);
+    let vigente = true;
+    setCargandoFecha(true);
+    setErrorCargaFecha('');
+    void (async () => {
+      const { data, error } = await supabase
+        .from('caja_cierres')
+        .select('*')
+        .eq('empresa_id', perfil.empresa_id)
+        .eq('fecha', fecha)
+        .maybeSingle();
+      if (!vigente) return;
+      setCargandoFecha(false);
+      if (error) {
+        setErrorCargaFecha(`No se pudo consultar la caja de esta fecha: ${error.message}`);
+        return;
+      }
+      const cierreEncontrado = data as Cierre | null;
+      if (cierreEncontrado) {
+        setHistorial((actual) => [cierreEncontrado, ...actual.filter((item) => item.fecha !== fecha)].sort((a, b) => b.fecha.localeCompare(a.fecha)));
+        cargarCierre(cierreEncontrado);
+        return;
+      }
+      cargarCierre(null);
+      setEsFestivo(esFeriadoChile(fecha));
+      const sugerida = dotacionParaFecha(plantillas, fecha);
+      if (sugerida) aplicarDotacion(sugerida.id);
+    })();
+    return () => { vigente = false; };
+  }, [fecha, cargando, perfil, plantillas]);
 
   async function guardar(estado: 'borrador' | 'cerrada') {
     if (!perfil || !cajeraId) return alert('Selecciona la cajera responsable.');
@@ -537,7 +561,7 @@ export default function CajaDiariaPage() {
       if(!aviso.ok)alert('La caja se cerro, pero no fue posible enviar el correo de alerta del 7mo. Revisa el email de notificaciones del perfil.');
     }
     await cargarBase();
-    alert(estado === 'cerrada' ? 'Caja cerrada.' : 'Borrador guardado.');
+    alert(estado === 'cerrada' ? 'Caja cerrada.' : 'Caja guardada.');
   }
 
   if (cargando) return <div className="grid min-h-64 place-items-center"><Loader2 className="h-7 w-7 animate-spin text-[#A51F2B]" /></div>;
@@ -556,6 +580,7 @@ export default function CajaDiariaPage() {
         <label className="flex h-11 items-center gap-3 self-end rounded-md border px-3 text-sm font-black"><input type="checkbox" checked={esFestivo} disabled={bloqueada || festivoObligatorio} onChange={(event) => setEsFestivo(event.target.checked)} className="h-4 w-4 accent-[#A51F2B]" />{festivoObligatorio ? 'Festivo automático' : 'Día festivo'}</label>
       </section>
       {errorDotaciones && <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm font-black text-red-800">No se pudieron cargar las dotaciones: {errorDotaciones}. Ejecuta la migración 20260803_dotaciones_por_nombre_feriados.sql.</div>}
+      {errorCargaFecha && <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm font-black text-red-800">{errorCargaFecha}</div>}
 
       <fieldset disabled={bloqueada} className="space-y-5 disabled:opacity-75">
         <div className="grid gap-5 xl:grid-cols-2">
@@ -594,7 +619,7 @@ export default function CajaDiariaPage() {
 
       <div className="flex flex-wrap justify-end gap-3">
         <button type="button" onClick={() => imprimirGastoDeCaja(fecha, turnos, gastos, totalVentas, tarjetas, efectivo, esFestivo, configPago, funcionariosPanaderos, septimos)} className="inline-flex h-11 items-center gap-2 rounded-md border border-[#2A1710] bg-white px-5 text-sm font-black text-[#2A1710] hover:bg-[#FFF3DF]"><Printer className="h-4 w-4" />Imprimir gasto de caja</button>
-        {!bloqueada && <><button type="button" disabled={guardando} onClick={() => void guardar('borrador')} className="inline-flex h-11 items-center gap-2 rounded-md border border-[#A51F2B] bg-white px-5 text-sm font-black text-[#A51F2B]"><Save className="h-4 w-4" />Guardar borrador</button><button type="button" disabled={guardando} onClick={() => void guardar('cerrada')} className="inline-flex h-11 items-center gap-2 rounded-md bg-[#A51F2B] px-6 text-sm font-black text-white"><CheckCircle2 className="h-4 w-4" />Cerrar caja</button></>}
+        {!bloqueada && <><button type="button" disabled={guardando || cargandoFecha} onClick={() => void guardar('borrador')} className="inline-flex h-11 items-center gap-2 rounded-md border border-[#A51F2B] bg-white px-5 text-sm font-black text-[#A51F2B]"><Save className="h-4 w-4" />Guardar caja</button><button type="button" disabled={guardando || cargandoFecha} onClick={() => void guardar('cerrada')} className="inline-flex h-11 items-center gap-2 rounded-md bg-[#A51F2B] px-6 text-sm font-black text-white"><CheckCircle2 className="h-4 w-4" />Guardar y cerrar caja</button></>}
         {bloqueada && <span className="rounded-full bg-emerald-100 px-4 py-2 text-sm font-black text-emerald-800">Cierre bloqueado</span>}
       </div>
 
