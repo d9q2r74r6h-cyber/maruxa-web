@@ -10,7 +10,7 @@ type Origen = 'casa' | 'externo';
 type Funcion = 'batea' | 'cocedor' | 'oficial';
 type ConceptoBono = { id: string; nombre: string; monto: number; activo: boolean };
 type BonoAsignado = { id: string; concepto_id: string; nombre: string; monto: number };
-type Linea = { id: string; nombre: string; monto: number; monto_es_base?: boolean; total_pago?: number; dominical?: number; septimo?: number; base_demasia?: number; bonos?: BonoAsignado[]; monto_manual?: boolean; funcionario_id?: string; origen?: Origen; funcion?: Funcion; tipo_eventual?: 'externo' | 'aprendiz'; participa_demasia?: boolean };
+type Linea = { id: string; nombre: string; monto: number; monto_es_base?: boolean; total_pago?: number; dominical?: number; septimo?: number; septimo_manual?: boolean; base_demasia?: number; bonos?: BonoAsignado[]; monto_manual?: boolean; funcionario_id?: string; origen?: Origen; funcion?: Funcion; tipo_eventual?: 'externo' | 'aprendiz'; participa_demasia?: boolean };
 type Turno = { id: string; nombre: string; qq?: number; lineas: Linea[] };
 type TurnoPlan = { id: string; nombre: string; panaderos: Array<{ id: string; funcionario_id: string; nombre: string; origen: Origen; funcion: Funcion }> };
 type Plantilla = { id: string; nombre: string; turnos: TurnoPlan[] };
@@ -472,7 +472,7 @@ export default function CajaDiariaPage() {
     const septimosGuardados: Record<string, number> = {};
     if (item) {
       lineasDeCierre(item).forEach((linea) => {
-        if (linea.funcionario_id && linea.septimo !== undefined) {
+        if (linea.funcionario_id && linea.septimo_manual && linea.septimo !== undefined) {
           septimosGuardados[linea.funcionario_id] = numero(linea.septimo);
         }
       });
@@ -553,7 +553,7 @@ export default function CajaDiariaPage() {
         const baseDemasia=Math.max(0,numero(item.total_pago)-totalBonos(item)-numero(item.dominical));
         const septimo=item.funcionario_id&&!septimosAsignados.has(item.funcionario_id)?numero(septimos.get(item.funcionario_id)?.monto):0;
         if(septimo&&item.funcionario_id)septimosAsignados.add(item.funcionario_id);
-        return {...item,base_demasia:baseDemasia,septimo,total_pago:numero(item.total_pago)+septimo};
+        return {...item,base_demasia:baseDemasia,septimo,septimo_manual:Boolean(item.funcionario_id && Object.prototype.hasOwnProperty.call(septimosManuales,item.funcionario_id)),total_pago:numero(item.total_pago)+septimo};
       }),
     }));
     const datos = {
