@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, Loader2, Plus, Printer, Save, Trash2, WalletCards } from 'lucide-react';
+import { CheckCircle2, Loader2, Pencil, Plus, Printer, Save, Trash2, WalletCards } from 'lucide-react';
 import { useAdminSession } from '@/components/AdminSession';
 import { supabase } from '@/lib/supabase';
 
@@ -116,6 +116,37 @@ function textoComparable(valor: string) { return valor.normalize('NFD').replace(
 function desplazarFecha(fecha: string, dias: number) { const valor=new Date(`${fecha}T12:00:00`); valor.setDate(valor.getDate()+dias); return valor.toISOString().slice(0,10); }
 function esDiaPagoSeptimo(funcionario: Funcionario, fecha: string) { if(!funcionario.dia_descanso)return false; const siguiente=new Date(`${desplazarFecha(fecha,1)}T12:00:00`).getDay(); return DIAS_SEMANA[siguiente]===textoComparable(funcionario.dia_descanso); }
 function lineasDeCierre(cierre: Cierre) { return cierre.turnos_panaderos?.length ? cierre.turnos_panaderos.flatMap((turno)=>turno.lineas) : [...(cierre.panaderos_primer_turno||[]),...(cierre.panaderos_segundo_turno||[])]; }
+function firmaCaja(fecha: string, cajeraId: string, dotacionId: string, turnos: Turno[], gastos: Linea[], totalVentas: number, efectivo: number, tarjetas: number, esFestivo: boolean, observacion: string, septimosManuales: Record<string, number>) {
+  return JSON.stringify({
+    fecha,
+    cajeraId,
+    dotacionId,
+    turnos: turnos.map((turno) => ({
+      nombre: turno.nombre,
+      qq: numeroDecimal(turno.qq),
+      lineas: turno.lineas.map((linea) => ({
+        id: linea.id,
+        nombre: linea.nombre,
+        monto: numero(linea.monto),
+        monto_es_base: Boolean(linea.monto_es_base),
+        monto_manual: Boolean(linea.monto_manual),
+        funcionario_id: linea.funcionario_id || '',
+        origen: linea.origen || '',
+        funcion: linea.funcion || '',
+        tipo_eventual: linea.tipo_eventual || '',
+        participa_demasia: recibeDemasia(linea),
+        bonos: (linea.bonos || []).map((bono) => ({ concepto_id: bono.concepto_id, monto: numero(bono.monto) })),
+      })),
+    })),
+    gastos: gastos.map((gasto) => ({ id: gasto.id, nombre: gasto.nombre, monto: numero(gasto.monto) })),
+    totalVentas: numero(totalVentas),
+    efectivo: numero(efectivo),
+    tarjetas: numero(tarjetas),
+    esFestivo,
+    observacion: observacion.trim(),
+    septimosManuales: Object.entries(septimosManuales).sort(([primero], [segundo]) => primero.localeCompare(segundo)),
+  });
+}
 function baseMasDemasiaGuardada(linea: Linea) { if(linea.base_demasia!==undefined)return numero(linea.base_demasia); return Math.max(0,numero(linea.total_pago??linea.monto)-totalBonos(linea)-numero(linea.dominical)-numero(linea.septimo)); }
 function totalPanaderosGuardado(cierre: Cierre) { return lineasDeCierre(cierre).reduce((suma, linea) => suma + numero(linea.total_pago ?? linea.monto), 0); }
 function totalComprasGastosGuardado(cierre: Cierre) { return (cierre.compras_gastos || []).reduce((suma, gasto) => suma + numero(gasto.monto), 0); }
@@ -342,7 +373,7 @@ function imprimirGastoDeCaja(fecha: string, turnos: Turno[], gastos: Linea[], to
   ventana.document.close();
 }
 
-function EditorLineas({ titulo, fecha, lineas, onChange, onRemove, panaderos, posicionTurno = 0, qq = 0, esFestivo = false, onQq, configPago = CONFIG_PAGO_BASE, funcionariosPanaderos = [], conceptosBono = [], septimos = new Map<string, { monto: number }>(), septimosPrevios = new Set<string>() }: { titulo: string; fecha?: string; lineas: Linea[]; onChange: (lineas: Linea[]) => void; onRemove?: () => void; panaderos?: boolean; posicionTurno?: number; qq?: number; esFestivo?: boolean; onQq?: (valor: number) => void; configPago?: ConfigPago; funcionariosPanaderos?: Funcionario[]; conceptosBono?: ConceptoBono[]; septimos?: Map<string, { monto: number }>; septimosPrevios?: Set<string> }) {
+function EditorLineas({ titulo, fecha, lineas, onChange, onRemove, panaderos, posicionTurno = 0, qq = 0, esFestivo = false, onQq, configPago = CONFIG_PAGO_BASE, funcionariosPanaderos = [], conceptosBono = [], septimos = new Map<string, { monto: number }>(), septimosPrevios = new Set<string>(), onImprimirTurno }: { titulo: string; fecha?: string; lineas: Linea[]; onChange: (lineas: Linea[]) => void; onRemove?: () => void; panaderos?: boolean; posicionTurno?: number; qq?: number; esFestivo?: boolean; onQq?: (valor: number) => void; configPago?: ConfigPago; funcionariosPanaderos?: Funcionario[]; conceptosBono?: ConceptoBono[]; septimos?: Map<string, { monto: number }>; septimosPrevios?: Set<string>; onImprimirTurno?: () => void }) {
   const [qqTexto, setQqTexto] = useState(qq ? String(qq).replace('.', ',') : '');
   useEffect(() => { setQqTexto(qq ? String(qq).replace('.', ',') : ''); }, [qq]);
   const cantidad = lineas.filter((linea) => linea.nombre.trim() && recibeDemasia(linea)).length;
@@ -355,7 +386,7 @@ function EditorLineas({ titulo, fecha, lineas, onChange, onRemove, panaderos, po
     <section className="rounded-xl border border-[#4B2818]/15 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <h2 className="font-black text-[#2A1710]">{titulo}</h2>
-        <div className="flex items-center gap-2">{panaderos && <><label className="flex items-center gap-2 text-xs font-black">QQ<input value={qqTexto} inputMode="decimal" onChange={(event) => { if (/^\d*(?:[.,]\d*)?$/.test(event.target.value)) setQqTexto(event.target.value); }} onBlur={() => onQq?.(Math.max(0, numeroDecimal(qqTexto)))} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} placeholder="Ej: 1,5" className="h-8 w-20 rounded border px-2 text-right" /></label><button type="button" onClick={()=>imprimirHojaTurno(titulo,fecha||hoy,qq,lineas,esFestivo,configPago,funcionariosPanaderos,septimos,septimosPrevios,posicionTurno)} className="inline-flex h-8 items-center gap-1 rounded-md border border-[#A51F2B]/30 px-2 text-[10px] font-black uppercase text-[#A51F2B]" title={posicionTurno%2===1?'Imprime este turno desde la mitad inferior de la hoja':'Imprime este turno en la mitad superior de la hoja'}><Printer className="h-3.5 w-3.5" />Firmas</button></>}{!panaderos && <span className="rounded-full bg-[#FFF3DF] px-3 py-1 text-sm font-black text-[#A51F2B]">{dinero(total)}</span>}{onRemove && <button type="button" onClick={onRemove} className="grid h-8 w-8 place-items-center rounded-md text-red-700 hover:bg-red-50" aria-label={`Eliminar ${titulo}`}><Trash2 className="h-4 w-4" /></button>}</div>
+        <div className="flex items-center gap-2">{panaderos && <><label className="flex items-center gap-2 text-xs font-black">QQ<input value={qqTexto} inputMode="decimal" onChange={(event) => { if (/^\d*(?:[.,]\d*)?$/.test(event.target.value)) setQqTexto(event.target.value); }} onBlur={() => onQq?.(Math.max(0, numeroDecimal(qqTexto)))} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} placeholder="Ej: 1,5" className="h-8 w-20 rounded border px-2 text-right" /></label><button type="button" onClick={onImprimirTurno} className="inline-flex h-8 items-center gap-1 rounded-md border border-[#A51F2B]/30 px-2 text-[10px] font-black uppercase text-[#A51F2B]" title={posicionTurno%2===1?'Imprime este turno desde la mitad inferior de la hoja':'Imprime este turno en la mitad superior de la hoja'}><Printer className="h-3.5 w-3.5" />Firmas</button></>}{!panaderos && <span className="rounded-full bg-[#FFF3DF] px-3 py-1 text-sm font-black text-[#A51F2B]">{dinero(total)}</span>}{onRemove && <button type="button" onClick={onRemove} className="grid h-8 w-8 place-items-center rounded-md text-red-700 hover:bg-red-50" aria-label={`Eliminar ${titulo}`}><Trash2 className="h-4 w-4" /></button>}</div>
       </div>
       <div className="mt-3 space-y-2">
         {panaderos && <div className="grid grid-cols-[minmax(110px,1fr)_68px_78px_82px_88px_92px_26px] gap-1.5 px-1 text-[9px] font-black uppercase text-[#4B2818]/55"><span>Panadero</span><span>Origen</span><span>Función</span><span>Demasía</span><span className="text-right">Base</span><span className="text-right">Total</span><span></span></div>}
@@ -377,7 +408,7 @@ function EditorLineas({ titulo, fecha, lineas, onChange, onRemove, panaderos, po
 }
 
 export default function CajaDiariaPage() {
-  const { perfil } = useAdminSession();
+  const { perfil, esAdmin } = useAdminSession();
   const [fecha, setFecha] = useState(hoy);
   const [cajeras, setCajeras] = useState<Funcionario[]>([]);
   const [funcionariosPanaderos, setFuncionariosPanaderos] = useState<Funcionario[]>([]);
@@ -401,6 +432,14 @@ export default function CajaDiariaPage() {
   const [cargandoFecha, setCargandoFecha] = useState(false);
   const [errorCargaFecha, setErrorCargaFecha] = useState('');
   const [guardando, setGuardando] = useState(false);
+  const [editandoCierre, setEditandoCierre] = useState(false);
+  const [firmaGuardada, setFirmaGuardada] = useState<string | null>(null);
+
+  const firmaActual = useMemo(
+    () => firmaCaja(fecha, cajeraId, dotacionId, turnos, gastos, totalVentas, efectivo, tarjetas, esFestivo, observacion, septimosManuales),
+    [fecha, cajeraId, dotacionId, turnos, gastos, totalVentas, efectivo, tarjetas, esFestivo, observacion, septimosManuales]
+  );
+  const hayCambiosSinGuardar = firmaGuardada !== firmaActual;
 
   const septimos = useMemo(() => {
     const resultado = new Map<string,{ monto:number; calculado:number; suma:number; diasTrabajados:number; fechas:string[]; detalle:Array<{ fecha:string; monto:number }> }>();
@@ -435,8 +474,16 @@ export default function CajaDiariaPage() {
   const totalComprobado = efectivo + tarjetas + totalGastos;
   const diferencia = totalVentas - totalComprobado;
   const cuadrada = Math.abs(diferencia) < 0.5;
-  const bloqueada = cierre?.estado === 'cerrada';
+  const bloqueada = cierre?.estado === 'cerrada' && !editandoCierre;
   const festivoObligatorio = esFeriadoChile(fecha);
+
+  function intentarImprimir(imprimir: () => void) {
+    if (hayCambiosSinGuardar) {
+      alert('Guarda la caja antes de imprimir. Usa “Guardar caja” o “Guardar y cerrar caja” para registrar los cambios.');
+      return;
+    }
+    imprimir();
+  }
 
   function aplicarDotacion(id: string) {
     setDotacionId(id);
@@ -469,6 +516,7 @@ export default function CajaDiariaPage() {
 
   function cargarCierre(item: Cierre | null) {
     setCierre(item);
+    setEditandoCierre(false);
     const septimosGuardados: Record<string, number> = {};
     if (item) {
       lineasDeCierre(item).forEach((linea) => {
@@ -477,28 +525,27 @@ export default function CajaDiariaPage() {
         }
       });
     }
+    const turnosCargados = item?.turnos_panaderos?.length
+      ? item.turnos_panaderos
+      : [
+          { id: crypto.randomUUID(), nombre: '1° turno', qq: 0, lineas: item?.panaderos_primer_turno?.length ? item.panaderos_primer_turno : [nuevaLinea(true)] },
+          { id: crypto.randomUUID(), nombre: '2° turno', qq: 0, lineas: item?.panaderos_segundo_turno?.length ? item.panaderos_segundo_turno : [nuevaLinea(true)] },
+        ];
+    const gastosCargados = item?.compras_gastos?.length ? item.compras_gastos : [nuevaLinea()];
+    const cajeraCargada = item?.cajera_id
+      || (cajeras.some((cajera) => cajera.id === cajeraId) ? cajeraId : '')
+      || (cajeras.some((cajera) => cajera.id === perfil?.funcionario_id) ? perfil?.funcionario_id || '' : cajeras[0]?.id || '');
     setSeptimosManuales(septimosGuardados);
-    setTurnos(
-      item?.turnos_panaderos?.length
-        ? item.turnos_panaderos
-        : [
-            { id: crypto.randomUUID(), nombre: '1° turno', qq: 0, lineas: item?.panaderos_primer_turno?.length ? item.panaderos_primer_turno : [nuevaLinea(true)] },
-            { id: crypto.randomUUID(), nombre: '2° turno', qq: 0, lineas: item?.panaderos_segundo_turno?.length ? item.panaderos_segundo_turno : [nuevaLinea(true)] },
-          ]
-    );
-    setGastos(item?.compras_gastos?.length ? item.compras_gastos : [nuevaLinea()]);
-    setCajeraId((actual) => {
-      if (item?.cajera_id) return item.cajera_id;
-      if (cajeras.some((cajera) => cajera.id === actual)) return actual;
-      if (cajeras.some((cajera) => cajera.id === perfil?.funcionario_id)) return perfil?.funcionario_id || '';
-      return cajeras[0]?.id || '';
-    });
+    setTurnos(turnosCargados);
+    setGastos(gastosCargados);
+    setCajeraId(cajeraCargada);
     setTotalVentas(numero(item?.total_ventas));
     setEfectivo(numero(item?.efectivo));
     setTarjetas(numero(item?.tarjetas));
     setEsFestivo(Boolean(item?.es_festivo));
     setDotacionId(item?.dotacion_id || '');
     setObservacion(item?.observacion || '');
+    setFirmaGuardada(item ? firmaCaja(fecha, cajeraCargada, item.dotacion_id || '', turnosCargados, gastosCargados, numero(item.total_ventas), numero(item.efectivo), numero(item.tarjetas), Boolean(item.es_festivo), item.observacion || '', septimosGuardados) : null);
   }
 
   useEffect(() => { void cargarBase(); }, [perfil]);
@@ -577,6 +624,9 @@ export default function CajaDiariaPage() {
     const { error } = await supabase.from('caja_cierres').upsert(datos, { onConflict: 'empresa_id,fecha' });
     setGuardando(false);
     if (error) return alert(error.message);
+    setCierre({ ...datos, id: cierre?.id || '' });
+    setEditandoCierre(false);
+    setFirmaGuardada(firmaActual);
     if(estado==='cerrada'&&septimosIncompletos.length){
       const token=(await supabase.auth.getSession()).data.session?.access_token;
       const aviso=await fetch('/api/admin/alerta-septimo',{method:'POST',headers:{'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})},body:JSON.stringify({fecha,cajera:cajera?.nombre_completo||perfil.nombre_visible,trabajadores:septimosIncompletos.map(([id,item])=>({nombre:funcionariosPanaderos.find((persona)=>persona.id===id)?.nombre_completo||id,dias_trabajados:item.diasTrabajados,fechas:item.fechas,monto:item.monto}))})});
@@ -614,7 +664,7 @@ export default function CajaDiariaPage() {
                   .flatMap((anterior) => anterior.lineas.map((linea) => linea.funcionario_id))
                   .filter((id): id is string => Boolean(id))
               );
-              return <EditorLineas key={turno.id} titulo={`Panaderos · ${turno.nombre}`} fecha={fecha} lineas={turno.lineas} panaderos posicionTurno={indiceTurno} qq={turno.qq || 0} esFestivo={esFestivo} configPago={configPago} funcionariosPanaderos={funcionariosPanaderos} conceptosBono={conceptosBono} septimos={septimos} septimosPrevios={septimosPrevios} onQq={(qq) => setTurnos((actuales) => actuales.map((item) => item.id === turno.id ? { ...item, qq } : item))} onChange={(lineas) => setTurnos((actuales) => actuales.map((item) => item.id === turno.id ? { ...item, lineas } : item))} onRemove={turnos.length > 1 ? () => setTurnos((actuales) => actuales.filter((item) => item.id !== turno.id)) : undefined} />;
+              return <EditorLineas key={turno.id} titulo={`Panaderos · ${turno.nombre}`} fecha={fecha} lineas={turno.lineas} panaderos posicionTurno={indiceTurno} qq={turno.qq || 0} esFestivo={esFestivo} configPago={configPago} funcionariosPanaderos={funcionariosPanaderos} conceptosBono={conceptosBono} septimos={septimos} septimosPrevios={septimosPrevios} onImprimirTurno={() => intentarImprimir(() => imprimirHojaTurno(`Panaderos · ${turno.nombre}`, fecha, turno.qq || 0, turno.lineas, esFestivo, configPago, funcionariosPanaderos, septimos, septimosPrevios, indiceTurno))} onQq={(qq) => setTurnos((actuales) => actuales.map((item) => item.id === turno.id ? { ...item, qq } : item))} onChange={(lineas) => setTurnos((actuales) => actuales.map((item) => item.id === turno.id ? { ...item, lineas } : item))} onRemove={turnos.length > 1 ? () => setTurnos((actuales) => actuales.filter((item) => item.id !== turno.id)) : undefined} />;
             })}
             <button type="button" onClick={() => setTurnos((actuales) => [...actuales, nuevoTurno(actuales.length + 1)])} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-[#A51F2B]/35 bg-white text-sm font-black text-[#A51F2B] hover:bg-[#FFF3DF]"><Plus className="h-4 w-4" />Agregar turno de panaderos</button>
           </div>
@@ -652,22 +702,23 @@ export default function CajaDiariaPage() {
             <button
               key={turno.id}
               type="button"
-              onClick={() => imprimirHojaTurno(`Panaderos · ${turno.nombre}`, fecha, turno.qq || 0, turno.lineas, esFestivo, configPago, funcionariosPanaderos, septimos, septimosPrevios, indiceTurno)}
+              onClick={() => intentarImprimir(() => imprimirHojaTurno(`Panaderos · ${turno.nombre}`, fecha, turno.qq || 0, turno.lineas, esFestivo, configPago, funcionariosPanaderos, septimos, septimosPrevios, indiceTurno))}
               className="inline-flex h-10 items-center gap-2 rounded-md border border-[#A51F2B]/30 bg-white px-3 text-xs font-black text-[#A51F2B] hover:bg-[#FFF3DF]"
             >
               <Printer className="h-4 w-4" />{turno.nombre}
             </button>
           );
         })}
-        <button type="button" onClick={() => imprimirHojaDiaria(fecha, turnos, esFestivo, configPago, funcionariosPanaderos, septimos)} className="inline-flex h-10 items-center gap-2 rounded-md border border-[#2A1710] bg-[#2A1710] px-3 text-xs font-black text-white hover:bg-[#4B2818]">
+        <button type="button" onClick={() => intentarImprimir(() => imprimirHojaDiaria(fecha, turnos, esFestivo, configPago, funcionariosPanaderos, septimos))} className="inline-flex h-10 items-center gap-2 rounded-md border border-[#2A1710] bg-[#2A1710] px-3 text-xs font-black text-white hover:bg-[#4B2818]">
           <Printer className="h-4 w-4" />Todos los turnos
         </button>
         {bloqueada && <span className="text-xs font-bold text-[#4B2818]/60">Disponible también para cajas cerradas.</span>}
       </section>
 
       <div className="flex flex-wrap justify-end gap-3">
-        <button type="button" onClick={() => imprimirGastoDeCaja(fecha, turnos, gastos, totalVentas, tarjetas, efectivo, esFestivo, configPago, funcionariosPanaderos, septimos)} className="inline-flex h-11 items-center gap-2 rounded-md border border-[#2A1710] bg-white px-5 text-sm font-black text-[#2A1710] hover:bg-[#FFF3DF]"><Printer className="h-4 w-4" />Imprimir gasto de caja</button>
-        {!bloqueada && <><button type="button" disabled={guardando || cargandoFecha} onClick={() => void guardar('borrador')} className="inline-flex h-11 items-center gap-2 rounded-md border border-[#A51F2B] bg-white px-5 text-sm font-black text-[#A51F2B]"><Save className="h-4 w-4" />Guardar caja</button><button type="button" disabled={guardando || cargandoFecha} onClick={() => void guardar('cerrada')} className="inline-flex h-11 items-center gap-2 rounded-md bg-[#A51F2B] px-6 text-sm font-black text-white"><CheckCircle2 className="h-4 w-4" />Guardar y cerrar caja</button></>}
+        <button type="button" onClick={() => intentarImprimir(() => imprimirGastoDeCaja(fecha, turnos, gastos, totalVentas, tarjetas, efectivo, esFestivo, configPago, funcionariosPanaderos, septimos))} className="inline-flex h-11 items-center gap-2 rounded-md border border-[#2A1710] bg-white px-5 text-sm font-black text-[#2A1710] hover:bg-[#FFF3DF]"><Printer className="h-4 w-4" />Imprimir gasto de caja</button>
+        {bloqueada && esAdmin && <button type="button" onClick={() => { setEditandoCierre(true); setFirmaGuardada(null); }} className="inline-flex h-11 items-center gap-2 rounded-md border border-[#A51F2B] bg-white px-5 text-sm font-black text-[#A51F2B]"><Pencil className="h-4 w-4" />Editar caja</button>}
+        {!bloqueada && <>{!editandoCierre && <button type="button" disabled={guardando || cargandoFecha} onClick={() => void guardar('borrador')} className="inline-flex h-11 items-center gap-2 rounded-md border border-[#A51F2B] bg-white px-5 text-sm font-black text-[#A51F2B]"><Save className="h-4 w-4" />Guardar caja</button>}<button type="button" disabled={guardando || cargandoFecha} onClick={() => void guardar('cerrada')} className="inline-flex h-11 items-center gap-2 rounded-md bg-[#A51F2B] px-6 text-sm font-black text-white"><CheckCircle2 className="h-4 w-4" />{editandoCierre ? 'Guardar cambios y cerrar caja' : 'Guardar y cerrar caja'}</button></>}
         {bloqueada && <span className="rounded-full bg-emerald-100 px-4 py-2 text-sm font-black text-emerald-800">Cierre bloqueado</span>}
       </div>
 
