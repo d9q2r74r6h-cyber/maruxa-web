@@ -36,6 +36,7 @@ type Cierre = {
 };
 
 const hoy = new Date().toISOString().slice(0, 10);
+const MAX_MONTO_CAJA = 10_000_000;
 const nuevaLinea = (panadero = false): Linea => ({ id: crypto.randomUUID(), nombre: '', monto: 0, ...(panadero ? { origen: 'casa' as Origen, funcion: 'oficial' as Funcion, participa_demasia: true } : {}) });
 const nuevoTurno = (numeroTurno: number): Turno => ({
   id: crypto.randomUUID(),
@@ -152,6 +153,11 @@ function totalPanaderosGuardado(cierre: Cierre) { return lineasDeCierre(cierre).
 function totalComprasGastosGuardado(cierre: Cierre) { return (cierre.compras_gastos || []).reduce((suma, gasto) => suma + numero(gasto.monto), 0); }
 function totalCuadreGuardado(cierre: Cierre) { return numero(cierre.efectivo) + numero(cierre.tarjetas) + totalPanaderosGuardado(cierre) + totalComprasGastosGuardado(cierre); }
 function diferenciaGuardada(cierre: Cierre) { return numero(cierre.total_ventas) - totalCuadreGuardado(cierre); }
+function tieneMontoFueraDeRango(cierre: Pick<Cierre, 'efectivo' | 'tarjetas' | 'total_ventas' | 'compras_gastos' | 'panaderos_primer_turno' | 'panaderos_segundo_turno' | 'turnos_panaderos'>) {
+  const lineas = cierre.turnos_panaderos?.flatMap((turno) => turno.lineas) || [...(cierre.panaderos_primer_turno || []), ...(cierre.panaderos_segundo_turno || [])];
+  const montos = [cierre.efectivo, cierre.tarjetas, cierre.total_ventas, ...(cierre.compras_gastos || []).map((gasto) => gasto.monto), ...lineas.flatMap((linea) => [linea.monto, linea.total_pago, linea.base_demasia, linea.dominical, linea.septimo, ...(linea.bonos || []).map((bono) => bono.monto)])];
+  return montos.some((monto) => Math.abs(numero(monto)) > MAX_MONTO_CAJA);
+}
 function dotacionParaFecha(plantillas: Plantilla[], fecha: string) {
   const dia = new Date(`${fecha}T12:00:00`).getDay();
   const nombreDia = DIAS_SEMANA[dia];
@@ -517,6 +523,9 @@ export default function CajaDiariaPage() {
   function cargarCierre(item: Cierre | null) {
     setCierre(item);
     setEditandoCierre(false);
+    if (item && tieneMontoFueraDeRango(item)) {
+      setErrorCargaFecha('Esta caja tiene un monto fuera de rango. No se mostrará como un cuadre válido: corrígela desde Editar caja y vuelve a guardarla.');
+    }
     const septimosGuardados: Record<string, number> = {};
     if (item) {
       lineasDeCierre(item).forEach((linea) => {
@@ -621,6 +630,10 @@ export default function CajaDiariaPage() {
       dotacion_id: dotacionId || null,
       cerrado_en: estado === 'cerrada' ? new Date().toISOString() : null,
     };
+    if (tieneMontoFueraDeRango(datos)) {
+      setGuardando(false);
+      return alert('No se puede guardar una caja con montos fuera de rango. Revisa los valores ingresados antes de continuar.');
+    }
     const { error } = await supabase.from('caja_cierres').upsert(datos, { onConflict: 'empresa_id,fecha' });
     setGuardando(false);
     if (error) return alert(error.message);
@@ -722,7 +735,7 @@ export default function CajaDiariaPage() {
         {bloqueada && <span className="rounded-full bg-emerald-100 px-4 py-2 text-sm font-black text-emerald-800">Cierre bloqueado</span>}
       </div>
 
-      <section className="rounded-xl border border-[#4B2818]/15 bg-white p-4 shadow-sm"><h2 className="font-black text-[#2A1710]">Últimos cierres</h2><p className="mt-1 text-xs font-bold text-[#4B2818]/60">Cuadre = efectivo + tarjetas + panaderos + compras/gastos. Haz clic en una fecha para cargarla.</p><div className="mt-3 overflow-x-auto"><table className="w-full min-w-[880px] text-sm"><thead className="bg-[#FFF3DF]"><tr><th className="px-3 py-2 text-left">Fecha</th><th className="px-3 py-2 text-left">Cajera</th><th className="px-3 py-2 text-right">Vale</th><th className="px-3 py-2 text-right">Cuadre</th><th className="px-3 py-2 text-right">Diferencia</th><th className="px-3 py-2 text-right">Estado</th></tr></thead><tbody>{historial.map((item) => { const cuadreGuardado=totalCuadreGuardado(item); const diferencia=diferenciaGuardada(item); const diferenciaTexto=Math.abs(diferencia) < 0.5 ? 'Cuadrada' : diferencia > 0 ? `Faltan ${dinero(diferencia)}` : `Sobran ${dinero(Math.abs(diferencia))}`; return <tr key={item.id} className="cursor-pointer border-b hover:bg-[#FFF9EF]" onClick={() => setFecha(item.fecha)}><td className="px-3 py-2 font-black">{new Date(`${item.fecha}T12:00:00`).toLocaleDateString('es-CL')}</td><td className="px-3 py-2">{item.cajera_nombre}</td><td className="px-3 py-2 text-right font-black">{dinero(item.total_ventas)}</td><td className="px-3 py-2 text-right font-black">{dinero(cuadreGuardado)}</td><td className={`px-3 py-2 text-right font-black ${Math.abs(diferencia) < 0.5 ? 'text-emerald-700' : 'text-red-700'}`}>{diferenciaTexto}</td><td className="px-3 py-2 text-right"><span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${item.estado === 'cerrada' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{item.estado}</span></td></tr>; })}</tbody></table></div></section>
+      <section className="rounded-xl border border-[#4B2818]/15 bg-white p-4 shadow-sm"><h2 className="font-black text-[#2A1710]">Últimos cierres</h2><p className="mt-1 text-xs font-bold text-[#4B2818]/60">Cuadre = efectivo + tarjetas + panaderos + compras/gastos. Haz clic en una fecha para cargarla.</p><div className="mt-3 overflow-x-auto"><table className="w-full min-w-[880px] text-sm"><thead className="bg-[#FFF3DF]"><tr><th className="px-3 py-2 text-left">Fecha</th><th className="px-3 py-2 text-left">Cajera</th><th className="px-3 py-2 text-right">Vale</th><th className="px-3 py-2 text-right">Cuadre</th><th className="px-3 py-2 text-right">Diferencia</th><th className="px-3 py-2 text-right">Estado</th></tr></thead><tbody>{historial.map((item) => { const montoInvalido=tieneMontoFueraDeRango(item); const cuadreGuardado=montoInvalido?0:totalCuadreGuardado(item); const diferencia=montoInvalido?0:diferenciaGuardada(item); const diferenciaTexto=montoInvalido?'Monto inválido: revisar caja':Math.abs(diferencia) < 0.5 ? 'Cuadrada' : diferencia > 0 ? `Faltan ${dinero(diferencia)}` : `Sobran ${dinero(Math.abs(diferencia))}`; return <tr key={item.id} className="cursor-pointer border-b hover:bg-[#FFF9EF]" onClick={() => setFecha(item.fecha)}><td className="px-3 py-2 font-black">{new Date(`${item.fecha}T12:00:00`).toLocaleDateString('es-CL')}</td><td className="px-3 py-2">{item.cajera_nombre}</td><td className="px-3 py-2 text-right font-black">{montoInvalido?'Revisar':dinero(item.total_ventas)}</td><td className="px-3 py-2 text-right font-black">{montoInvalido?'Revisar':dinero(cuadreGuardado)}</td><td className={`px-3 py-2 text-right font-black ${montoInvalido || Math.abs(diferencia) >= 0.5 ? 'text-red-700' : 'text-emerald-700'}`}>{diferenciaTexto}</td><td className="px-3 py-2 text-right"><span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${item.estado === 'cerrada' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{item.estado}</span></td></tr>; })}</tbody></table></div></section>
     </div>
   );
 }
