@@ -639,6 +639,32 @@ export default function CajaDiariaPage() {
         <label className="grid gap-1 text-xs font-black uppercase text-[#4B2818]/60">Observación<textarea value={observacion} onChange={(event) => setObservacion(event.target.value)} placeholder={cuadrada ? 'Opcional' : 'Obligatoria si existe diferencia'} className="min-h-24 rounded-lg border border-[#4B2818]/20 p-3 text-sm font-bold normal-case" /></label>
       </fieldset>
 
+      <section className="flex flex-wrap items-center gap-2 rounded-xl border border-[#4B2818]/15 bg-white p-4 shadow-sm">
+        <span className="mr-1 text-xs font-black uppercase tracking-wide text-[#4B2818]/60">Imprimir turnos</span>
+        {turnos.map((turno, indiceTurno) => {
+          const septimosPrevios = new Set(
+            turnos
+              .slice(0, indiceTurno)
+              .flatMap((anterior) => anterior.lineas.map((linea) => linea.funcionario_id))
+              .filter((id): id is string => Boolean(id))
+          );
+          return (
+            <button
+              key={turno.id}
+              type="button"
+              onClick={() => imprimirHojaTurno(`Panaderos · ${turno.nombre}`, fecha, turno.qq || 0, turno.lineas, esFestivo, configPago, funcionariosPanaderos, septimos, septimosPrevios, indiceTurno)}
+              className="inline-flex h-10 items-center gap-2 rounded-md border border-[#A51F2B]/30 bg-white px-3 text-xs font-black text-[#A51F2B] hover:bg-[#FFF3DF]"
+            >
+              <Printer className="h-4 w-4" />{turno.nombre}
+            </button>
+          );
+        })}
+        <button type="button" onClick={() => imprimirHojaDiaria(fecha, turnos, esFestivo, configPago, funcionariosPanaderos, septimos)} className="inline-flex h-10 items-center gap-2 rounded-md border border-[#2A1710] bg-[#2A1710] px-3 text-xs font-black text-white hover:bg-[#4B2818]">
+          <Printer className="h-4 w-4" />Todos los turnos
+        </button>
+        {bloqueada && <span className="text-xs font-bold text-[#4B2818]/60">Disponible también para cajas cerradas.</span>}
+      </section>
+
       <div className="flex flex-wrap justify-end gap-3">
         <button type="button" onClick={() => imprimirGastoDeCaja(fecha, turnos, gastos, totalVentas, tarjetas, efectivo, esFestivo, configPago, funcionariosPanaderos, septimos)} className="inline-flex h-11 items-center gap-2 rounded-md border border-[#2A1710] bg-white px-5 text-sm font-black text-[#2A1710] hover:bg-[#FFF3DF]"><Printer className="h-4 w-4" />Imprimir gasto de caja</button>
         {!bloqueada && <><button type="button" disabled={guardando || cargandoFecha} onClick={() => void guardar('borrador')} className="inline-flex h-11 items-center gap-2 rounded-md border border-[#A51F2B] bg-white px-5 text-sm font-black text-[#A51F2B]"><Save className="h-4 w-4" />Guardar caja</button><button type="button" disabled={guardando || cargandoFecha} onClick={() => void guardar('cerrada')} className="inline-flex h-11 items-center gap-2 rounded-md bg-[#A51F2B] px-6 text-sm font-black text-white"><CheckCircle2 className="h-4 w-4" />Guardar y cerrar caja</button></>}
