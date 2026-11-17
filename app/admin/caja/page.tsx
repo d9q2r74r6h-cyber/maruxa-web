@@ -15,6 +15,7 @@ type Turno = { id: string; nombre: string; qq?: number; lineas: Linea[] };
 type TurnoPlan = { id: string; nombre: string; panaderos: Array<{ id: string; funcionario_id: string; nombre: string; origen: Origen; funcion: Funcion }> };
 type Plantilla = { id: string; nombre: string; turnos: TurnoPlan[] };
 type PlantillaDb = Partial<Plantilla> & { id: string; semana_desde?: string | null; dotacion?: Record<string, TurnoPlan[]> };
+type AmasadoPlanilla = { amasado: number; panaderos: number };
 type CargoRelacionado = { nombre: string };
 type Funcionario = { id: string; nombre_completo: string; nombre_corto?: string | null; dia_descanso?: string | null; cargo: string; recibe_dominical?: boolean; ciclo_dominical?: 'impar' | 'par' | null; funcionario_cargos?: { cargos_empresa?: CargoRelacionado | CargoRelacionado[] | null }[] };
 type Cierre = {
@@ -114,6 +115,7 @@ const DIAS_SEMANA = ['DOMINGO', 'LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERN
 const DIAS_SEMANA_VISIBLES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const nombreDiaSemana = (fecha: string) => DIAS_SEMANA_VISIBLES[new Date(`${fecha}T12:00:00`).getDay()] || '';
 function textoComparable(valor: string) { return valor.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase(); }
+function esErrorColumnaPanaderos(error: { message?: string } | null) { return Boolean(error?.message?.toLowerCase().includes('panaderos') && error.message.toLowerCase().includes('column')); }
 function desplazarFecha(fecha: string, dias: number) { const valor=new Date(`${fecha}T12:00:00`); valor.setDate(valor.getDate()+dias); return valor.toISOString().slice(0,10); }
 function esDiaPagoSeptimo(funcionario: Funcionario, fecha: string) { if(!funcionario.dia_descanso)return false; const siguiente=new Date(`${desplazarFecha(fecha,1)}T12:00:00`).getDay(); return DIAS_SEMANA[siguiente]===textoComparable(funcionario.dia_descanso); }
 function lineasDeCierre(cierre: Cierre) { return cierre.turnos_panaderos?.length ? cierre.turnos_panaderos.flatMap((turno)=>turno.lineas) : [...(cierre.panaderos_primer_turno||[]),...(cierre.panaderos_segundo_turno||[])]; }
@@ -434,6 +436,8 @@ export default function CajaDiariaPage() {
   const [cierre, setCierre] = useState<Cierre | null>(null);
   const [historial, setHistorial] = useState<Cierre[]>([]);
   const [septimosManuales, setSeptimosManuales] = useState<Record<string, number>>({});
+  const [amasadosPlanilla, setAmasadosPlanilla] = useState<Record<number, AmasadoPlanilla>>({});
+  const [errorCruceAmasado, setErrorCruceAmasado] = useState('');
   const [cargando, setCargando] = useState(true);
   const [cargandoFecha, setCargandoFecha] = useState(false);
   const [errorCargaFecha, setErrorCargaFecha] = useState('');
@@ -475,6 +479,18 @@ export default function CajaDiariaPage() {
   const totalSeptimos = [...septimos.values()].reduce((suma,item)=>suma+item.monto,0);
   const totalesTurnos = turnos.map((turno) => lineasCalculadas(turno, esFestivo, configPago, fecha, funcionariosPanaderos).reduce((suma, item) => suma + numero(item.total_pago ?? item.monto), 0));
   const totalPanaderos = totalesTurnos.reduce((suma, monto) => suma + monto, 0) + totalSeptimos;
+  const controlesDemasia = useMemo(() => turnos.map((turno, indice) => {
+    const orden = indice + 1;
+    const planilla = amasadosPlanilla[orden];
+    const demasiaCaja = numeroDecimal(turno.qq);
+    if (!planilla || planilla.panaderos <= 0 || planilla.amasado <= 0) {
+      return { orden, nombre: turno.nombre, demasiaCaja, planilla: null, demasiaEsperada: 0, diferencia: 0, cuadra: false };
+    }
+    const demasiaEsperada = planilla.panaderos * 2 - planilla.amasado;
+    const diferencia = demasiaCaja - demasiaEsperada;
+    return { orden, nombre: turno.nombre, demasiaCaja, planilla, demasiaEsperada, diferencia, cuadra: Math.abs(diferencia) < 0.01 };
+  }), [turnos, amasadosPlanilla]);
+  const hayAlertaDemasia = controlesDemasia.some((control) => control.planilla && !control.cuadra);
   const totalComprasGastos = gastos.reduce((suma, item) => suma + numero(item.monto), 0);
   const totalGastos = totalPanaderos + totalComprasGastos;
   const totalComprobado = efectivo + tarjetas + totalGastos;
@@ -559,6 +575,45 @@ export default function CajaDiariaPage() {
 
   useEffect(() => { void cargarBase(); }, [perfil]);
   useEffect(() => { if (!perfil) return; void (async()=>{ const { data }=await supabase.from('cargo_remuneraciones_especiales').select('configuracion').eq('empresa_id',perfil.empresa_id).lte('vigente_desde',fecha).order('vigente_desde',{ascending:false}).limit(1).maybeSingle(); setConfigPago((data?.configuracion as ConfigPago)||CONFIG_PAGO_BASE); })(); }, [perfil,fecha]);
+  useEffect(() => {
+    if (!perfil) return;
+    let vigente = true;
+    setAmasadosPlanilla({});
+    setErrorCruceAmasado('');
+    void (async () => {
+      const { data: planilla, error: errorPlanilla } = await supabase
+        .from('planillas')
+        .select('id')
+        .eq('empresa_id', perfil.empresa_id)
+        .eq('fecha', fecha)
+        .maybeSingle();
+      if (!vigente) return;
+      if (errorPlanilla) {
+        setErrorCruceAmasado(`No se pudo leer el amasado de la planilla: ${errorPlanilla.message}`);
+        return;
+      }
+      if (!planilla) return;
+      let { data: turnosPlanilla, error: errorTurnos } = await supabase
+        .from('planilla_turnos')
+        .select('turno,amasado,panaderos')
+        .eq('planilla_id', planilla.id);
+      if (esErrorColumnaPanaderos(errorTurnos)) {
+        const respuesta = await supabase
+          .from('planilla_turnos')
+          .select('turno,amasado')
+          .eq('planilla_id', planilla.id);
+        turnosPlanilla = (respuesta.data || []).map((turno) => ({ ...turno, panaderos: 0 }));
+        errorTurnos = respuesta.error;
+      }
+      if (!vigente) return;
+      if (errorTurnos) {
+        setErrorCruceAmasado(`No se pudo leer los turnos de la planilla: ${errorTurnos.message}`);
+        return;
+      }
+      setAmasadosPlanilla(Object.fromEntries((turnosPlanilla || []).map((turno) => [Number(turno.turno), { amasado: Number(turno.amasado || 0), panaderos: Number(turno.panaderos || 0) }])));
+    })();
+    return () => { vigente = false; };
+  }, [perfil, fecha]);
   useEffect(() => {
     if (cargando || !perfil) return;
     let vigente = true;
@@ -666,6 +721,12 @@ export default function CajaDiariaPage() {
       </section>
       {errorDotaciones && <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm font-black text-red-800">No se pudieron cargar las dotaciones: {errorDotaciones}. Ejecuta la migración 20260803_dotaciones_por_nombre_feriados.sql.</div>}
       {errorCargaFecha && <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm font-black text-red-800">{errorCargaFecha}</div>}
+
+      <section className={`rounded-xl border p-4 shadow-sm ${hayAlertaDemasia ? 'border-red-300 bg-red-50' : 'border-[#4B2818]/15 bg-white'}`}>
+        <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-black text-[#2A1710]">Control de demasía y amasado</h2><p className="mt-1 text-xs font-bold text-[#4B2818]/65">Demasía esperada = total de panaderos de la planilla × 2 − amasado.</p></div>{hayAlertaDemasia && <span className="rounded-full bg-red-700 px-3 py-1 text-xs font-black text-white">Revisar diferencia</span>}</div>
+        {errorCruceAmasado && <p className="mt-3 rounded-md bg-red-100 px-3 py-2 text-xs font-black text-red-800">{errorCruceAmasado}</p>}
+        <div className="mt-3 grid gap-3 md:grid-cols-2">{controlesDemasia.slice(0, 2).map((control) => !control.planilla ? <div key={control.orden} className="rounded-lg border border-amber-300 bg-amber-50 p-3"><p className="font-black text-[#2A1710]">{control.nombre}</p><p className="mt-1 text-xs font-bold text-amber-900">Pendiente: registra Amasado y Panaderos en la planilla para cruzar este turno.</p></div> : <div key={control.orden} className={`rounded-lg border p-3 ${control.cuadra ? 'border-emerald-300 bg-emerald-50' : 'border-red-300 bg-white'}`}><div className="flex items-center justify-between gap-3"><p className="font-black text-[#2A1710]">{control.nombre}</p><strong className={control.cuadra ? 'text-emerald-700' : 'text-red-700'}>{control.cuadra ? 'Cuadra' : 'Alerta'}</strong></div><p className="mt-2 text-xs font-bold text-[#4B2818]/75">Planilla: {control.planilla.panaderos.toLocaleString('es-CL')} panaderos × 2 − {control.planilla.amasado.toLocaleString('es-CL')} QQ amasado = <strong>{control.demasiaEsperada.toLocaleString('es-CL', { maximumFractionDigits: 2 })} QQ</strong></p><p className="mt-1 text-sm font-black text-[#2A1710]">Caja: {control.demasiaCaja.toLocaleString('es-CL', { maximumFractionDigits: 2 })} QQ {control.cuadra ? '· correcto' : `· diferencia ${Math.abs(control.diferencia).toLocaleString('es-CL', { maximumFractionDigits: 2 })} QQ`}</p></div>)}</div>
+      </section>
 
       <fieldset disabled={bloqueada} className="space-y-5 disabled:opacity-75">
         <div className="grid gap-5 xl:grid-cols-2">
