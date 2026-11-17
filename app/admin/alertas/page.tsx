@@ -32,8 +32,8 @@ type AlertaDemasia = {
   diferencia: number;
 };
 
-// La caja registra 1,5 QQ por cada 1,25 QQ que se muestran en Planilla.
-const FACTOR_PLANILLA_POR_QQ_CAJA = 5 / 6;
+// Caja siempre registra 0,25 QQ más que la misma demasía de Planilla.
+const AJUSTE_QQ_CAJA_A_PLANILLA = 0.25;
 
 function mesActual() {
   const hoy = new Date();
@@ -314,8 +314,10 @@ export default function AlertasPage() {
             if (!fecha || !turnoCaja || panaderos <= 0 || amasado <= 0) return [];
             const demasiaEsperada = amasado - panaderos * 2;
             const demasiaCaja = numero(turnoCaja.qq);
-            const demasiaCajaEnPlanilla =
-              demasiaCaja * FACTOR_PLANILLA_POR_QQ_CAJA;
+            const demasiaCajaEnPlanilla = Math.max(
+              0,
+              demasiaCaja - AJUSTE_QQ_CAJA_A_PLANILLA
+            );
             const diferencia = demasiaCajaEnPlanilla - demasiaEsperada;
             if (Math.abs(diferencia) < 0.01) return [];
             return [
@@ -465,8 +467,8 @@ export default function AlertasPage() {
                 Demasía de Caja vs Amasado
               </h2>
               <p className="text-xs font-bold text-[#4B2818]/65">
-                Demasía en Planilla = Amasado − (Panaderos × 2). 1,5 QQ de
-                Caja equivalen a 1,25 QQ de Planilla.
+                Demasía en Planilla = Amasado − (Panaderos × 2). La demasía
+                de Caja incluye 0,25 QQ adicionales.
               </p>
             </div>
           </div>
