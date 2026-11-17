@@ -28,8 +28,12 @@ type AlertaDemasia = {
   amasado: number;
   demasiaEsperada: number;
   demasiaCaja: number;
+  demasiaCajaEnPlanilla: number;
   diferencia: number;
 };
+
+// La caja registra 1,5 QQ por cada 1,25 QQ que se muestran en Planilla.
+const FACTOR_PLANILLA_POR_QQ_CAJA = 5 / 6;
 
 function mesActual() {
   const hoy = new Date();
@@ -308,11 +312,24 @@ export default function AlertasPage() {
             const amasado = numero(turno.amasado);
             const turnoCaja = fecha ? cajaPorFecha.get(fecha)?.[orden - 1] : null;
             if (!fecha || !turnoCaja || panaderos <= 0 || amasado <= 0) return [];
-            const demasiaEsperada = panaderos * 2 - amasado;
+            const demasiaEsperada = amasado - panaderos * 2;
             const demasiaCaja = numero(turnoCaja.qq);
-            const diferencia = demasiaCaja - demasiaEsperada;
+            const demasiaCajaEnPlanilla =
+              demasiaCaja * FACTOR_PLANILLA_POR_QQ_CAJA;
+            const diferencia = demasiaCajaEnPlanilla - demasiaEsperada;
             if (Math.abs(diferencia) < 0.01) return [];
-            return [{ fecha, turno: orden, panaderos, amasado, demasiaEsperada, demasiaCaja, diferencia }];
+            return [
+              {
+                fecha,
+                turno: orden,
+                panaderos,
+                amasado,
+                demasiaEsperada,
+                demasiaCaja,
+                demasiaCajaEnPlanilla,
+                diferencia,
+              },
+            ];
           });
           setAlertasDemasia(nuevasAlertas.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.turno - b.turno));
         }
@@ -448,7 +465,8 @@ export default function AlertasPage() {
                 Demasía de Caja vs Amasado
               </h2>
               <p className="text-xs font-bold text-[#4B2818]/65">
-                Demasía esperada = Panaderos de planilla × 2 − Amasado.
+                Demasía en Planilla = Amasado − (Panaderos × 2). 1,5 QQ de
+                Caja equivalen a 1,25 QQ de Planilla.
               </p>
             </div>
           </div>
@@ -479,9 +497,9 @@ export default function AlertasPage() {
                   <th className="px-3 py-3 text-left">Turno</th>
                   <th className="px-3 py-3 text-right">Panaderos</th>
                   <th className="px-3 py-3 text-right">Amasado</th>
-                  <th className="px-3 py-3 text-right">Demasía esperada</th>
+                  <th className="px-3 py-3 text-right">Demasía Planilla</th>
                   <th className="px-3 py-3 text-right">Demasía Caja</th>
-                  <th className="px-5 py-3 text-right">Diferencia</th>
+                  <th className="px-5 py-3 text-right">Diferencia Planilla</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#4B2818]/10">
@@ -512,7 +530,13 @@ export default function AlertasPage() {
                       {alerta.demasiaCaja.toLocaleString('es-CL', {
                         maximumFractionDigits: 2,
                       })}{' '}
-                      QQ
+                      QQ Caja
+                      <span className="block text-xs font-semibold text-[#4B2818]/60">
+                        = {alerta.demasiaCajaEnPlanilla.toLocaleString('es-CL', {
+                          maximumFractionDigits: 2,
+                        })}{' '}
+                        QQ Planilla
+                      </span>
                     </td>
                     <td className="px-5 py-3 text-right font-black text-red-700">
                       {alerta.diferencia > 0 ? '+' : ''}
