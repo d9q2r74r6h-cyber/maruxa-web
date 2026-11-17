@@ -21,6 +21,16 @@ type ComparativoDia = {
   repartos: number;
 };
 
+type AlertaDemasia = {
+  fecha: string;
+  turno: number;
+  panaderos: number;
+  amasado: number;
+  demasiaEsperada: number;
+  demasiaCaja: number;
+  diferencia: number;
+};
+
 function mesActual() {
   const hoy = new Date();
   return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
@@ -29,6 +39,13 @@ function mesActual() {
 function numero(valor: unknown) {
   const resultado = Number(valor || 0);
   return Number.isFinite(resultado) ? resultado : 0;
+}
+
+function esErrorColumnaPanaderos(error: { message?: string } | null) {
+  return Boolean(
+    error?.message?.toLowerCase().includes('panaderos') &&
+      error.message.toLowerCase().includes('column')
+  );
 }
 
 function normalizar(valor: string | null | undefined) {
@@ -73,8 +90,10 @@ export default function AlertasPage() {
   const { perfil, puedeVer } = useAdminSession();
   const [mes, setMes] = useState(mesActual);
   const [registros, setRegistros] = useState<ComparativoDia[]>([]);
+  const [alertasDemasia, setAlertasDemasia] = useState<AlertaDemasia[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
+  const [errorDemasia, setErrorDemasia] = useState('');
   const [enviando, setEnviando] = useState('');
   const [resultadoEnvio, setResultadoEnvio] = useState<Record<string, string>>({});
 
@@ -84,6 +103,8 @@ export default function AlertasPage() {
 
       setCargando(true);
       setError('');
+      setErrorDemasia('');
+      setAlertasDemasia([]);
       const anio = Number(mes.slice(0, 4));
       const numeroMes = Number(mes.slice(5, 7));
       const inicio = `${mes}-01`;
@@ -160,7 +181,7 @@ export default function AlertasPage() {
         ])
       );
 
-      const [detallesRindeResp, detallesRepartoResp] = await Promise.all([
+      const [detallesRindeResp, detallesRepartoResp, cierresCajaResp] = await Promise.all([
         idsPlanillasRinde.length
           ? supabase
               .from('planilla_detalles')
@@ -176,6 +197,12 @@ export default function AlertasPage() {
             .gte('fecha', inicio)
             .lte('fecha', fin)
           : Promise.resolve({ data: [], error: null }),
+        supabase
+          .from('caja_cierres')
+          .select('fecha,turnos_panaderos')
+          .eq('empresa_id', perfil.empresa_id)
+          .gte('fecha', inicio)
+          .lte('fecha', fin),
       ]);
 
       if (detallesRindeResp.error || detallesRepartoResp.error) {
@@ -240,6 +267,56 @@ export default function AlertasPage() {
             a.fecha.localeCompare(b.fecha)
         )
       );
+
+      if (cierresCajaResp.error) {
+        setErrorDemasia(
+          `No se pudo leer la demasía de Caja: ${cierresCajaResp.error.message}`
+        );
+      } else if (idsPlanillasRinde.length > 0) {
+        let { data: turnosAmasado, error: errorTurnosAmasado } = await supabase
+          .from('planilla_turnos')
+          .select('planilla_id,turno,amasado,panaderos')
+          .in('planilla_id', idsPlanillasRinde)
+          .in('turno', [1, 2]);
+        const faltaColumnaPanaderos = esErrorColumnaPanaderos(errorTurnosAmasado);
+        if (faltaColumnaPanaderos) {
+          const respuesta = await supabase
+            .from('planilla_turnos')
+            .select('planilla_id,turno,amasado')
+            .in('planilla_id', idsPlanillasRinde)
+            .in('turno', [1, 2]);
+          turnosAmasado = (respuesta.data || []).map((turno) => ({ ...turno, panaderos: 0 }));
+          errorTurnosAmasado = respuesta.error;
+        }
+        if (errorTurnosAmasado) {
+          setErrorDemasia(`No se pudo leer Panaderos y Amasado: ${errorTurnosAmasado.message}`);
+        } else if (faltaColumnaPanaderos) {
+          setErrorDemasia(
+            'No se puede calcular esta alerta porque falta el campo Panaderos en Planilla.'
+          );
+        } else {
+          const cajaPorFecha = new Map(
+            (cierresCajaResp.data || []).map((cierre: any) => [
+              String(cierre.fecha),
+              Array.isArray(cierre.turnos_panaderos) ? cierre.turnos_panaderos : [],
+            ])
+          );
+          const nuevasAlertas = (turnosAmasado || []).flatMap((turno: any) => {
+            const fecha = fechaPorPlanillaRinde.get(String(turno.planilla_id));
+            const orden = numero(turno.turno);
+            const panaderos = numero(turno.panaderos);
+            const amasado = numero(turno.amasado);
+            const turnoCaja = fecha ? cajaPorFecha.get(fecha)?.[orden - 1] : null;
+            if (!fecha || !turnoCaja || panaderos <= 0 || amasado <= 0) return [];
+            const demasiaEsperada = panaderos * 2 - amasado;
+            const demasiaCaja = numero(turnoCaja.qq);
+            const diferencia = demasiaCaja - demasiaEsperada;
+            if (Math.abs(diferencia) < 0.01) return [];
+            return [{ fecha, turno: orden, panaderos, amasado, demasiaEsperada, demasiaCaja, diferencia }];
+          });
+          setAlertasDemasia(nuevasAlertas.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.turno - b.turno));
+        }
+      }
       setCargando(false);
     }
 
@@ -329,8 +406,8 @@ export default function AlertasPage() {
           </h1>
           <p className="mt-2 max-w-2xl text-sm font-semibold text-[#4B2818]/65">
             Compara los kilos asignados a cada reparto en la Planilla
-            con los kilos ingresados en sus planillas mensuales. El resumen y las
-            alertas solo consideran días con kilos mayores que cero en ambos lados.
+            con los kilos ingresados en sus planillas mensuales, y revisa la
+            demasía de Caja contra el amasado de cada turno.
           </p>
         </div>
         <label className="grid gap-1 text-xs font-black text-[#4B2818]">
@@ -361,6 +438,96 @@ export default function AlertasPage() {
           <ArrowRight className="h-5 w-5 shrink-0" />
         </Link>
       )}
+
+      <section className="overflow-hidden rounded-lg border border-red-200 bg-white">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-red-200 bg-red-50 px-5 py-4">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-red-700" />
+            <div>
+              <h2 className="font-black text-[#2A1710]">
+                Demasía de Caja vs Amasado
+              </h2>
+              <p className="text-xs font-bold text-[#4B2818]/65">
+                Demasía esperada = Panaderos de planilla × 2 − Amasado.
+              </p>
+            </div>
+          </div>
+          {alertasDemasia.length > 0 && (
+            <span className="rounded-full bg-red-700 px-3 py-1 text-xs font-black text-white">
+              {alertasDemasia.length} alerta
+              {alertasDemasia.length === 1 ? '' : 's'}
+            </span>
+          )}
+        </div>
+        {cargando ? (
+          <div className="flex justify-center p-8">
+            <Loader2 className="h-5 w-5 animate-spin text-[#A51F2B]" />
+          </div>
+        ) : errorDemasia ? (
+          <p className="p-5 text-sm font-bold text-red-700">{errorDemasia}</p>
+        ) : alertasDemasia.length === 0 ? (
+          <p className="p-6 text-center text-sm font-semibold text-[#4B2818]/60">
+            No hay diferencias entre la demasía ingresada en Caja y el amasado
+            de Planilla para este mes.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[780px] text-sm">
+              <thead className="border-b border-[#4B2818]/10 text-xs uppercase text-[#4B2818]/60">
+                <tr>
+                  <th className="px-5 py-3 text-left">Fecha</th>
+                  <th className="px-3 py-3 text-left">Turno</th>
+                  <th className="px-3 py-3 text-right">Panaderos</th>
+                  <th className="px-3 py-3 text-right">Amasado</th>
+                  <th className="px-3 py-3 text-right">Demasía esperada</th>
+                  <th className="px-3 py-3 text-right">Demasía Caja</th>
+                  <th className="px-5 py-3 text-right">Diferencia</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#4B2818]/10">
+                {alertasDemasia.map((alerta) => (
+                  <tr key={`${alerta.fecha}-${alerta.turno}`}>
+                    <td className="px-5 py-3 font-bold capitalize">
+                      {formatoFecha(alerta.fecha)}
+                    </td>
+                    <td className="px-3 py-3 font-black">
+                      {alerta.turno === 1 ? '1ra' : '2da'}
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      {alerta.panaderos.toLocaleString('es-CL')}
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      {alerta.amasado.toLocaleString('es-CL', {
+                        maximumFractionDigits: 2,
+                      })}{' '}
+                      QQ
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      {alerta.demasiaEsperada.toLocaleString('es-CL', {
+                        maximumFractionDigits: 2,
+                      })}{' '}
+                      QQ
+                    </td>
+                    <td className="px-3 py-3 text-right font-black">
+                      {alerta.demasiaCaja.toLocaleString('es-CL', {
+                        maximumFractionDigits: 2,
+                      })}{' '}
+                      QQ
+                    </td>
+                    <td className="px-5 py-3 text-right font-black text-red-700">
+                      {alerta.diferencia > 0 ? '+' : ''}
+                      {alerta.diferencia.toLocaleString('es-CL', {
+                        maximumFractionDigits: 2,
+                      })}{' '}
+                      QQ
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       <section className="grid gap-3 md:grid-cols-2">
         {resumen.map((repartidor) => {
