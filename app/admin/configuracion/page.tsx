@@ -5,6 +5,10 @@ import { supabase } from '@/lib/supabase';
 import { obtenerEmpresaActual } from '@/lib/empresa';
 import { formatearTelefonoChile } from '@/lib/telefonos';
 import { configuracionPorGrupo, configuracionProductosPredeterminada, type ConfiguracionProducto } from '@/lib/configuracion-productos';
+import {
+  diagnosticarDatosProductos,
+  type DiagnosticoDatosProductos,
+} from '@/lib/calidad-datos-productos';
 
 type EmpresaConfig = {
   id: string;
@@ -71,6 +75,36 @@ type PoliticaAlertaVehiculo = {
 
 type ConceptoBonoCaja = { id: string; nombre: string; monto: number; activo: boolean };
 
+type VigenciaDemasia = {
+  id?: string;
+  vigente_desde: string;
+  ajuste_caja_a_planilla: number;
+};
+
+const DIAGNOSTICO_DATOS_VACIO: DiagnosticoDatosProductos = {
+  sinUnidadBase: 0,
+  tipoNoConfigurado: 0,
+  cajaSinContenido: 0,
+  codigosProveedorAmbiguos: 0,
+};
+
+function fechaHoy() {
+  const partes = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Santiago',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const valor = (tipo: Intl.DateTimeFormatPartTypes) =>
+    partes.find((parte) => parte.type === tipo)?.value || '';
+  return `${valor('year')}-${valor('month')}-${valor('day')}`;
+}
+
+function numeroDecimal(valor: string) {
+  const numero = Number(valor.trim().replace(',', '.'));
+  return Number.isFinite(numero) ? numero : 0;
+}
+
 function normalizarDatoCuenta(valor: string | null | undefined) {
   return (valor || '').trim().toLocaleLowerCase('es-CL').replace(/\s+/g, ' ');
 }
@@ -110,6 +144,9 @@ export default function ConfiguracionPage() {
   const [politicasVehiculos, setPoliticasVehiculos] = useState<PoliticaAlertaVehiculo[]>([]);
   const [conceptosBonoCaja, setConceptosBonoCaja] = useState<ConceptoBonoCaja[]>([]);
   const [configuracionesProductos, setConfiguracionesProductos] = useState<ConfiguracionProducto[]>([]);
+  const [vigenciasDemasia, setVigenciasDemasia] = useState<VigenciaDemasia[]>([]);
+  const [vigenciasDemasiaDisponibles, setVigenciasDemasiaDisponibles] = useState(true);
+  const [diagnosticoDatos, setDiagnosticoDatos] = useState<DiagnosticoDatosProductos>(DIAGNOSTICO_DATOS_VACIO);
   const [cuentaEditando, setCuentaEditando] = useState<CuentaBancaria | null>(null);
   const [loading, setLoading] = useState(true);
   const [subiendoLogo, setSubiendoLogo] = useState(false);
@@ -141,6 +178,10 @@ export default function ConfiguracionPage() {
   });
   const [nuevoConceptoBono, setNuevoConceptoBono] = useState({ nombre: '', monto: '' });
   const [nuevaUnidadProducto, setNuevaUnidadProducto] = useState({ codigo: '', nombre: '' });
+  const [nuevaVigenciaDemasia, setNuevaVigenciaDemasia] = useState({
+    vigente_desde: fechaHoy(),
+    ajuste_caja_a_planilla: '0,25',
+  });
 
   async function cargarDatos() {
     setLoading(true);
@@ -182,11 +223,52 @@ export default function ConfiguracionPage() {
       .order('grupo')
       .order('orden')
       .order('nombre');
+    const configuracionesActuales = configuracionesError
+      ? configuracionProductosPredeterminada
+      : (configuracionesData as ConfiguracionProducto[]) || configuracionProductosPredeterminada;
     setConfiguracionesProductos(
-      configuracionesError
-        ? configuracionProductosPredeterminada
-        : (configuracionesData as ConfiguracionProducto[]) || configuracionProductosPredeterminada
+      configuracionesActuales
     );
+
+    const [vigenciasDemasiaData, productosData, codigosProveedorData] = await Promise.all([
+      supabase
+        .from('demasia_vigencias')
+        .select('id,vigente_desde,ajuste_caja_a_planilla')
+        .eq('empresa_id', empresaActual.id)
+        .order('vigente_desde', { ascending: false }),
+      supabase
+        .from('productos')
+        .select('id,tipo_producto,unidad_base,undxcaja,contenido_por_unidad,unidad_contenido')
+        .eq('empresa_id', empresaActual.id),
+      supabase
+        .from('productos_proveedor')
+        .select('proveedor_id,producto_id,codigo_proveedor')
+        .eq('empresa_id', empresaActual.id),
+    ]);
+
+    if (vigenciasDemasiaData.error) {
+      setVigenciasDemasiaDisponibles(false);
+      setVigenciasDemasia([
+        { vigente_desde: '2026-01-01', ajuste_caja_a_planilla: 0.25 },
+      ]);
+    } else {
+      setVigenciasDemasiaDisponibles(true);
+      setVigenciasDemasia((vigenciasDemasiaData.data as VigenciaDemasia[]) || []);
+    }
+
+    if (!productosData.error) {
+      setDiagnosticoDatos(
+        diagnosticarDatosProductos(
+          productosData.data || [],
+          codigosProveedorData.error ? [] : codigosProveedorData.data || [],
+          configuracionPorGrupo(configuracionesActuales, 'tipo')
+            .filter((tipo) => tipo.activo)
+            .map((tipo) => tipo.codigo)
+        )
+      );
+    } else {
+      setDiagnosticoDatos(DIAGNOSTICO_DATOS_VACIO);
+    }
 
     const { data: turnosData, error: turnosError } = await supabase
       .from('turnos')
@@ -327,6 +409,36 @@ export default function ConfiguracionPage() {
     });
     if (error) return alert(error.code === '23505' ? 'Esta unidad ya está configurada.' : error.message);
     setNuevaUnidadProducto({ codigo: '', nombre: '' });
+    await cargarDatos();
+  }
+
+  async function guardarVigenciaDemasia() {
+    if (!empresa) return;
+    if (!vigenciasDemasiaDisponibles) {
+      alert('Primero aplica la migración de vigencias de demasía.');
+      return;
+    }
+
+    const vigenteDesde = nuevaVigenciaDemasia.vigente_desde;
+    const ajuste = numeroDecimal(nuevaVigenciaDemasia.ajuste_caja_a_planilla);
+    if (!vigenteDesde || ajuste < 0) {
+      alert('Ingresa una fecha y un ajuste de Caja válido.');
+      return;
+    }
+
+    const { error } = await supabase.from('demasia_vigencias').upsert(
+      {
+        empresa_id: empresa.id,
+        vigente_desde: vigenteDesde,
+        ajuste_caja_a_planilla: ajuste,
+      },
+      { onConflict: 'empresa_id,vigente_desde' }
+    );
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
     await cargarDatos();
   }
 
@@ -1541,6 +1653,96 @@ export default function ConfiguracionPage() {
                 </div>)}
               </div>
             </div>
+          </div>
+        </section>
+
+        <section className="mt-8 rounded-[2rem] border border-[#4B2818]/15 bg-white p-6 shadow-sm">
+          <h2 className="text-2xl font-black text-maruxa-chocolate">Vigencias de demasía</h2>
+          <p className="mt-1 text-sm font-bold text-maruxa-cafe/65">
+            Cada regla se aplica desde su fecha y conserva el cálculo de los días anteriores.
+            El ajuste convierte la demasía de Caja a la escala de Planilla.
+          </p>
+
+          {!vigenciasDemasiaDisponibles && (
+            <p className="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-950">
+              Falta aplicar la migración <code>20261118_vigencias_demasia_y_calidad_maestra.sql</code>.
+              Mientras tanto, Alertas mantiene el ajuste base de 0,25 QQ.
+            </p>
+          )}
+
+          <div className="mt-5 grid gap-3 md:grid-cols-[1fr_220px_auto]">
+            <label className="grid gap-1 text-xs font-black text-maruxa-cafe/70">
+              Vigente desde
+              <input
+                type="date"
+                value={nuevaVigenciaDemasia.vigente_desde}
+                onChange={(event) => setNuevaVigenciaDemasia((actual) => ({ ...actual, vigente_desde: event.target.value }))}
+                className="h-11 rounded-xl border px-3 font-bold"
+              />
+            </label>
+            <label className="grid gap-1 text-xs font-black text-maruxa-cafe/70">
+              Ajuste Caja → Planilla
+              <input
+                inputMode="decimal"
+                value={nuevaVigenciaDemasia.ajuste_caja_a_planilla}
+                onChange={(event) => setNuevaVigenciaDemasia((actual) => ({ ...actual, ajuste_caja_a_planilla: event.target.value }))}
+                placeholder="0,25"
+                className="h-11 rounded-xl border px-3 text-right font-black"
+              />
+            </label>
+            <button
+              type="button"
+              disabled={!vigenciasDemasiaDisponibles}
+              onClick={() => void guardarVigenciaDemasia()}
+              className="mt-auto h-11 rounded-xl bg-[#A51F2B] px-5 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Guardar vigencia
+            </button>
+          </div>
+
+          <div className="mt-5 overflow-x-auto">
+            <table className="w-full min-w-[520px] text-sm">
+              <thead className="border-b border-[#4B2818]/10 text-left text-xs uppercase text-maruxa-cafe/60">
+                <tr>
+                  <th className="px-3 py-2">Desde</th>
+                  <th className="px-3 py-2 text-right">Ajuste Caja → Planilla</th>
+                  <th className="px-3 py-2">Estado</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#4B2818]/10">
+                {vigenciasDemasia.map((vigencia, indice) => (
+                  <tr key={vigencia.id || vigencia.vigente_desde}>
+                    <td className="px-3 py-3 font-black">{new Date(`${vigencia.vigente_desde}T12:00:00`).toLocaleDateString('es-CL')}</td>
+                    <td className="px-3 py-3 text-right font-black">−{Number(vigencia.ajuste_caja_a_planilla).toLocaleString('es-CL', { maximumFractionDigits: 2 })} QQ</td>
+                    <td className="px-3 py-3 font-bold text-emerald-800">{indice === 0 ? 'Vigente actual' : 'Histórica'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="mt-8 rounded-[2rem] border border-[#4B2818]/15 bg-white p-6 shadow-sm">
+          <h2 className="text-2xl font-black text-maruxa-chocolate">Control de datos maestros</h2>
+          <p className="mt-1 text-sm font-bold text-maruxa-cafe/65">
+            Revisa inconsistencias sin modificar productos, catálogo ni historial automáticamente.
+          </p>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              ['Productos sin unidad base', diagnosticoDatos.sinUnidadBase],
+              ['Productos sin tipo o fuera de configuración', diagnosticoDatos.tipoNoConfigurado],
+              ['Cajas sin contenido registrado', diagnosticoDatos.cajaSinContenido],
+              ['Códigos de proveedor ambiguos', diagnosticoDatos.codigosProveedorAmbiguos],
+            ].map(([nombre, cantidad]) => {
+              const pendientes = Number(cantidad) > 0;
+              return (
+                <div key={String(nombre)} className={`rounded-xl border p-4 ${pendientes ? 'border-amber-300 bg-amber-50' : 'border-emerald-300 bg-emerald-50'}`}>
+                  <p className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/65">{nombre}</p>
+                  <p className={`mt-2 text-3xl font-black ${pendientes ? 'text-amber-800' : 'text-emerald-800'}`}>{cantidad}</p>
+                  <p className={`mt-1 text-xs font-bold ${pendientes ? 'text-amber-900/75' : 'text-emerald-900/75'}`}>{pendientes ? 'Requiere revisión en Compras.' : 'Correcto'}</p>
+                </div>
+              );
+            })}
           </div>
         </section>
 

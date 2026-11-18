@@ -24,3 +24,15 @@ test('no alerta cuando Caja y Planilla cuadran', () => {
     diferencia: 0,
   });
 });
+
+test('permite aplicar una vigencia posterior sin alterar la regla base', () => {
+  assert.deepEqual(compararDemasia(11.25, 4, 3.75, { ajusteCajaAPlanilla: 0.5 }), {
+    esperadaPlanilla: 3.25,
+    cajaEnPlanilla: 3.25,
+    diferencia: 0,
+  });
+});
+
+test('mantiene el ajuste base cuando una vigencia viene incompleta', () => {
+  assert.equal(demasiaCajaAPlanilla(1.5, {}), 1.25);
+});

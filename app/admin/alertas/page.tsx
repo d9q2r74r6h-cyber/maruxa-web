@@ -10,7 +10,10 @@ import {
   Scale,
 } from 'lucide-react';
 import { useAdminSession } from '@/components/AdminSession';
-import { compararDemasia } from '@/lib/demasia';
+import {
+  compararDemasia,
+  REGLA_DEMASIA_PREDETERMINADA,
+} from '@/lib/demasia';
 import { supabase } from '@/lib/supabase';
 
 type ComparativoDia = {
@@ -30,7 +33,13 @@ type AlertaDemasia = {
   demasiaEsperada: number;
   demasiaCaja: number;
   demasiaCajaEnPlanilla: number;
+  ajusteCajaAPlanilla: number;
   diferencia: number;
+};
+
+type VigenciaDemasia = {
+  vigente_desde: string;
+  ajuste_caja_a_planilla: number;
 };
 
 function mesActual() {
@@ -48,6 +57,15 @@ function esErrorColumnaPanaderos(error: { message?: string } | null) {
     error?.message?.toLowerCase().includes('panaderos') &&
       error.message.toLowerCase().includes('column')
   );
+}
+
+function reglaDemasiaParaFecha(vigencias: VigenciaDemasia[], fecha: string) {
+  const vigente = vigencias.find((regla) => regla.vigente_desde <= fecha);
+  return {
+    ajusteCajaAPlanilla:
+      vigente?.ajuste_caja_a_planilla ??
+      REGLA_DEMASIA_PREDETERMINADA.ajusteCajaAPlanilla,
+  };
 }
 
 function normalizar(valor: string | null | undefined) {
@@ -183,7 +201,12 @@ export default function AlertasPage() {
         ])
       );
 
-      const [detallesRindeResp, detallesRepartoResp, cierresCajaResp] = await Promise.all([
+      const [
+        detallesRindeResp,
+        detallesRepartoResp,
+        cierresCajaResp,
+        vigenciasDemasiaResp,
+      ] = await Promise.all([
         idsPlanillasRinde.length
           ? supabase
               .from('planilla_detalles')
@@ -205,6 +228,12 @@ export default function AlertasPage() {
           .eq('empresa_id', perfil.empresa_id)
           .gte('fecha', inicio)
           .lte('fecha', fin),
+        supabase
+          .from('demasia_vigencias')
+          .select('vigente_desde,ajuste_caja_a_planilla')
+          .eq('empresa_id', perfil.empresa_id)
+          .lte('vigente_desde', fin)
+          .order('vigente_desde', { ascending: false }),
       ]);
 
       if (detallesRindeResp.error || detallesRepartoResp.error) {
@@ -270,6 +299,15 @@ export default function AlertasPage() {
         )
       );
 
+      const vigenciasDemasia = vigenciasDemasiaResp.error
+        ? []
+        : ((vigenciasDemasiaResp.data || []) as VigenciaDemasia[]).map(
+            (vigencia) => ({
+              vigente_desde: String(vigencia.vigente_desde),
+              ajuste_caja_a_planilla: numero(vigencia.ajuste_caja_a_planilla),
+            })
+          );
+
       if (cierresCajaResp.error) {
         setErrorDemasia(
           `No se pudo leer la demasía de Caja: ${cierresCajaResp.error.message}`
@@ -311,11 +349,17 @@ export default function AlertasPage() {
             const turnoCaja = fecha ? cajaPorFecha.get(fecha)?.[orden - 1] : null;
             if (!fecha || !turnoCaja || panaderos <= 0 || amasado <= 0) return [];
             const demasiaCaja = numero(turnoCaja.qq);
+            const reglaDemasia = reglaDemasiaParaFecha(vigenciasDemasia, fecha);
             const {
               esperadaPlanilla: demasiaEsperada,
               cajaEnPlanilla: demasiaCajaEnPlanilla,
               diferencia,
-            } = compararDemasia(amasado, panaderos, demasiaCaja);
+            } = compararDemasia(
+              amasado,
+              panaderos,
+              demasiaCaja,
+              reglaDemasia
+            );
             if (Math.abs(diferencia) < 0.01) return [];
             return [
               {
@@ -326,6 +370,7 @@ export default function AlertasPage() {
                 demasiaEsperada,
                 demasiaCaja,
                 demasiaCajaEnPlanilla,
+                ajusteCajaAPlanilla: reglaDemasia.ajusteCajaAPlanilla,
                 diferencia,
               },
             ];
@@ -464,8 +509,8 @@ export default function AlertasPage() {
                 Demasía de Caja vs Amasado
               </h2>
               <p className="text-xs font-bold text-[#4B2818]/65">
-                Demasía en Planilla = Amasado − (Panaderos × 2). La demasía
-                de Caja incluye 0,25 QQ adicionales.
+                Demasía en Planilla = Amasado − (Panaderos × 2). El ajuste de
+                Caja se aplica según la vigencia de cada fecha.
               </p>
             </div>
           </div>
@@ -498,6 +543,7 @@ export default function AlertasPage() {
                   <th className="px-3 py-3 text-right">Amasado</th>
                   <th className="px-3 py-3 text-right">Demasía Planilla</th>
                   <th className="px-3 py-3 text-right">Demasía Caja</th>
+                  <th className="px-3 py-3 text-right">Ajuste aplicado</th>
                   <th className="px-5 py-3 text-right">Diferencia Planilla</th>
                 </tr>
               </thead>
@@ -536,6 +582,12 @@ export default function AlertasPage() {
                         })}{' '}
                         QQ Planilla
                       </span>
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      −{alerta.ajusteCajaAPlanilla.toLocaleString('es-CL', {
+                        maximumFractionDigits: 2,
+                      })}{' '}
+                      QQ
                     </td>
                     <td className="px-5 py-3 text-right font-black text-red-700">
                       {alerta.diferencia > 0 ? '+' : ''}
