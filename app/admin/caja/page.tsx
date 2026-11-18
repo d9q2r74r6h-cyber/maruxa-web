@@ -654,7 +654,7 @@ export default function CajaDiariaPage() {
   return (
     <div className="space-y-5 pb-12">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div><p className="text-xs font-black uppercase tracking-widest text-[#A51F2B]">Comercial</p><h1 className="mt-1 text-3xl font-black text-[#2A1710]">Caja diaria</h1><p className="mt-2 text-sm font-bold text-[#4B2818]/65">Cuadre manual de ventas, pagos a panaderos y gastos del día.</p><Link href="/admin/caja/dotacion" className="mt-3 inline-flex text-sm font-black text-[#A51F2B] underline">Configurar dotaciones</Link></div>
+        <div><p className="text-xs font-black uppercase tracking-widest text-[#A51F2B]">Comercial</p><h1 className="mt-1 text-3xl font-black text-[#2A1710]">Caja diaria</h1><p className="mt-2 text-sm font-bold text-[#4B2818]/65">Cuadre manual de ventas, pagos a panaderos y gastos del día.</p><div className="mt-3 flex flex-wrap gap-x-4 gap-y-1"><Link href="/admin/caja/dotacion" className="inline-flex text-sm font-black text-[#A51F2B] underline">Configurar dotaciones</Link><Link href="/admin/informes/caja-panaderos" className="inline-flex text-sm font-black text-[#A51F2B] underline">Ver informe mensual</Link></div></div>
         <div className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-black ${cuadrada ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>{cuadrada ? <CheckCircle2 className="h-4 w-4" /> : <WalletCards className="h-4 w-4" />}{cuadrada ? 'Caja cuadrada' : `Diferencia ${dinero(diferencia)}`}</div>
       </header>
 

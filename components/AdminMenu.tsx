@@ -70,6 +70,7 @@ const grupos: {
     label: 'Informes',
     items: [
       { label: 'Rinde mensual', href: '/admin/informes/rinde', modulo: 'informe_rinde' },
+      { label: 'Caja y panaderos', href: '/admin/informes/caja-panaderos', modulo: 'caja_diaria' },
       { label: 'Listados de precios', href: '/admin/informes/precios', modulo: 'compras' },
       { label: 'Productos por proveedor', href: '/admin/informes/productos-proveedor', modulo: 'compras' },
       { label: 'Rendimiento de vehículos', href: '/admin/informes/rendimiento-vehiculos', modulo: 'rendimiento_vehiculos' },
