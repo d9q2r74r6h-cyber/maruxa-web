@@ -10,6 +10,11 @@ import {
 import { supabase } from '@/lib/supabase';
 import { obtenerEmpresaActual } from '@/lib/empresa';
 import { separarUnidadesCaja } from '@/lib/nombre-producto-publico';
+import {
+  porcentajeVariacionCosto,
+  UMBRAL_ALERTA_VARIACION_COSTO,
+  variacionCostoEsAnormal,
+} from '@/lib/variacion-costos';
 import dynamic from 'next/dynamic';
 import type { CargaFactura } from '@/components/ImportarFactura';
 const ImportarFactura = dynamic(() => import('@/components/ImportarFactura'), { ssr: false });
@@ -421,6 +426,13 @@ export default function AdminComprasPage() {
   const [mostrarVariaciones, setMostrarVariaciones] = useState(false);
   const [recetasAfectadas, setRecetasAfectadas] = useState<RecetaAfectada[]>([]);
   const [cargandoRecetasAfectadas, setCargandoRecetasAfectadas] = useState(false);
+  const variacionesAnormalesCompra = useMemo(
+    () =>
+      variacionesCompra.filter((item) =>
+        variacionCostoEsAnormal(item.costo_anterior, item.costo_nuevo)
+      ),
+    [variacionesCompra]
+  );
 
   const resumenFactura = useMemo(() => {
     const productos = items.reduce(
@@ -2008,10 +2020,10 @@ export default function AdminComprasPage() {
         const stockNuevo = stockAnterior;
         const costoNuevo = item.costo_unitario;
 
-        const variacionPorcentaje =
-          costoAnterior > 0
-            ? ((costoNuevo - costoAnterior) / costoAnterior) * 100
-            : 0;
+        const variacionPorcentaje = porcentajeVariacionCosto(
+          costoAnterior,
+          costoNuevo
+        );
 
         return {
           producto_id: producto.id,
@@ -2487,6 +2499,42 @@ export default function AdminComprasPage() {
     if (!proveedorId || !numeroFactura.trim()) {
       alert('Selecciona el proveedor e ingresa el número de factura.');
       return;
+    }
+
+    const variacionesPrevias = calcularVariaciones(
+      itemsConsolidados,
+      productosTrabajo
+    );
+    const variacionesAnormales = variacionesPrevias.filter((variacion) =>
+      variacionCostoEsAnormal(
+        variacion.costo_anterior,
+        variacion.costo_nuevo
+      )
+    );
+
+    if (variacionesAnormales.length > 0) {
+      setVariacionesCompra(variacionesPrevias);
+      setMostrarVariaciones(true);
+      void cargarRecetasAfectadas(variacionesPrevias);
+
+      const detalle = variacionesAnormales
+        .slice(0, 4)
+        .map(
+          (variacion) =>
+            `• ${variacion.nombre}: ${dinero(variacion.costo_anterior)} → ${dinero(variacion.costo_nuevo)} (${variacion.variacion_porcentaje > 0 ? '+' : ''}${variacion.variacion_porcentaje.toLocaleString('es-CL', { maximumFractionDigits: 1 })}%)`
+        )
+        .join('\n');
+      const adicionales =
+        variacionesAnormales.length > 4
+          ? `\n• y ${variacionesAnormales.length - 4} producto(s) más.`
+          : '';
+      const continuar = confirm(
+        `ALERTA DE COSTO: hay ${variacionesAnormales.length} variación(es) igual o superior a ${UMBRAL_ALERTA_VARIACION_COSTO}%.\n\n${detalle}${adicionales}\n\nEl precio de venta no cambiará automáticamente. Revisa la variación y confirma solo si la factura está correcta.`
+      );
+      if (!continuar) {
+        setGuardando(false);
+        return;
+      }
     }
 
     setGuardando(true);
@@ -4427,22 +4475,36 @@ export default function AdminComprasPage() {
               No hay variaciones para mostrar.
             </p>
           ) : (
+            <>
+              {variacionesAnormalesCompra.length > 0 && (
+                <div className="mt-5 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-950">
+                  <b>{variacionesAnormalesCompra.length}</b> producto(s) varían
+                  un {UMBRAL_ALERTA_VARIACION_COSTO}% o más. Revisa la factura
+                  antes de registrarla: no se modifica ningún precio de venta automáticamente.
+                </div>
+              )}
             <div className="mt-5 overflow-x-auto rounded-2xl border">
               <table className="w-full text-sm">
                 <thead className="bg-red-700 text-white">
                   <tr>
                     <th className="px-4 py-3 text-left">Producto</th>
                     <th className="px-4 py-3 text-right">Cantidad</th>
-                    <th className="px-4 py-3 text-right">Promedio anterior</th>
-                    <th className="px-4 py-3 text-right">Costo nuevo</th>
-                    <th className="px-4 py-3 text-right">Nuevo promedio</th>
+                    <th className="px-4 py-3 text-right">Costo vigente</th>
+                    <th className="px-4 py-3 text-right">Costo factura</th>
+                    <th className="px-4 py-3 text-right">Costo aplicado</th>
                     <th className="px-4 py-3 text-right">Variación</th>
+                    <th className="px-4 py-3 text-right">Estado</th>
                   </tr>
                 </thead>
 
                 <tbody>
-                  {variacionesCompra.map((item) => (
-                    <tr key={item.producto_id} className="border-b last:border-none hover:bg-maruxa-crema/40">
+                  {variacionesCompra.map((item) => {
+                    const esAnormal = variacionCostoEsAnormal(
+                      item.costo_anterior,
+                      item.costo_nuevo
+                    );
+                    return (
+                    <tr key={item.producto_id} className={`border-b last:border-none hover:bg-maruxa-crema/40 ${esAnormal ? 'bg-amber-50/70' : ''}`}>
                       <td className="px-4 py-3 font-bold">{item.nombre}</td>
 
                       <td className="px-4 py-3 text-right">
@@ -4478,11 +4540,20 @@ export default function AdminComprasPage() {
                         })}
                         %
                       </td>
+                      <td className="px-4 py-3 text-right">
+                        {esAnormal ? (
+                          <span className="rounded-full bg-amber-200 px-2 py-1 text-xs font-black text-amber-950">Revisar</span>
+                        ) : (
+                          <span className="text-xs font-bold text-emerald-700">Normal</span>
+                        )}
+                      </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
+            </>
           )}
 
           <div className="mt-8 rounded-[28px] border border-maruxa-rojo/10 bg-maruxa-crema p-5">

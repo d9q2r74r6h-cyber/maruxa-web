@@ -15,6 +15,11 @@ import {
   REGLA_DEMASIA_PREDETERMINADA,
 } from '@/lib/demasia';
 import { supabase } from '@/lib/supabase';
+import {
+  porcentajeVariacionCosto,
+  UMBRAL_ALERTA_VARIACION_COSTO,
+  variacionCostoEsAnormal,
+} from '@/lib/variacion-costos';
 
 type ComparativoDia = {
   claveRepartidor: string;
@@ -40,6 +45,16 @@ type AlertaDemasia = {
 type VigenciaDemasia = {
   vigente_desde: string;
   ajuste_caja_a_planilla: number;
+};
+
+type AlertaCosto = {
+  id: string;
+  fecha: string;
+  producto: string;
+  unidadBase: string | null;
+  costoAnterior: number;
+  costoNuevo: number;
+  variacionPorcentaje: number;
 };
 
 function mesActual() {
@@ -106,6 +121,10 @@ function formatoFecha(fecha: string) {
   }).format(new Date(`${fecha}T12:00:00`));
 }
 
+function dinero(valor: number) {
+  return `$${Math.round(valor || 0).toLocaleString('es-CL')}`;
+}
+
 export default function AlertasPage() {
   const { perfil, puedeVer } = useAdminSession();
   const [mes, setMes] = useState(mesActual);
@@ -114,6 +133,8 @@ export default function AlertasPage() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [errorDemasia, setErrorDemasia] = useState('');
+  const [alertasCosto, setAlertasCosto] = useState<AlertaCosto[]>([]);
+  const [errorCostos, setErrorCostos] = useState('');
   const [enviando, setEnviando] = useState('');
   const [resultadoEnvio, setResultadoEnvio] = useState<Record<string, string>>({});
 
@@ -124,13 +145,15 @@ export default function AlertasPage() {
       setCargando(true);
       setError('');
       setErrorDemasia('');
+      setErrorCostos('');
       setAlertasDemasia([]);
+      setAlertasCosto([]);
       const anio = Number(mes.slice(0, 4));
       const numeroMes = Number(mes.slice(5, 7));
       const inicio = `${mes}-01`;
       const fin = `${mes}-${String(new Date(anio, numeroMes, 0).getDate()).padStart(2, '0')}`;
 
-      const [planillasRindeResp, planillasRepartoResp, funcionariosResp] = await Promise.all([
+      const [planillasRindeResp, planillasRepartoResp, funcionariosResp, historialCostosResp] = await Promise.all([
         supabase
           .from('planillas')
           .select('id,fecha')
@@ -149,7 +172,40 @@ export default function AlertasPage() {
           .select('id,nombre_completo')
           .eq('empresa_id', perfil.empresa_id)
           .eq('activo', true),
+        supabase
+          .from('producto_costos_historial')
+          .select('id,created_at,costo_anterior,costo_nuevo,productos(nombre,unidad_base)')
+          .eq('empresa_id', perfil.empresa_id)
+          .gte('created_at', `${inicio}T00:00:00`)
+          .lte('created_at', `${fin}T23:59:59.999`)
+          .order('created_at', { ascending: false }),
       ]);
+
+      if (historialCostosResp.error) {
+        setErrorCostos(
+          `No se pudieron leer las variaciones de costo: ${historialCostosResp.error.message}`
+        );
+      } else {
+        const nuevasAlertasCosto = (historialCostosResp.data || [])
+          .flatMap((registro: any) => {
+            const costoAnterior = numero(registro.costo_anterior);
+            const costoNuevo = numero(registro.costo_nuevo);
+            if (!variacionCostoEsAnormal(costoAnterior, costoNuevo)) return [];
+            const producto = Array.isArray(registro.productos)
+              ? registro.productos[0]
+              : registro.productos;
+            return [{
+              id: String(registro.id),
+              fecha: String(registro.created_at),
+              producto: producto?.nombre || 'Producto eliminado',
+              unidadBase: producto?.unidad_base || null,
+              costoAnterior,
+              costoNuevo,
+              variacionPorcentaje: porcentajeVariacionCosto(costoAnterior, costoNuevo),
+            }];
+          }) as AlertaCosto[];
+        setAlertasCosto(nuevasAlertasCosto);
+      }
 
       if (planillasRindeResp.error || planillasRepartoResp.error || funcionariosResp.error) {
         setRegistros([]);
@@ -468,7 +524,8 @@ export default function AlertasPage() {
           <p className="mt-2 max-w-2xl text-sm font-semibold text-[#4B2818]/65">
             Compara los kilos asignados a cada reparto en la Planilla
             con los kilos ingresados en sus planillas mensuales, y revisa la
-            demasía de Caja contra el amasado de cada turno.
+            demasía de Caja contra el amasado de cada turno. También detecta
+            costos de compra con variaciones inusuales.
           </p>
         </div>
         <label className="grid gap-1 text-xs font-black text-[#4B2818]">
@@ -499,6 +556,90 @@ export default function AlertasPage() {
           <ArrowRight className="h-5 w-5 shrink-0" />
         </Link>
       )}
+
+      <section className="overflow-hidden rounded-lg border border-amber-300 bg-white">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-300 bg-amber-50 px-5 py-4">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-amber-800" />
+            <div>
+              <h2 className="font-black text-[#2A1710]">
+                Variaciones de costo por revisar
+              </h2>
+              <p className="text-xs font-bold text-[#4B2818]/65">
+                Muestra compras cuyo costo cambió un {UMBRAL_ALERTA_VARIACION_COSTO}% o más. El precio de venta no se ajusta automáticamente.
+              </p>
+            </div>
+          </div>
+          {alertasCosto.length > 0 && (
+            <span className="rounded-full bg-amber-800 px-3 py-1 text-xs font-black text-white">
+              {alertasCosto.length} alerta{alertasCosto.length === 1 ? '' : 's'}
+            </span>
+          )}
+        </div>
+        {cargando ? (
+          <div className="flex justify-center p-8">
+            <Loader2 className="h-5 w-5 animate-spin text-amber-800" />
+          </div>
+        ) : errorCostos ? (
+          <p className="p-5 text-sm font-bold text-red-700">{errorCostos}</p>
+        ) : alertasCosto.length === 0 ? (
+          <p className="p-6 text-center text-sm font-semibold text-[#4B2818]/60">
+            No hay variaciones de costo iguales o superiores al {UMBRAL_ALERTA_VARIACION_COSTO}% en este mes.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead className="border-b border-[#4B2818]/10 text-xs uppercase text-[#4B2818]/60">
+                <tr>
+                  <th className="px-5 py-3 text-left">Fecha</th>
+                  <th className="px-3 py-3 text-left">Producto</th>
+                  <th className="px-3 py-3 text-right">Costo anterior</th>
+                  <th className="px-3 py-3 text-right">Costo nuevo</th>
+                  <th className="px-3 py-3 text-right">Variación</th>
+                  <th className="px-5 py-3 text-right">Acción</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#4B2818]/10">
+                {alertasCosto.map((alerta) => (
+                  <tr key={alerta.id}>
+                    <td className="px-5 py-3 font-bold capitalize">
+                      {formatoFecha(alerta.fecha.slice(0, 10))}
+                    </td>
+                    <td className="px-3 py-3 font-black">
+                      {alerta.producto}
+                      {alerta.unidadBase && (
+                        <span className="ml-2 text-xs font-bold text-[#4B2818]/55">
+                          / {alerta.unidadBase}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      {dinero(alerta.costoAnterior)}
+                    </td>
+                    <td className="px-3 py-3 text-right font-black">
+                      {dinero(alerta.costoNuevo)}
+                    </td>
+                    <td className={`px-3 py-3 text-right font-black ${alerta.variacionPorcentaje > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
+                      {alerta.variacionPorcentaje > 0 ? '+' : ''}
+                      {alerta.variacionPorcentaje.toLocaleString('es-CL', {
+                        maximumFractionDigits: 2,
+                      })}%
+                    </td>
+                    <td className="px-5 py-3 text-right">
+                      <Link
+                        href="/admin/compras"
+                        className="inline-flex rounded-full border border-amber-500 px-3 py-1.5 text-xs font-black text-amber-950 transition hover:bg-amber-100"
+                      >
+                        Revisar compra
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       <section className="overflow-hidden rounded-lg border border-red-200 bg-white">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-red-200 bg-red-50 px-5 py-4">
