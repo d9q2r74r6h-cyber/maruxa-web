@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { obtenerCanalWhatsapp } from '@/lib/whatsapp-canales';
-import { enviarPorWhatsapp } from '@/lib/whatsapp-api';
+import { enviarPorWhatsapp, resolverPlantillaWhatsapp } from '@/lib/whatsapp-api';
 
 function crearAdmin() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -150,7 +150,7 @@ async function enviarPlantillaNotificacionWhatsApp(
     process.env.WHATSAPP_NOTIFICATION_TEMPLATE_NAME ||
     'aviso_nuevo_mensaje_admin';
   const languageCode =
-    process.env.WHATSAPP_NOTIFICATION_TEMPLATE_LANGUAGE || 'es_CL';
+    process.env.WHATSAPP_NOTIFICATION_TEMPLATE_LANGUAGE || 'en_US';
 
   if (
     !canal ||
@@ -161,13 +161,22 @@ async function enviarPlantillaNotificacionWhatsApp(
     return 'No hay plantilla de notificacion configurada.';
   }
 
+  const plantilla = await resolverPlantillaWhatsapp(
+    canal,
+    templateName,
+    languageCode
+  );
+  if (plantilla.encontrada === false) {
+    return `La plantilla ${templateName} no existe o no está aprobada en Meta.`;
+  }
+
   const { respuesta, texto: detalle } = await enviarPorWhatsapp(canal, {
         messaging_product: 'whatsapp',
         to: telefonoDestino,
         type: 'template',
         template: {
-          name: templateName,
-          language: { code: languageCode },
+          name: plantilla.nombre,
+          language: { code: plantilla.idioma },
           components: [
             {
               type: 'body',

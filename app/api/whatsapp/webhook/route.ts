@@ -231,7 +231,7 @@ async function enviarPlantillaNotificacionWhatsApp(
       ? process.env.WHATSAPP_360DIALOG_NOTIFICATION_TEMPLATE_LANGUAGE
       : null) ||
     process.env.WHATSAPP_NOTIFICATION_TEMPLATE_LANGUAGE ||
-    'es_CL';
+    'en_US';
 
   if (
     !canal ||
@@ -246,14 +246,27 @@ async function enviarPlantillaNotificacionWhatsApp(
     };
   }
 
+  const plantilla = await resolverPlantillaWhatsapp(
+    canal,
+    templateName,
+    languageCode
+  );
+  if (plantilla.encontrada === false) {
+    return {
+      error: `La plantilla ${templateName} no existe o no está aprobada en Meta.`,
+      messageId: null,
+      respuesta: null,
+    };
+  }
+
   const { respuesta, data: respuestaMeta, texto: detalle } =
     await enviarPorWhatsapp(canal, {
         messaging_product: 'whatsapp',
         to: telefonoDestino,
         type: 'template',
         template: {
-          name: templateName,
-          language: { code: languageCode },
+          name: plantilla.nombre,
+          language: { code: plantilla.idioma },
           components: [
             {
               type: 'body',

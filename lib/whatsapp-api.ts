@@ -26,10 +26,15 @@ export async function resolverPlantillaWhatsapp(
     }
     const data = await respuesta.json();
     const plantillas = Array.isArray(data?.data) ? data.data : [];
+    const candidatas = plantillas.filter((item: any) => item.name === nombre);
     const plantilla =
-      plantillas.find(
-        (item: any) => item.name === nombre && item.status === 'APPROVED'
-      ) || plantillas.find((item: any) => item.name === nombre);
+      candidatas.find(
+        (item: any) =>
+          item.status === 'APPROVED' && item.language === idiomaPredeterminado
+      ) ||
+      candidatas.find((item: any) => item.status === 'APPROVED') ||
+      candidatas.find((item: any) => item.language === idiomaPredeterminado) ||
+      candidatas[0];
     return {
       nombre,
       idioma: plantilla?.language || idiomaPredeterminado,

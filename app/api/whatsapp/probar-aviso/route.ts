@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { obtenerCanalWhatsapp } from '@/lib/whatsapp-canales';
-import { enviarPorWhatsapp } from '@/lib/whatsapp-api';
+import { enviarPorWhatsapp, resolverPlantillaWhatsapp } from '@/lib/whatsapp-api';
 
 function crearAdmin() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     process.env.WHATSAPP_NOTIFICATION_TEMPLATE_NAME ||
     'aviso_nuevo_mensaje_admin';
   const languageCode =
-    process.env.WHATSAPP_NOTIFICATION_TEMPLATE_LANGUAGE || 'es_CL';
+    process.env.WHATSAPP_NOTIFICATION_TEMPLATE_LANGUAGE || 'en_US';
 
   if (!perfil.notificar_whatsapp || !destino) {
     return NextResponse.json(
@@ -64,6 +64,17 @@ export async function POST(request: Request) {
 
   const texto =
     'Prueba de avisos Maruxa. Si recibes este mensaje, las notificaciones de nuevos mensajes estan funcionando.';
+  const plantilla = await resolverPlantillaWhatsapp(
+    canal,
+    templateName,
+    languageCode
+  );
+  if (plantilla.encontrada === false) {
+    return NextResponse.json(
+      { error: `La plantilla ${templateName} no existe o no está aprobada en Meta.` },
+      { status: 409 }
+    );
+  }
   const { respuesta, data: meta, texto: detalle } = await enviarPorWhatsapp(
     canal,
     {
@@ -71,8 +82,8 @@ export async function POST(request: Request) {
         to: destino,
         type: 'template',
         template: {
-          name: templateName,
-          language: { code: languageCode },
+          name: plantilla.nombre,
+          language: { code: plantilla.idioma },
           components: [
             {
               type: 'body',
