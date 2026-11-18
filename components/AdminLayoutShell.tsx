@@ -10,6 +10,7 @@ const modulosPorRuta = [
   ['/admin/vehiculos', 'vehiculos'],
   ['/admin/informes/rendimiento-vehiculos', 'rendimiento_vehiculos'],
   ['/admin/informes/caja-panaderos', 'caja_diaria'],
+  ['/admin/informes/stock-critico', 'productos'],
   ['/admin/informes/productos-proveedor', 'compras'],
   ['/admin/informes/precios', 'compras'],
   ['/admin/informes/rinde', 'informe_rinde'],
