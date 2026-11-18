@@ -6,8 +6,15 @@ import { obtenerEmpresaActual } from '@/lib/empresa';
 import { presentacionesProducto, validarPresentaciones, type Presentacion } from '@/lib/presentaciones';
 import { separarUnidadesCaja } from '@/lib/nombre-producto-publico';
 import { configuracionPorGrupo, configuracionProductosPredeterminada, nombreTipoProducto, type ConfiguracionProducto } from '@/lib/configuracion-productos';
+import { obtenerProductosConCodigosProveedorAmbiguos } from '@/lib/calidad-datos-productos';
 import { Search, X } from 'lucide-react';
 type TipoProducto = 'producto' | 'ingrediente' | 'envase' | 'mano_obra';
+type FiltroRevision =
+  | 'todos'
+  | 'sin_unidad'
+  | 'tipo_no_configurado'
+  | 'caja_sin_contenido'
+  | 'codigo_proveedor_ambiguo';
 
 type FamiliaProducto = {
   id: string;
@@ -58,6 +65,18 @@ type Producto = {
   margen_personalizado: number | null;
   tipo_margen_personalizado: 'markup' | 'margen_comercial' | null;
   redondeo_personalizado: number | null;
+};
+
+type CodigoProveedorProducto = {
+  id: string;
+  proveedor_id: string;
+  producto_id: number;
+  codigo_proveedor: string;
+  compra_por_caja?: boolean | null;
+  proveedores?: {
+    nombre_fantasia: string | null;
+    razon_social: string | null;
+  }[] | null;
 };
 
 const formInicial = {
@@ -145,6 +164,9 @@ export default function AdminProductosPage() {
   const [cargando, setCargando] = useState(false);
   const [busqueda, setBusqueda] = useState('');
   const [filtroTipo, setFiltroTipo] = useState<'todos' | TipoProducto>('todos');
+  const [filtroRevision, setFiltroRevision] = useState<FiltroRevision>('todos');
+  const [productoIdsConCodigoProveedorAmbiguo, setProductoIdsConCodigoProveedorAmbiguo] = useState<Set<string>>(new Set());
+  const [codigosProveedor, setCodigosProveedor] = useState<CodigoProveedorProducto[]>([]);
 
   const [productoEditando, setProductoEditando] =
     useState<Producto | null>(null);
@@ -160,6 +182,24 @@ export default function AdminProductosPage() {
   const [form, setForm] = useState(formInicial);
 
   const totalProductos = useMemo(() => productos.length, [productos]);
+  const codigosProveedorProductoEditando = useMemo(
+    () =>
+      productoEditando
+        ? codigosProveedor.filter(
+            (codigo) => codigo.producto_id === productoEditando.id
+          )
+        : [],
+    [codigosProveedor, productoEditando]
+  );
+  const tiposProductoActivos = useMemo(
+    () =>
+      new Set(
+        configuracionPorGrupo(configuracionesProducto, 'tipo')
+          .filter((tipo) => tipo.activo)
+          .map((tipo) => tipo.codigo)
+      ),
+    [configuracionesProducto]
+  );
   const productosFiltrados = useMemo(() => {
     const termino = normalizarTexto(busqueda.trim());
 
@@ -170,6 +210,22 @@ export default function AdminProductosPage() {
         tipo === filtroTipo ||
         (filtroTipo === 'ingrediente' && Boolean(producto.es_materia_prima));
       if (!coincideTipo) return false;
+
+      const requiereRevision =
+        filtroRevision === 'sin_unidad'
+          ? !String(producto.unidad_base || '').trim()
+          : filtroRevision === 'tipo_no_configurado'
+            ? tiposProductoActivos.size > 0 &&
+              !tiposProductoActivos.has(String(producto.tipo_producto || ''))
+            : filtroRevision === 'caja_sin_contenido'
+              ? Number(producto.undxcaja || 0) > 0 &&
+                (Number(producto.contenido_por_unidad || 0) <= 0 ||
+                  !String(producto.unidad_contenido || '').trim())
+              : filtroRevision === 'codigo_proveedor_ambiguo'
+                ? productoIdsConCodigoProveedorAmbiguo.has(String(producto.id))
+                : true;
+      if (!requiereRevision) return false;
+
       if (!termino) return true;
 
       const contenido = [
@@ -186,7 +242,7 @@ export default function AdminProductosPage() {
 
       return contenido.includes(termino);
     });
-  }, [productos, busqueda, filtroTipo]);
+  }, [productos, busqueda, filtroTipo, filtroRevision, productoIdsConCodigoProveedorAmbiguo, tiposProductoActivos]);
 
   const esProducto = form.tipo_producto === 'producto';
   const esMateriaPrima =
@@ -300,9 +356,10 @@ export default function AdminProductosPage() {
       setConfiguracionesProducto(configuracionesData as ConfiguracionProducto[]);
     }
 
-    const { data, error } = await supabase
-      .from('productos')
-      .select(`
+    const [{ data, error }, { data: codigosProveedorData, error: codigosProveedorError }] = await Promise.all([
+      supabase
+        .from('productos')
+        .select(`
         *,
         familias_productos (
           id,
@@ -310,9 +367,14 @@ export default function AdminProductosPage() {
           mostrar_catalogo,
           familia_padre_id
         )
-      `)
-      .eq('empresa_id', empresa.id)
-      .order('id', { ascending: false });
+        `)
+        .eq('empresa_id', empresa.id)
+        .order('id', { ascending: false }),
+      supabase
+        .from('productos_proveedor')
+        .select('id,proveedor_id,producto_id,codigo_proveedor,compra_por_caja,proveedores(nombre_fantasia,razon_social)')
+        .eq('empresa_id', empresa.id),
+    ]);
 
     if (error) {
       alert(error.message);
@@ -321,6 +383,16 @@ export default function AdminProductosPage() {
     }
 
     setProductos((data as Producto[]) || []);
+    setProductoIdsConCodigoProveedorAmbiguo(
+      codigosProveedorError
+        ? new Set()
+        : obtenerProductosConCodigosProveedorAmbiguos(codigosProveedorData || [])
+    );
+    setCodigosProveedor(
+      codigosProveedorError
+        ? []
+        : (codigosProveedorData as CodigoProveedorProducto[]) || []
+    );
     setCargando(false);
   }
 
@@ -392,6 +464,19 @@ export default function AdminProductosPage() {
     cargarProductos();
     cargarFamilias();
     cargarImpuestosAdicionales();
+  }, []);
+
+  useEffect(() => {
+    const revision = new URLSearchParams(window.location.search).get('revision');
+    const filtrosValidos: FiltroRevision[] = [
+      'sin_unidad',
+      'tipo_no_configurado',
+      'caja_sin_contenido',
+      'codigo_proveedor_ambiguo',
+    ];
+    if (filtrosValidos.includes(revision as FiltroRevision)) {
+      setFiltroRevision(revision as FiltroRevision);
+    }
   }, []);
 
   function limpiarFormulario() {
@@ -803,6 +888,29 @@ export default function AdminProductosPage() {
     cargarProductos();
   }
 
+  async function quitarCodigoProveedor(codigo: CodigoProveedorProducto) {
+    const datosProveedor = codigo.proveedores?.[0];
+    const proveedor =
+      datosProveedor?.nombre_fantasia?.trim() ||
+      datosProveedor?.razon_social?.trim() ||
+      'este proveedor';
+    const confirmar = confirm(
+      `¿Quitar el código ${codigo.codigo_proveedor} de ${proveedor}?\n\nNo se modifica el producto ni las facturas ya registradas. Solo se evita esta asociación automática en futuras facturas.`
+    );
+    if (!confirmar) return;
+
+    const { error } = await supabase
+      .from('productos_proveedor')
+      .delete()
+      .eq('id', codigo.id);
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    await cargarProductos();
+  }
+
   async function toggleDestacado(producto: Producto) {
     const { error } = await supabase
       .from('productos')
@@ -843,6 +951,42 @@ export default function AdminProductosPage() {
               ? 'Editar producto, materia prima, insumo o servicio'
               : 'Crear producto, materia prima, insumo o servicio'}
           </h2>
+
+          {productoEditando && codigosProveedorProductoEditando.length > 0 && (
+            <div className="mt-5 rounded-2xl border border-amber-300 bg-amber-50 p-4">
+              <p className="text-sm font-black text-amber-950">
+                Códigos de proveedor asociados
+              </p>
+              <p className="mt-1 text-xs font-bold text-amber-900/75">
+                Quita solo una asociación equivocada. Las facturas e historial ya registrados no cambian.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {codigosProveedorProductoEditando.map((codigo) => {
+                  const datosProveedor = codigo.proveedores?.[0];
+                  const proveedor =
+                    datosProveedor?.nombre_fantasia?.trim() ||
+                    datosProveedor?.razon_social?.trim() ||
+                    'Proveedor';
+                  return (
+                    <div
+                      key={codigo.id}
+                      className="flex items-center gap-2 rounded-xl border border-amber-300 bg-white px-3 py-2 text-xs font-black text-maruxa-chocolate"
+                    >
+                      <span>{proveedor}: {codigo.codigo_proveedor}</span>
+                      {codigo.compra_por_caja && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] uppercase">Caja</span>}
+                      <button
+                        type="button"
+                        onClick={() => quitarCodigoProveedor(codigo)}
+                        className="rounded-full border border-red-300 px-2 py-1 text-[10px] font-black uppercase text-red-700 hover:bg-red-50"
+                      >
+                        Quitar
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <label className="space-y-2">
@@ -1461,7 +1605,7 @@ export default function AdminProductosPage() {
                 </p>
               </div>
 
-              <div className="grid gap-2 sm:grid-cols-[minmax(260px,420px)_180px]">
+              <div className="grid gap-2 lg:grid-cols-[minmax(260px,420px)_180px_220px]">
                 <label className="relative block">
                   <Search className="absolute left-3 top-3 h-5 w-5 text-maruxa-cafe/45" />
                   <input
@@ -1492,6 +1636,20 @@ export default function AdminProductosPage() {
                   <option value="todos">Todos los tipos</option>
                   {configuracionPorGrupo(configuracionesProducto, 'tipo').filter((tipo) => tipo.activo).map((tipo) => <option key={tipo.codigo} value={tipo.codigo}>{tipo.nombre}</option>)}
                 </select>
+
+                <select
+                  value={filtroRevision}
+                  onChange={(event) =>
+                    setFiltroRevision(event.target.value as FiltroRevision)
+                  }
+                  className="h-11 rounded-md border border-maruxa-cafe/20 bg-white px-3 text-sm font-black text-maruxa-chocolate outline-none focus:border-maruxa-rojo"
+                >
+                  <option value="todos">Estado de datos: todos</option>
+                  <option value="sin_unidad">Sin unidad base</option>
+                  <option value="tipo_no_configurado">Tipo sin configurar</option>
+                  <option value="caja_sin_contenido">Caja sin contenido</option>
+                  <option value="codigo_proveedor_ambiguo">Código proveedor ambiguo</option>
+                </select>
               </div>
             </div>
           </div>
@@ -1510,7 +1668,7 @@ export default function AdminProductosPage() {
                 No encontramos coincidencias
               </p>
               <p className="mt-1 text-sm font-bold text-maruxa-cafe/55">
-                Prueba otro nombre, código, categoría o tipo.
+                Prueba otro nombre, tipo o estado de datos.
               </p>
             </div>
           )}

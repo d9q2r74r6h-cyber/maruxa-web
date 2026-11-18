@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { obtenerEmpresaActual } from '@/lib/empresa';
 import { formatearTelefonoChile } from '@/lib/telefonos';
@@ -1729,17 +1730,26 @@ export default function ConfiguracionPage() {
           </p>
           <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {[
-              ['Productos sin unidad base', diagnosticoDatos.sinUnidadBase],
-              ['Productos sin tipo o fuera de configuración', diagnosticoDatos.tipoNoConfigurado],
-              ['Cajas sin contenido registrado', diagnosticoDatos.cajaSinContenido],
-              ['Códigos de proveedor ambiguos', diagnosticoDatos.codigosProveedorAmbiguos],
-            ].map(([nombre, cantidad]) => {
-              const pendientes = Number(cantidad) > 0;
+              { nombre: 'Productos sin unidad base', cantidad: diagnosticoDatos.sinUnidadBase, revision: 'sin_unidad' },
+              { nombre: 'Productos sin tipo o fuera de configuración', cantidad: diagnosticoDatos.tipoNoConfigurado, revision: 'tipo_no_configurado' },
+              { nombre: 'Cajas sin contenido registrado', cantidad: diagnosticoDatos.cajaSinContenido, revision: 'caja_sin_contenido' },
+              { nombre: 'Códigos de proveedor ambiguos', cantidad: diagnosticoDatos.codigosProveedorAmbiguos, revision: 'codigo_proveedor_ambiguo' },
+            ].map(({ nombre, cantidad, revision }) => {
+              const pendientes = cantidad > 0;
               return (
                 <div key={String(nombre)} className={`rounded-xl border p-4 ${pendientes ? 'border-amber-300 bg-amber-50' : 'border-emerald-300 bg-emerald-50'}`}>
                   <p className="text-xs font-black uppercase tracking-wide text-maruxa-cafe/65">{nombre}</p>
                   <p className={`mt-2 text-3xl font-black ${pendientes ? 'text-amber-800' : 'text-emerald-800'}`}>{cantidad}</p>
-                  <p className={`mt-1 text-xs font-bold ${pendientes ? 'text-amber-900/75' : 'text-emerald-900/75'}`}>{pendientes ? 'Requiere revisión en Compras.' : 'Correcto'}</p>
+                  {pendientes ? (
+                    <Link
+                      href={`/admin/productos?revision=${revision}`}
+                      className="mt-3 inline-flex rounded-full bg-amber-800 px-3 py-1.5 text-xs font-black text-white transition hover:bg-amber-950"
+                    >
+                      Revisar productos
+                    </Link>
+                  ) : (
+                    <p className="mt-1 text-xs font-bold text-emerald-900/75">Correcto</p>
+                  )}
                 </div>
               );
             })}

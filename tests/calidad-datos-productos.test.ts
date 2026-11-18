@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   diagnosticarDatosProductos,
   normalizarCodigoProveedor,
+  obtenerProductosConCodigosProveedorAmbiguos,
 } from '../lib/calidad-datos-productos.ts';
 
 test('normaliza los códigos de proveedor para detectar asociaciones ambiguas', () => {
@@ -37,4 +38,14 @@ test('identifica productos incompletos sin modificarlos', () => {
     cajaSinContenido: 1,
     codigosProveedorAmbiguos: 1,
   });
+});
+
+test('devuelve todos los productos involucrados en un código de proveedor ambiguo', () => {
+  const productos = obtenerProductosConCodigosProveedorAmbiguos([
+    { proveedor_id: 'p1', producto_id: 12, codigo_proveedor: '000-120' },
+    { proveedor_id: 'p1', producto_id: 14, codigo_proveedor: '000120' },
+    { proveedor_id: 'p2', producto_id: 15, codigo_proveedor: '000120' },
+  ]);
+
+  assert.deepEqual([...productos].sort(), ['12', '14']);
 });

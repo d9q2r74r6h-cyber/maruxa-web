@@ -26,6 +26,30 @@ export function normalizarCodigoProveedor(codigo: string | null | undefined) {
     .replace(/[^A-Z0-9]/g, '');
 }
 
+export function obtenerProductosConCodigosProveedorAmbiguos(
+  codigosProveedor: CodigoProveedorParaCalidad[]
+) {
+  const codigosPorProveedor = new Map<string, Set<string>>();
+
+  for (const codigo of codigosProveedor) {
+    const normalizado = normalizarCodigoProveedor(codigo.codigo_proveedor);
+    if (!codigo.proveedor_id || !normalizado) continue;
+
+    const clave = `${codigo.proveedor_id}::${normalizado}`;
+    const productosAsociados = codigosPorProveedor.get(clave) || new Set<string>();
+    productosAsociados.add(String(codigo.producto_id));
+    codigosPorProveedor.set(clave, productosAsociados);
+  }
+
+  const productosAmbiguos = new Set<string>();
+  for (const productosAsociados of codigosPorProveedor.values()) {
+    if (productosAsociados.size <= 1) continue;
+    productosAsociados.forEach((productoId) => productosAmbiguos.add(productoId));
+  }
+
+  return productosAmbiguos;
+}
+
 export function diagnosticarDatosProductos(
   productos: ProductoParaCalidad[],
   codigosProveedor: CodigoProveedorParaCalidad[],
