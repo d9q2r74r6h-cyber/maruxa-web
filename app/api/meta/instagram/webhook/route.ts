@@ -2,7 +2,11 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { obtenerCanalWhatsapp } from '@/lib/whatsapp-canales';
-import { enviarPorWhatsapp, resolverPlantillaWhatsapp } from '@/lib/whatsapp-api';
+import {
+  enviarPorWhatsapp,
+  resolverPlantillaWhatsapp,
+  resumirErrorWhatsapp,
+} from '@/lib/whatsapp-api';
 
 function crearAdmin() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -124,7 +128,7 @@ async function enviarMensajeWhatsApp(telefono: string, mensaje: string) {
 
   if (respuesta.ok) return null;
 
-  const errorTexto = detalle || `Meta respondio ${respuesta.status}`;
+  const errorTexto = resumirErrorWhatsapp(detalle);
   const errorPlantilla = await enviarPlantillaNotificacionWhatsApp(
     destino,
     mensaje
@@ -193,7 +197,7 @@ async function enviarPlantillaNotificacionWhatsApp(
 
   if (respuesta.ok) return null;
 
-  return detalle || `Meta respondio ${respuesta.status}`;
+  return resumirErrorWhatsapp(detalle);
 }
 
 async function avisarAdministradoresMeta(

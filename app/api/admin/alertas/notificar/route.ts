@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { obtenerCanalWhatsapp } from '@/lib/whatsapp-canales';
-import { enviarPorWhatsapp } from '@/lib/whatsapp-api';
+import { enviarPorWhatsapp, resumirErrorWhatsapp } from '@/lib/whatsapp-api';
 
 function normalizarTelefono(valor: string | null) {
   return String(valor || '').replace(/\D/g, '');
@@ -45,7 +45,17 @@ export async function POST(request: Request) {
     messaging_product: 'whatsapp', to: destino, type: 'text',
     text: { preview_url: false, body: mensaje },
   });
-  if (!respuesta.ok) return NextResponse.json({ error: meta?.error?.message || `WhatsApp rechazó el envío (${respuesta.status}).` }, { status: 502 });
+  if (!respuesta.ok) {
+    return NextResponse.json(
+      {
+        error: resumirErrorWhatsapp(
+          meta?.error?.message,
+          `WhatsApp rechazó el envío (${respuesta.status}).`
+        ),
+      },
+      { status: 502 }
+    );
+  }
 
   const messageId = meta?.messages?.[0]?.id || `alerta-${Date.now()}`;
   await admin.from('whatsapp_eventos').insert({

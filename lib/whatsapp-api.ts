@@ -1,5 +1,24 @@
 import type { CanalWhatsapp } from '@/lib/whatsapp-canales';
 
+export function resumirErrorWhatsapp(
+  detalle: unknown,
+  mensajePredeterminado = 'No se pudo enviar el aviso por WhatsApp. Revisa la configuración.'
+) {
+  const texto = String(detalle || '');
+
+  if (/132001|template name.*does not exist|template.*not exist/i.test(texto)) {
+    return 'La plantilla de aviso no está disponible o no está aprobada en Meta.';
+  }
+  if (/131047|24.?hour|outside the allowed window/i.test(texto)) {
+    return 'El mensaje requiere una plantilla aprobada porque la conversación ya venció.';
+  }
+  if (/oauth|access token|permission/i.test(texto)) {
+    return 'WhatsApp rechazó la conexión. Revisa los permisos y el token del canal.';
+  }
+
+  return mensajePredeterminado;
+}
+
 export async function resolverPlantillaWhatsapp(
   canal: CanalWhatsapp,
   nombre: string,

@@ -6,7 +6,11 @@ import {
   obtenerCanalWhatsapp,
   obtenerCanalesWhatsapp,
 } from '@/lib/whatsapp-canales';
-import { enviarPorWhatsapp, resolverPlantillaWhatsapp } from '@/lib/whatsapp-api';
+import {
+  enviarPorWhatsapp,
+  resolverPlantillaWhatsapp,
+  resumirErrorWhatsapp,
+} from '@/lib/whatsapp-api';
 import { debeRecibirPedido } from '@/lib/repartidores';
 
 const resend = process.env.RESEND_API_KEY
@@ -465,7 +469,7 @@ async function avisarAdministradores(
             }
 
             return resultado.error
-              ? `WhatsApp ${perfil.nombre_visible || perfil.id}: ${resultado.error}`
+              ? `WhatsApp ${perfil.nombre_visible || perfil.id}: ${resumirErrorWhatsapp(resultado.error)}`
               : null;
           })
         );

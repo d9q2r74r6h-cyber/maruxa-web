@@ -10,6 +10,7 @@ import {
   Scale,
 } from 'lucide-react';
 import { useAdminSession } from '@/components/AdminSession';
+import { compararDemasia } from '@/lib/demasia';
 import { supabase } from '@/lib/supabase';
 
 type ComparativoDia = {
@@ -31,9 +32,6 @@ type AlertaDemasia = {
   demasiaCajaEnPlanilla: number;
   diferencia: number;
 };
-
-// Caja siempre registra 0,25 QQ más que la misma demasía de Planilla.
-const AJUSTE_QQ_CAJA_A_PLANILLA = 0.25;
 
 function mesActual() {
   const hoy = new Date();
@@ -312,13 +310,12 @@ export default function AlertasPage() {
             const amasado = numero(turno.amasado);
             const turnoCaja = fecha ? cajaPorFecha.get(fecha)?.[orden - 1] : null;
             if (!fecha || !turnoCaja || panaderos <= 0 || amasado <= 0) return [];
-            const demasiaEsperada = amasado - panaderos * 2;
             const demasiaCaja = numero(turnoCaja.qq);
-            const demasiaCajaEnPlanilla = Math.max(
-              0,
-              demasiaCaja - AJUSTE_QQ_CAJA_A_PLANILLA
-            );
-            const diferencia = demasiaCajaEnPlanilla - demasiaEsperada;
+            const {
+              esperadaPlanilla: demasiaEsperada,
+              cajaEnPlanilla: demasiaCajaEnPlanilla,
+              diferencia,
+            } = compararDemasia(amasado, panaderos, demasiaCaja);
             if (Math.abs(diferencia) < 0.01) return [];
             return [
               {

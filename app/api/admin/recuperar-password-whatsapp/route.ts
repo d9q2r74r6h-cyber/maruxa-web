@@ -53,7 +53,11 @@ export async function POST(request: Request) {
   if (!canal) return NextResponse.json(RESPUESTA_PUBLICA);
 
   const { data: usuarios } = await admin.auth.admin.listUsers({ perPage: 1000 });
-  const usuario = usuarios?.users.find(
+  const usuariosAutenticados = (usuarios?.users || []) as Array<{
+    id: string;
+    email?: string | null;
+  }>;
+  const usuario = usuariosAutenticados.find(
     (item) => item.email?.toLowerCase() === email
   );
   if (!usuario) return NextResponse.json(RESPUESTA_PUBLICA);
