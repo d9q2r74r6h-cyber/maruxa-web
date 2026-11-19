@@ -5,6 +5,8 @@ import { Suspense, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   CakeSlice,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Facebook,
   Instagram,
@@ -57,19 +59,22 @@ export function Home() {
   const direccionMapa = encodeURIComponent(MARUXA.direccion);
   const [destacados, setDestacados] = useState<ProductoHero[]>([]);
   const [cargandoDestacados, setCargandoDestacados] = useState(true);
+  const [indiceDestacado, setIndiceDestacado] = useState(0);
+  const productoDestacado = destacados[indiceDestacado] || destacados[0];
 
   useEffect(() => {
     let activo = true;
 
     async function cargarDestacados() {
       try {
-        const respuesta = await fetch('/api/catalogo?limite=1', {
+        const respuesta = await fetch('/api/catalogo?limite=12', {
           cache: 'no-store',
         });
         const resultado = await respuesta.json();
 
         if (activo && respuesta.ok) {
           setDestacados((resultado.productos || []) as ProductoHero[]);
+          setIndiceDestacado(0);
         }
       } catch {
         // El bloque conserva una alternativa de marca si el catálogo no responde.
@@ -83,6 +88,24 @@ export function Home() {
       activo = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (destacados.length <= 1) return;
+
+    const intervalo = window.setInterval(() => {
+      setIndiceDestacado((indiceActual) =>
+        (indiceActual + 1) % destacados.length
+      );
+    }, 6000);
+
+    return () => window.clearInterval(intervalo);
+  }, [destacados.length]);
+
+  function cambiarDestacado(direccion: -1 | 1) {
+    setIndiceDestacado((indiceActual) =>
+      (indiceActual + direccion + destacados.length) % destacados.length
+    );
+  }
 
   return (
     <>
@@ -151,12 +174,12 @@ export function Home() {
                 <div className="relative grid min-h-[292px] place-items-center sm:min-h-[390px]">
                   <p className="font-black text-maruxa-cafe/65">Cargando producto disponible...</p>
                 </div>
-              ) : destacados.length > 0 ? (
+              ) : productoDestacado ? (
                 <div className="relative">
                   <div className="flex items-end justify-between gap-4">
                     <div>
                       <p className="text-xs font-black uppercase tracking-[.18em] text-maruxa-rojo">
-                        Producto destacado
+                        Productos del catálogo
                       </p>
                       <h2 className="mt-2 text-2xl font-black text-maruxa-chocolate sm:text-3xl">
                         Disponible para pedir hoy
@@ -168,14 +191,15 @@ export function Home() {
                   </div>
 
                   <Link
-                    href={destacados[0].slug ? `/productos/${destacados[0].slug}` : '#catalogo'}
+                    key={productoDestacado.id}
+                    href={productoDestacado.slug ? `/productos/${productoDestacado.slug}` : '#catalogo'}
                     className="group mt-5 grid overflow-hidden rounded-[28px] border border-maruxa-cafe/10 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg sm:grid-cols-[1.15fr_.85fr]"
                   >
                     <div className="h-48 overflow-hidden bg-maruxa-crema sm:h-[300px]">
-                      {destacados[0].imagen ? (
+                      {productoDestacado.imagen ? (
                         <img
-                          src={destacados[0].imagen}
-                          alt={destacados[0].nombre}
+                          src={productoDestacado.imagen}
+                          alt={productoDestacado.nombre}
                           className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                         />
                       ) : (
@@ -186,13 +210,13 @@ export function Home() {
                     </div>
                     <div className="flex flex-col justify-center p-5 sm:p-6">
                       <p className="text-xs font-black uppercase tracking-[.14em] text-maruxa-rojo">
-                        {destacados[0].categoria}
+                        {productoDestacado.categoria}
                       </p>
                       <h3 className="mt-3 text-2xl font-black leading-tight text-maruxa-chocolate">
-                        {destacados[0].nombre}
+                        {productoDestacado.nombre}
                       </h3>
                       <p className="mt-3 text-2xl font-black text-maruxa-rojo">
-                        ${destacados[0].precio.toLocaleString('es-CL')}
+                        ${productoDestacado.precio.toLocaleString('es-CL')}
                       </p>
                       <span className="mt-5 font-black text-maruxa-chocolate group-hover:text-maruxa-rojo">
                         Ver producto
@@ -200,9 +224,31 @@ export function Home() {
                     </div>
                   </Link>
 
-                  <p className="mt-4 text-xs font-bold leading-5 text-maruxa-cafe/65">
-                    Se carga desde el catálogo activo. Si se deshabilita, deja de aparecer aquí.
-                  </p>
+                  {destacados.length > 1 && (
+                    <div className="mt-4 flex items-center justify-between gap-3">
+                      <p className="text-xs font-bold leading-5 text-maruxa-cafe/65">
+                        {indiceDestacado + 1} de {destacados.length} productos activos
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => cambiarDestacado(-1)}
+                          aria-label="Ver producto anterior"
+                          className="grid h-9 w-9 place-items-center rounded-full border border-maruxa-cafe/15 bg-white text-maruxa-chocolate transition hover:border-maruxa-rojo/40 hover:text-maruxa-rojo"
+                        >
+                          <ChevronLeft size={19} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => cambiarDestacado(1)}
+                          aria-label="Ver siguiente producto"
+                          className="grid h-9 w-9 place-items-center rounded-full border border-maruxa-cafe/15 bg-white text-maruxa-chocolate transition hover:border-maruxa-rojo/40 hover:text-maruxa-rojo"
+                        >
+                          <ChevronRight size={19} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="relative flex min-h-[292px] flex-col justify-between sm:min-h-[390px]">
