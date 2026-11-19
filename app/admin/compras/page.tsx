@@ -68,6 +68,17 @@ type ProveedorCompra = {
   precio_iva_incluido: boolean;
 };
 
+type CompraReciente = {
+  id: string;
+  proveedor: string | null;
+  numero_factura: string | null;
+  fecha: string;
+  tipo_documento: string | null;
+  fecha_vencimiento: string | null;
+  condicion_pago: string | null;
+  total: number | null;
+};
+
 type FamiliaProducto = {
   id: string;
   nombre: string;
@@ -299,6 +310,18 @@ function normalizarTexto(texto: string) {
     .trim();
 }
 
+function etiquetaDocumentoCompra(tipo: string | null | undefined) {
+  const etiquetas: Record<string, string> = {
+    factura: 'Factura',
+    factura_exenta: 'Factura exenta',
+    nota_credito: 'Nota de crédito',
+    guia_despacho: 'Guía de despacho',
+    otro: 'Otro documento',
+  };
+
+  return etiquetas[tipo || 'factura'] || 'Documento';
+}
+
 function crearSlug(texto: string) {
   return texto
     .toLowerCase()
@@ -352,6 +375,7 @@ export default function AdminComprasPage() {
   const [empresaId, setEmpresaId] = useState('');
   const [productos, setProductos] = useState<Producto[]>([]);
   const [proveedores, setProveedores] = useState<ProveedorCompra[]>([]);
+  const [comprasRecientes, setComprasRecientes] = useState<CompraReciente[]>([]);
   const [proveedorId, setProveedorId] = useState('');
   const [proveedorTexto, setProveedorTexto] = useState('');
   const [fechaFactura, setFechaFactura] = useState(
@@ -563,7 +587,7 @@ export default function AdminComprasPage() {
     setEmpresaId(empresa.id);
     setIvaPorcentaje(numero(empresa.iva_porcentaje ?? 19) || 19);
 
-    const [{ data, error }, { data: familiasData }] = await Promise.all([
+    const [{ data, error }, { data: familiasData }, { data: comprasData, error: errorCompras }] = await Promise.all([
       supabase
       .from('productos')
       .select(`
@@ -596,6 +620,12 @@ export default function AdminComprasPage() {
         .eq('empresa_id', empresa.id)
         .eq('activo', true)
         .order('nombre', { ascending: true }),
+      supabase
+        .from('compras')
+        .select('id,proveedor,numero_factura,fecha,tipo_documento,fecha_vencimiento,condicion_pago,total')
+        .eq('empresa_id', empresa.id)
+        .order('fecha', { ascending: false })
+        .limit(8),
     ]);
 
     if (error) {
@@ -612,6 +642,12 @@ export default function AdminComprasPage() {
     }));
     setProductos(productosNormalizados as Producto[]);
     setFamilias((familiasData as FamiliaProducto[]) || []);
+    if (errorCompras) {
+      console.error('No se pudieron cargar los últimos documentos de compra.', errorCompras);
+      setComprasRecientes([]);
+    } else {
+      setComprasRecientes((comprasData as CompraReciente[]) || []);
+    }
     if (mostrarCarga) setLoading(false);
   }
 
@@ -2532,6 +2568,52 @@ export default function AdminComprasPage() {
       return;
     }
 
+    // Se revisa antes de crear productos o mover stock: el mismo folio puede
+    // existir para proveedores distintos, pero no debe registrarse dos veces
+    // para el mismo proveedor y tipo de documento.
+    if (!productoDesdeInforme && proveedorId && numeroFactura.trim()) {
+      setGuardando(true);
+      const { data: documentosMismoFolio, error: errorDocumentoDuplicado } =
+        await supabase
+          .from('compras')
+          .select('id,proveedor,numero_factura,fecha,tipo_documento,total')
+          .eq('empresa_id', empresa.id)
+          .eq('numero_factura', numeroFactura.trim())
+          .eq('tipo_documento', tipoDocumento)
+          .limit(20);
+      setGuardando(false);
+
+      if (errorDocumentoDuplicado) {
+        alert(
+          `No se pudo verificar si el documento ya estaba registrado: ${errorDocumentoDuplicado.message}`
+        );
+        return;
+      }
+
+      const proveedorSeleccionado = proveedores.find(
+        (proveedor) => proveedor.id === proveedorId
+      );
+      const nombresProveedor = new Set(
+        [
+          proveedorTexto,
+          proveedorSeleccionado?.razon_social,
+          proveedorSeleccionado?.nombre_fantasia,
+        ]
+          .filter((nombre): nombre is string => Boolean(nombre?.trim()))
+          .map(normalizarTexto)
+      );
+      const documentoDuplicado = (documentosMismoFolio || []).find((compra) =>
+        nombresProveedor.has(normalizarTexto(String(compra.proveedor || '')))
+      );
+
+      if (documentoDuplicado) {
+        alert(
+          `${etiquetaDocumentoCompra(tipoDocumento)} Nº ${numeroFactura.trim()} ya fue registrada para este proveedor el ${formatearFecha(documentoDuplicado.fecha)} por ${dinero(numero(documentoDuplicado.total))}. No se modificó stock ni costos.`
+        );
+        return;
+      }
+    }
+
     if (nuevosPendientes.length > 0) {
       if (!proveedorId) {
         alert('Selecciona el proveedor en la parte superior.');
@@ -3097,6 +3179,70 @@ export default function AdminComprasPage() {
       )}
 
       <ImportarFactura onApply={cargarCostosFactura} />
+
+      {comprasRecientes.length > 0 && (
+        <section className="mt-4 overflow-hidden rounded-[28px] border border-[#4B2818]/15 bg-white shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#4B2818]/10 px-5 py-4">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[.18em] text-maruxa-rojo">
+                Control de compras
+              </p>
+              <h2 className="mt-1 text-lg font-black text-maruxa-chocolate">
+                Últimos documentos registrados
+              </h2>
+            </div>
+            <span className="rounded-full bg-maruxa-crema px-3 py-1 text-[11px] font-black text-maruxa-cafe/70">
+              Últimos {comprasRecientes.length}
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-[760px] w-full text-left text-sm">
+              <thead className="bg-[#FFF8ED] text-[11px] font-black uppercase tracking-wide text-maruxa-cafe/65">
+                <tr>
+                  <th className="px-5 py-3">Fecha</th>
+                  <th className="px-4 py-3">Documento</th>
+                  <th className="px-4 py-3">Proveedor</th>
+                  <th className="px-4 py-3">Pago / vencimiento</th>
+                  <th className="px-5 py-3 text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {comprasRecientes.map((compra) => (
+                  <tr key={compra.id} className="border-t border-[#4B2818]/10 hover:bg-maruxa-crema/30">
+                    <td className="px-5 py-3 font-bold text-maruxa-chocolate">
+                      {formatearFecha(compra.fecha)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="block font-black text-maruxa-chocolate">
+                        {etiquetaDocumentoCompra(compra.tipo_documento)}
+                      </span>
+                      <span className="text-xs font-bold text-maruxa-cafe/60">
+                        {compra.numero_factura ? `Nº ${compra.numero_factura}` : 'Sin folio'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 font-bold text-maruxa-chocolate">
+                      {compra.proveedor || 'Sin proveedor'}
+                    </td>
+                    <td className="px-4 py-3 text-xs font-bold text-maruxa-cafe/70">
+                      <span className="block">
+                        {compra.condicion_pago || 'Sin condición'}
+                      </span>
+                      {compra.fecha_vencimiento && (
+                        <span className="block text-maruxa-rojo">
+                          Vence {formatearFecha(compra.fecha_vencimiento)}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3 text-right font-black text-maruxa-chocolate">
+                      {dinero(numero(compra.total))}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <section className="mt-4 rounded-[34px] bg-white p-6 shadow-premium [overflow-anchor:none]">
         {loading ? (
