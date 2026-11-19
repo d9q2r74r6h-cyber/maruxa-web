@@ -7,6 +7,7 @@ import { CalendarDays, Clock3, MapPin, Minus, Plus, ShieldCheck, Trash2 } from '
 
 import { useCart } from '@/lib/cart';
 import { CalendarioRetiro } from '@/components/CalendarioRetiro';
+import { DatosTransferencia } from '@/components/DatosTransferencia';
 import { cumpleAnticipacionRetiro } from '@/lib/retiro';
 import { formatearTelefonoChile } from '@/lib/telefonos';
 import { MARUXA } from '@/lib/marca';
@@ -180,6 +181,10 @@ export function CheckoutPage() {
                 </p>
               </div>
             </div>
+          </div>
+
+          <div className="mt-6">
+            <DatosTransferencia />
           </div>
 
           {tieneTortas && (

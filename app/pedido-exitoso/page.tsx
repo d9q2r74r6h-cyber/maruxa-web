@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { CalendarDays, Mail, MapPin } from 'lucide-react';
 import { whatsapp } from '@/lib/datos';
 import { MARUXA } from '@/lib/marca';
+import { DatosTransferencia } from '@/components/DatosTransferencia';
 
 function PedidoExitosoContent() {
   const params = useSearchParams();
@@ -145,6 +146,9 @@ function PedidoExitosoContent() {
                 </a>
               </div>
             </div>
+          <div className="mt-6">
+            <DatosTransferencia referencia={numeroPedido ? `Pedido #${numeroPedido}` : undefined} />
+          </div>
           <div className="mt-10 grid gap-3 rounded-[24px] border border-maruxa-rojo/10 bg-white p-6 text-sm font-bold leading-6 text-maruxa-cafe/75 sm:grid-cols-3">
             <p className="flex gap-2"><Mail className="h-5 w-5 shrink-0 text-maruxa-rojo" />Revisamos tu solicitud y confirmamos disponibilidad.</p>
             <p className="flex gap-2"><CalendarDays className="h-5 w-5 shrink-0 text-maruxa-rojo" />Las tortas requieren al menos 24 horas de anticipación.</p>
