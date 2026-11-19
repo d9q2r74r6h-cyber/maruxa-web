@@ -141,7 +141,7 @@ export default function Catalogo() {
 
   function precioConTamano(producto: Producto) {
     const opciones = presentacionesDisponibles(producto);
-    return (opciones.find((p) => p.nombre === tamanoSeleccionado[producto.id]) || opciones[0])?.precio ?? producto.precio;
+    return (opciones.find((p) => p.id === tamanoSeleccionado[producto.id]) || opciones[0])?.precio ?? producto.precio;
   }
 
   function slugProducto(producto: Producto) {
@@ -151,6 +151,14 @@ export default function Catalogo() {
         .toLowerCase()
         .replaceAll(' ', '-')
     );
+  }
+
+  function enlaceProducto(producto: Producto) {
+    const presentacionId = tamanoSeleccionado[producto.id];
+    const destino = `/productos/${slugProducto(producto)}`;
+    return presentacionId
+      ? `${destino}?presentacion=${encodeURIComponent(presentacionId)}`
+      : destino;
   }
 
   function categoriaPrincipal(producto: Producto) {
@@ -416,9 +424,7 @@ export default function Catalogo() {
                 className="card-premium group rounded-[34px] p-5 transition"
               >
                 <Link
-                  href={`/productos/${slugProducto(
-                    p
-                  )}`}
+                  href={enlaceProducto(p)}
                 >
                   <div className="relative h-56 overflow-hidden rounded-[28px]">
 
@@ -448,18 +454,14 @@ export default function Catalogo() {
                     </span>
 
                     <Link
-                      href={`/productos/${slugProducto(
-                        p
-                      )}`}
+                      href={enlaceProducto(p)}
                     >
                       <ArrowUpRight className="opacity-40 group-hover:opacity-100" />
                     </Link>
                   </div>
 
                   <Link
-                    href={`/productos/${slugProducto(
-                      p
-                    )}`}
+                    href={enlaceProducto(p)}
                   >
                     <h3 className="text-2xl font-black text-maruxa-chocolate">
                       {p.nombre}
@@ -508,7 +510,7 @@ export default function Catalogo() {
                           tamanoSeleccionado[
                             p.id
                           ] ||
-                          presentacionesDisponibles(p)[0]?.nombre || ''
+                          presentacionesDisponibles(p)[0]?.id || ''
                         }
                         onChange={(
                           e
@@ -516,9 +518,7 @@ export default function Catalogo() {
                           setTamanoSeleccionado(
                             {
                               ...tamanoSeleccionado,
-                              [p.id]:
-                                e.target
-                                  .value,
+                              [p.id]: e.target.value,
                             }
                           )
                         }
@@ -528,7 +528,7 @@ export default function Catalogo() {
                             const precio = t.precio;
 
                             return (
-                              <option key={t.nombre} value={t.nombre}>
+                              <option key={t.id} value={t.id}>
                                 {t.nombre} - ${precio.toLocaleString('es-CL')}
                               </option>
                             );
@@ -549,9 +549,7 @@ export default function Catalogo() {
                     </p>
 
                     <Link
-                      href={`/productos/${slugProducto(
-                        p
-                      )}`}
+                      href={enlaceProducto(p)}
                       className="rounded-full bg-maruxa-rojo px-4 py-2 text-sm font-black text-maruxa-crema"
                     >
                       Ver producto

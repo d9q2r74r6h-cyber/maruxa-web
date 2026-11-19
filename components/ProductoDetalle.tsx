@@ -10,6 +10,7 @@ import { MobileCartBar } from '@/components/MobileCartBar';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { CalendarDays, MapPin, MessageCircle } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 
 
 type Producto = {
@@ -28,11 +29,17 @@ type Producto = {
 };
 
 export default function ProductoDetalle({ slug }: { slug: string }) {
+  const searchParams = useSearchParams();
   const [producto, setProducto] = useState<Producto | null>(null);
   const [presentacionId, setPresentacionId] = useState('');
   const [cargando, setCargando] = useState(true);
 
   const addItem = useCart((s) => s.addItem);
+  const presentacionSolicitada = searchParams.get('presentacion') || '';
+
+  useEffect(() => {
+    setPresentacionId(presentacionSolicitada);
+  }, [presentacionSolicitada, slug]);
 
   useEffect(() => {
     async function cargarProducto() {
