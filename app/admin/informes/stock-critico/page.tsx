@@ -123,6 +123,7 @@ export default function InformeStockCriticoPage() {
   const [busqueda, setBusqueda] = useState('');
   const [familiaSeleccionada, setFamiliaSeleccionada] = useState('');
   const [soloCriticos, setSoloCriticos] = useState(true);
+  const [filtrarMovimientosPorListado, setFiltrarMovimientosPorListado] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [errorMovimientos, setErrorMovimientos] = useState('');
@@ -259,6 +260,21 @@ export default function InformeStockCriticoPage() {
   );
   const agotados = criticos.filter((item) => item.estado === 'agotado').length;
   const bajoMinimo = criticos.filter((item) => item.estado === 'bajo_minimo').length;
+  const productoIdsVisibles = useMemo(
+    () => new Set(
+      itemsVisibles
+        .filter((item) => item.origen === 'productos')
+        .map((item) => Number(item.id))
+        .filter(Number.isFinite)
+    ),
+    [itemsVisibles]
+  );
+  const movimientosVisibles = useMemo(
+    () => filtrarMovimientosPorListado
+      ? movimientos.filter((movimiento) => productoIdsVisibles.has(Number(movimiento.producto_id)))
+      : movimientos,
+    [filtrarMovimientosPorListado, movimientos, productoIdsVisibles]
+  );
 
   function descargarListado() {
     exportarParaExcel({
@@ -448,17 +464,32 @@ export default function InformeStockCriticoPage() {
           </section>
 
           <section className="overflow-hidden rounded-xl border border-[#4B2818]/15 bg-white shadow-sm">
-            <div className="flex items-center gap-2 border-b border-[#4B2818]/10 bg-[#FFF3DF] px-5 py-4">
-              <Boxes className="h-5 w-5 text-[#A51F2B]" />
-              <div>
-                <h2 className="font-black text-[#2A1710]">Últimos movimientos del catálogo</h2>
-                <p className="text-xs font-bold text-[#4B2818]/65">Últimos 30 días, registrados desde compras y otros movimientos de stock.</p>
+            <div className="flex flex-col justify-between gap-3 border-b border-[#4B2818]/10 bg-[#FFF3DF] px-5 py-4 md:flex-row md:items-center">
+              <div className="flex items-center gap-2">
+                <Boxes className="h-5 w-5 text-[#A51F2B]" />
+                <div>
+                  <h2 className="font-black text-[#2A1710]">Últimos movimientos del catálogo</h2>
+                  <p className="text-xs font-bold text-[#4B2818]/65">Últimos 30 días, registrados desde compras y otros movimientos de stock.</p>
+                </div>
               </div>
+              <label className="flex min-h-10 items-center gap-2 rounded-md border border-[#4B2818]/20 bg-white px-3 text-sm font-black text-[#4B2818]">
+                <input
+                  type="checkbox"
+                  checked={filtrarMovimientosPorListado}
+                  onChange={(event) => setFiltrarMovimientosPorListado(event.target.checked)}
+                  className="h-4 w-4 accent-[#A51F2B]"
+                />
+                Aplicar filtros del listado
+              </label>
             </div>
             {errorMovimientos ? (
               <p className="p-5 text-sm font-bold text-red-700">No se pudo cargar los movimientos: {errorMovimientos}</p>
-            ) : movimientos.length === 0 ? (
-              <p className="p-8 text-center text-sm font-bold text-[#4B2818]/60">No hay movimientos de stock registrados en los últimos 30 días.</p>
+            ) : movimientosVisibles.length === 0 ? (
+              <p className="p-8 text-center text-sm font-bold text-[#4B2818]/60">
+                {filtrarMovimientosPorListado
+                  ? 'No hay movimientos para los productos del listado seleccionado.'
+                  : 'No hay movimientos de stock registrados en los últimos 30 días.'}
+              </p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[820px] text-sm">
@@ -472,7 +503,7 @@ export default function InformeStockCriticoPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#4B2818]/10">
-                    {movimientos.map((movimiento) => {
+                    {movimientosVisibles.map((movimiento) => {
                       const producto = Array.isArray(movimiento.productos) ? movimiento.productos[0] : movimiento.productos;
                       const esSalida = movimiento.tipo_movimiento === 'salida';
                       return (
