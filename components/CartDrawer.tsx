@@ -254,7 +254,7 @@ export function CartDrawer() {
   href="/checkout"
   className="btn-rojo text-center"
 >
-  Ir al checkout
+  Continuar con el pedido
 </a>
 
                 <button

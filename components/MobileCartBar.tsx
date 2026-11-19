@@ -42,7 +42,7 @@ export function MobileCartBar() {
             </p>
 
             <p className="text-xs font-bold text-white/75">
-              Ver carrito
+              Revisar pedido
             </p>
           </div>
         </div>

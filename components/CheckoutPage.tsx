@@ -114,7 +114,7 @@ export function CheckoutPage() {
           </h1>
   
           <p className="mt-4 font-bold text-maruxa-cafe/70">
-            Agrega productos antes de continuar al pago.
+            Agrega productos antes de continuar con tu pedido.
           </p>
   
           <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
@@ -154,7 +154,7 @@ export function CheckoutPage() {
           </p>
 
           <h1 className="mt-4 text-4xl font-black tracking-[-.05em] text-maruxa-chocolate sm:text-6xl">
-            Finalizar pedido
+            Enviar solicitud de pedido
           </h1>
 
           <div className="mt-6 grid gap-3 rounded-[26px] border border-maruxa-rojo/10 bg-white p-5 text-maruxa-chocolate shadow-premium sm:grid-cols-2">
@@ -176,7 +176,7 @@ export function CheckoutPage() {
               <div>
                 <p className="font-black">Confirmación posterior</p>
                 <p className="mt-1 text-sm font-bold text-maruxa-cafe/70">
-                  Recibimos tu solicitud y confirmamos disponibilidad contigo.
+                  No se realiza cobro online en este paso. Confirmamos disponibilidad contigo.
                 </p>
               </div>
             </div>
