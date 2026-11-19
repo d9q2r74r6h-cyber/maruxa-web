@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowLeft, Boxes, PackageSearch, RefreshCw } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Boxes, RefreshCw } from 'lucide-react';
 import { useAdminSession } from '@/components/AdminSession';
 import {
   diagnosticarStock,
@@ -15,6 +15,14 @@ type FilaStock = ItemStockControlado & {
   codigo?: string | null;
   tipo?: string | null;
   costoUnitario: number;
+  familiaId?: string | null;
+  familiaNombre?: string | null;
+};
+
+type FamiliaProducto = {
+  id: string;
+  nombre: string;
+  familia_padre_id: string | null;
 };
 
 type MovimientoStock = {
@@ -64,11 +72,46 @@ function nombreMovimiento(tipo: string) {
   return tipo || 'Movimiento';
 }
 
+function perteneceAFamilia(
+  familiaId: string | null | undefined,
+  familiaFiltroId: string,
+  familiasPorId: Map<string, FamiliaProducto>
+) {
+  let actualId = familiaId || null;
+  const visitadas = new Set<string>();
+
+  while (actualId && !visitadas.has(actualId)) {
+    if (actualId === familiaFiltroId) return true;
+    visitadas.add(actualId);
+    actualId = familiasPorId.get(actualId)?.familia_padre_id || null;
+  }
+
+  return false;
+}
+
+function etiquetaFamilia(familiaId: string | null | undefined, familiasPorId: Map<string, FamiliaProducto>) {
+  const nombres: string[] = [];
+  let actualId = familiaId || null;
+  const visitadas = new Set<string>();
+
+  while (actualId && !visitadas.has(actualId)) {
+    const familia = familiasPorId.get(actualId);
+    if (!familia) break;
+    nombres.unshift(familia.nombre);
+    visitadas.add(actualId);
+    actualId = familia.familia_padre_id;
+  }
+
+  return nombres.join(' / ') || null;
+}
+
 export default function InformeStockCriticoPage() {
   const { perfil } = useAdminSession();
   const [items, setItems] = useState<FilaStock[]>([]);
+  const [familias, setFamilias] = useState<FamiliaProducto[]>([]);
   const [movimientos, setMovimientos] = useState<MovimientoStock[]>([]);
   const [busqueda, setBusqueda] = useState('');
+  const [familiaSeleccionada, setFamiliaSeleccionada] = useState('');
   const [soloCriticos, setSoloCriticos] = useState(true);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
@@ -80,10 +123,10 @@ export default function InformeStockCriticoPage() {
     setError('');
     setErrorMovimientos('');
 
-    const [{ data: productosData, error: errorProductos }, { data: ingredientesData, error: errorIngredientes }] = await Promise.all([
+    const [{ data: productosData, error: errorProductos }, { data: ingredientesData, error: errorIngredientes }, { data: familiasData }] = await Promise.all([
       supabase
         .from('productos')
-        .select('id,codigo,nombre,tipo_producto,unidad_base,stock_actual,stock_minimo,controla_stock,costo_unitario')
+        .select('id,codigo,nombre,tipo_producto,familia_id,unidad_base,stock_actual,stock_minimo,controla_stock,costo_unitario')
         .eq('empresa_id', perfil.empresa_id)
         .eq('activo', true)
         .in('tipo_producto', ['producto', 'ingrediente', 'envase'])
@@ -91,6 +134,12 @@ export default function InformeStockCriticoPage() {
       supabase
         .from('ingredientes')
         .select('id,nombre,unidad_base,stock_actual,stock_minimo,afecta_stock,costo_unitario')
+        .eq('empresa_id', perfil.empresa_id)
+        .eq('activo', true)
+        .order('nombre', { ascending: true }),
+      supabase
+        .from('familias_productos')
+        .select('id,nombre,familia_padre_id')
         .eq('empresa_id', perfil.empresa_id)
         .eq('activo', true)
         .order('nombre', { ascending: true }),
@@ -104,11 +153,17 @@ export default function InformeStockCriticoPage() {
       return;
     }
 
+    const familiasCargadas = (familiasData || []) as FamiliaProducto[];
+    const familiasPorId = new Map(familiasCargadas.map((familia) => [familia.id, familia]));
+    setFamilias(familiasCargadas);
+
     const productos = (productosData || []).map((producto: any) => ({
       id: producto.id,
       codigo: producto.codigo,
       nombre: producto.nombre,
       tipo: producto.tipo_producto,
+      familiaId: producto.familia_id,
+      familiaNombre: etiquetaFamilia(producto.familia_id, familiasPorId),
       unidadBase: producto.unidad_base,
       stockActual: producto.stock_actual,
       stockMinimo: producto.stock_minimo,
@@ -120,6 +175,8 @@ export default function InformeStockCriticoPage() {
       id: ingrediente.id,
       nombre: ingrediente.nombre,
       tipo: 'materia_prima_antigua',
+      familiaId: null,
+      familiaNombre: null,
       unidadBase: ingrediente.unidad_base,
       stockActual: ingrediente.stock_actual,
       stockMinimo: ingrediente.stock_minimo,
@@ -159,16 +216,27 @@ export default function InformeStockCriticoPage() {
   }, [perfil?.empresa_id]);
 
   const criticos = useMemo(() => obtenerStockCritico(items), [items]);
+  const familiasPorId = useMemo(() => new Map(familias.map((familia) => [familia.id, familia])), [familias]);
+  const familiasParaFiltro = useMemo(
+    () => familias.map((familia) => ({ ...familia, etiqueta: etiquetaFamilia(familia.id, familiasPorId) || familia.nombre })),
+    [familias, familiasPorId]
+  );
   const itemsVisibles = useMemo(() => {
     const termino = busqueda.trim().toLocaleLowerCase('es-CL');
     const fuente = soloCriticos ? criticos : items.map(diagnosticarStock);
-    return fuente.filter((item) =>
-      !termino ||
-      `${item.codigo || ''} ${item.nombre} ${item.tipo || ''} ${item.unidadBase || ''}`
-        .toLocaleLowerCase('es-CL')
-        .includes(termino)
-    );
-  }, [busqueda, criticos, items, soloCriticos]);
+    return fuente.filter((item) => {
+      const coincideBusqueda = !termino ||
+        `${item.codigo || ''} ${item.nombre} ${item.tipo || ''} ${item.unidadBase || ''} ${item.familiaNombre || ''}`
+          .toLocaleLowerCase('es-CL')
+          .includes(termino);
+      const coincideFamilia = !familiaSeleccionada ||
+        (familiaSeleccionada === '__sin_familia__'
+          ? !item.familiaId
+          : perteneceAFamilia(item.familiaId, familiaSeleccionada, familiasPorId));
+
+      return coincideBusqueda && coincideFamilia;
+    });
+  }, [busqueda, criticos, familiaSeleccionada, familiasPorId, items, soloCriticos]);
   const agotados = criticos.filter((item) => item.estado === 'agotado').length;
   const bajoMinimo = criticos.filter((item) => item.estado === 'bajo_minimo').length;
 
@@ -237,6 +305,17 @@ export default function InformeStockCriticoPage() {
                   placeholder="Buscar producto..."
                   className="h-10 rounded-md border px-3 text-sm font-bold"
                 />
+                <select
+                  value={familiaSeleccionada}
+                  onChange={(event) => setFamiliaSeleccionada(event.target.value)}
+                  className="h-10 min-w-48 rounded-md border bg-white px-3 text-sm font-bold text-[#2A1710]"
+                >
+                  <option value="">Todas las familias</option>
+                  <option value="__sin_familia__">Sin familia</option>
+                  {familiasParaFiltro.map((familia) => (
+                    <option key={familia.id} value={familia.id}>{familia.etiqueta}</option>
+                  ))}
+                </select>
                 <label className="flex h-10 items-center gap-2 rounded-md border px-3 text-sm font-black text-[#4B2818]">
                   <input type="checkbox" checked={soloCriticos} onChange={(event) => setSoloCriticos(event.target.checked)} className="h-4 w-4 accent-[#A51F2B]" />
                   Solo críticos
@@ -265,7 +344,10 @@ export default function InformeStockCriticoPage() {
                       <tr key={`${item.origen}-${item.id}`} className={`border-b ${item.estado === 'agotado' ? 'bg-red-50' : item.estado === 'bajo_minimo' ? 'bg-amber-50' : ''}`}>
                         <td className="px-3 py-3">
                           <p className="font-black">{item.nombre}</p>
-                          <p className="text-xs font-bold text-[#4B2818]/55">{item.codigo || item.tipo || 'Sin código'} · {item.unidadBase || 'Sin unidad'}</p>
+                          <p className="text-xs font-bold text-[#4B2818]/55">
+                            {item.codigo || item.tipo || 'Sin código'} · {item.unidadBase || 'Sin unidad'}
+                            {item.familiaNombre ? ` · ${item.familiaNombre}` : ' · Sin familia'}
+                          </p>
                         </td>
                         <td className="px-3 py-3 text-xs font-bold">{item.origen === 'productos' ? 'Catálogo actual' : 'Materia prima antigua'}</td>
                         <td className="px-3 py-3 text-right font-black">{item.stockActualNumero.toLocaleString('es-CL')}</td>

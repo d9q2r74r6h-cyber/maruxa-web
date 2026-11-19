@@ -13,7 +13,7 @@ export type ItemStockControlado = {
 
 export type EstadoStock = 'agotado' | 'bajo_minimo' | 'normal';
 
-export type ItemStockDiagnosticado = ItemStockControlado & {
+export type ItemStockDiagnosticado<T extends ItemStockControlado = ItemStockControlado> = T & {
   stockActualNumero: number;
   stockMinimoNumero: number;
   estado: EstadoStock;
@@ -25,7 +25,7 @@ function numero(valor: unknown) {
   return Number.isFinite(resultado) ? resultado : 0;
 }
 
-export function diagnosticarStock(item: ItemStockControlado): ItemStockDiagnosticado {
+export function diagnosticarStock<T extends ItemStockControlado>(item: T): ItemStockDiagnosticado<T> {
   const stockActualNumero = numero(item.stockActual);
   const stockMinimoNumero = Math.max(0, numero(item.stockMinimo));
   const agotado = stockActualNumero <= 0;
@@ -40,7 +40,7 @@ export function diagnosticarStock(item: ItemStockControlado): ItemStockDiagnosti
   };
 }
 
-export function obtenerStockCritico(items: ItemStockControlado[]) {
+export function obtenerStockCritico<T extends ItemStockControlado>(items: T[]): ItemStockDiagnosticado<T>[] {
   const prioridad: Record<EstadoStock, number> = {
     agotado: 0,
     bajo_minimo: 1,
@@ -49,7 +49,7 @@ export function obtenerStockCritico(items: ItemStockControlado[]) {
 
   return items
     .filter((item) => item.controlaStock !== false)
-    .map(diagnosticarStock)
+    .map((item) => diagnosticarStock(item))
     .filter((item) => item.estado !== 'normal')
     .sort(
       (a, b) =>
