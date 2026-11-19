@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowLeft, Boxes, RefreshCw } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Boxes, FileSpreadsheet, RefreshCw } from 'lucide-react';
 import { useAdminSession } from '@/components/AdminSession';
+import { exportarParaExcel } from '@/lib/exportar-excel';
 import {
   diagnosticarStock,
   obtenerStockCritico,
@@ -71,6 +72,14 @@ function nombreMovimiento(tipo: string) {
   if (tipo === 'entrada') return 'Entrada';
   if (tipo === 'ajuste') return 'Ajuste';
   return tipo || 'Movimiento';
+}
+
+function fechaParaArchivo() {
+  const fecha = new Date();
+  const anio = fecha.getFullYear();
+  const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+  const dia = String(fecha.getDate()).padStart(2, '0');
+  return `${anio}-${mes}-${dia}`;
 }
 
 function perteneceAFamilia(
@@ -251,6 +260,41 @@ export default function InformeStockCriticoPage() {
   const agotados = criticos.filter((item) => item.estado === 'agotado').length;
   const bajoMinimo = criticos.filter((item) => item.estado === 'bajo_minimo').length;
 
+  function descargarListado() {
+    exportarParaExcel({
+      nombreArchivo: `stock-${soloCriticos ? 'critico' : 'completo'}-${fechaParaArchivo()}`,
+      columnas: [
+        { titulo: 'Código', clave: 'codigo' },
+        { titulo: 'Producto', clave: 'producto' },
+        { titulo: 'Familia', clave: 'familia' },
+        { titulo: 'Origen', clave: 'origen' },
+        { titulo: 'Unidad', clave: 'unidad' },
+        { titulo: 'Stock actual', clave: 'stockActual' },
+        { titulo: 'Stock mínimo', clave: 'stockMinimo' },
+        { titulo: 'Costo unitario (CLP)', clave: 'costoUnitario' },
+        { titulo: 'Valor stock (CLP)', clave: 'valorStock' },
+        { titulo: 'Reposición mínima (CLP)', clave: 'reposicionMinima' },
+        { titulo: 'Estado', clave: 'estado' },
+      ],
+      filas: itemsVisibles.map((item) => {
+        const valorizacion = valorizarStock(item);
+        return {
+          codigo: item.codigo || '',
+          producto: item.nombre,
+          familia: item.familiaNombre || 'Sin familia',
+          origen: item.origen === 'productos' ? 'Catálogo actual' : 'Materia prima antigua',
+          unidad: item.unidadBase || '',
+          stockActual: item.stockActualNumero,
+          stockMinimo: item.stockMinimoNumero,
+          costoUnitario: Math.round(item.costoUnitario || 0),
+          valorStock: Math.round(valorizacion.valorEnStock),
+          reposicionMinima: Math.round(valorizacion.costoReposicionMinima),
+          estado: item.estado === 'agotado' ? 'Agotado' : item.estado === 'bajo_minimo' ? 'Bajo mínimo' : 'Normal',
+        };
+      }),
+    });
+  }
+
   return (
     <div className="space-y-6 pb-12">
       <header className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
@@ -333,6 +377,14 @@ export default function InformeStockCriticoPage() {
                   <input type="checkbox" checked={soloCriticos} onChange={(event) => setSoloCriticos(event.target.checked)} className="h-4 w-4 accent-[#A51F2B]" />
                   Solo críticos
                 </label>
+                <button
+                  type="button"
+                  onClick={descargarListado}
+                  disabled={itemsVisibles.length === 0}
+                  className="inline-flex h-10 items-center gap-2 rounded-md border border-[#2A1710] bg-white px-3 text-sm font-black text-[#2A1710] disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  <FileSpreadsheet className="h-4 w-4" /> Descargar CSV
+                </button>
               </div>
             </div>
 
