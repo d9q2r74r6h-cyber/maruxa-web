@@ -82,11 +82,12 @@ export function CheckoutPage() {
         return;
       }
 
-      const pedidoCreado = resultado.pedido as { total: number };
+      const pedidoCreado = resultado.pedido as { id: number; total: number };
+      const avisoCorreo = resultado.advertencia ? '&aviso_correo=1' : '';
       clearCart();
 
       window.location.href =
-        `/pedido-exitoso?total=${pedidoCreado.total}&cliente=${encodeURIComponent(
+        `/pedido-exitoso?pedido=${pedidoCreado.id}&total=${pedidoCreado.total}&cliente=${encodeURIComponent(
           cliente
         )}&telefono=${encodeURIComponent(
           telefono
@@ -96,7 +97,7 @@ export function CheckoutPage() {
           hora
         )}&observaciones=${encodeURIComponent(
           observaciones
-        )}&email=${encodeURIComponent(email)}`;
+        )}&email=${encodeURIComponent(email)}${avisoCorreo}`;
     } catch {
       alert('No pudimos enviar el pedido. Revisa tu conexión e inténtalo nuevamente.');
     } finally {

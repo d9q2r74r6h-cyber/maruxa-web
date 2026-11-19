@@ -3,23 +3,29 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { CalendarDays, Mail, MapPin } from 'lucide-react';
 import { whatsapp } from '@/lib/datos';
 import { MARUXA } from '@/lib/marca';
 
 function PedidoExitosoContent() {
   const params = useSearchParams();
 
- 
-  const total = params.get('total') || '0';
-
+  const totalParametro = Number(params.get('total'));
+  const total = Number.isFinite(totalParametro) && totalParametro > 0 ? totalParametro : 0;
+  const pedidoParametro = Number(params.get('pedido'));
+  const numeroPedido = Number.isSafeInteger(pedidoParametro) && pedidoParametro > 0
+    ? pedidoParametro
+    : null;
   const cliente = params.get('cliente') || '';
   const telefono = params.get('telefono') || '';
   const fecha = params.get('fecha') || '';
   const hora = params.get('hora') || '';
-  const observaciones =
-    params.get('observaciones') || '';
-
-    const email = params.get('email') || '';  
+  const observaciones = params.get('observaciones') || '';
+  const email = params.get('email') || '';
+  const avisoCorreo = params.get('aviso_correo') === '1';
+  const mensajeWhatsApp = encodeURIComponent(
+    `Hola Maruxa, quiero consultar mi pedido${numeroPedido ? ` #${numeroPedido}` : ''}.`
+  );
 
   return (
     <main className="min-h-screen bg-maruxa-crema py-20">
@@ -32,15 +38,15 @@ function PedidoExitosoContent() {
           </div>
 
           <p className="mt-8 text-center text-sm font-black uppercase tracking-[.24em] text-maruxa-rojo">
-            Pedido recibido
+            Solicitud recibida{numeroPedido ? ` · Pedido #${numeroPedido}` : ''}
           </p>
 
           <h1 className="mt-4 text-center text-4xl font-black tracking-[-.05em] text-maruxa-chocolate sm:text-6xl">
-            ¡Gracias por tu pedido!
+            ¡Recibimos tu solicitud!
           </h1>
 
           <p className="mx-auto mt-6 max-w-xl text-center text-lg font-bold leading-8 text-maruxa-cafe/75">
-          Tu pedido fue registrado correctamente. Te enviaremos una confirmación al correo ingresado.
+            Revisaremos la disponibilidad y confirmaremos tu pedido antes de prepararlo.
           </p>
 
           <div className="mt-10 rounded-[30px] bg-maruxa-crema p-8">
@@ -50,14 +56,25 @@ function PedidoExitosoContent() {
               </p>
 
               <p className="text-5xl font-black text-maruxa-vino">
-                ${Number(total).toLocaleString('es-CL')}
+                ${total.toLocaleString('es-CL')}
               </p>
             </div>
           </div>
 
+          {avisoCorreo ? (
+            <div className="mt-6 rounded-[24px] border border-amber-300 bg-amber-50 p-5 text-sm font-bold leading-6 text-amber-950">
+              Guardamos tu solicitud, pero no pudimos enviar el correo de respaldo. Escríbenos por WhatsApp indicando tu número de pedido para confirmar.
+            </div>
+          ) : (
+            <div className="mt-6 flex gap-3 rounded-[24px] border border-green-200 bg-green-50 p-5 text-sm font-bold leading-6 text-green-950">
+              <Mail className="h-5 w-5 shrink-0 text-green-700" />
+              <p>Enviamos un comprobante a <span className="font-black">{email}</span>. Revisa también tu carpeta de correo no deseado.</p>
+            </div>
+          )}
+
           <div className="mt-8 rounded-[30px] bg-white p-8 shadow-sm">
             <h2 className="text-2xl font-black text-maruxa-chocolate">
-              Datos del pedido
+              Datos del retiro
             </h2>
 
             <div className="mt-6 space-y-4 text-sm font-bold text-maruxa-cafe/80">
@@ -119,7 +136,7 @@ function PedidoExitosoContent() {
                 </Link>
 
                 <a
-                  href={`https://wa.me/${whatsapp}`}
+                  href={`https://wa.me/${whatsapp}?text=${mensajeWhatsApp}`}
                   target="_blank"
                   rel="noreferrer"
                   className="block rounded-full border border-maruxa-rojo/20 bg-maruxa-crema px-8 py-5 text-center text-lg font-black text-maruxa-rojo shadow-premium transition hover:bg-white"
@@ -128,16 +145,10 @@ function PedidoExitosoContent() {
                 </a>
               </div>
             </div>
-          <div className="mt-10 rounded-[24px] border border-maruxa-rojo/10 bg-white p-6">
-            <p className="text-sm font-bold leading-7 text-maruxa-cafe/75">
-              📍 Retiro en Panadería Maruxa: {MARUXA.direccion}.
-              <br />
-              🎂 Las tortas requieren mínimo 24 horas de anticipación.
-              <br />
-              📧 Recibirás una confirmación por correo electrónico.
-              <br />
-              📞 Si tienes alguna duda sobre tu pedido, puedes contactarnos al WhatsApp +56 9 8623 2447.
-            </p>
+          <div className="mt-10 grid gap-3 rounded-[24px] border border-maruxa-rojo/10 bg-white p-6 text-sm font-bold leading-6 text-maruxa-cafe/75 sm:grid-cols-3">
+            <p className="flex gap-2"><Mail className="h-5 w-5 shrink-0 text-maruxa-rojo" />Revisamos tu solicitud y confirmamos disponibilidad.</p>
+            <p className="flex gap-2"><CalendarDays className="h-5 w-5 shrink-0 text-maruxa-rojo" />Las tortas requieren al menos 24 horas de anticipación.</p>
+            <p className="flex gap-2"><MapPin className="h-5 w-5 shrink-0 text-maruxa-rojo" />Retiras en {MARUXA.direccion}.</p>
           </div>
         </div>
       </div>
