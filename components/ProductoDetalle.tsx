@@ -5,6 +5,8 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { useCart } from '@/lib/cart';
 import { ProductosRelacionados } from '@/components/ProductosRelacionados';
+import { CartDrawer } from '@/components/CartDrawer';
+import { MobileCartBar } from '@/components/MobileCartBar';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { CalendarDays, MapPin, MessageCircle } from 'lucide-react';
@@ -83,7 +85,7 @@ export default function ProductoDetalle({ slug }: { slug: string }) {
   const precioFinal = tamano?.precio ?? producto.precio;
 
   return (
-    <main className="min-h-screen bg-maruxa-crema py-20">
+    <main className="min-h-screen bg-maruxa-crema pb-32 pt-20">
       <div className="contenedor mb-8 text-sm font-bold text-maruxa-cafe/70">
         <a href="/" className="hover:text-maruxa-rojo">
           Inicio
@@ -295,6 +297,9 @@ export default function ProductoDetalle({ slug }: { slug: string }) {
           productoActualId={producto.id}
         />
       </div>
+
+      <CartDrawer />
+      <MobileCartBar />
     </main>
   );
 }
