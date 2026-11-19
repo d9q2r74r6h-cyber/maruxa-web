@@ -19,12 +19,20 @@ type FilaStock = ItemStockControlado & {
   costoUnitario: number;
   familiaId?: string | null;
   familiaNombre?: string | null;
+  proveedorId?: string | null;
+  proveedorNombre?: string | null;
 };
 
 type FamiliaProducto = {
   id: string;
   nombre: string;
   familia_padre_id: string | null;
+};
+
+type Proveedor = {
+  id: string;
+  razon_social: string;
+  nombre_fantasia: string | null;
 };
 
 type MovimientoStock = {
@@ -119,9 +127,11 @@ export default function InformeStockCriticoPage() {
   const { perfil } = useAdminSession();
   const [items, setItems] = useState<FilaStock[]>([]);
   const [familias, setFamilias] = useState<FamiliaProducto[]>([]);
+  const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   const [movimientos, setMovimientos] = useState<MovimientoStock[]>([]);
   const [busqueda, setBusqueda] = useState('');
   const [familiaSeleccionada, setFamiliaSeleccionada] = useState('');
+  const [proveedorSeleccionado, setProveedorSeleccionado] = useState('');
   const [soloCriticos, setSoloCriticos] = useState(true);
   const [filtrarMovimientosPorListado, setFiltrarMovimientosPorListado] = useState(false);
   const [diasMovimientos, setDiasMovimientos] = useState(30);
@@ -135,10 +145,10 @@ export default function InformeStockCriticoPage() {
     setError('');
     setErrorMovimientos('');
 
-    const [{ data: productosData, error: errorProductos }, { data: ingredientesData, error: errorIngredientes }, { data: familiasData }] = await Promise.all([
+    const [{ data: productosData, error: errorProductos }, { data: ingredientesData, error: errorIngredientes }, { data: proveedoresData }, { data: familiasData }] = await Promise.all([
       supabase
         .from('productos')
-        .select('id,codigo,nombre,tipo_producto,familia_id,unidad_base,stock_actual,stock_minimo,controla_stock,costo_unitario')
+        .select('id,codigo,nombre,tipo_producto,familia_id,proveedor_id,unidad_base,stock_actual,stock_minimo,controla_stock,costo_unitario')
         .eq('empresa_id', perfil.empresa_id)
         .eq('activo', true)
         .in('tipo_producto', ['producto', 'ingrediente', 'envase'])
@@ -149,6 +159,12 @@ export default function InformeStockCriticoPage() {
         .eq('empresa_id', perfil.empresa_id)
         .eq('activo', true)
         .order('nombre', { ascending: true }),
+      supabase
+        .from('proveedores')
+        .select('id,razon_social,nombre_fantasia')
+        .eq('empresa_id', perfil.empresa_id)
+        .eq('activo', true)
+        .order('razon_social', { ascending: true }),
       supabase
         .from('familias_productos')
         .select('id,nombre,familia_padre_id')
@@ -168,6 +184,9 @@ export default function InformeStockCriticoPage() {
     const familiasCargadas = (familiasData || []) as FamiliaProducto[];
     const familiasPorId = new Map(familiasCargadas.map((familia) => [familia.id, familia]));
     setFamilias(familiasCargadas);
+    const proveedoresCargados = (proveedoresData || []) as Proveedor[];
+    const proveedoresPorId = new Map(proveedoresCargados.map((proveedor) => [proveedor.id, proveedor]));
+    setProveedores(proveedoresCargados);
 
     const productos = (productosData || []).map((producto: any) => ({
       id: producto.id,
@@ -176,6 +195,11 @@ export default function InformeStockCriticoPage() {
       tipo: producto.tipo_producto,
       familiaId: producto.familia_id,
       familiaNombre: etiquetaFamilia(producto.familia_id, familiasPorId),
+      proveedorId: producto.proveedor_id,
+      proveedorNombre: (() => {
+        const proveedor = proveedoresPorId.get(producto.proveedor_id);
+        return proveedor?.nombre_fantasia || proveedor?.razon_social || null;
+      })(),
       unidadBase: producto.unidad_base,
       stockActual: producto.stock_actual,
       stockMinimo: producto.stock_minimo,
@@ -189,6 +213,8 @@ export default function InformeStockCriticoPage() {
       tipo: 'materia_prima_antigua',
       familiaId: null,
       familiaNombre: null,
+      proveedorId: null,
+      proveedorNombre: null,
       unidadBase: ingrediente.unidad_base,
       stockActual: ingrediente.stock_actual,
       stockMinimo: ingrediente.stock_minimo,
@@ -238,17 +264,21 @@ export default function InformeStockCriticoPage() {
     const fuente = soloCriticos ? criticos : items.map(diagnosticarStock);
     return fuente.filter((item) => {
       const coincideBusqueda = !termino ||
-        `${item.codigo || ''} ${item.nombre} ${item.tipo || ''} ${item.unidadBase || ''} ${item.familiaNombre || ''}`
+        `${item.codigo || ''} ${item.nombre} ${item.tipo || ''} ${item.unidadBase || ''} ${item.familiaNombre || ''} ${item.proveedorNombre || ''}`
           .toLocaleLowerCase('es-CL')
           .includes(termino);
       const coincideFamilia = !familiaSeleccionada ||
         (familiaSeleccionada === '__sin_familia__'
           ? !item.familiaId
           : perteneceAFamilia(item.familiaId, familiaSeleccionada, familiasPorId));
+      const coincideProveedor = !proveedorSeleccionado ||
+        (proveedorSeleccionado === '__sin_proveedor__'
+          ? !item.proveedorId
+          : item.proveedorId === proveedorSeleccionado);
 
-      return coincideBusqueda && coincideFamilia;
+      return coincideBusqueda && coincideFamilia && coincideProveedor;
     });
-  }, [busqueda, criticos, familiaSeleccionada, familiasPorId, items, soloCriticos]);
+  }, [busqueda, criticos, familiaSeleccionada, familiasPorId, items, proveedorSeleccionado, soloCriticos]);
   const valorInventario = useMemo(
     () => items
       .filter((item) => item.controlaStock !== false)
@@ -284,6 +314,7 @@ export default function InformeStockCriticoPage() {
         { titulo: 'Código', clave: 'codigo' },
         { titulo: 'Producto', clave: 'producto' },
         { titulo: 'Familia', clave: 'familia' },
+        { titulo: 'Proveedor', clave: 'proveedor' },
         { titulo: 'Origen', clave: 'origen' },
         { titulo: 'Unidad', clave: 'unidad' },
         { titulo: 'Stock actual', clave: 'stockActual' },
@@ -299,6 +330,7 @@ export default function InformeStockCriticoPage() {
           codigo: item.codigo || '',
           producto: item.nombre,
           familia: item.familiaNombre || 'Sin familia',
+          proveedor: item.proveedorNombre || 'Sin proveedor',
           origen: item.origen === 'productos' ? 'Catálogo actual' : 'Materia prima antigua',
           unidad: item.unidadBase || '',
           stockActual: item.stockActualNumero,
@@ -390,6 +422,17 @@ export default function InformeStockCriticoPage() {
                     <option key={familia.id} value={familia.id}>{familia.etiqueta}</option>
                   ))}
                 </select>
+                <select
+                  value={proveedorSeleccionado}
+                  onChange={(event) => setProveedorSeleccionado(event.target.value)}
+                  className="h-10 min-w-48 rounded-md border bg-white px-3 text-sm font-bold text-[#2A1710]"
+                >
+                  <option value="">Todos los proveedores</option>
+                  <option value="__sin_proveedor__">Sin proveedor</option>
+                  {proveedores.map((proveedor) => (
+                    <option key={proveedor.id} value={proveedor.id}>{proveedor.nombre_fantasia || proveedor.razon_social}</option>
+                  ))}
+                </select>
                 <label className="flex h-10 items-center gap-2 rounded-md border px-3 text-sm font-black text-[#4B2818]">
                   <input type="checkbox" checked={soloCriticos} onChange={(event) => setSoloCriticos(event.target.checked)} className="h-4 w-4 accent-[#A51F2B]" />
                   Solo críticos
@@ -434,6 +477,7 @@ export default function InformeStockCriticoPage() {
                             <p className="text-xs font-bold text-[#4B2818]/55">
                               {item.codigo || item.tipo || 'Sin código'} · {item.unidadBase || 'Sin unidad'}
                               {item.familiaNombre ? ` · ${item.familiaNombre}` : ' · Sin familia'}
+                              {item.proveedorNombre ? ` · ${item.proveedorNombre}` : ' · Sin proveedor'}
                             </p>
                           </td>
                           <td className="px-3 py-3 text-xs font-bold">{item.origen === 'productos' ? 'Catálogo actual' : 'Materia prima antigua'}</td>
