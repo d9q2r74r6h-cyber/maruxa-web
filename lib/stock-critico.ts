@@ -40,6 +40,15 @@ export function diagnosticarStock<T extends ItemStockControlado>(item: T): ItemS
   };
 }
 
+export function valorizarStock<T extends ItemStockControlado>(item: ItemStockDiagnosticado<T>) {
+  const costoUnitario = Math.max(0, numero(item.costoUnitario));
+
+  return {
+    valorEnStock: Math.max(0, item.stockActualNumero) * costoUnitario,
+    costoReposicionMinima: item.faltante * costoUnitario,
+  };
+}
+
 export function obtenerStockCritico<T extends ItemStockControlado>(items: T[]): ItemStockDiagnosticado<T>[] {
   const prioridad: Record<EstadoStock, number> = {
     agotado: 0,

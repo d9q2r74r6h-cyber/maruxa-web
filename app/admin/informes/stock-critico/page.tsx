@@ -7,6 +7,7 @@ import { useAdminSession } from '@/components/AdminSession';
 import {
   diagnosticarStock,
   obtenerStockCritico,
+  valorizarStock,
   type ItemStockControlado,
 } from '@/lib/stock-critico';
 import { supabase } from '@/lib/supabase';
@@ -237,6 +238,16 @@ export default function InformeStockCriticoPage() {
       return coincideBusqueda && coincideFamilia;
     });
   }, [busqueda, criticos, familiaSeleccionada, familiasPorId, items, soloCriticos]);
+  const valorInventario = useMemo(
+    () => items
+      .filter((item) => item.controlaStock !== false)
+      .reduce((total, item) => total + valorizarStock(diagnosticarStock(item)).valorEnStock, 0),
+    [items]
+  );
+  const costoReposicionMinima = useMemo(
+    () => criticos.reduce((total, item) => total + valorizarStock(item).costoReposicionMinima, 0),
+    [criticos]
+  );
   const agotados = criticos.filter((item) => item.estado === 'agotado').length;
   const bajoMinimo = criticos.filter((item) => item.estado === 'bajo_minimo').length;
 
@@ -269,15 +280,17 @@ export default function InformeStockCriticoPage() {
         <p className="rounded-xl border bg-white p-8 text-center font-black text-[#4B2818]/60">Cargando existencias...</p>
       ) : (
         <>
-          <section className="grid gap-3 sm:grid-cols-3">
+          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             {[
               ['Ítems con control de stock', items.filter((item) => item.controlaStock !== false).length, 'text-[#2A1710]'],
               ['Agotados', agotados, agotados ? 'text-red-700' : 'text-emerald-700'],
               ['Bajo mínimo', bajoMinimo, bajoMinimo ? 'text-amber-800' : 'text-emerald-700'],
+              ['Valor del stock', dinero(valorInventario), 'text-[#2A1710]'],
+              ['Reposición hasta mínimo', dinero(costoReposicionMinima), costoReposicionMinima ? 'text-[#A51F2B]' : 'text-emerald-700'],
             ].map(([etiqueta, valor, color]) => (
               <div key={String(etiqueta)} className="rounded-xl border bg-white p-4 shadow-sm">
                 <p className="text-xs font-black uppercase tracking-wide text-[#4B2818]/55">{etiqueta}</p>
-                <p className={`mt-2 text-3xl font-black ${color}`}>{valor}</p>
+                <p className={`mt-2 text-2xl font-black ${color}`}>{valor}</p>
               </div>
             ))}
           </section>
@@ -327,7 +340,7 @@ export default function InformeStockCriticoPage() {
               <p className="p-8 text-center text-sm font-bold text-[#4B2818]/60">No hay ítems para el filtro seleccionado.</p>
             ) : (
               <div className="mt-4 overflow-x-auto">
-                <table className="w-full min-w-[920px] text-sm">
+                <table className="w-full min-w-[1120px] text-sm">
                   <thead className="bg-[#2A1710] text-white">
                     <tr>
                       <th className="px-3 py-3 text-left">Producto</th>
@@ -335,39 +348,47 @@ export default function InformeStockCriticoPage() {
                       <th className="px-3 py-3 text-right">Stock actual</th>
                       <th className="px-3 py-3 text-right">Mínimo</th>
                       <th className="px-3 py-3 text-right">Costo unitario</th>
+                      <th className="px-3 py-3 text-right">Valor stock</th>
+                      <th className="px-3 py-3 text-right">Reposición mín.</th>
                       <th className="px-3 py-3 text-right">Estado</th>
                       <th className="px-3 py-3 text-right">Acción</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {itemsVisibles.map((item) => (
-                      <tr key={`${item.origen}-${item.id}`} className={`border-b ${item.estado === 'agotado' ? 'bg-red-50' : item.estado === 'bajo_minimo' ? 'bg-amber-50' : ''}`}>
-                        <td className="px-3 py-3">
-                          <p className="font-black">{item.nombre}</p>
-                          <p className="text-xs font-bold text-[#4B2818]/55">
-                            {item.codigo || item.tipo || 'Sin código'} · {item.unidadBase || 'Sin unidad'}
-                            {item.familiaNombre ? ` · ${item.familiaNombre}` : ' · Sin familia'}
-                          </p>
-                        </td>
-                        <td className="px-3 py-3 text-xs font-bold">{item.origen === 'productos' ? 'Catálogo actual' : 'Materia prima antigua'}</td>
-                        <td className="px-3 py-3 text-right font-black">{item.stockActualNumero.toLocaleString('es-CL')}</td>
-                        <td className="px-3 py-3 text-right">{item.stockMinimoNumero.toLocaleString('es-CL')}</td>
-                        <td className="px-3 py-3 text-right">{dinero(item.costoUnitario || 0)}</td>
-                        <td className="px-3 py-3 text-right">
-                          <span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${item.estado === 'agotado' ? 'bg-red-200 text-red-900' : item.estado === 'bajo_minimo' ? 'bg-amber-200 text-amber-950' : 'bg-emerald-100 text-emerald-800'}`}>
-                            {item.estado === 'agotado' ? 'Agotado' : item.estado === 'bajo_minimo' ? 'Bajo mínimo' : 'Normal'}
-                          </span>
-                        </td>
-                        <td className="px-3 py-3 text-right">
-                          <Link
-                            href={item.origen === 'productos' ? `/admin/compras?producto=${item.id}` : '/admin/ingredientes'}
-                            className="inline-flex rounded-md border border-[#A51F2B]/35 px-3 py-1.5 text-xs font-black text-[#A51F2B] hover:bg-[#FFF3DF]"
-                          >
-                            {item.origen === 'productos' ? 'Reponer' : 'Ver ficha'}
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
+                    {itemsVisibles.map((item) => {
+                      const valorizacion = valorizarStock(item);
+
+                      return (
+                        <tr key={`${item.origen}-${item.id}`} className={`border-b ${item.estado === 'agotado' ? 'bg-red-50' : item.estado === 'bajo_minimo' ? 'bg-amber-50' : ''}`}>
+                          <td className="px-3 py-3">
+                            <p className="font-black">{item.nombre}</p>
+                            <p className="text-xs font-bold text-[#4B2818]/55">
+                              {item.codigo || item.tipo || 'Sin código'} · {item.unidadBase || 'Sin unidad'}
+                              {item.familiaNombre ? ` · ${item.familiaNombre}` : ' · Sin familia'}
+                            </p>
+                          </td>
+                          <td className="px-3 py-3 text-xs font-bold">{item.origen === 'productos' ? 'Catálogo actual' : 'Materia prima antigua'}</td>
+                          <td className="px-3 py-3 text-right font-black">{item.stockActualNumero.toLocaleString('es-CL')}</td>
+                          <td className="px-3 py-3 text-right">{item.stockMinimoNumero.toLocaleString('es-CL')}</td>
+                          <td className="px-3 py-3 text-right">{dinero(item.costoUnitario || 0)}</td>
+                          <td className="px-3 py-3 text-right font-black">{dinero(valorizacion.valorEnStock)}</td>
+                          <td className="px-3 py-3 text-right font-black text-[#A51F2B]">{valorizacion.costoReposicionMinima ? dinero(valorizacion.costoReposicionMinima) : '—'}</td>
+                          <td className="px-3 py-3 text-right">
+                            <span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${item.estado === 'agotado' ? 'bg-red-200 text-red-900' : item.estado === 'bajo_minimo' ? 'bg-amber-200 text-amber-950' : 'bg-emerald-100 text-emerald-800'}`}>
+                              {item.estado === 'agotado' ? 'Agotado' : item.estado === 'bajo_minimo' ? 'Bajo mínimo' : 'Normal'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 text-right">
+                            <Link
+                              href={item.origen === 'productos' ? `/admin/compras?producto=${item.id}` : '/admin/ingredientes'}
+                              className="inline-flex rounded-md border border-[#A51F2B]/35 px-3 py-1.5 text-xs font-black text-[#A51F2B] hover:bg-[#FFF3DF]"
+                            >
+                              {item.origen === 'productos' ? 'Reponer' : 'Ver ficha'}
+                            </Link>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

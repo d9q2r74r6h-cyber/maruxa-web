@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { diagnosticarStock, obtenerStockCritico } from '../lib/stock-critico.ts';
+import { diagnosticarStock, obtenerStockCritico, valorizarStock } from '../lib/stock-critico.ts';
 
 test('identifica agotados y bajos mínimos sin incluir ítems sin control de stock', () => {
   const criticos = obtenerStockCritico([
@@ -28,4 +28,28 @@ test('calcula el faltante solo cuando existe un mínimo configurado', () => {
 
   assert.equal(diagnosticado.estado, 'bajo_minimo');
   assert.equal(diagnosticado.faltante, 7);
+});
+
+test('valoriza el stock disponible y la reposición según el mínimo', () => {
+  const conStock = valorizarStock(diagnosticarStock({
+    id: 1,
+    nombre: 'Harina',
+    stockActual: 8,
+    stockMinimo: 10,
+    costoUnitario: 450,
+    controlaStock: true,
+    origen: 'productos',
+  }));
+  const agotado = valorizarStock(diagnosticarStock({
+    id: 2,
+    nombre: 'Mantequilla',
+    stockActual: -1,
+    stockMinimo: 6,
+    costoUnitario: 500,
+    controlaStock: true,
+    origen: 'productos',
+  }));
+
+  assert.deepEqual(conStock, { valorEnStock: 3600, costoReposicionMinima: 900 });
+  assert.deepEqual(agotado, { valorEnStock: 0, costoReposicionMinima: 3500 });
 });
