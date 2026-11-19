@@ -7,7 +7,7 @@ import { useCart } from '@/lib/cart';
 import { ProductosRelacionados } from '@/components/ProductosRelacionados';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { CalendarDays, MapPin, MessageCircle } from 'lucide-react';
 
 
 type Producto = {
@@ -29,21 +29,25 @@ export default function ProductoDetalle({ slug }: { slug: string }) {
   const [producto, setProducto] = useState<Producto | null>(null);
   const [presentacionId, setPresentacionId] = useState('');
   const [cargando, setCargando] = useState(true);
-  const router = useRouter();
 
   const addItem = useCart((s) => s.addItem);
 
   useEffect(() => {
     async function cargarProducto() {
-      const respuesta = await fetch(`/api/catalogo?slug=${encodeURIComponent(slug)}`, {
-        cache: 'no-store',
-      });
-      const resultado = await respuesta.json();
-  
-      setProducto((resultado.producto || null) as Producto | null);
-      setCargando(false);
+      try {
+        const respuesta = await fetch(`/api/catalogo?slug=${encodeURIComponent(slug)}`, {
+          cache: 'no-store',
+        });
+        const resultado = await respuesta.json();
+
+        setProducto((resultado.producto || null) as Producto | null);
+      } catch {
+        setProducto(null);
+      } finally {
+        setCargando(false);
+      }
     }
-  
+
     cargarProducto();
   }, [slug]);
 
@@ -99,7 +103,7 @@ export default function ProductoDetalle({ slug }: { slug: string }) {
       </div>
 
       <div className="contenedor grid gap-10 lg:grid-cols-2">
-        <motion.div className="relative h-[620px] overflow-hidden rounded-[44px] bg-white shadow-premium">
+        <motion.div className="relative h-[340px] overflow-hidden rounded-[32px] bg-white shadow-premium sm:h-[500px] sm:rounded-[44px] lg:h-[620px]">
           {producto.imagen ? (
             <Image
               src={producto.imagen}
@@ -121,11 +125,11 @@ export default function ProductoDetalle({ slug }: { slug: string }) {
             {producto.categoria}
           </span>
 
-          <h1 className="mt-5 text-6xl font-black tracking-[-.05em] text-maruxa-chocolate">
+          <h1 className="mt-5 text-4xl font-black leading-[.98] tracking-[-.05em] text-maruxa-chocolate sm:text-5xl xl:text-6xl">
             {producto.nombre}
           </h1>
 
-          <p className="mt-6 text-xl leading-8 text-maruxa-cafe/80">
+          <p className="mt-5 text-lg leading-8 text-maruxa-cafe/80 sm:mt-6 sm:text-xl">
             {producto.descripcion}
           </p>
 
@@ -142,7 +146,7 @@ export default function ProductoDetalle({ slug }: { slug: string }) {
 
                   return (
                     <button
-                      key={t.nombre}
+                      key={t.id}
                       onClick={() => setPresentacionId(t.id)}
                       className={`rounded-[24px] border p-5 text-left transition ${
                         activo
@@ -166,65 +170,65 @@ export default function ProductoDetalle({ slug }: { slug: string }) {
             </div>
           )}
 
-          <div className="mt-10 rounded-[34px] bg-white p-6 shadow-premium">
-            <div className="flex items-center justify-between gap-6">
+          <div className="mt-8 rounded-[34px] bg-white p-5 shadow-premium sm:mt-10 sm:p-6">
+            <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-center sm:gap-6">
               <div>
                 <p className="text-sm font-black uppercase tracking-widest text-maruxa-cafe/60">
-                  Precio
+                  {tamano ? `Precio · ${tamano.nombre}` : 'Precio'}
                 </p>
 
-                <p className="mt-1 text-5xl font-black text-maruxa-vino">
+                <p className="mt-1 text-4xl font-black text-maruxa-vino sm:text-5xl">
                   ${precioFinal.toLocaleString('es-CL')}
                 </p>
               </div>
 
-              <div className="flex flex-col gap-3">
-  <button
-    onClick={() => {
-      if (sinDisponibilidad) return;
-      addItem({
-        id: producto.id,
-        nombre: producto.nombre,
-        precio: precioFinal,
-        imagen: producto.imagen,
-        tamano: tamano?.nombre,
-        presentacion_id: tamano?.id,
-        requiere_anticipacion: esTorta,
-        cantidad: 1,
-      });
+              <div className="flex w-full flex-col gap-3 sm:w-auto sm:min-w-[260px]">
+                <button
+                  onClick={() => {
+                    if (sinDisponibilidad) return;
+                    addItem({
+                      id: producto.id,
+                      nombre: producto.nombre,
+                      precio: precioFinal,
+                      imagen: producto.imagen,
+                      tamano: tamano?.nombre,
+                      presentacion_id: tamano?.id,
+                      requiere_anticipacion: esTorta,
+                      cantidad: 1,
+                    });
 
-      toast.success(
-        `${producto.nombre} agregado al carrito`
-      );
-    }}
-    disabled={sinDisponibilidad}
-    className="btn-rojo disabled:opacity-50"
-  >
-    {sinDisponibilidad ? 'Sin presentaciones disponibles' : 'Agregar al carrito'}
-  </button>
+                    toast.success(`${producto.nombre} agregado al carrito`);
+                  }}
+                  disabled={sinDisponibilidad}
+                  className="btn-rojo w-full disabled:opacity-50"
+                >
+                  {sinDisponibilidad ? 'Sin presentaciones disponibles' : 'Agregar al carrito'}
+                </button>
 
-  <div className="grid grid-cols-2 gap-3">
-    <a
-      href="/"
-     className="rounded-full bg-[#F5E7D2] px-5 py-4 text-center text-sm font-black text-maruxa-chocolate shadow-sm"
-    >
-      Seguir comprando
-    </a>
+                <div className="grid grid-cols-2 gap-3">
+                  <a
+                    href="/"
+                    className="rounded-full bg-[#F5E7D2] px-4 py-3 text-center text-sm font-black text-maruxa-chocolate shadow-sm"
+                  >
+                    Seguir viendo
+                  </a>
 
-    <a
-      href="/checkout"
-      className="rounded-full bg-[#F5E7D2] px-5 py-4 text-center text-sm font-black text-maruxa-chocolate shadow-sm"
-    >
-      Ir al pago
-    </a>
-  </div>
-</div>
+                  <a
+                    href="/checkout"
+                    className="rounded-full bg-[#F5E7D2] px-4 py-3 text-center text-sm font-black text-maruxa-chocolate shadow-sm"
+                  >
+                    Ir al pedido
+                  </a>
+                </div>
+              </div>
             </div>
 
-            <div className="mt-6 border-t border-maruxa-rojo/10 pt-6 text-sm font-bold leading-7 text-maruxa-cafe/75">
-              <p>Retiro en local.</p>
-              <p>Pedidos especiales con mínimo 24 horas.</p>
-              <p>Confirmación final vía WhatsApp.</p>
+            <div className="mt-6 grid gap-3 border-t border-maruxa-rojo/10 pt-5 text-sm font-bold leading-6 text-maruxa-cafe/75 sm:grid-cols-2">
+              <p className="flex items-start gap-2"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-maruxa-rojo" />Retiro en Avenida Santa Rosa 6019, San Miguel.</p>
+              <p className="flex items-start gap-2"><MessageCircle className="mt-0.5 h-4 w-4 shrink-0 text-maruxa-rojo" />Confirmamos tu pedido por WhatsApp.</p>
+              {esTorta && (
+                <p className="flex items-start gap-2 sm:col-span-2"><CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-maruxa-rojo" />Esta torta se solicita con un mínimo de 24 horas.</p>
+              )}
             </div>
           </div>
         </motion.div>
