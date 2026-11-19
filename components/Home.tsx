@@ -1,10 +1,10 @@
 'use client';
-import { MobileCartBar } from '@/components/MobileCartBar'; 
-import { CartDrawer } from '@/components/CartDrawer';
 
-import Catalogo from '@/components/Catalogo';
+import Link from 'next/link';
+import { Suspense } from 'react';
 import { motion } from 'framer-motion';
 import {
+  CakeSlice,
   Clock,
   Facebook,
   Instagram,
@@ -12,84 +12,93 @@ import {
   MessageCircle,
   Phone,
   ShieldCheck,
+  ShoppingBag,
 } from 'lucide-react';
-
+import { CartDrawer } from '@/components/CartDrawer';
+import Catalogo from '@/components/Catalogo';
+import { MobileCartBar } from '@/components/MobileCartBar';
 import { facebook, instagram, telefonoVisible, whatsapp } from '@/lib/datos';
-import { Suspense } from 'react';
+import { MARUXA } from '@/lib/marca';
 
+const accesosCatalogo = [
+  {
+    nombre: 'Panes del día',
+    detalle: 'Recién horneados para compartir.',
+    href: '/?categoria=Panadería#catalogo',
+    icono: ShoppingBag,
+  },
+  {
+    nombre: 'Pastelería',
+    detalle: 'Clásicos para una pausa rica.',
+    href: '/?categoria=Pastelería#catalogo',
+    icono: CakeSlice,
+  },
+  {
+    nombre: 'Tortas',
+    detalle: 'Encárgalas con 24 h de anticipación.',
+    href: '/?categoria=Pastelería&subfamilia=Tortas#catalogo',
+    icono: CakeSlice,
+  },
+];
 
 export function Home() {
   const mensaje = encodeURIComponent(
     'Hola Maruxa, quiero hacer un pedido para retiro en local.'
   );
+  const direccionMapa = encodeURIComponent(MARUXA.direccion);
 
   return (
     <>
-      <section className="relative overflow-hidden bg-[radial-gradient(circle_at_top_left,#fff7e8,#f5d9a9_42%,#a51f2b_100%)]">
-        
+      <section className="relative overflow-hidden bg-[radial-gradient(circle_at_top_left,#fff7e8,#f5d9a9_42%,#a51f2b_130%)]">
+        <div className="absolute -left-20 top-44 h-72 w-72 rounded-full bg-white/45 blur-3xl" />
         <div className="absolute right-[-80px] top-16 h-80 w-80 rounded-full bg-maruxa-rojo/20 blur-3xl" />
 
-        <div className="contenedor grid items-center gap-8 py-12 sm:py-16 lg:min-h-[720px] lg:grid-cols-[1.04fr_.96fr] lg:gap-10 lg:py-20">
-
+        <div className="contenedor relative grid items-center gap-8 py-12 sm:py-16 lg:min-h-[720px] lg:grid-cols-[.94fr_1.06fr] lg:gap-12 lg:py-20">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.65 }}
           >
-            <p className="mb-5 inline-flex rounded-full bg-white/70 px-4 py-2 text-sm font-black uppercase tracking-[.22em] text-maruxa-vino">
-              Panadería artesanal chilena
+            <p className="mb-5 inline-flex rounded-full bg-white/75 px-4 py-2 text-sm font-black uppercase tracking-[.18em] text-maruxa-vino">
+              Panadería artesanal en San Miguel
             </p>
 
-            <h1 className="text-balance text-4xl font-black leading-[.96] tracking-[-.045em] text-maruxa-chocolate sm:text-6xl md:text-8xl md:leading-[.92] md:tracking-[-.06em]">
-              El sabor de barrio, elevado a experiencia premium.
+            <h1 className="text-balance text-4xl font-black leading-[.96] tracking-[-.045em] text-maruxa-chocolate sm:text-6xl md:text-7xl md:leading-[.92] md:tracking-[-.06em]">
+              El sabor de barrio, listo para compartir.
             </h1>
 
-            <p className="mt-5 max-w-2xl text-base leading-7 text-maruxa-cafe/85 sm:mt-7 sm:text-xl sm:leading-8">
-              Panes, pastelería y tortas Maruxa con retiro en local.
-              Pedidos especiales con mínimo 24 horas de anticipación.
+            <p className="mt-5 max-w-xl text-base leading-7 text-maruxa-cafe/85 sm:mt-7 sm:text-xl sm:leading-8">
+              Panes, pastelería y tortas Maruxa. Compra en línea y coordina
+              tu retiro en nuestro local.
             </p>
 
-            <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-              <a className="btn-rojo" href="#catalogo">
-                Ver catálogo
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <a className="btn-rojo inline-flex items-center justify-center gap-2" href="#catalogo">
+                <ShoppingBag size={19} /> Comprar ahora
               </a>
-
               <a
-                className="btn-crema"
+                className="btn-crema inline-flex items-center justify-center gap-2"
                 href={`https://wa.me/${whatsapp}?text=${mensaje}`}
+                target="_blank"
+                rel="noreferrer"
               >
-                Pedir por WhatsApp
+                <MessageCircle size={19} /> Consultar por WhatsApp
               </a>
             </div>
 
-            <div className="mt-5 flex flex-wrap gap-3">
+            <div className="mt-7 flex flex-wrap gap-3">
               <a
-                href={`https://wa.me/${whatsapp}?text=${mensaje}`}
+                href={`https://www.google.com/maps/search/?api=1&query=${direccionMapa}`}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-full bg-white/75 px-4 py-3 text-sm font-black text-green-700 shadow-sm transition hover:bg-white"
+                className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-3 text-sm font-black text-maruxa-chocolate shadow-sm transition hover:bg-white"
               >
-                <MessageCircle size={18} />
-                WhatsApp
+                <MapPin size={18} className="text-maruxa-rojo" />
+                {MARUXA.direccion}
               </a>
-              <a
-                href={instagram}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-full bg-white/75 px-4 py-3 text-sm font-black text-maruxa-vino shadow-sm transition hover:bg-white"
-              >
-                <Instagram size={18} />
-                Instagram
-              </a>
-              <a
-                href={facebook}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-full bg-white/75 px-4 py-3 text-sm font-black text-blue-700 shadow-sm transition hover:bg-white"
-              >
-                <Facebook size={18} />
-                Facebook
-              </a>
+              <span className="inline-flex items-center gap-2 rounded-full bg-white/70 px-4 py-3 text-sm font-black text-maruxa-cafe/80">
+                <ShieldCheck size={18} className="text-maruxa-rojo" /> Retiro en local
+              </span>
             </div>
           </motion.div>
 
@@ -97,144 +106,142 @@ export function Home() {
             initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.7, delay: 0.1 }}
-            className="card-premium relative rounded-[32px] p-3 sm:rounded-[48px] sm:p-6"
+            className="relative"
           >
-            <div className="rounded-[26px] bg-maruxa-vino p-5 text-maruxa-crema sm:rounded-[38px] sm:p-8">
-              
-              <div className="text-[6rem] leading-none sm:text-[10rem]">🥐</div>
-
-              <h2 className="mt-5 text-3xl font-black sm:mt-6 sm:text-4xl">
-                Horneado diario
-              </h2>
-
-              <p className="mt-3 text-lg text-maruxa-crema/80">
-                Vitrina cálida, productos frescos y flujo rápido de pedido.
-              </p>
-
-              <div className="mt-8 grid grid-cols-2 gap-3">
-
-                <div className="rounded-3xl bg-white/10 p-4">
-                  <Clock />
-                  <b>24h mínimo</b>
-                  <p className="text-sm opacity-75">
-                    para tortas
-                  </p>
-                </div>
-
-                <div className="rounded-3xl bg-white/10 p-4">
-                  <MapPin />
-                  <b>Retiro local</b>
-                  <p className="text-sm opacity-75">
-                    sin despacho
-                  </p>
-                </div>
-
+            <div className="absolute -inset-3 rounded-[46px] bg-white/35 blur-2xl" />
+            <div className="relative overflow-hidden rounded-[34px] border border-white/65 bg-maruxa-vino p-3 shadow-premium sm:rounded-[48px] sm:p-5">
+              <img
+                src={MARUXA.fotoHero}
+                alt="Productos recién horneados de Panadería Maruxa"
+                className="h-[340px] w-full rounded-[24px] object-cover sm:h-[470px] sm:rounded-[34px]"
+              />
+              <div className="absolute inset-x-6 bottom-6 rounded-[24px] bg-maruxa-vino/95 p-5 text-maruxa-crema shadow-xl backdrop-blur sm:inset-x-10 sm:bottom-10 sm:p-6">
+                <p className="text-xs font-black uppercase tracking-[.18em] text-maruxa-masa">
+                  Hecho para tu mesa
+                </p>
+                <p className="mt-2 text-xl font-black sm:text-2xl">
+                  Horneado diario, retiro simple y pedidos especiales.
+                </p>
               </div>
             </div>
           </motion.div>
         </div>
       </section>
 
-      <Suspense fallback={<div>Cargando...</div>}>
+      <section className="border-y border-maruxa-cafe/10 bg-white/60 py-7">
+        <div className="contenedor grid gap-4 text-center sm:grid-cols-3 sm:text-left">
+          <div className="flex items-center justify-center gap-3 sm:justify-start">
+            <Clock className="text-maruxa-rojo" size={22} />
+            <span className="font-black text-maruxa-chocolate">Horneado diario</span>
+          </div>
+          <div className="flex items-center justify-center gap-3 sm:justify-start">
+            <MapPin className="text-maruxa-rojo" size={22} />
+            <span className="font-black text-maruxa-chocolate">Retiro en Av. Santa Rosa 6019</span>
+          </div>
+          <div className="flex items-center justify-center gap-3 sm:justify-start">
+            <CakeSlice className="text-maruxa-rojo" size={22} />
+            <span className="font-black text-maruxa-chocolate">Tortas con 24 h de anticipación</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-maruxa-crema py-14 sm:py-20">
+        <div className="contenedor">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="font-black uppercase tracking-[.2em] text-maruxa-rojo">
+                Elige tu favorito
+              </p>
+              <h2 className="mt-3 text-3xl font-black tracking-[-.04em] text-maruxa-chocolate sm:text-5xl">
+                Lo más pedido en Maruxa
+              </h2>
+            </div>
+            <a href="#catalogo" className="font-black text-maruxa-rojo hover:underline">
+              Ver todo el catálogo
+            </a>
+          </div>
+
+          <div className="mt-8 grid gap-4 md:grid-cols-3">
+            {accesosCatalogo.map((acceso) => {
+              const Icono = acceso.icono;
+              return (
+                <Link
+                  key={acceso.nombre}
+                  href={acceso.href}
+                  className="card-premium group rounded-[28px] p-6 transition hover:-translate-y-1 hover:border-maruxa-rojo/30"
+                >
+                  <span className="grid h-12 w-12 place-items-center rounded-2xl bg-maruxa-rojo/10 text-maruxa-rojo">
+                    <Icono size={24} />
+                  </span>
+                  <h3 className="mt-5 text-2xl font-black text-maruxa-chocolate">
+                    {acceso.nombre}
+                  </h3>
+                  <p className="mt-2 leading-7 text-maruxa-cafe/75">{acceso.detalle}</p>
+                  <span className="mt-5 inline-block font-black text-maruxa-rojo group-hover:underline">
+                    Ver productos
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <Suspense fallback={<div className="bg-maruxa-crema py-12 text-center font-bold">Cargando catálogo...</div>}>
         <Catalogo />
       </Suspense>
 
-      
-
-      <section id="retiro" className="py-20">
-        <div className="contenedor grid gap-6 md:grid-cols-3">
-
-          <div className="card-premium rounded-[30px] p-8">
-            <ShieldCheck className="text-maruxa-rojo" />
-
-            <h3 className="mt-4 text-2xl font-black">
-              Retiro en local
-            </h3>
-
-            <p className="mt-2 text-maruxa-cafe/75">
-              Los pedidos se preparan para retiro.
-              No se considera delivery en esta etapa.
-            </p>
+      <section id="retiro" className="border-t border-maruxa-cafe/10 bg-white/45 py-14 sm:py-20">
+        <div className="contenedor grid gap-5 md:grid-cols-3">
+          <div className="card-premium rounded-[30px] p-7 sm:p-8">
+            <MapPin className="text-maruxa-rojo" />
+            <h3 className="mt-4 text-2xl font-black text-maruxa-chocolate">Retiro en local</h3>
+            <p className="mt-2 leading-7 text-maruxa-cafe/75">{MARUXA.direccion}. Coordina tu pedido y ven a retirarlo.</p>
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${direccionMapa}`}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-5 inline-block font-black text-maruxa-rojo hover:underline"
+            >
+              Cómo llegar
+            </a>
           </div>
 
-          <div className="card-premium rounded-[30px] p-8">
-            <Clock className="text-maruxa-rojo" />
-
-            <h3 className="mt-4 text-2xl font-black">
-              24 horas mínimo
-            </h3>
-
-            <p className="mt-2 text-maruxa-cafe/75">
-              Regla principal para tortas y pedidos especiales.
-            </p>
+          <div className="card-premium rounded-[30px] p-7 sm:p-8">
+            <CakeSlice className="text-maruxa-rojo" />
+            <h3 className="mt-4 text-2xl font-black text-maruxa-chocolate">Tortas por encargo</h3>
+            <p className="mt-2 leading-7 text-maruxa-cafe/75">Elige tamaño y sabor en el catálogo. Para pedidos especiales necesitamos 24 horas.</p>
+            <Link href="/?categoria=Pastelería&subfamilia=Tortas#catalogo" className="mt-5 inline-block font-black text-maruxa-rojo hover:underline">
+              Ver tortas
+            </Link>
           </div>
 
-          <div id="contacto" className="card-premium scroll-mt-28 rounded-[30px] p-8">
+          <div id="contacto" className="card-premium scroll-mt-28 rounded-[30px] p-7 sm:p-8">
             <Phone className="text-maruxa-rojo" />
-
-            <h3 className="mt-4 text-2xl font-black">
-              {telefonoVisible}
-            </h3>
-
-            <p className="mt-2 text-maruxa-cafe/75">
-              Contacto principal            </p>
+            <h3 className="mt-4 text-2xl font-black text-maruxa-chocolate">¿Necesitas ayuda?</h3>
+            <p className="mt-2 leading-7 text-maruxa-cafe/75">Escríbenos para consultar disponibilidad, pedidos o retiro.</p>
+            <a href={`https://wa.me/${whatsapp}?text=${mensaje}`} target="_blank" rel="noreferrer" className="mt-5 inline-flex items-center gap-2 font-black text-maruxa-rojo hover:underline">
+              <MessageCircle size={18} /> WhatsApp Maruxa
+            </a>
           </div>
-
         </div>
       </section>
 
       <footer className="border-t border-maruxa-cafe/10 py-8">
         <div className="contenedor flex flex-col gap-3 text-sm font-bold text-maruxa-cafe/70 sm:flex-row sm:items-center sm:justify-between">
-          <p>Panadería Maruxa · San Miguel</p>
+          <p>Panadería Maruxa · San Miguel · {telefonoVisible}</p>
           <div className="flex flex-wrap items-center gap-4">
-            <a
-              href={`https://wa.me/${whatsapp}`}
-              target="_blank"
-              rel="noreferrer"
-              className="transition hover:text-green-700"
-            >
-              WhatsApp
-            </a>
-            <a
-              href={instagram}
-              target="_blank"
-              rel="noreferrer"
-              className="transition hover:text-maruxa-rojo"
-            >
-              Instagram
-            </a>
-            <a
-              href={facebook}
-              target="_blank"
-              rel="noreferrer"
-              className="transition hover:text-blue-700"
-            >
-              Facebook
-            </a>
-            <a
-              href="/politica-de-privacidad"
-              className="transition hover:text-maruxa-rojo"
-            >
-              Política de privacidad
-            </a>
-            <a
-              href="/condiciones-del-servicio"
-              className="transition hover:text-maruxa-rojo"
-            >
-              Condiciones del servicio
-            </a>
-            <a
-              href="/eliminacion-de-datos"
-              className="transition hover:text-maruxa-rojo"
-            >
-              Eliminación de datos
-            </a>
+            <a href={`https://wa.me/${whatsapp}`} target="_blank" rel="noreferrer" className="transition hover:text-green-700">WhatsApp</a>
+            <a href={instagram} target="_blank" rel="noreferrer" className="transition hover:text-maruxa-rojo">Instagram</a>
+            <a href={facebook} target="_blank" rel="noreferrer" className="transition hover:text-blue-700">Facebook</a>
+            <a href="/politica-de-privacidad" className="transition hover:text-maruxa-rojo">Política de privacidad</a>
+            <a href="/condiciones-del-servicio" className="transition hover:text-maruxa-rojo">Condiciones del servicio</a>
           </div>
         </div>
       </footer>
 
       <CartDrawer />
-      <MobileCartBar />     
+      <MobileCartBar />
     </>
   );
 }
