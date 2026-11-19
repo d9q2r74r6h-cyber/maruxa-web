@@ -13,6 +13,11 @@ export type ItemStockControlado = {
 
 export type EstadoStock = 'agotado' | 'bajo_minimo' | 'normal';
 
+type ItemStockConProveedor = ItemStockControlado & {
+  proveedorId?: string | null;
+  proveedorNombre?: string | null;
+};
+
 export type ItemStockDiagnosticado<T extends ItemStockControlado = ItemStockControlado> = T & {
   stockActualNumero: number;
   stockMinimoNumero: number;
@@ -47,6 +52,42 @@ export function valorizarStock<T extends ItemStockControlado>(item: ItemStockDia
     valorEnStock: Math.max(0, item.stockActualNumero) * costoUnitario,
     costoReposicionMinima: item.faltante * costoUnitario,
   };
+}
+
+export type ResumenReposicionProveedor = {
+  proveedorId: string | null;
+  proveedorNombre: string;
+  productosCriticos: number;
+  costoReposicionMinima: number;
+};
+
+export function resumirReposicionPorProveedor<T extends ItemStockConProveedor>(
+  items: ItemStockDiagnosticado<T>[]
+): ResumenReposicionProveedor[] {
+  const resumen = new Map<string, ResumenReposicionProveedor>();
+
+  for (const item of items) {
+    const proveedorId = item.proveedorId || null;
+    const clave = proveedorId || '__sin_proveedor__';
+    const proveedorNombre = item.proveedorNombre?.trim() || (proveedorId ? 'Proveedor sin nombre' : 'Sin proveedor');
+    const actual = resumen.get(clave) || {
+      proveedorId,
+      proveedorNombre,
+      productosCriticos: 0,
+      costoReposicionMinima: 0,
+    };
+
+    actual.productosCriticos += 1;
+    actual.costoReposicionMinima += valorizarStock(item).costoReposicionMinima;
+    resumen.set(clave, actual);
+  }
+
+  return [...resumen.values()].sort(
+    (a, b) =>
+      b.costoReposicionMinima - a.costoReposicionMinima ||
+      b.productosCriticos - a.productosCriticos ||
+      a.proveedorNombre.localeCompare(b.proveedorNombre, 'es')
+  );
 }
 
 export function obtenerStockCritico<T extends ItemStockControlado>(items: T[]): ItemStockDiagnosticado<T>[] {

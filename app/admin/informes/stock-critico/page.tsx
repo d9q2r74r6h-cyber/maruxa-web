@@ -8,6 +8,7 @@ import { exportarParaExcel } from '@/lib/exportar-excel';
 import {
   diagnosticarStock,
   obtenerStockCritico,
+  resumirReposicionPorProveedor,
   valorizarStock,
   type ItemStockControlado,
 } from '@/lib/stock-critico';
@@ -289,6 +290,10 @@ export default function InformeStockCriticoPage() {
     () => criticos.reduce((total, item) => total + valorizarStock(item).costoReposicionMinima, 0),
     [criticos]
   );
+  const reposicionPorProveedor = useMemo(
+    () => resumirReposicionPorProveedor(criticos),
+    [criticos]
+  );
   const agotados = criticos.filter((item) => item.estado === 'agotado').length;
   const bajoMinimo = criticos.filter((item) => item.estado === 'bajo_minimo').length;
   const productoIdsVisibles = useMemo(
@@ -341,6 +346,16 @@ export default function InformeStockCriticoPage() {
           estado: item.estado === 'agotado' ? 'Agotado' : item.estado === 'bajo_minimo' ? 'Bajo mínimo' : 'Normal',
         };
       }),
+    });
+  }
+
+  function verReposicionProveedor(proveedorId: string | null) {
+    setBusqueda('');
+    setFamiliaSeleccionada('');
+    setProveedorSeleccionado(proveedorId || '__sin_proveedor__');
+    setSoloCriticos(true);
+    window.requestAnimationFrame(() => {
+      document.getElementById('listado-stock')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }
 
@@ -398,7 +413,33 @@ export default function InformeStockCriticoPage() {
             </section>
           )}
 
-          <section className="rounded-xl border border-[#4B2818]/15 bg-white p-4 shadow-sm">
+          {reposicionPorProveedor.length > 0 && (
+            <section className="rounded-xl border border-[#4B2818]/15 bg-white p-4 shadow-sm">
+              <div>
+                <h2 className="font-black text-[#2A1710]">Reposición por proveedor</h2>
+                <p className="mt-1 text-sm font-bold text-[#4B2818]/65">Agrupa los productos críticos según el proveedor asignado y el mínimo configurado.</p>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {reposicionPorProveedor.map((proveedor) => (
+                  <article key={proveedor.proveedorId || '__sin_proveedor__'} className="rounded-lg border border-[#4B2818]/15 bg-[#FFF9EF] p-4">
+                    <p className="font-black text-[#2A1710]">{proveedor.proveedorNombre}</p>
+                    <p className="mt-1 text-sm font-bold text-[#4B2818]/65">{proveedor.productosCriticos} producto(s) crítico(s)</p>
+                    <p className="mt-3 text-lg font-black text-[#A51F2B]">{dinero(proveedor.costoReposicionMinima)}</p>
+                    <p className="text-xs font-bold text-[#4B2818]/55">Costo estimado hasta el mínimo</p>
+                    <button
+                      type="button"
+                      onClick={() => verReposicionProveedor(proveedor.proveedorId)}
+                      className="mt-4 h-10 rounded-md border border-[#A51F2B]/35 bg-white px-3 text-sm font-black text-[#A51F2B]"
+                    >
+                      Ver productos
+                    </button>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <section id="listado-stock" className="rounded-xl border border-[#4B2818]/15 bg-white p-4 shadow-sm">
             <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
               <div>
                 <h2 className="font-black text-[#2A1710]">Existencias</h2>

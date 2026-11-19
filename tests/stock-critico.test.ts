@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { diagnosticarStock, obtenerStockCritico, valorizarStock } from '../lib/stock-critico.ts';
+import { diagnosticarStock, obtenerStockCritico, resumirReposicionPorProveedor, valorizarStock } from '../lib/stock-critico.ts';
 
 test('identifica agotados y bajos mínimos sin incluir ítems sin control de stock', () => {
   const criticos = obtenerStockCritico([
@@ -52,4 +52,17 @@ test('valoriza el stock disponible y la reposición según el mínimo', () => {
 
   assert.deepEqual(conStock, { valorEnStock: 3600, costoReposicionMinima: 900 });
   assert.deepEqual(agotado, { valorEnStock: 0, costoReposicionMinima: 3500 });
+});
+
+test('resume la reposición crítica por proveedor', () => {
+  const resumen = resumirReposicionPorProveedor([
+    diagnosticarStock({ id: 1, nombre: 'Harina', stockActual: 3, stockMinimo: 10, costoUnitario: 100, controlaStock: true, origen: 'productos', proveedorId: 'p1', proveedorNombre: 'Molinos' }),
+    diagnosticarStock({ id: 2, nombre: 'Levadura', stockActual: 0, stockMinimo: 2, costoUnitario: 300, controlaStock: true, origen: 'productos', proveedorId: 'p1', proveedorNombre: 'Molinos' }),
+    diagnosticarStock({ id: 3, nombre: 'Caja', stockActual: 1, stockMinimo: 3, costoUnitario: 200, controlaStock: true, origen: 'productos' }),
+  ]);
+
+  assert.deepEqual(resumen, [
+    { proveedorId: 'p1', proveedorNombre: 'Molinos', productosCriticos: 2, costoReposicionMinima: 1300 },
+    { proveedorId: null, proveedorNombre: 'Sin proveedor', productosCriticos: 1, costoReposicionMinima: 400 },
+  ]);
 });
