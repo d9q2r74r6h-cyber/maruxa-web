@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { CalendarDays, Clock3, MapPin, ShieldCheck } from 'lucide-react';
+import { CalendarDays, Clock3, MapPin, Minus, Plus, ShieldCheck, Trash2 } from 'lucide-react';
 
 import { useCart } from '@/lib/cart';
 import { CalendarioRetiro } from '@/components/CalendarioRetiro';
@@ -12,7 +12,7 @@ import { formatearTelefonoChile } from '@/lib/telefonos';
 import { MARUXA } from '@/lib/marca';
 
 export function CheckoutPage() {
-  const { items, clearCart } = useCart();
+  const { items, clearCart, decrease, increase, removeItem } = useCart();
 
   const [loading, setLoading] = useState(false);
   const [fecha, setFecha] = useState<Date>();
@@ -25,7 +25,7 @@ export function CheckoutPage() {
   }, [items]);
 
   const tieneTortas = useMemo(() => {
-    return items.some((item) => item.requiere_anticipacion ?? Boolean(item.tamano));
+    return items.some((item) => item.requiere_anticipacion === true);
   }, [items]);
 
   async function finalizar(e: React.FormEvent<HTMLFormElement>) {
@@ -46,68 +46,62 @@ export function CheckoutPage() {
 
     setLoading(true);
 
-    const cliente = String(form.get('cliente'));
-    const telefono = formatearTelefonoChile(String(form.get('telefono')));
-    const observaciones = String(form.get('observaciones'));
+    try {
+      const cliente = String(form.get('cliente') || '').trim();
+      const telefono = formatearTelefonoChile(String(form.get('telefono') || ''));
+      const observaciones = String(form.get('observaciones') || '').trim();
+      const email = String(form.get('email') || '').trim();
+      const fechaTexto = format(fecha, 'yyyy-MM-dd');
+      const fechaWhatsApp = format(fecha, 'dd/MM/yyyy', { locale: es });
 
-    const fechaTexto = format(fecha, 'yyyy-MM-dd');
-const fechaWhatsApp = format(fecha, 'dd/MM/yyyy', {
-  locale: es,
-});
+      const entradaPedido = {
+        cliente,
+        email,
+        telefono,
+        sitio_web: String(form.get('sitio_web') || ''),
+        fecha_retiro: fechaTexto,
+        hora_retiro: hora,
+        observaciones,
+        items: items.map((item) => ({
+          id: item.id,
+          cantidad: item.cantidad,
+          tamano: item.tamano || null,
+          presentacion_id: item.presentacion_id || null,
+        })),
+      };
 
+      const respuesta = await fetch('/api/pedidos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(entradaPedido),
+      });
+      const resultado = await respuesta.json().catch(() => ({}));
 
+      if (!respuesta.ok || !resultado.pedido) {
+        alert(resultado.error || 'No se pudo guardar el pedido.');
+        return;
+      }
 
+      const pedidoCreado = resultado.pedido as { total: number };
+      clearCart();
 
-const email = String(form.get('email'));
-
-const entradaPedido = {
-  cliente,
-  email,
-  telefono,
-  sitio_web: String(form.get('sitio_web') || ''),
-  fecha_retiro: fechaTexto,
-  hora_retiro: hora,
-  observaciones,
-  items: items.map((item) => ({
-    id: item.id,
-    cantidad: item.cantidad,
-    tamano: item.tamano || null,
-    presentacion_id: item.presentacion_id || null,
-  })),
-};
-
-const respuesta = await fetch('/api/pedidos', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify(entradaPedido),
-});
-const resultado = await respuesta.json().catch(() => ({}));
-
-if (!respuesta.ok || !resultado.pedido) {
-  alert(resultado.error || 'No se pudo guardar el pedido.');
-  setLoading(false);
-  return;
-}
-
-const pedidoCreado = resultado.pedido as { total: number };
-    
-
-   
-
-    clearCart();
-
-    window.location.href =
-    `/pedido-exitoso?total=${pedidoCreado.total}&cliente=${encodeURIComponent(
-      cliente
-    )}&telefono=${encodeURIComponent(
-      telefono
-    )}&fecha=${encodeURIComponent(
-      fechaWhatsApp
-    )}&hora=${encodeURIComponent(
-      hora
-    )}&observaciones=${encodeURIComponent(
-      observaciones
-    )}&email=${encodeURIComponent(email)}`;
+      window.location.href =
+        `/pedido-exitoso?total=${pedidoCreado.total}&cliente=${encodeURIComponent(
+          cliente
+        )}&telefono=${encodeURIComponent(
+          telefono
+        )}&fecha=${encodeURIComponent(
+          fechaWhatsApp
+        )}&hora=${encodeURIComponent(
+          hora
+        )}&observaciones=${encodeURIComponent(
+          observaciones
+        )}&email=${encodeURIComponent(email)}`;
+    } catch {
+      alert('No pudimos enviar el pedido. Revisa tu conexión e inténtalo nuevamente.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   if (items.length === 0) {
@@ -285,6 +279,9 @@ const pedidoCreado = resultado.pedido as { total: number };
           <h2 className="text-3xl font-black text-maruxa-chocolate">
             Resumen
           </h2>
+          <p className="mt-2 text-sm font-bold text-maruxa-cafe/70">
+            Puedes ajustar las cantidades antes de enviar tu solicitud.
+          </p>
 
           <div className="mt-6 space-y-4">
             {items.map((item) => (
@@ -302,14 +299,43 @@ const pedidoCreado = resultado.pedido as { total: number };
                       </p>
                     )}
 
-                    <p className="mt-2 text-sm font-bold">
-                      Cantidad: {item.cantidad}
-                    </p>
                   </div>
 
                   <p className="font-black text-maruxa-vino">
                     ${(item.precio * item.cantidad).toLocaleString('es-CL')}
                   </p>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between border-t border-maruxa-rojo/10 pt-3">
+                  <div className="flex items-center gap-2" aria-label={`Cantidad de ${item.nombre}`}>
+                    <button
+                      type="button"
+                      onClick={() => decrease(item.id, item.tamano)}
+                      disabled={item.cantidad <= 1}
+                      aria-label={`Restar una unidad de ${item.nombre}`}
+                      className="grid h-9 w-9 place-items-center rounded-full border border-maruxa-rojo/10 bg-maruxa-crema text-maruxa-chocolate disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <Minus size={16} />
+                    </button>
+                    <span className="w-8 text-center text-sm font-black">{item.cantidad}</span>
+                    <button
+                      type="button"
+                      onClick={() => increase(item.id, item.tamano)}
+                      aria-label={`Sumar una unidad de ${item.nombre}`}
+                      className="grid h-9 w-9 place-items-center rounded-full border border-maruxa-rojo/10 bg-maruxa-crema text-maruxa-chocolate"
+                    >
+                      <Plus size={16} />
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => removeItem(item.id, item.tamano)}
+                    aria-label={`Quitar ${item.nombre} del pedido`}
+                    className="grid h-9 w-9 place-items-center rounded-full text-maruxa-rojo transition hover:bg-maruxa-rojo/10"
+                  >
+                    <Trash2 size={18} />
+                  </button>
                 </div>
               </div>
             ))}
