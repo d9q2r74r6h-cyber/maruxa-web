@@ -3,11 +3,13 @@
 import { useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { CalendarDays, Clock3, MapPin, ShieldCheck } from 'lucide-react';
 
 import { useCart } from '@/lib/cart';
 import { CalendarioRetiro } from '@/components/CalendarioRetiro';
 import { cumpleAnticipacionRetiro } from '@/lib/retiro';
 import { formatearTelefonoChile } from '@/lib/telefonos';
+import { MARUXA } from '@/lib/marca';
 
 export function CheckoutPage() {
   const { items, clearCart } = useCart();
@@ -105,7 +107,7 @@ const pedidoCreado = resultado.pedido as { total: number };
       hora
     )}&observaciones=${encodeURIComponent(
       observaciones
-    )}`;
+    )}&email=${encodeURIComponent(email)}`;
   }
 
   if (items.length === 0) {
@@ -153,12 +155,37 @@ const pedidoCreado = resultado.pedido as { total: number };
           </a>
 
           <p className="font-black uppercase tracking-[.24em] text-maruxa-rojo">
-            Checkout Maruxa
+            Pedido en línea · paso 1 de 2
           </p>
 
-          <h1 className="mt-4 text-6xl font-black tracking-[-.05em] text-maruxa-chocolate">
+          <h1 className="mt-4 text-4xl font-black tracking-[-.05em] text-maruxa-chocolate sm:text-6xl">
             Finalizar pedido
           </h1>
+
+          <div className="mt-6 grid gap-3 rounded-[26px] border border-maruxa-rojo/10 bg-white p-5 text-maruxa-chocolate shadow-premium sm:grid-cols-2">
+            <div className="flex gap-3">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-maruxa-rojo/10 text-maruxa-rojo">
+                <MapPin size={20} />
+              </span>
+              <div>
+                <p className="font-black">Retiro en local</p>
+                <p className="mt-1 text-sm font-bold text-maruxa-cafe/70">
+                  {MARUXA.direccion}. No realizamos delivery.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-maruxa-rojo/10 text-maruxa-rojo">
+                <ShieldCheck size={20} />
+              </span>
+              <div>
+                <p className="font-black">Confirmación posterior</p>
+                <p className="mt-1 text-sm font-bold text-maruxa-cafe/70">
+                  Recibimos tu solicitud y confirmamos disponibilidad contigo.
+                </p>
+              </div>
+            </div>
+          </div>
 
           {tieneTortas && (
             <div className="mt-6 rounded-[24px] border border-maruxa-rojo/10 bg-white p-5 font-bold text-maruxa-chocolate shadow-premium">
@@ -177,49 +204,79 @@ const pedidoCreado = resultado.pedido as { total: number };
                 autoComplete="off"
               />
             </div>
-            <input
-              name="cliente"
-              required
-              placeholder="Nombre"
-              className="w-full rounded-[24px] border border-maruxa-rojo/10 bg-white px-5 py-5 font-bold outline-none"
-            />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="grid gap-2">
+                <span className="text-sm font-black text-maruxa-chocolate">Tu nombre</span>
+                <input
+                  name="cliente"
+                  required
+                  autoComplete="name"
+                  placeholder="Ej. Camila González"
+                  className="w-full rounded-[24px] border border-maruxa-rojo/10 bg-white px-5 py-5 font-bold outline-none transition focus:border-maruxa-rojo/50"
+                />
+              </label>
 
-            <input
-              name="telefono"
-              required
-              placeholder="Teléfono: +56 9 9842 8324"
-              className="w-full rounded-[24px] border border-maruxa-rojo/10 bg-white px-5 py-5 font-bold outline-none"
-            />
+              <label className="grid gap-2">
+                <span className="text-sm font-black text-maruxa-chocolate">Teléfono de contacto</span>
+                <input
+                  name="telefono"
+                  required
+                  inputMode="tel"
+                  autoComplete="tel"
+                  placeholder="+56 9 9842 8324"
+                  className="w-full rounded-[24px] border border-maruxa-rojo/10 bg-white px-5 py-5 font-bold outline-none transition focus:border-maruxa-rojo/50"
+                />
+              </label>
+            </div>
 
             <div className="rounded-[24px] bg-white p-4 shadow-premium">
+              <p className="mb-3 flex items-center gap-2 text-sm font-black text-maruxa-chocolate">
+                <CalendarDays size={18} className="text-maruxa-rojo" /> Fecha de retiro
+              </p>
               <div className="mx-auto w-fit">
                 <CalendarioRetiro fecha={fecha} setFecha={setFecha} />
               </div>
             </div>
 
-            <input
-              name="hora"
-              type="time"
-              required
-              className="w-full rounded-[24px] border border-maruxa-rojo/10 bg-white px-5 py-5 font-bold outline-none"
-            />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="grid gap-2">
+                <span className="flex items-center gap-2 text-sm font-black text-maruxa-chocolate">
+                  <Clock3 size={18} className="text-maruxa-rojo" /> Hora de retiro
+                </span>
+                <input
+                  name="hora"
+                  type="time"
+                  required
+                  className="w-full rounded-[24px] border border-maruxa-rojo/10 bg-white px-5 py-5 font-bold outline-none transition focus:border-maruxa-rojo/50"
+                />
+              </label>
 
-            <input
-              name="email"
-              type="email"
-              required
-              placeholder="Correo electrónico"
-              className="w-full rounded-[24px] border border-maruxa-rojo/10 bg-white px-5 py-5 font-bold outline-none"
-            />
+              <label className="grid gap-2">
+                <span className="text-sm font-black text-maruxa-chocolate">Correo de confirmación</span>
+                <input
+                  name="email"
+                  type="email"
+                  required
+                  autoComplete="email"
+                  placeholder="nombre@correo.cl"
+                  className="w-full rounded-[24px] border border-maruxa-rojo/10 bg-white px-5 py-5 font-bold outline-none transition focus:border-maruxa-rojo/50"
+                />
+              </label>
+            </div>
 
-            <textarea
-              name="observaciones"
-              placeholder="Observaciones"
-              className="min-h-[160px] w-full rounded-[24px] border border-maruxa-rojo/10 bg-white px-5 py-5 font-bold outline-none"
-            />
+            <label className="grid gap-2">
+              <span className="text-sm font-black text-maruxa-chocolate">
+                Observaciones <span className="font-bold text-maruxa-cafe/55">(opcional)</span>
+              </span>
+              <textarea
+                name="observaciones"
+                placeholder="Ej. Sin nueces, mensaje para torta o cualquier detalle de retiro"
+                className="min-h-32 w-full rounded-[24px] border border-maruxa-rojo/10 bg-white px-5 py-5 font-bold outline-none transition focus:border-maruxa-rojo/50"
+              />
+            </label>
 
             <button disabled={loading} className="btn-rojo w-full">
-              {loading ? 'Procesando...' : 'Confirmar pedido'}
+              {loading ? 'Enviando pedido...' : 'Enviar pedido para confirmación'}
             </button>
           </form>
         </div>
@@ -268,6 +325,15 @@ const pedidoCreado = resultado.pedido as { total: number };
                 ${total.toLocaleString('es-CL')}
               </p>
             </div>
+          </div>
+
+          <div className="mt-6 rounded-[24px] bg-white p-5 text-sm font-bold leading-6 text-maruxa-cafe/75">
+            <p className="font-black text-maruxa-chocolate">¿Qué sigue?</p>
+            <ol className="mt-3 space-y-2">
+              <li>1. Envías tu solicitud de pedido.</li>
+              <li>2. Confirmamos disponibilidad y retiro contigo.</li>
+              <li>3. Retiras en {MARUXA.direccion}.</li>
+            </ol>
           </div>
         </aside>
       </div>

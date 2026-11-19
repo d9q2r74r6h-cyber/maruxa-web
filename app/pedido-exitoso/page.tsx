@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { whatsapp } from '@/lib/datos';
+import { MARUXA } from '@/lib/marca';
 
 function PedidoExitosoContent() {
   const params = useSearchParams();
@@ -34,7 +35,7 @@ function PedidoExitosoContent() {
             Pedido recibido
           </p>
 
-          <h1 className="mt-4 text-center text-6xl font-black tracking-[-.05em] text-maruxa-chocolate">
+          <h1 className="mt-4 text-center text-4xl font-black tracking-[-.05em] text-maruxa-chocolate sm:text-6xl">
             ¡Gracias por tu pedido!
           </h1>
 
@@ -112,7 +113,7 @@ function PedidoExitosoContent() {
               <div className="grid gap-4 md:grid-cols-2">
                 <Link
                   href="/"
-                  className="btn-rojo block rounded-full bg-maruxa-rojo px-8 py-5 text-center text-lg font-black text-maruxa-rojo shadow-premium transition hover:scale-[1.02]"
+                  className="block rounded-full bg-maruxa-rojo px-8 py-5 text-center text-lg font-black text-white shadow-premium transition hover:scale-[1.02]"
                 >
                   Seguir comprando
                 </Link>
@@ -121,7 +122,7 @@ function PedidoExitosoContent() {
                   href={`https://wa.me/${whatsapp}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="btn-rojo block rounded-full bg-maruxa-crema px-8 py-5 text-center text-lg font-black text-maruxa-rojo shadow-premium transition hover:bg-white"
+                  className="block rounded-full border border-maruxa-rojo/20 bg-maruxa-crema px-8 py-5 text-center text-lg font-black text-maruxa-rojo shadow-premium transition hover:bg-white"
                 >
                   ¿Necesitas ayuda?
                 </a>
@@ -129,7 +130,7 @@ function PedidoExitosoContent() {
             </div>
           <div className="mt-10 rounded-[24px] border border-maruxa-rojo/10 bg-white p-6">
             <p className="text-sm font-bold leading-7 text-maruxa-cafe/75">
-              📍 Retiro en Panadería Maruxa.
+              📍 Retiro en Panadería Maruxa: {MARUXA.direccion}.
               <br />
               🎂 Las tortas requieren mínimo 24 horas de anticipación.
               <br />

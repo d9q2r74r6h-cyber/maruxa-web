@@ -109,19 +109,33 @@ export function Home() {
             className="relative"
           >
             <div className="absolute -inset-3 rounded-[46px] bg-white/35 blur-2xl" />
-            <div className="relative overflow-hidden rounded-[34px] border border-white/65 bg-maruxa-vino p-3 shadow-premium sm:rounded-[48px] sm:p-5">
-              <img
-                src={MARUXA.fotoHero}
-                alt="Productos recién horneados de Panadería Maruxa"
-                className="h-[340px] w-full rounded-[24px] object-cover sm:h-[470px] sm:rounded-[34px]"
-              />
-              <div className="absolute inset-x-6 bottom-6 rounded-[24px] bg-maruxa-vino/95 p-5 text-maruxa-crema shadow-xl backdrop-blur sm:inset-x-10 sm:bottom-10 sm:p-6">
-                <p className="text-xs font-black uppercase tracking-[.18em] text-maruxa-masa">
-                  Hecho para tu mesa
-                </p>
-                <p className="mt-2 text-xl font-black sm:text-2xl">
-                  Horneado diario, retiro simple y pedidos especiales.
-                </p>
+            <div className="relative min-h-[340px] overflow-hidden rounded-[34px] border border-white/65 bg-[radial-gradient(circle_at_top_right,#d7605f_0%,#7a1825_42%,#3a170f_100%)] p-6 text-maruxa-crema shadow-premium sm:min-h-[470px] sm:rounded-[48px] sm:p-10">
+              <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-maruxa-masa/20 blur-3xl" />
+              <div className="absolute -bottom-24 -left-16 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
+              <div className="relative flex h-full min-h-[292px] flex-col justify-between sm:min-h-[390px]">
+                <img
+                  src="/logo-maruxa.png"
+                  alt="Panadería Maruxa"
+                  className="w-40 self-start object-contain sm:w-52"
+                />
+
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[.18em] text-maruxa-masa">
+                    Compra con tranquilidad
+                  </p>
+                  <h2 className="mt-3 max-w-md text-3xl font-black leading-tight sm:text-4xl">
+                    El catálogo muestra solo productos habilitados para hoy.
+                  </h2>
+                  <p className="mt-4 max-w-lg text-base font-bold leading-7 text-maruxa-crema/80 sm:text-lg">
+                    Elige tus favoritos, define tu retiro y te confirmamos la disponibilidad.
+                  </p>
+                  <a
+                    href="#catalogo"
+                    className="mt-7 inline-flex items-center gap-2 rounded-full bg-maruxa-crema px-5 py-3 font-black text-maruxa-vino transition hover:-translate-y-0.5 hover:bg-white"
+                  >
+                    <ShoppingBag size={18} /> Ver productos disponibles
+                  </a>
+                </div>
               </div>
             </div>
           </motion.div>
