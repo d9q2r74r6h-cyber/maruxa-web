@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowLeft, Boxes, FileSpreadsheet, RefreshCw } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Boxes, ChevronDown, FileSpreadsheet, RefreshCw } from 'lucide-react';
 import { useAdminSession } from '@/components/AdminSession';
 import { exportarParaExcel } from '@/lib/exportar-excel';
 import {
@@ -60,9 +60,9 @@ function fechaHora(valor: string) {
   }).format(new Date(valor));
 }
 
-function hace30Dias() {
+function haceDias(dias: number) {
   const fecha = new Date();
-  fecha.setDate(fecha.getDate() - 30);
+  fecha.setDate(fecha.getDate() - dias);
   return fecha.toISOString();
 }
 
@@ -124,6 +124,7 @@ export default function InformeStockCriticoPage() {
   const [familiaSeleccionada, setFamiliaSeleccionada] = useState('');
   const [soloCriticos, setSoloCriticos] = useState(true);
   const [filtrarMovimientosPorListado, setFiltrarMovimientosPorListado] = useState(false);
+  const [diasMovimientos, setDiasMovimientos] = useState(30);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [errorMovimientos, setErrorMovimientos] = useState('');
@@ -209,9 +210,9 @@ export default function InformeStockCriticoPage() {
       .select('id,producto_id,tipo_movimiento,cantidad,created_at,referencia_tipo,observacion,productos(nombre,unidad_base)')
       .eq('empresa_id', perfil.empresa_id)
       .in('producto_id', productosIds)
-      .gte('created_at', hace30Dias())
+      .gte('created_at', haceDias(diasMovimientos))
       .order('created_at', { ascending: false })
-      .limit(80);
+      .limit(200);
 
     if (errorHistorial) {
       setMovimientos([]);
@@ -224,7 +225,7 @@ export default function InformeStockCriticoPage() {
 
   useEffect(() => {
     void cargar();
-  }, [perfil?.empresa_id]);
+  }, [perfil?.empresa_id, diasMovimientos]);
 
   const criticos = useMemo(() => obtenerStockCritico(items), [items]);
   const familiasPorId = useMemo(() => new Map(familias.map((familia) => [familia.id, familia])), [familias]);
@@ -469,18 +470,36 @@ export default function InformeStockCriticoPage() {
                 <Boxes className="h-5 w-5 text-[#A51F2B]" />
                 <div>
                   <h2 className="font-black text-[#2A1710]">Últimos movimientos del catálogo</h2>
-                  <p className="text-xs font-bold text-[#4B2818]/65">Últimos 30 días, registrados desde compras y otros movimientos de stock.</p>
+                  <p className="text-xs font-bold text-[#4B2818]/65">Últimos {diasMovimientos} días, hasta 200 registros desde compras y otros movimientos de stock.</p>
                 </div>
               </div>
-              <label className="flex min-h-10 items-center gap-2 rounded-md border border-[#4B2818]/20 bg-white px-3 text-sm font-black text-[#4B2818]">
-                <input
-                  type="checkbox"
-                  checked={filtrarMovimientosPorListado}
-                  onChange={(event) => setFiltrarMovimientosPorListado(event.target.checked)}
-                  className="h-4 w-4 accent-[#A51F2B]"
-                />
-                Aplicar filtros del listado
-              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="flex min-h-10 items-center gap-2 rounded-md border border-[#4B2818]/20 bg-white px-3 text-sm font-black text-[#4B2818]">
+                  <span>Período</span>
+                  <span className="relative">
+                    <select
+                      value={diasMovimientos}
+                      onChange={(event) => setDiasMovimientos(Number(event.target.value))}
+                      className="h-8 appearance-none bg-white pr-7 text-sm font-black text-[#2A1710] outline-none"
+                    >
+                      <option value={7}>7 días</option>
+                      <option value={30}>30 días</option>
+                      <option value={90}>90 días</option>
+                      <option value={180}>180 días</option>
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-0 top-1/2 h-4 w-4 -translate-y-1/2 text-[#4B2818]/65" />
+                  </span>
+                </label>
+                <label className="flex min-h-10 items-center gap-2 rounded-md border border-[#4B2818]/20 bg-white px-3 text-sm font-black text-[#4B2818]">
+                  <input
+                    type="checkbox"
+                    checked={filtrarMovimientosPorListado}
+                    onChange={(event) => setFiltrarMovimientosPorListado(event.target.checked)}
+                    className="h-4 w-4 accent-[#A51F2B]"
+                  />
+                  Aplicar filtros del listado
+                </label>
+              </div>
             </div>
             {errorMovimientos ? (
               <p className="p-5 text-sm font-bold text-red-700">No se pudo cargar los movimientos: {errorMovimientos}</p>
@@ -488,7 +507,7 @@ export default function InformeStockCriticoPage() {
               <p className="p-8 text-center text-sm font-bold text-[#4B2818]/60">
                 {filtrarMovimientosPorListado
                   ? 'No hay movimientos para los productos del listado seleccionado.'
-                  : 'No hay movimientos de stock registrados en los últimos 30 días.'}
+                  : `No hay movimientos de stock registrados en los últimos ${diasMovimientos} días.`}
               </p>
             ) : (
               <div className="overflow-x-auto">
