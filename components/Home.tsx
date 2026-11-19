@@ -63,7 +63,7 @@ export function Home() {
 
     async function cargarDestacados() {
       try {
-        const respuesta = await fetch('/api/catalogo?limite=3', {
+        const respuesta = await fetch('/api/catalogo?limite=1', {
           cache: 'no-store',
         });
         const resultado = await respuesta.json();
@@ -146,59 +146,62 @@ export function Home() {
             className="relative"
           >
             <div className="absolute -inset-3 rounded-[46px] bg-white/35 blur-2xl" />
-            <div className="relative min-h-[340px] overflow-hidden rounded-[34px] border border-white/65 bg-[radial-gradient(circle_at_top_right,#d7605f_0%,#7a1825_42%,#3a170f_100%)] p-6 text-maruxa-crema shadow-premium sm:min-h-[470px] sm:rounded-[48px] sm:p-10">
-              <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-maruxa-masa/20 blur-3xl" />
-              <div className="absolute -bottom-24 -left-16 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
+            <div className="relative min-h-[340px] overflow-hidden rounded-[34px] border border-maruxa-cafe/10 bg-[#fffaf2] p-5 text-maruxa-chocolate shadow-premium sm:min-h-[470px] sm:rounded-[48px] sm:p-7">
               {cargandoDestacados ? (
                 <div className="relative grid min-h-[292px] place-items-center sm:min-h-[390px]">
-                  <p className="font-black text-maruxa-crema/80">Cargando productos disponibles...</p>
+                  <p className="font-black text-maruxa-cafe/65">Cargando producto disponible...</p>
                 </div>
               ) : destacados.length > 0 ? (
                 <div className="relative">
                   <div className="flex items-end justify-between gap-4">
                     <div>
-                      <p className="text-xs font-black uppercase tracking-[.18em] text-maruxa-masa">
-                        Productos del catálogo
+                      <p className="text-xs font-black uppercase tracking-[.18em] text-maruxa-rojo">
+                        Producto destacado
                       </p>
-                      <h2 className="mt-2 text-2xl font-black sm:text-3xl">Disponibles para pedir hoy</h2>
+                      <h2 className="mt-2 text-2xl font-black text-maruxa-chocolate sm:text-3xl">
+                        Disponible para pedir hoy
+                      </h2>
                     </div>
-                    <a href="#catalogo" className="shrink-0 text-sm font-black text-maruxa-masa hover:underline">
+                    <a href="#catalogo" className="shrink-0 text-sm font-black text-maruxa-rojo hover:underline">
                       Ver todos
                     </a>
                   </div>
 
-                  <div className="mt-5 grid grid-cols-2 gap-3">
-                    {destacados.slice(0, 2).map((producto) => (
-                      <Link
-                        key={producto.id}
-                        href={producto.slug ? `/productos/${producto.slug}` : '#catalogo'}
-                        className="group overflow-hidden rounded-[22px] bg-white text-maruxa-chocolate shadow-lg transition hover:-translate-y-1"
-                      >
-                        <div className="h-36 overflow-hidden bg-maruxa-crema sm:h-48">
-                          {producto.imagen ? (
-                            <img
-                              src={producto.imagen}
-                              alt={producto.nombre}
-                              className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                            />
-                          ) : (
-                            <div className="grid h-full place-items-center text-maruxa-rojo/55">
-                              <ShoppingBag size={40} aria-hidden="true" />
-                            </div>
-                          )}
+                  <Link
+                    href={destacados[0].slug ? `/productos/${destacados[0].slug}` : '#catalogo'}
+                    className="group mt-5 grid overflow-hidden rounded-[28px] border border-maruxa-cafe/10 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg sm:grid-cols-[1.15fr_.85fr]"
+                  >
+                    <div className="h-48 overflow-hidden bg-maruxa-crema sm:h-[300px]">
+                      {destacados[0].imagen ? (
+                        <img
+                          src={destacados[0].imagen}
+                          alt={destacados[0].nombre}
+                          className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                        />
+                      ) : (
+                        <div className="grid h-full place-items-center text-maruxa-rojo/55">
+                          <ShoppingBag size={52} aria-hidden="true" />
                         </div>
-                        <div className="p-3 sm:p-4">
-                          <p className="truncate text-sm font-black sm:text-base">{producto.nombre}</p>
-                          <p className="mt-1 text-sm font-black text-maruxa-rojo">
-                            ${producto.precio.toLocaleString('es-CL')}
-                          </p>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
+                      )}
+                    </div>
+                    <div className="flex flex-col justify-center p-5 sm:p-6">
+                      <p className="text-xs font-black uppercase tracking-[.14em] text-maruxa-rojo">
+                        {destacados[0].categoria}
+                      </p>
+                      <h3 className="mt-3 text-2xl font-black leading-tight text-maruxa-chocolate">
+                        {destacados[0].nombre}
+                      </h3>
+                      <p className="mt-3 text-2xl font-black text-maruxa-rojo">
+                        ${destacados[0].precio.toLocaleString('es-CL')}
+                      </p>
+                      <span className="mt-5 font-black text-maruxa-chocolate group-hover:text-maruxa-rojo">
+                        Ver producto
+                      </span>
+                    </div>
+                  </Link>
 
-                  <p className="mt-4 text-xs font-bold leading-5 text-maruxa-crema/75">
-                    Estos productos se cargan desde el catálogo activo. Si se deshabilitan, dejan de aparecer aquí.
+                  <p className="mt-4 text-xs font-bold leading-5 text-maruxa-cafe/65">
+                    Se carga desde el catálogo activo. Si se deshabilita, deja de aparecer aquí.
                   </p>
                 </div>
               ) : (
@@ -209,10 +212,10 @@ export function Home() {
                     className="w-40 object-contain sm:w-52"
                   />
                   <div>
-                    <p className="text-xs font-black uppercase tracking-[.18em] text-maruxa-masa">
+                    <p className="text-xs font-black uppercase tracking-[.18em] text-maruxa-rojo">
                       Catálogo Maruxa
                     </p>
-                    <h2 className="mt-3 max-w-md text-3xl font-black leading-tight sm:text-4xl">
+                    <h2 className="mt-3 max-w-md text-3xl font-black leading-tight text-maruxa-chocolate sm:text-4xl">
                       Revisa nuestros productos disponibles.
                     </h2>
                     <a
