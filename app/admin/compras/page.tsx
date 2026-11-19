@@ -15,6 +15,7 @@ import {
   UMBRAL_ALERTA_VARIACION_COSTO,
   variacionCostoEsAnormal,
 } from '@/lib/variacion-costos';
+import { Save, Trash2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import type { CargaFactura } from '@/components/ImportarFactura';
 const ImportarFactura = dynamic(() => import('@/components/ImportarFactura'), { ssr: false });
@@ -104,6 +105,26 @@ type ItemCompra = {
   unidad_compra?: UnidadCompra;
 };
 
+type BorradorCompra = {
+  version: 1;
+  guardado_en: string;
+  proveedor_id: string;
+  proveedor_texto: string;
+  fecha_factura: string;
+  numero_factura: string;
+  tipo_documento: string;
+  fecha_vencimiento: string;
+  condicion_pago: string;
+  orden_compra: string;
+  referencia_documento: string;
+  observaciones_factura: string;
+  descuento_factura: string;
+  valor_despacho_factura: string;
+  impuesto_adicional_factura: string;
+  precio_iva_incluido: boolean;
+  items: ItemCompra[];
+};
+
 type CampoFocoItem = 'producto' | 'costo' | 'margen' | 'precio';
 
 type TipoProductoCompra = 'producto' | 'ingrediente' | 'envase';
@@ -171,6 +192,10 @@ function itemCompraVacio(): ItemCompra {
     texto_listado_2: '',
     unidad_compra: 'unidad',
   };
+}
+
+function claveBorradorCompra(empresaId: string) {
+  return `maruxa:borrador-compra:v1:${empresaId}`;
 }
 
 function numero(valor: string | number | null | undefined) {
@@ -324,6 +349,7 @@ function calcularPrecioSugerido(costoUnidad: number, producto: any) {
 }
 
 export default function AdminComprasPage() {
+  const [empresaId, setEmpresaId] = useState('');
   const [productos, setProductos] = useState<Producto[]>([]);
   const [proveedores, setProveedores] = useState<ProveedorCompra[]>([]);
   const [proveedorId, setProveedorId] = useState('');
@@ -420,6 +446,9 @@ export default function AdminComprasPage() {
   const [guardandoHistorial, setGuardandoHistorial] = useState(false);
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
+  const [borradorInicializado, setBorradorInicializado] = useState(false);
+  const [borradorDisponible, setBorradorDisponible] = useState<BorradorCompra | null>(null);
+  const [mensajeBorrador, setMensajeBorrador] = useState('');
   const [productoDesdeInforme, setProductoDesdeInforme] = useState(false);
   const productoEnlaceAplicado = useRef(false);
   const [variacionesCompra, setVariacionesCompra] = useState<VariacionCosto[]>([]);
@@ -531,6 +560,7 @@ export default function AdminComprasPage() {
       return;
     }
 
+    setEmpresaId(empresa.id);
     setIvaPorcentaje(numero(empresa.iva_porcentaje ?? 19) || 19);
 
     const [{ data, error }, { data: familiasData }] = await Promise.all([
@@ -633,6 +663,164 @@ export default function AdminComprasPage() {
     ]);
     productoEnlaceAplicado.current = true;
   }, [loading, productos]);
+
+  function crearBorradorCompra(): BorradorCompra {
+    return {
+      version: 1,
+      guardado_en: new Date().toISOString(),
+      proveedor_id: proveedorId,
+      proveedor_texto: proveedorTexto,
+      fecha_factura: fechaFactura,
+      numero_factura: numeroFactura,
+      tipo_documento: tipoDocumento,
+      fecha_vencimiento: fechaVencimiento,
+      condicion_pago: condicionPago,
+      orden_compra: ordenCompra,
+      referencia_documento: referenciaDocumento,
+      observaciones_factura: observacionesFactura,
+      descuento_factura: descuentoFactura,
+      valor_despacho_factura: valorDespachoFactura,
+      impuesto_adicional_factura: impuestoAdicionalFactura,
+      precio_iva_incluido: precioIvaIncluido,
+      items,
+    };
+  }
+
+  function tieneContenidoBorrador(borrador: BorradorCompra) {
+    return Boolean(
+      borrador.numero_factura.trim() ||
+      borrador.fecha_vencimiento ||
+      borrador.orden_compra.trim() ||
+      borrador.referencia_documento.trim() ||
+      borrador.observaciones_factura.trim() ||
+      borrador.descuento_factura ||
+      borrador.valor_despacho_factura ||
+      borrador.impuesto_adicional_factura ||
+      borrador.items.some((item) =>
+        Boolean(
+          item.producto_id ||
+          item.busqueda_producto.trim() ||
+          item.costo_unitario ||
+          item.costo_total ||
+          item.codigo_proveedor?.trim() ||
+          item.nuevo_producto
+        )
+      )
+    );
+  }
+
+  function guardarBorradorLocal(manual = false) {
+    if (!empresaId) return false;
+
+    const borrador = crearBorradorCompra();
+    if (!tieneContenidoBorrador(borrador)) {
+      window.localStorage.removeItem(claveBorradorCompra(empresaId));
+      if (manual) setMensajeBorrador('Aún no hay datos para guardar en el borrador.');
+      return false;
+    }
+
+    window.localStorage.setItem(
+      claveBorradorCompra(empresaId),
+      JSON.stringify(borrador)
+    );
+    if (manual) setMensajeBorrador('Borrador guardado solo en este equipo.');
+    return true;
+  }
+
+  function eliminarBorradorLocal(mensaje?: string) {
+    if (empresaId) window.localStorage.removeItem(claveBorradorCompra(empresaId));
+    setBorradorDisponible(null);
+    if (mensaje !== undefined) setMensajeBorrador(mensaje);
+  }
+
+  function descartarBorradorLocal() {
+    eliminarBorradorLocal('Borrador descartado.');
+  }
+
+  function recuperarBorrador() {
+    if (!borradorDisponible) return;
+
+    const borrador = borradorDisponible;
+    setProveedorId(borrador.proveedor_id || '');
+    setProveedorTexto(borrador.proveedor_texto || '');
+    setFechaFactura(borrador.fecha_factura || new Date().toISOString().slice(0, 10));
+    setNumeroFactura(borrador.numero_factura || '');
+    setTipoDocumento(borrador.tipo_documento || 'factura');
+    setFechaVencimiento(borrador.fecha_vencimiento || '');
+    setCondicionPago(borrador.condicion_pago || 'contado');
+    setOrdenCompra(borrador.orden_compra || '');
+    setReferenciaDocumento(borrador.referencia_documento || '');
+    setObservacionesFactura(borrador.observaciones_factura || '');
+    setDescuentoFactura(borrador.descuento_factura || '');
+    setValorDespachoFactura(borrador.valor_despacho_factura || '');
+    setImpuestoAdicionalFactura(borrador.impuesto_adicional_factura || '');
+    setPrecioIvaIncluido(Boolean(borrador.precio_iva_incluido));
+    setItems((borrador.items || []).map((item) => ({ ...itemCompraVacio(), ...item })));
+    setBorradorDisponible(null);
+    setMensajeBorrador('Borrador recuperado. Revisa los datos antes de registrar la factura.');
+  }
+
+  useEffect(() => {
+    if (!empresaId || loading || borradorInicializado) return;
+
+    try {
+      const guardado = window.localStorage.getItem(claveBorradorCompra(empresaId));
+      if (!guardado) {
+        setBorradorInicializado(true);
+        return;
+      }
+
+      const borrador = JSON.parse(guardado) as Partial<BorradorCompra>;
+      if (borrador.version === 1 && Array.isArray(borrador.items)) {
+        setBorradorDisponible(borrador as BorradorCompra);
+      } else {
+        window.localStorage.removeItem(claveBorradorCompra(empresaId));
+      }
+    } catch {
+      window.localStorage.removeItem(claveBorradorCompra(empresaId));
+    }
+
+    setBorradorInicializado(true);
+  }, [borradorInicializado, empresaId, loading]);
+
+  useEffect(() => {
+    if (
+      !empresaId ||
+      loading ||
+      !borradorInicializado ||
+      borradorDisponible ||
+      guardando
+    ) {
+      return;
+    }
+
+    const temporizador = window.setTimeout(() => {
+      guardarBorradorLocal();
+    }, 600);
+
+    return () => window.clearTimeout(temporizador);
+  }, [
+    borradorDisponible,
+    borradorInicializado,
+    condicionPago,
+    descuentoFactura,
+    empresaId,
+    fechaFactura,
+    fechaVencimiento,
+    guardando,
+    impuestoAdicionalFactura,
+    items,
+    loading,
+    numeroFactura,
+    observacionesFactura,
+    ordenCompra,
+    precioIvaIncluido,
+    proveedorId,
+    proveedorTexto,
+    referenciaDocumento,
+    tipoDocumento,
+    valorDespachoFactura,
+  ]);
 
   useEffect(() => {
     if (!mostrarProveedores) return;
@@ -2832,6 +3020,7 @@ export default function AdminComprasPage() {
 
     // El lote ya fue guardado: la siguiente carga debe empezar sin valores anteriores.
     setItems([]);
+    eliminarBorradorLocal('');
     setResultadosBusqueda({});
     setIndiceBusquedaActivo(null);
     setFocoPendiente(null);
@@ -2877,6 +3066,35 @@ export default function AdminComprasPage() {
       <h1 className="text-2xl font-black text-maruxa-chocolate md:text-3xl">
         Inventario <span className="text-maruxa-rojo">·</span> Ingreso de factura de compra
       </h1>
+
+      {borradorDisponible ? (
+        <section className="mt-4 flex flex-col gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="font-black">Hay una factura sin registrar guardada en este equipo.</p>
+            <p className="mt-1 text-sm font-bold">
+              Último guardado: {new Date(borradorDisponible.guardado_en).toLocaleString('es-CL')}.
+              Recuperarla no registra la factura ni modifica el stock.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={recuperarBorrador} className="h-10 rounded-md bg-[#A51F2B] px-4 text-sm font-black text-white">
+              Recuperar borrador
+            </button>
+            <button type="button" onClick={descartarBorradorLocal} className="inline-flex h-10 items-center gap-2 rounded-md border border-amber-800/35 bg-white px-4 text-sm font-black text-amber-950">
+              <Trash2 className="h-4 w-4" /> Descartar
+            </button>
+          </div>
+        </section>
+      ) : (
+        <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-[#4B2818]/15 bg-white p-4 md:flex-row md:items-center md:justify-between">
+          <p className="text-sm font-bold text-maruxa-cafe/70">
+            {mensajeBorrador || 'El formulario se respalda automáticamente en este equipo. No se registra nada hasta confirmar la factura.'}
+          </p>
+          <button type="button" onClick={() => guardarBorradorLocal(true)} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-[#A51F2B]/35 px-4 text-sm font-black text-[#A51F2B]">
+            <Save className="h-4 w-4" /> Guardar borrador
+          </button>
+        </div>
+      )}
 
       <ImportarFactura onApply={cargarCostosFactura} />
 
