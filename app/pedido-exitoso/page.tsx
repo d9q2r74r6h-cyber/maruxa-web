@@ -25,9 +25,13 @@ function PedidoExitosoContent() {
   const observaciones = params.get('observaciones') || '';
   const email = params.get('email') || '';
   const avisoCorreo = params.get('aviso_correo') === '1';
-  const mensajeWhatsApp = encodeURIComponent(
-    `Hola Maruxa, quiero consultar mi pedido${numeroPedido ? ` #${numeroPedido}` : ''}.`
-  );
+  const mensajeWhatsApp = encodeURIComponent([
+    'Hola Maruxa, realicé la transferencia de mi pedido.',
+    numeroPedido ? `Pedido: #${numeroPedido}` : null,
+    total ? `Monto: $${total.toLocaleString('es-CL')}` : null,
+    fecha && hora ? `Retiro: ${fecha} a las ${hora}` : null,
+    'Adjunto mi comprobante de transferencia.',
+  ].filter(Boolean).join('\n'));
 
   async function copiarNumeroPedido() {
     if (!numeroPedido) return;
@@ -175,7 +179,7 @@ function PedidoExitosoContent() {
                   rel="noreferrer"
                   className="block rounded-full border border-maruxa-rojo/20 bg-maruxa-crema px-8 py-5 text-center text-lg font-black text-maruxa-rojo shadow-premium transition hover:bg-white"
                 >
-                  ¿Necesitas ayuda?
+                  Enviar comprobante por WhatsApp
                 </a>
               </div>
             </div>
