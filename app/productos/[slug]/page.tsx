@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import ProductoDetalle from '@/components/ProductoDetalle';
 import { obtenerProductosCatalogo } from '@/lib/catalogo-publico';
 
@@ -41,5 +42,9 @@ export async function generateMetadata({
 export default async function ProductoPage({ params }: Props) {
   const { slug } = await params;
 
-  return <ProductoDetalle slug={slug} />;
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-maruxa-crema" />}>
+      <ProductoDetalle slug={slug} />
+    </Suspense>
+  );
 }
