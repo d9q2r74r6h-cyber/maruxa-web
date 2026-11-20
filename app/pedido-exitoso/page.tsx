@@ -1,15 +1,16 @@
 'use client';
 
 import Link from 'next/link';
-import { Suspense } from 'react';
+import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { CalendarDays, Mail, MapPin } from 'lucide-react';
+import { CalendarDays, Check, Copy, Mail, MapPin } from 'lucide-react';
 import { whatsapp } from '@/lib/datos';
 import { MARUXA } from '@/lib/marca';
 import { DatosTransferencia } from '@/components/DatosTransferencia';
 
 function PedidoExitosoContent() {
   const params = useSearchParams();
+  const [pedidoCopiado, setPedidoCopiado] = useState(false);
 
   const totalParametro = Number(params.get('total'));
   const total = Number.isFinite(totalParametro) && totalParametro > 0 ? totalParametro : 0;
@@ -27,6 +28,17 @@ function PedidoExitosoContent() {
   const mensajeWhatsApp = encodeURIComponent(
     `Hola Maruxa, quiero consultar mi pedido${numeroPedido ? ` #${numeroPedido}` : ''}.`
   );
+
+  async function copiarNumeroPedido() {
+    if (!numeroPedido) return;
+    try {
+      await navigator.clipboard.writeText(`Pedido #${numeroPedido}`);
+      setPedidoCopiado(true);
+      window.setTimeout(() => setPedidoCopiado(false), 2200);
+    } catch {
+      setPedidoCopiado(false);
+    }
+  }
 
   return (
     <main className="min-h-screen bg-maruxa-crema py-20">
@@ -49,6 +61,27 @@ function PedidoExitosoContent() {
           <p className="mx-auto mt-6 max-w-xl text-center text-lg font-bold leading-8 text-maruxa-cafe/75">
             Revisaremos la disponibilidad y confirmaremos tu pedido antes de prepararlo.
           </p>
+
+          {numeroPedido && (
+            <div className="mx-auto mt-7 flex max-w-md flex-col items-center justify-between gap-4 rounded-[24px] border border-maruxa-rojo/15 bg-maruxa-rojo/5 p-4 text-center sm:flex-row sm:text-left">
+              <div>
+                <p className="text-xs font-black uppercase tracking-widest text-maruxa-cafe/60">
+                  Número de pedido
+                </p>
+                <p className="mt-1 text-2xl font-black text-maruxa-vino">
+                  #{numeroPedido}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void copiarNumeroPedido()}
+                className="inline-flex items-center gap-2 rounded-full border border-maruxa-rojo/20 bg-white px-4 py-3 text-sm font-black text-maruxa-rojo transition hover:bg-maruxa-rojo/10"
+              >
+                {pedidoCopiado ? <Check size={17} /> : <Copy size={17} />}
+                {pedidoCopiado ? 'Número copiado' : 'Copiar número'}
+              </button>
+            </div>
+          )}
 
           <div className="mt-10 rounded-[30px] bg-maruxa-crema p-8">
             <div className="flex items-center justify-between">
