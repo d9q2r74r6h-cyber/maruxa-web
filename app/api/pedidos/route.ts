@@ -89,10 +89,12 @@ export async function POST(request: Request) {
 
   const { data: productos, error: errorProductos } = await admin
     .from('productos')
-    .select('id,nombre,precio,precio_10,precio_15,precio_20,precio_25,presentaciones,imagen,categoria,familias_productos(nombre)')
+    .select('id,nombre,precio,precio_10,precio_15,precio_20,precio_25,presentaciones,imagen,categoria,familias_productos!inner(nombre)')
     .eq('empresa_id', empresa.id)
     .eq('activo', true)
     .eq('tipo_producto', 'producto')
+    .eq('familias_productos.activo', true)
+    .eq('familias_productos.mostrar_catalogo', true)
     .in('id', ids);
   if (errorProductos) {
     return NextResponse.json({ error: 'No se pudieron validar los productos.' }, { status: 500 });
