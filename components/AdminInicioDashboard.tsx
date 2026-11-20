@@ -11,6 +11,7 @@ import {
   Package,
   ShoppingBag,
   TrendingUp,
+  WalletCards,
 } from 'lucide-react';
 import { useAdminSession } from '@/components/AdminSession';
 import { supabase } from '@/lib/supabase';
@@ -37,6 +38,12 @@ type ProductoStock = {
   costo_unitario: number | null;
 };
 
+type CajaResumen = {
+  fecha: string;
+  estado: 'borrador' | 'cerrada';
+  total_ventas: number | null;
+};
+
 function fechaChile(ahora = new Date()) {
   const partes = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Santiago',
@@ -48,6 +55,13 @@ function fechaChile(ahora = new Date()) {
     partes.find((parte) => parte.type === tipo)?.value || '';
 
   return `${valor('year')}-${valor('month')}-${valor('day')}`;
+}
+
+function moverFecha(fecha: string, dias: number) {
+  const [anio, mes, dia] = fecha.split('-').map(Number);
+  const valor = new Date(Date.UTC(anio, mes - 1, dia));
+  valor.setUTCDate(valor.getUTCDate() + dias);
+  return valor.toISOString().slice(0, 10);
 }
 
 function dinero(valor: number) {
@@ -71,12 +85,14 @@ export function AdminInicioDashboard() {
   const { perfil, cargando: cargandoSesion, puedeVer } = useAdminSession();
   const [pedidos, setPedidos] = useState<PedidoResumen[]>([]);
   const [productos, setProductos] = useState<ProductoStock[]>([]);
+  const [cajas, setCajas] = useState<CajaResumen[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
 
   const puedeVerPedidos = puedeVer('pedidos');
   const puedeVerProductos = puedeVer('productos');
   const hoy = useMemo(() => fechaChile(), []);
+  const ayer = useMemo(() => moverFecha(hoy, -1), [hoy]);
   const mesActual = hoy.slice(0, 7);
 
   useEffect(() => {
@@ -103,24 +119,32 @@ export function AdminInicioDashboard() {
             .eq('activo', true)
             .limit(1000)
         : Promise.resolve({ data: [], error: null });
+      const consultaCaja = supabase
+        .from('caja_cierres')
+        .select('fecha,estado,total_ventas')
+        .eq('empresa_id', perfil.empresa_id)
+        .in('fecha', [hoy, ayer]);
 
-      const [resultadoPedidos, resultadoProductos] = await Promise.all([
+      const [resultadoPedidos, resultadoProductos, resultadoCaja] = await Promise.all([
         consultaPedidos,
         consultaProductos,
+        consultaCaja,
       ]);
 
       if (!activo) return;
 
-      if (resultadoPedidos.error || resultadoProductos.error) {
+      if (resultadoPedidos.error || resultadoProductos.error || resultadoCaja.error) {
         setError(
           resultadoPedidos.error?.message ||
             resultadoProductos.error?.message ||
+            resultadoCaja.error?.message ||
             'No pudimos cargar el resumen del día.'
         );
       }
 
       setPedidos((resultadoPedidos.data || []) as PedidoResumen[]);
       setProductos((resultadoProductos.data || []) as ProductoStock[]);
+      setCajas((resultadoCaja.data || []) as CajaResumen[]);
       setCargando(false);
     }
 
@@ -128,7 +152,7 @@ export function AdminInicioDashboard() {
     return () => {
       activo = false;
     };
-  }, [perfil, puedeVerPedidos, puedeVerProductos]);
+  }, [perfil, puedeVerPedidos, puedeVerProductos, hoy, ayer]);
 
   const pedidosPendientes = pedidos.filter((pedido) => pedido.estado === 'pendiente');
   const retirosHoy = pedidos.filter(
@@ -164,8 +188,42 @@ export function AdminInicioDashboard() {
         )
     )
     .slice(0, 5);
+  const cajaHoy = cajas.find((caja) => caja.fecha === hoy) || null;
+  const cajaAyer = cajas.find((caja) => caja.fecha === ayer) || null;
+
+  function resumenCaja(caja: CajaResumen | null, fecha: string) {
+    return {
+      valor: caja
+        ? caja.estado === 'cerrada'
+          ? 'Cerrada'
+          : 'Borrador'
+        : 'Sin abrir',
+      detalle: caja
+        ? `Vale registrado: ${dinero(caja.total_ventas || 0)}.`
+        : `Sin caja registrada para ${fechaCorta(fecha)}.`,
+      tono: caja?.estado === 'cerrada'
+        ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+        : caja
+          ? 'bg-amber-50 text-amber-900 border-amber-200'
+          : 'bg-stone-50 text-stone-800 border-stone-200',
+    };
+  }
+  const resumenCajaHoy = resumenCaja(cajaHoy, hoy);
+  const resumenCajaAyer = resumenCaja(cajaAyer, ayer);
 
   const tarjetas = [
+    {
+      titulo: 'Caja de hoy',
+      ...resumenCajaHoy,
+      href: '/admin/caja',
+      icono: WalletCards,
+    },
+    {
+      titulo: 'Caja de ayer',
+      ...resumenCajaAyer,
+      href: '/admin/caja',
+      icono: WalletCards,
+    },
     ...(puedeVerPedidos
       ? [
           {
@@ -252,7 +310,7 @@ export function AdminInicioDashboard() {
       ) : (
         <>
           {tarjetas.length > 0 && (
-            <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {tarjetas.map((tarjeta) => {
                 const Icono = tarjeta.icono;
                 return (
@@ -327,6 +385,9 @@ export function AdminInicioDashboard() {
               <p className="text-xs font-black uppercase tracking-wide text-maruxa-rojo">Accesos rápidos</p>
               <h2 className="mt-1 text-xl font-black text-maruxa-chocolate">Continuar trabajando</h2>
               <div className="mt-5 grid gap-2">
+                <Link href="/admin/caja" className="flex items-center justify-between rounded-xl bg-maruxa-crema px-4 py-3 font-black text-maruxa-chocolate transition hover:bg-maruxa-rojo/10">
+                  Abrir caja diaria <WalletCards className="h-5 w-5 text-maruxa-rojo" />
+                </Link>
                 {puedeVerPedidos && (
                   <Link href="/admin/pedidos" className="flex items-center justify-between rounded-xl bg-maruxa-crema px-4 py-3 font-black text-maruxa-chocolate transition hover:bg-maruxa-rojo/10">
                     Gestionar pedidos <ClipboardList className="h-5 w-5 text-maruxa-rojo" />
