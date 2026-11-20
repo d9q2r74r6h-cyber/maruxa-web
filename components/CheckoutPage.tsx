@@ -1,9 +1,10 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { CalendarDays, Clock3, MapPin, Minus, Plus, ShieldCheck, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 import { useCart } from '@/lib/cart';
 import { CalendarioRetiro } from '@/components/CalendarioRetiro';
@@ -11,9 +12,11 @@ import { DatosTransferencia } from '@/components/DatosTransferencia';
 import { cumpleAnticipacionRetiro, fechaMinimaRetiro } from '@/lib/retiro';
 import { formatearTelefonoChile } from '@/lib/telefonos';
 import { MARUXA } from '@/lib/marca';
+import type { ProductoCatalogoCarrito } from '@/lib/sincronizar-carrito';
 
 export function CheckoutPage() {
-  const { items, clearCart, decrease, increase, removeItem } = useCart();
+  const { items, clearCart, decrease, increase, removeItem, sincronizarCatalogo } = useCart();
+  const catalogoSincronizado = useRef(false);
 
   const [loading, setLoading] = useState(false);
   const [fecha, setFecha] = useState<Date>();
@@ -41,6 +44,38 @@ export function CheckoutPage() {
       locale: es,
     });
   }, [minimoRetiroTorta]);
+
+  useEffect(() => {
+    if (catalogoSincronizado.current || items.length === 0) return;
+    catalogoSincronizado.current = true;
+    let activo = true;
+
+    async function sincronizar() {
+      try {
+        const respuesta = await fetch('/api/catalogo', { cache: 'no-store' });
+        const resultado = await respuesta.json().catch(() => ({}));
+        if (!activo || !respuesta.ok || !Array.isArray(resultado.productos)) return;
+
+        const resumen = sincronizarCatalogo(
+          resultado.productos as ProductoCatalogoCarrito[]
+        );
+        if (resumen.retirados > 0) {
+          toast.error(
+            `${resumen.retirados} producto${resumen.retirados === 1 ? '' : 's'} ya no está disponible y se quitó del pedido.`
+          );
+        } else if (resumen.actualizados > 0) {
+          toast.message('Actualizamos tu carrito con los precios y presentaciones vigentes.');
+        }
+      } catch {
+        // El servidor vuelve a validar catálogo y precios al enviar el pedido.
+      }
+    }
+
+    void sincronizar();
+    return () => {
+      activo = false;
+    };
+  }, [items.length, sincronizarCatalogo]);
 
   const horaMinimaTorta = useMemo(() => {
     if (!tieneTortas || !fecha || !minimoRetiroTorta) return undefined;

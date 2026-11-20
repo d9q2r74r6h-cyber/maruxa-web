@@ -1,5 +1,10 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import {
+  sincronizarCarritoConCatalogo,
+  type ProductoCatalogoCarrito,
+  type ResultadoSincronizacionCarrito,
+} from './sincronizar-carrito';
 
 export type CartItem = {
   id: number;
@@ -20,6 +25,7 @@ type CartStore = {
   clearCart: () => void;
   increase: (id: number, tamano?: string) => void;
   decrease: (id: number, tamano?: string) => void;
+  sincronizarCatalogo: (productos: ProductoCatalogoCarrito[]) => ResultadoSincronizacionCarrito;
 };
 
 export const useCart = create<CartStore>()(
@@ -79,6 +85,19 @@ export const useCart = create<CartStore>()(
             )
             .filter((i) => i.cantidad > 0),
         })),
+
+      sincronizarCatalogo: (productos) => {
+        let resultado: ResultadoSincronizacionCarrito = {
+          items: [],
+          retirados: 0,
+          actualizados: 0,
+        };
+        set((state) => {
+          resultado = sincronizarCarritoConCatalogo(state.items, productos);
+          return { items: resultado.items };
+        });
+        return resultado;
+      },
     }),
     {
       name: 'maruxa-cart',
