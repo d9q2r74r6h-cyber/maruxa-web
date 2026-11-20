@@ -449,9 +449,17 @@ export default function Catalogo() {
 
                   <div className="mb-3 flex items-center justify-between">
 
-                    <span className="rounded-full bg-maruxa-rojo/10 px-3 py-1 text-xs font-black uppercase tracking-widest text-maruxa-rojo">
-                      {etiquetaFamilia(p)}
-                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-maruxa-rojo/10 px-3 py-1 text-xs font-black uppercase tracking-widest text-maruxa-rojo">
+                        {etiquetaFamilia(p)}
+                      </span>
+
+                      {esTorta(p) && (
+                        <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-950">
+                          Pedido con 24 h
+                        </span>
+                      )}
+                    </div>
 
                     <Link
                       href={enlaceProducto(p)}
@@ -497,6 +505,12 @@ export default function Catalogo() {
                       </>
                     )}
                   </div>
+
+                  {esTorta(p) && (
+                    <p className="mt-3 text-sm font-bold leading-6 text-maruxa-cafe/75">
+                      Retiro en local con un mínimo de 24 horas de anticipación.
+                    </p>
+                  )}
 
                   {presentacionesDisponibles(p).length > 0 && (
                     <div className="mt-5">
