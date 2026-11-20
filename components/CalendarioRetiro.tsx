@@ -3,6 +3,7 @@
 import { DayPicker } from 'react-day-picker';
 import { es } from 'date-fns/locale';
 import 'react-day-picker/dist/style.css';
+import { fechaMinimaRetiro } from '@/lib/retiro';
 
 type Props = {
   fecha: Date | undefined;
@@ -10,7 +11,7 @@ type Props = {
 };
 
 export function CalendarioRetiro({ fecha, setFecha }: Props) {
-  const minimo = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const minimo = fechaMinimaRetiro();
 
   return (
     <div className="rounded-[30px] bg-white p-5 shadow-premium">

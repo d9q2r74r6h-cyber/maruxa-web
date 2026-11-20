@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { cumpleAnticipacionRetiro } from '../lib/retiro.ts';
+import { cumpleAnticipacionRetiro, fechaMinimaRetiro } from '../lib/retiro.ts';
+
+test('calcula la primera hora disponible exactamente 24 horas después', () => {
+  const ahora = new Date(2026, 8, 22, 15, 30);
+  const minimo = fechaMinimaRetiro(ahora);
+
+  assert.equal(minimo.getTime(), new Date(2026, 8, 23, 15, 30).getTime());
+});
 
 test('considera la hora elegida y permite retirar mañana después de 24 horas', () => {
   const ahora = new Date(2026, 8, 22, 15, 30);

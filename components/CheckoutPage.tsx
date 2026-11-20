@@ -8,7 +8,7 @@ import { CalendarDays, Clock3, MapPin, Minus, Plus, ShieldCheck, Trash2 } from '
 import { useCart } from '@/lib/cart';
 import { CalendarioRetiro } from '@/components/CalendarioRetiro';
 import { DatosTransferencia } from '@/components/DatosTransferencia';
-import { cumpleAnticipacionRetiro } from '@/lib/retiro';
+import { cumpleAnticipacionRetiro, fechaMinimaRetiro } from '@/lib/retiro';
 import { formatearTelefonoChile } from '@/lib/telefonos';
 import { MARUXA } from '@/lib/marca';
 
@@ -29,18 +29,30 @@ export function CheckoutPage() {
     return items.some((item) => item.requiere_anticipacion === true);
   }, [items]);
 
-  const horaMinimaTorta = useMemo(() => {
-    if (!tieneTortas || !fecha) return undefined;
+  const minimoRetiroTorta = useMemo(
+    () => (tieneTortas ? fechaMinimaRetiro() : undefined),
+    [tieneTortas]
+  );
 
-    const minimo = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const primerRetiroTorta = useMemo(() => {
+    if (!minimoRetiroTorta) return undefined;
+
+    return format(minimoRetiroTorta, "EEEE d 'de' MMMM 'a las' HH:mm", {
+      locale: es,
+    });
+  }, [minimoRetiroTorta]);
+
+  const horaMinimaTorta = useMemo(() => {
+    if (!tieneTortas || !fecha || !minimoRetiroTorta) return undefined;
+
     const esMismoDia =
-      fecha.getFullYear() === minimo.getFullYear() &&
-      fecha.getMonth() === minimo.getMonth() &&
-      fecha.getDate() === minimo.getDate();
+      fecha.getFullYear() === minimoRetiroTorta.getFullYear() &&
+      fecha.getMonth() === minimoRetiroTorta.getMonth() &&
+      fecha.getDate() === minimoRetiroTorta.getDate();
 
     if (!esMismoDia) return undefined;
-    return `${String(minimo.getHours()).padStart(2, '0')}:${String(minimo.getMinutes()).padStart(2, '0')}`;
-  }, [fecha, tieneTortas]);
+    return `${String(minimoRetiroTorta.getHours()).padStart(2, '0')}:${String(minimoRetiroTorta.getMinutes()).padStart(2, '0')}`;
+  }, [fecha, minimoRetiroTorta, tieneTortas]);
 
   async function finalizar(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -202,7 +214,12 @@ export function CheckoutPage() {
 
           {tieneTortas && (
             <div className="mt-6 rounded-[24px] border border-maruxa-rojo/10 bg-white p-5 font-bold text-maruxa-chocolate shadow-premium">
-              Las tortas requieren mínimo 24 horas de anticipación para retiro.
+              <p>Las tortas requieren mínimo 24 horas de anticipación para retiro.</p>
+              {primerRetiroTorta && (
+                <p className="mt-2 text-sm leading-6 text-maruxa-cafe/75">
+                  Primer retiro posible: <span className="font-black text-maruxa-vino">{primerRetiroTorta} h</span>.
+                </p>
+              )}
             </div>
           )}
 
