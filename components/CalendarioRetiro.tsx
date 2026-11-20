@@ -8,10 +8,17 @@ import { fechaMinimaRetiro } from '@/lib/retiro';
 type Props = {
   fecha: Date | undefined;
   setFecha: (fecha: Date | undefined) => void;
+  requiereAnticipacion?: boolean;
 };
 
-export function CalendarioRetiro({ fecha, setFecha }: Props) {
-  const minimo = fechaMinimaRetiro();
+export function CalendarioRetiro({
+  fecha,
+  setFecha,
+  requiereAnticipacion = false,
+}: Props) {
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const minimo = requiereAnticipacion ? fechaMinimaRetiro() : hoy;
 
   return (
     <div className="rounded-[30px] bg-white p-5 shadow-premium">
@@ -32,7 +39,9 @@ export function CalendarioRetiro({ fecha, setFecha }: Props) {
       />
 
       <p className="mt-4 text-sm font-bold text-maruxa-cafe/70">
-        Retiro con mínimo 24 horas. Domingos no disponibles.
+        {requiereAnticipacion
+          ? 'Las tortas requieren mínimo 24 horas. Domingos no disponibles.'
+          : 'Puedes elegir retiro desde hoy. Domingos no disponibles.'}
       </p>
     </div>
   );

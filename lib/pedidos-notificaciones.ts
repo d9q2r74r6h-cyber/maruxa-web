@@ -69,8 +69,8 @@ export async function enviarNotificacionesPedido(
   const cliente = await resend.emails.send({
     from: 'Panadería Maruxa <pedidos@panaderiamaruxa.cl>',
     to: [pedido.email],
-    subject: 'Hemos recibido tu pedido en Panadería Maruxa',
-    html: `<h1>¡Gracias por tu pedido!</h1><p>Hola ${escaparHtml(pedido.cliente)},</p><p>Recibimos tu pedido #${pedido.id}. Lo confirmaremos antes de comenzar su preparación.</p><p><strong>Retiro:</strong> ${escaparHtml(pedido.fecha_retiro)} a las ${escaparHtml(pedido.hora_retiro)}</p><p><strong>Total:</strong> $${dinero(pedido.total)}</p>${datosTransferencia}<p>Todos los pedidos se retiran en nuestro local.</p>`,
+    subject: `Pedido #${pedido.id} recibido · Panadería Maruxa`,
+    html: `<h1>¡Gracias por tu pedido!</h1><p>Hola ${escaparHtml(pedido.cliente)},</p><p>Recibimos tu pedido #${pedido.id}. Lo confirmaremos antes de comenzar su preparación.</p><p><strong>Retiro:</strong> ${escaparHtml(pedido.fecha_retiro)} a las ${escaparHtml(pedido.hora_retiro)}</p><h2>Resumen del pedido</h2><ul>${productosHtml}</ul><p><strong>Total:</strong> $${dinero(pedido.total)}</p>${datosTransferencia}<p>Todos los pedidos se retiran en nuestro local.</p>`,
   });
 
   return { error: cliente.error?.message || null };

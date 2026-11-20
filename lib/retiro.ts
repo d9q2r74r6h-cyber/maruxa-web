@@ -68,3 +68,37 @@ export function cumpleAnticipacionRetiroEnChile(
 
   return retiroLocal - actualLocal >= MILISEGUNDOS_POR_DIA;
 }
+
+export function retiroEsPosteriorAhoraEnChile(
+  fecha: string,
+  hora: string,
+  ahora = new Date()
+) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !/^\d{2}:\d{2}$/.test(hora)) {
+    return false;
+  }
+
+  const [year, month, day] = fecha.split('-').map(Number);
+  const [hour, minute] = hora.split(':').map(Number);
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(day) ||
+    hour > 23 ||
+    minute > 59
+  ) {
+    return false;
+  }
+
+  const actual = partesEnChile(ahora);
+  const retiroLocal = Date.UTC(year, month - 1, day, hour, minute);
+  const actualLocal = Date.UTC(
+    actual.year,
+    actual.month - 1,
+    actual.day,
+    actual.hour,
+    actual.minute
+  );
+
+  return retiroLocal > actualLocal;
+}

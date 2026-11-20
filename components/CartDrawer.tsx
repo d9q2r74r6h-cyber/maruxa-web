@@ -39,19 +39,6 @@ export function CartDrawer() {
     );
   }, [items]);
 
-  const mensaje = encodeURIComponent(
-    `Hola Maruxa, quiero hacer este pedido:%0A%0A` +
-      items
-        .map(
-          (i) =>
-            `• ${i.nombre} ${
-              i.tamano ? `(${i.tamano})` : ''
-            } x${i.cantidad}`
-        )
-        .join('%0A') +
-      `%0A%0ATotal: $${total.toLocaleString('es-CL')}`
-  );
-
   return (
     <>
       <button
@@ -171,12 +158,14 @@ export function CartDrawer() {
                           </div>
 
                           <button
+                            type="button"
                             onClick={() =>
                               removeItem(
                                 item.id,
                                 item.tamano
                               )
                             }
+                            aria-label={`Quitar ${item.nombre} del carrito`}
                             className="opacity-50 transition hover:opacity-100"
                           >
                             <Trash2 size={18} />
@@ -188,13 +177,16 @@ export function CartDrawer() {
                           <div className="flex items-center gap-2">
 
                             <button
+                              type="button"
                               onClick={() =>
                                 decrease(
                                   item.id,
                                   item.tamano
                                 )
                               }
-                              className="grid h-9 w-9 place-items-center rounded-full border border-maruxa-rojo/10 bg-maruxa-crema"
+                              disabled={item.cantidad <= 1}
+                              aria-label={`Restar una unidad de ${item.nombre}`}
+                              className="grid h-9 w-9 place-items-center rounded-full border border-maruxa-rojo/10 bg-maruxa-crema disabled:cursor-not-allowed disabled:opacity-40"
                             >
                               <Minus size={16} />
                             </button>
@@ -204,12 +196,14 @@ export function CartDrawer() {
                             </span>
 
                             <button
+                              type="button"
                               onClick={() =>
                                 increase(
                                   item.id,
                                   item.tamano
                                 )
                               }
+                              aria-label={`Sumar una unidad de ${item.nombre}`}
                               className="grid h-9 w-9 place-items-center rounded-full border border-maruxa-rojo/10 bg-maruxa-crema"
                             >
                               <Plus size={16} />
@@ -257,7 +251,12 @@ export function CartDrawer() {
   Continuar con el pedido
 </a>
 
+                <p className="rounded-2xl bg-maruxa-crema px-4 py-3 text-center text-xs font-bold leading-5 text-maruxa-cafe/75">
+                  No cobramos en línea. Envía tu solicitud y te confirmaremos disponibilidad antes de transferir.
+                </p>
+
                 <button
+                  type="button"
                   onClick={clearCart}
                   className="rounded-full border border-maruxa-rojo/10 bg-maruxa-crema px-5 py-4 text-sm font-black text-maruxa-chocolate"
                 >

@@ -89,6 +89,21 @@ export function CheckoutPage() {
     return `${String(minimoRetiroTorta.getHours()).padStart(2, '0')}:${String(minimoRetiroTorta.getMinutes()).padStart(2, '0')}`;
   }, [fecha, minimoRetiroTorta, tieneTortas]);
 
+  const horaMinimaHoy = useMemo(() => format(new Date(), 'HH:mm'), []);
+
+  const horaMinimaRetiro = useMemo(() => {
+    if (horaMinimaTorta) return horaMinimaTorta;
+    if (!fecha) return undefined;
+
+    const hoy = new Date();
+    const esHoy =
+      fecha.getFullYear() === hoy.getFullYear() &&
+      fecha.getMonth() === hoy.getMonth() &&
+      fecha.getDate() === hoy.getDate();
+
+    return esHoy ? horaMinimaHoy : undefined;
+  }, [fecha, horaMinimaHoy, horaMinimaTorta]);
+
   async function finalizar(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
@@ -299,7 +314,11 @@ export function CheckoutPage() {
                 <CalendarDays size={18} className="text-maruxa-rojo" /> Fecha de retiro
               </p>
               <div className="mx-auto w-fit">
-                <CalendarioRetiro fecha={fecha} setFecha={setFecha} />
+                <CalendarioRetiro
+                  fecha={fecha}
+                  setFecha={setFecha}
+                  requiereAnticipacion={tieneTortas}
+                />
               </div>
             </div>
 
@@ -312,14 +331,18 @@ export function CheckoutPage() {
                   name="hora"
                   type="time"
                   required
-                  min={horaMinimaTorta}
+                  min={horaMinimaRetiro}
                   className="w-full rounded-[24px] border border-maruxa-rojo/10 bg-white px-5 py-5 font-bold outline-none transition focus:border-maruxa-rojo/50"
                 />
-                {horaMinimaTorta && (
+                {horaMinimaTorta ? (
                   <span className="text-xs font-bold text-maruxa-rojo">
                     Para esta fecha, las tortas se retiran desde las {horaMinimaTorta}.
                   </span>
-                )}
+                ) : horaMinimaRetiro ? (
+                  <span className="text-xs font-bold text-maruxa-rojo">
+                    Para retirar hoy, elige una hora posterior a las {horaMinimaRetiro}.
+                  </span>
+                ) : null}
               </label>
 
               <label className="grid gap-2">
@@ -435,7 +458,8 @@ export function CheckoutPage() {
             <ol className="mt-3 space-y-2">
               <li>1. Envías tu solicitud de pedido.</li>
               <li>2. Confirmamos disponibilidad y retiro contigo.</li>
-              <li>3. Retiras en {MARUXA.direccion}.</li>
+              <li>3. Si corresponde, transfieres usando el número de pedido como referencia.</li>
+              <li>4. Retiras en {MARUXA.direccion}.</li>
             </ol>
           </div>
         </aside>

@@ -102,3 +102,14 @@ test('exige 24 horas completas para las tortas', () => {
     validarRetiro('2026-09-01', '10:00', '2026-08-31', true, ahora)
   );
 });
+
+test('no permite una hora de retiro que ya pasó hoy para productos sin anticipación', () => {
+  const ahora = new Date('2026-08-31T10:00:00-04:00');
+  assert.throws(
+    () => validarRetiro('2026-08-31', '09:59', '2026-08-31', false, ahora),
+    /hora de retiro ya pasó/
+  );
+  assert.doesNotThrow(() =>
+    validarRetiro('2026-08-31', '10:01', '2026-08-31', false, ahora)
+  );
+});

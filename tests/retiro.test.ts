@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { cumpleAnticipacionRetiro, fechaMinimaRetiro } from '../lib/retiro.ts';
+import {
+  cumpleAnticipacionRetiro,
+  fechaMinimaRetiro,
+  retiroEsPosteriorAhoraEnChile,
+} from '../lib/retiro.ts';
 
 test('calcula la primera hora disponible exactamente 24 horas después', () => {
   const ahora = new Date(2026, 8, 22, 15, 30);
@@ -22,4 +26,11 @@ test('considera la hora elegida y permite retirar mañana después de 24 horas',
 test('calcula el plazo al cambiar de mes o año', () => {
   assert.equal(cumpleAnticipacionRetiro(new Date(2027, 0, 1), '10:00', new Date(2026, 11, 31, 9)), true);
   assert.equal(cumpleAnticipacionRetiro(new Date(2026, 9, 1), '08:00', new Date(2026, 8, 30, 9)), false);
+});
+
+test('distingue una hora futura de una hora que ya pasó en Chile', () => {
+  const ahora = new Date('2026-11-20T10:15:00-03:00');
+  assert.equal(retiroEsPosteriorAhoraEnChile('2026-11-20', '10:14', ahora), false);
+  assert.equal(retiroEsPosteriorAhoraEnChile('2026-11-20', '10:15', ahora), false);
+  assert.equal(retiroEsPosteriorAhoraEnChile('2026-11-20', '10:16', ahora), true);
 });
