@@ -158,7 +158,19 @@ export async function POST(request: Request) {
       );
     }
 
-    const notificacion = await enviarNotificacionesPedido(pedido);
+    const { data: cuentaTransferencia } = await admin
+      .from('cuentas_bancarias')
+      .select('banco,tipo_cuenta,numero_cuenta,titular,rut_titular,email_notificacion')
+      .eq('empresa_id', empresa.id)
+      .eq('activo', true)
+      .eq('es_principal', true)
+      .limit(1)
+      .maybeSingle();
+
+    const notificacion = await enviarNotificacionesPedido(
+      pedido,
+      cuentaTransferencia || null
+    );
     return NextResponse.json({
       pedido,
       advertencia: notificacion.error
