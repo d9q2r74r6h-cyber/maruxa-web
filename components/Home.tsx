@@ -21,6 +21,7 @@ import Catalogo from '@/components/Catalogo';
 import { MobileCartBar } from '@/components/MobileCartBar';
 import { facebook, instagram, telefonoVisible, whatsapp } from '@/lib/datos';
 import { MARUXA } from '@/lib/marca';
+import { requiereAnticipacionProducto } from '@/lib/anticipacion-producto';
 
 type ProductoHero = {
   id: number;
@@ -29,6 +30,12 @@ type ProductoHero = {
   categoria: string;
   imagen: string | null;
   slug: string | null;
+  familia?: {
+    nombre: string;
+    familia_principal: {
+      nombre: string;
+    } | null;
+  } | null;
 };
 
 const accesosCatalogo = [
@@ -61,6 +68,9 @@ export function Home() {
   const [cargandoDestacados, setCargandoDestacados] = useState(true);
   const [indiceDestacado, setIndiceDestacado] = useState(0);
   const productoDestacado = destacados[indiceDestacado] || destacados[0];
+  const destacadoPorEncargo = productoDestacado
+    ? requiereAnticipacionProducto(productoDestacado)
+    : false;
 
   useEffect(() => {
     let activo = true;
@@ -182,7 +192,9 @@ export function Home() {
                         Productos del catálogo
                       </p>
                       <h2 className="mt-2 text-2xl font-black text-maruxa-chocolate sm:text-3xl">
-                        Disponible para pedir hoy
+                        {destacadoPorEncargo
+                          ? 'Disponible por encargo'
+                          : 'Disponible para pedir hoy'}
                       </h2>
                     </div>
                     <a href="#catalogo" className="shrink-0 text-sm font-black text-maruxa-rojo hover:underline">
@@ -218,6 +230,11 @@ export function Home() {
                       <p className="mt-3 text-2xl font-black text-maruxa-rojo">
                         ${productoDestacado.precio.toLocaleString('es-CL')}
                       </p>
+                      {destacadoPorEncargo && (
+                        <p className="mt-3 text-sm font-bold leading-6 text-maruxa-cafe/75">
+                          Esta torta requiere un mínimo de 24 horas para retiro.
+                        </p>
+                      )}
                       <span className="mt-5 font-black text-maruxa-chocolate group-hover:text-maruxa-rojo">
                         Ver producto
                       </span>
