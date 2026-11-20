@@ -1,5 +1,6 @@
 import { presentacionesProducto, presentacionesDisponibles, type Presentacion } from './presentaciones.ts';
 import { cumpleAnticipacionRetiroEnChile } from './retiro.ts';
+import type { ProductoConAnticipacion } from './anticipacion-producto.ts';
 export const TAMANOS_TORTA = {
   '10 personas': 'precio_10',
   '15 personas': 'precio_15',
@@ -9,7 +10,7 @@ export const TAMANOS_TORTA = {
 
 export type TamanoTorta = keyof typeof TAMANOS_TORTA;
 
-export type ProductoPedidoFuente = {
+export type ProductoPedidoFuente = ProductoConAnticipacion & {
   presentaciones?: Presentacion[] | null;
   categoria?: string;
   id: number;

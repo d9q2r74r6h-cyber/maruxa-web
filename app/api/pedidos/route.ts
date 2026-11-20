@@ -8,6 +8,13 @@ import {
   type ProductoPedidoFuente,
 } from '@/lib/pedidos';
 import { enviarNotificacionesPedido } from '@/lib/pedidos-notificaciones';
+import { requiereAnticipacionProducto } from '@/lib/anticipacion-producto';
+
+type ProductoPedidoConsulta = ProductoPedidoFuente & {
+  familias_productos?: {
+    nombre?: string | null;
+  } | null;
+};
 
 function texto(valor: unknown, maximo: number) {
   return String(valor || '').trim().slice(0, maximo);
@@ -82,7 +89,7 @@ export async function POST(request: Request) {
 
   const { data: productos, error: errorProductos } = await admin
     .from('productos')
-    .select('id,nombre,precio,precio_10,precio_15,precio_20,precio_25,presentaciones,imagen,categoria')
+    .select('id,nombre,precio,precio_10,precio_15,precio_20,precio_25,presentaciones,imagen,categoria,familias_productos(nombre)')
     .eq('empresa_id', empresa.id)
     .eq('activo', true)
     .eq('tipo_producto', 'producto')
@@ -91,11 +98,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'No se pudieron validar los productos.' }, { status: 500 });
   }
 
+  const productosPedido = ((productos || []) as ProductoPedidoConsulta[]).map(
+    ({ familias_productos, ...producto }) => ({
+      ...producto,
+      familia: familias_productos || null,
+    })
+  );
   const productosPorId = new Map(
-    ((productos || []) as ProductoPedidoFuente[]).map((producto) => [
-      producto.id,
-      producto,
-    ])
+    productosPedido.map((producto) => [producto.id, producto])
   );
 
   try {
@@ -114,7 +124,9 @@ export async function POST(request: Request) {
       fechaRetiro,
       horaRetiro,
       hoyChile,
-      items.some((item) => String(productosPorId.get(item.id)?.categoria || '').toLowerCase().includes('torta')),
+      items.some((item) =>
+        requiereAnticipacionProducto(productosPorId.get(item.id) || {})
+      ),
       new Date()
     );
     const total = totalPedido(items);

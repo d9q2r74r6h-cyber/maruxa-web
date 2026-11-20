@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 
 import { useSearchParams } from 'next/navigation';
+import { requiereAnticipacionProducto } from '@/lib/anticipacion-producto';
 
 type Producto = {
   presentaciones?: Presentacion[] | null;
@@ -134,9 +135,7 @@ export default function Catalogo() {
   }, [busqueda]);
 
   function esTorta(producto: Producto) {
-    return normalizarTexto(
-      `${producto.categoria} ${producto.familia?.nombre || ''}`
-    ).includes('torta');
+    return requiereAnticipacionProducto(producto);
   }
 
   function precioConTamano(producto: Producto) {

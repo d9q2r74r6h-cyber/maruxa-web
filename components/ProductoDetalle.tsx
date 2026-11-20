@@ -11,6 +11,7 @@ import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { CalendarDays, MapPin, MessageCircle } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
+import { requiereAnticipacionProducto } from '@/lib/anticipacion-producto';
 
 
 type Producto = {
@@ -26,6 +27,12 @@ type Producto = {
   precio_15: number | null;
   precio_20: number | null;
   precio_25: number | null;
+  familia?: {
+    nombre: string;
+    familia_principal: {
+      nombre: string;
+    } | null;
+  } | null;
 };
 
 export default function ProductoDetalle({ slug }: { slug: string }) {
@@ -82,9 +89,7 @@ export default function ProductoDetalle({ slug }: { slug: string }) {
     );
   }
 
-  const esTorta = producto.categoria
-    .toLowerCase()
-    .includes('torta');
+  const esTorta = requiereAnticipacionProducto(producto);
 
   const opciones = presentacionesDisponibles(producto);
   const tamano = opciones.find((p) => p.id === presentacionId) || opciones[0];
