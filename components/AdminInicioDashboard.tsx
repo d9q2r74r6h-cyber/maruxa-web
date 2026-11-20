@@ -94,6 +94,12 @@ export function AdminInicioDashboard() {
   const hoy = useMemo(() => fechaChile(), []);
   const ayer = useMemo(() => moverFecha(hoy, -1), [hoy]);
   const mesActual = hoy.slice(0, 7);
+  const nombreSaludo =
+    perfil?.funcionarios?.nombre_completo?.trim() ||
+    perfil?.nombre_visible
+      ?.replace(/^(administrador|admin|superadmin)\s+/i, '')
+      .trim() ||
+    'Maruxa';
 
   useEffect(() => {
     if (!perfil) return;
@@ -278,20 +284,20 @@ export function AdminInicioDashboard() {
 
   return (
     <div className="space-y-6 pb-10">
-      <header className="rounded-[30px] bg-maruxa-chocolate px-6 py-7 text-white shadow-premium sm:px-8 sm:py-9">
-        <p className="text-xs font-black uppercase tracking-[.22em] text-white/65">
+      <header className="rounded-[30px] bg-[#2A1710] px-6 py-7 text-white shadow-premium sm:px-8 sm:py-9">
+        <p className="text-xs font-black uppercase tracking-[.22em] text-white/70">
           Inicio privado
         </p>
         <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-3xl font-black tracking-[-.04em] sm:text-4xl">
-              Hola, {perfil?.nombre_visible || 'Maruxa'}
+              Hola, {nombreSaludo}
             </h1>
-            <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-white/75">
+            <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-white/80">
               Revisa lo más importante antes de continuar con la operación.
             </p>
           </div>
-          <p className="rounded-full bg-white/10 px-4 py-2 text-sm font-black capitalize text-white/90">
+          <p className="rounded-full bg-white/15 px-4 py-2 text-sm font-black capitalize text-white">
             {fechaCorta(hoy)}
           </p>
         </div>
