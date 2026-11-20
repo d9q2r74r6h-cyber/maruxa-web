@@ -115,6 +115,7 @@ const DIAS_SEMANA_VISIBLES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueve
 const nombreDiaSemana = (fecha: string) => DIAS_SEMANA_VISIBLES[new Date(`${fecha}T12:00:00`).getDay()] || '';
 function textoComparable(valor: string) { return valor.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase(); }
 function desplazarFecha(fecha: string, dias: number) { const valor=new Date(`${fecha}T12:00:00`); valor.setDate(valor.getDate()+dias); return valor.toISOString().slice(0,10); }
+function esFechaIsoValida(fecha: string | null) { return Boolean(fecha && /^\d{4}-\d{2}-\d{2}$/.test(fecha) && !Number.isNaN(new Date(`${fecha}T12:00:00`).getTime())); }
 function esDiaPagoSeptimo(funcionario: Funcionario, fecha: string) { if(!funcionario.dia_descanso)return false; const siguiente=new Date(`${desplazarFecha(fecha,1)}T12:00:00`).getDay(); return DIAS_SEMANA[siguiente]===textoComparable(funcionario.dia_descanso); }
 function lineasDeCierre(cierre: Cierre) { return cierre.turnos_panaderos?.length ? cierre.turnos_panaderos.flatMap((turno)=>turno.lineas) : [...(cierre.panaderos_primer_turno||[]),...(cierre.panaderos_segundo_turno||[])]; }
 function firmaCaja(fecha: string, cajeraId: string, dotacionId: string, turnos: Turno[], gastos: Linea[], totalVentas: number, efectivo: number, tarjetas: number, esFestivo: boolean, observacion: string, septimosManuales: Record<string, number>) {
@@ -440,6 +441,11 @@ export default function CajaDiariaPage() {
   const [guardando, setGuardando] = useState(false);
   const [editandoCierre, setEditandoCierre] = useState(false);
   const [firmaGuardada, setFirmaGuardada] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fechaSolicitada = new URLSearchParams(window.location.search).get('fecha');
+    if (esFechaIsoValida(fechaSolicitada)) setFecha(fechaSolicitada);
+  }, []);
 
   const firmaActual = useMemo(
     () => firmaCaja(fecha, cajeraId, dotacionId, turnos, gastos, totalVentas, efectivo, tarjetas, esFestivo, observacion, septimosManuales),

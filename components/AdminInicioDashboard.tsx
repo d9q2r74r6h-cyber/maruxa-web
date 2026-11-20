@@ -221,13 +221,13 @@ export function AdminInicioDashboard() {
     {
       titulo: 'Caja de hoy',
       ...resumenCajaHoy,
-      href: '/admin/caja',
+      href: `/admin/caja?fecha=${hoy}`,
       icono: WalletCards,
     },
     {
       titulo: 'Caja de ayer',
       ...resumenCajaAyer,
-      href: '/admin/caja',
+      href: `/admin/caja?fecha=${ayer}`,
       icono: WalletCards,
     },
     ...(puedeVerPedidos
