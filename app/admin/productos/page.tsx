@@ -15,6 +15,7 @@ type FiltroRevision =
   | 'tipo_no_configurado'
   | 'caja_sin_contenido'
   | 'codigo_proveedor_ambiguo';
+type FiltroEstado = 'todos' | 'activos' | 'inactivos';
 
 type FamiliaProducto = {
   id: string;
@@ -165,6 +166,9 @@ export default function AdminProductosPage() {
   const [busqueda, setBusqueda] = useState('');
   const [filtroTipo, setFiltroTipo] = useState<'todos' | TipoProducto>('todos');
   const [filtroRevision, setFiltroRevision] = useState<FiltroRevision>('todos');
+  const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>('todos');
+  const [filtroFamiliaPrincipalId, setFiltroFamiliaPrincipalId] = useState('');
+  const [filtroSubfamiliaId, setFiltroSubfamiliaId] = useState('');
   const [productoIdsConCodigoProveedorAmbiguo, setProductoIdsConCodigoProveedorAmbiguo] = useState<Set<string>>(new Set());
   const [codigosProveedor, setCodigosProveedor] = useState<CodigoProveedorProducto[]>([]);
 
@@ -211,6 +215,22 @@ export default function AdminProductosPage() {
         (filtroTipo === 'ingrediente' && Boolean(producto.es_materia_prima));
       if (!coincideTipo) return false;
 
+      const rutaFamilia = obtenerRutaFamilia(producto.familia_id);
+      const coincideFamiliaPrincipal =
+        !filtroFamiliaPrincipalId ||
+        rutaFamilia[0]?.id === filtroFamiliaPrincipalId;
+      const coincideSubfamilia =
+        !filtroSubfamiliaId ||
+        rutaFamilia.some((familia) => familia.id === filtroSubfamiliaId);
+      if (!coincideFamiliaPrincipal || !coincideSubfamilia) return false;
+
+      const coincideEstado =
+        filtroEstado === 'todos' ||
+        (filtroEstado === 'activos'
+          ? producto.activo !== false
+          : producto.activo === false);
+      if (!coincideEstado) return false;
+
       const requiereRevision =
         filtroRevision === 'sin_unidad'
           ? !String(producto.unidad_base || '').trim()
@@ -234,6 +254,7 @@ export default function AdminProductosPage() {
         producto.descripcion,
         producto.categoria,
         producto.familias_productos?.nombre,
+        nombreJerarquicoFamilia(producto.familia_id),
         tipo,
         producto.es_materia_prima ? 'materia prima' : '',
       ]
@@ -242,7 +263,7 @@ export default function AdminProductosPage() {
 
       return contenido.includes(termino);
     });
-  }, [productos, busqueda, filtroTipo, filtroRevision, productoIdsConCodigoProveedorAmbiguo, tiposProductoActivos]);
+  }, [productos, busqueda, filtroTipo, filtroRevision, filtroEstado, filtroFamiliaPrincipalId, filtroSubfamiliaId, productoIdsConCodigoProveedorAmbiguo, tiposProductoActivos, familias]);
 
   const esProducto = form.tipo_producto === 'producto';
   const esMateriaPrima =
@@ -301,6 +322,26 @@ export default function AdminProductosPage() {
   const subfamiliasDisponibles = familias
     .filter((familia) => familia.familia_padre_id === familiaPrincipalId)
     .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  const subfamiliasFiltroDisponibles = familias
+    .filter((familia) => familia.familia_padre_id === filtroFamiliaPrincipalId)
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  const hayFiltrosActivos = Boolean(
+    busqueda ||
+      filtroTipo !== 'todos' ||
+      filtroRevision !== 'todos' ||
+      filtroEstado !== 'todos' ||
+      filtroFamiliaPrincipalId ||
+      filtroSubfamiliaId
+  );
+
+  function limpiarFiltros() {
+    setBusqueda('');
+    setFiltroTipo('todos');
+    setFiltroRevision('todos');
+    setFiltroEstado('todos');
+    setFiltroFamiliaPrincipalId('');
+    setFiltroSubfamiliaId('');
+  }
   const prefijoTipoProducto: Record<TipoProducto, string> = {
     producto: 'PRO',
     ingrediente: 'ING',
@@ -1651,6 +1692,67 @@ export default function AdminProductosPage() {
                   <option value="codigo_proveedor_ambiguo">Código proveedor ambiguo</option>
                 </select>
               </div>
+            </div>
+
+            <div className="mt-3 flex flex-col gap-2 border-t border-maruxa-cafe/10 pt-3 lg:flex-row lg:items-center">
+              <p className="shrink-0 text-xs font-black uppercase tracking-wide text-maruxa-cafe/55">
+                Familia y estado
+              </p>
+              <select
+                value={filtroFamiliaPrincipalId}
+                onChange={(event) => {
+                  setFiltroFamiliaPrincipalId(event.target.value);
+                  setFiltroSubfamiliaId('');
+                }}
+                className="h-10 min-w-0 rounded-md border border-maruxa-cafe/20 bg-white px-3 text-sm font-bold text-maruxa-chocolate outline-none focus:border-maruxa-rojo"
+              >
+                <option value="">Todas las familias</option>
+                {familiasPrincipales.map((familia) => (
+                  <option key={familia.id} value={familia.id}>
+                    {familia.nombre}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={filtroSubfamiliaId}
+                disabled={!filtroFamiliaPrincipalId || subfamiliasFiltroDisponibles.length === 0}
+                onChange={(event) => setFiltroSubfamiliaId(event.target.value)}
+                className="h-10 min-w-0 rounded-md border border-maruxa-cafe/20 bg-white px-3 text-sm font-bold text-maruxa-chocolate outline-none focus:border-maruxa-rojo disabled:cursor-not-allowed disabled:bg-maruxa-crema disabled:text-maruxa-cafe/45"
+              >
+                <option value="">
+                  {!filtroFamiliaPrincipalId
+                    ? 'Elige una familia primero'
+                    : subfamiliasFiltroDisponibles.length === 0
+                      ? 'Sin subfamilias'
+                      : 'Todas las subfamilias'}
+                </option>
+                {subfamiliasFiltroDisponibles.map((familia) => (
+                  <option key={familia.id} value={familia.id}>
+                    {familia.nombre}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={filtroEstado}
+                onChange={(event) => setFiltroEstado(event.target.value as FiltroEstado)}
+                className="h-10 min-w-0 rounded-md border border-maruxa-cafe/20 bg-white px-3 text-sm font-bold text-maruxa-chocolate outline-none focus:border-maruxa-rojo"
+              >
+                <option value="todos">Activos e inactivos</option>
+                <option value="activos">Sólo activos</option>
+                <option value="inactivos">Sólo inactivos</option>
+              </select>
+
+              {hayFiltrosActivos && (
+                <button
+                  type="button"
+                  onClick={limpiarFiltros}
+                  className="h-10 rounded-md border border-maruxa-rojo/20 bg-white px-4 text-sm font-black text-maruxa-rojo transition hover:bg-maruxa-rojo/10"
+                >
+                  Limpiar filtros
+                </button>
+              )}
             </div>
           </div>
 
