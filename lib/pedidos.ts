@@ -1,4 +1,5 @@
 import { presentacionesProducto, presentacionesDisponibles, type Presentacion } from './presentaciones.ts';
+import { cumpleAnticipacionRetiroEnChile } from './retiro.ts';
 export const TAMANOS_TORTA = {
   '10 personas': 'precio_10',
   '15 personas': 'precio_15',
@@ -91,7 +92,8 @@ export function validarRetiro(
   fecha: string,
   hora: string,
   hoyChile: string,
-  requiereAnticipacion: boolean
+  requiereAnticipacion: boolean,
+  ahora = new Date()
 ) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !/^\d{2}:\d{2}$/.test(hora)) {
     throw new Error('Fecha u hora de retiro inválida.');
@@ -114,7 +116,7 @@ export function validarRetiro(
   }
 
   if (fecha < hoyChile) throw new Error('La fecha de retiro ya pasó.');
-  if (requiereAnticipacion && fecha <= hoyChile) {
-    throw new Error('Las tortas requieren retiro desde el día siguiente.');
+  if (requiereAnticipacion && !cumpleAnticipacionRetiroEnChile(fecha, hora, ahora)) {
+    throw new Error('Las tortas requieren al menos 24 horas de anticipación.');
   }
 }

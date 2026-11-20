@@ -29,6 +29,19 @@ export function CheckoutPage() {
     return items.some((item) => item.requiere_anticipacion === true);
   }, [items]);
 
+  const horaMinimaTorta = useMemo(() => {
+    if (!tieneTortas || !fecha) return undefined;
+
+    const minimo = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const esMismoDia =
+      fecha.getFullYear() === minimo.getFullYear() &&
+      fecha.getMonth() === minimo.getMonth() &&
+      fecha.getDate() === minimo.getDate();
+
+    if (!esMismoDia) return undefined;
+    return `${String(minimo.getHours()).padStart(2, '0')}:${String(minimo.getMinutes()).padStart(2, '0')}`;
+  }, [fecha, tieneTortas]);
+
   async function finalizar(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
@@ -247,8 +260,14 @@ export function CheckoutPage() {
                   name="hora"
                   type="time"
                   required
+                  min={horaMinimaTorta}
                   className="w-full rounded-[24px] border border-maruxa-rojo/10 bg-white px-5 py-5 font-bold outline-none transition focus:border-maruxa-rojo/50"
                 />
+                {horaMinimaTorta && (
+                  <span className="text-xs font-bold text-maruxa-rojo">
+                    Para esta fecha, las tortas se retiran desde las {horaMinimaTorta}.
+                  </span>
+                )}
               </label>
 
               <label className="grid gap-2">

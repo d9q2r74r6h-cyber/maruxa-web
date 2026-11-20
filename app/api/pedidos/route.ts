@@ -114,7 +114,8 @@ export async function POST(request: Request) {
       fechaRetiro,
       horaRetiro,
       hoyChile,
-      items.some((item) => String(productosPorId.get(item.id)?.categoria || '').toLowerCase().includes('torta'))
+      items.some((item) => String(productosPorId.get(item.id)?.categoria || '').toLowerCase().includes('torta')),
+      new Date()
     );
     const total = totalPedido(items);
 

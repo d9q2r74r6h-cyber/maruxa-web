@@ -88,12 +88,17 @@ test('rechaza fechas inexistentes y horas fuera de rango', () => {
   );
 });
 
-test('impide tortas para el mismo día', () => {
+test('exige 24 horas completas para las tortas', () => {
+  const ahora = new Date('2026-08-31T10:00:00-04:00');
   assert.throws(
-    () => validarRetiro('2026-08-31', '18:00', '2026-08-31', true),
-    /día siguiente/
+    () => validarRetiro('2026-08-31', '18:00', '2026-08-31', true, ahora),
+    /24 horas/
+  );
+  assert.throws(
+    () => validarRetiro('2026-09-01', '09:00', '2026-08-31', true, ahora),
+    /24 horas/
   );
   assert.doesNotThrow(() =>
-    validarRetiro('2026-09-01', '10:00', '2026-08-31', true)
+    validarRetiro('2026-09-01', '10:00', '2026-08-31', true, ahora)
   );
 });
