@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { obtenerEmpresaActual } from '@/lib/empresa';
-import { formatearTelefonoChile } from '@/lib/telefonos';
+import { claveTelefono, formatearTelefonoChile } from '@/lib/telefonos';
 
 type WhatsappEvento = {
   id: string;
@@ -205,10 +205,6 @@ function nombreConversacion(eventos: WhatsappEvento[]) {
   return eventoConNombre
     ? nombreContacto(eventoConNombre)
     : formatearTelefonoChile(ultimoEvento.telefono) || 'Cliente WhatsApp';
-}
-
-function claveTelefono(valor: string | null | undefined) {
-  return String(valor || '').replace(/\D/g, '');
 }
 
 function esCanal5041(canal: { telefono?: string | null; etiqueta?: string | null }) {

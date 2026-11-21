@@ -216,6 +216,46 @@ export function AdminInicioDashboard() {
   }
   const resumenCajaHoy = resumenCaja(cajaHoy, hoy);
   const resumenCajaAyer = resumenCaja(cajaAyer, ayer);
+  const prioridades = [
+    ...(cajaAyer?.estado !== 'cerrada'
+      ? [
+          {
+            id: 'caja-ayer',
+            titulo: 'Caja de ayer',
+            detalle: cajaAyer
+              ? 'Sigue en borrador. Revísala antes de continuar con la operación.'
+              : 'No tiene una caja registrada. Confirma si corresponde ingresarla.',
+            href: `/admin/caja?fecha=${ayer}`,
+            icono: WalletCards,
+            tono: 'border-amber-300 bg-amber-50 text-amber-950',
+          },
+        ]
+      : []),
+    ...(puedeVerPedidos && pedidosPendientes.length
+      ? [
+          {
+            id: 'pedidos-pendientes',
+            titulo: `${pedidosPendientes.length.toLocaleString('es-CL')} pedidos pendientes`,
+            detalle: 'Requieren revisión antes de pasar a preparación o confirmación.',
+            href: '/admin/pedidos',
+            icono: ClipboardList,
+            tono: 'border-sky-300 bg-sky-50 text-sky-950',
+          },
+        ]
+      : []),
+    ...(puedeVerProductos && stockCritico.length
+      ? [
+          {
+            id: 'stock-critico',
+            titulo: 'Stock para revisar',
+            detalle: `${stockCritico.length.toLocaleString('es-CL')} productos agotados o bajo mínimo.`,
+            href: '/admin/informes/stock-critico',
+            icono: AlertTriangle,
+            tono: 'border-red-300 bg-red-50 text-red-950',
+          },
+        ]
+      : []),
+  ];
 
   const tarjetas = [
     {
@@ -340,6 +380,39 @@ export function AdminInicioDashboard() {
                   </Link>
                 );
               })}
+            </section>
+          )}
+
+          {prioridades.length > 0 && (
+            <section className="rounded-2xl border border-maruxa-cafe/15 bg-white p-5 shadow-sm">
+              <p className="text-xs font-black uppercase tracking-wide text-maruxa-rojo">
+                Atención
+              </p>
+              <h2 className="mt-1 text-xl font-black text-maruxa-chocolate">
+                Revisión prioritaria
+              </h2>
+              <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                {prioridades.map((prioridad) => {
+                  const Icono = prioridad.icono;
+                  return (
+                    <Link
+                      key={prioridad.id}
+                      href={prioridad.href}
+                      className={`rounded-xl border p-4 transition hover:-translate-y-0.5 hover:shadow-sm ${prioridad.tono}`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <Icono className="mt-0.5 h-5 w-5 shrink-0" />
+                        <div>
+                          <p className="font-black">{prioridad.titulo}</p>
+                          <p className="mt-1 text-sm font-semibold opacity-80">
+                            {prioridad.detalle}
+                          </p>
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
             </section>
           )}
 

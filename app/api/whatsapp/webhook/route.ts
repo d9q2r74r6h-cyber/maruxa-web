@@ -12,6 +12,7 @@ import {
   resumirErrorWhatsapp,
 } from '@/lib/whatsapp-api';
 import { debeRecibirPedido } from '@/lib/repartidores';
+import { telefonosCoinciden } from '@/lib/telefonos';
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
@@ -1109,7 +1110,6 @@ export async function POST(request: Request) {
       const telefonoCliente = formatearTelefonoWhatsApp(
         mensaje.from || contacto?.wa_id
       );
-      const telefonoClienteDigitos = telefonoCliente.replace(/\D/g, '');
       const { data: clientesRegistrados } = await admin
         .from('clientes')
         .select('id,razon_social,direccion,repartidor_nombre,telefono')
@@ -1117,7 +1117,7 @@ export async function POST(request: Request) {
         .eq('activo', true);
       const clienteRegistrado = (clientesRegistrados || []).find(
         (cliente: any) =>
-          String(cliente.telefono || '').replace(/\D/g, '') === telefonoClienteDigitos
+          telefonosCoinciden(cliente.telefono, telefonoCliente)
       );
       const nombreCliente =
         clienteRegistrado?.razon_social ||
