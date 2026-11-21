@@ -23,6 +23,7 @@ export type CierreCajaResumen = {
   efectivo?: number | string | null;
   tarjetas?: number | string | null;
   compras_gastos?: Array<{ monto?: number | string | null }> | null;
+  boletas_nulas?: Array<{ folio?: string | null; monto?: number | string | null; motivo?: string | null }> | null;
   turnos_panaderos?: TurnoCajaResumen[] | null;
   panaderos_primer_turno?: LineaCajaResumen[] | null;
   panaderos_segundo_turno?: LineaCajaResumen[] | null;

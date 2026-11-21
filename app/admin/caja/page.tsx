@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, Loader2, Pencil, Plus, Printer, Save, Trash2, WalletCards } from 'lucide-react';
+import { CheckCircle2, Loader2, Pencil, Plus, Printer, ReceiptText, Save, Trash2, WalletCards } from 'lucide-react';
 import { useAdminSession } from '@/components/AdminSession';
 import { supabase } from '@/lib/supabase';
 
@@ -11,6 +11,7 @@ type Funcion = 'batea' | 'cocedor' | 'oficial';
 type ConceptoBono = { id: string; nombre: string; monto: number; activo: boolean };
 type BonoAsignado = { id: string; concepto_id: string; nombre: string; monto: number };
 type Linea = { id: string; nombre: string; monto: number; monto_es_base?: boolean; total_pago?: number; dominical?: number; septimo?: number; septimo_manual?: boolean; base_demasia?: number; bonos?: BonoAsignado[]; monto_manual?: boolean; funcionario_id?: string; origen?: Origen; funcion?: Funcion; tipo_eventual?: 'externo' | 'aprendiz'; participa_demasia?: boolean };
+type BoletaNula = { id: string; folio: string; monto: number; motivo: string };
 type Turno = { id: string; nombre: string; qq?: number; lineas: Linea[] };
 type TurnoPlan = { id: string; nombre: string; panaderos: Array<{ id: string; funcionario_id: string; nombre: string; origen: Origen; funcion: Funcion }> };
 type Plantilla = { id: string; nombre: string; turnos: TurnoPlan[] };
@@ -26,6 +27,7 @@ type Cierre = {
   panaderos_segundo_turno: Linea[];
   turnos_panaderos?: Turno[];
   compras_gastos: Linea[];
+  boletas_nulas?: BoletaNula[];
   total_ventas: number;
   efectivo: number;
   tarjetas: number;
@@ -38,6 +40,7 @@ type Cierre = {
 const hoy = new Date().toISOString().slice(0, 10);
 const MAX_MONTO_CAJA = 10_000_000;
 const nuevaLinea = (panadero = false): Linea => ({ id: crypto.randomUUID(), nombre: '', monto: 0, ...(panadero ? { origen: 'casa' as Origen, funcion: 'oficial' as Funcion, participa_demasia: true } : {}) });
+const nuevaBoletaNula = (): BoletaNula => ({ id: crypto.randomUUID(), folio: '', monto: 0, motivo: '' });
 const nuevoTurno = (numeroTurno: number): Turno => ({
   id: crypto.randomUUID(),
   nombre: `${numeroTurno}° turno`,
@@ -118,7 +121,7 @@ function desplazarFecha(fecha: string, dias: number) { const valor=new Date(`${f
 function esFechaIsoValida(fecha: string | null) { return Boolean(fecha && /^\d{4}-\d{2}-\d{2}$/.test(fecha) && !Number.isNaN(new Date(`${fecha}T12:00:00`).getTime())); }
 function esDiaPagoSeptimo(funcionario: Funcionario, fecha: string) { if(!funcionario.dia_descanso)return false; const siguiente=new Date(`${desplazarFecha(fecha,1)}T12:00:00`).getDay(); return DIAS_SEMANA[siguiente]===textoComparable(funcionario.dia_descanso); }
 function lineasDeCierre(cierre: Cierre) { return cierre.turnos_panaderos?.length ? cierre.turnos_panaderos.flatMap((turno)=>turno.lineas) : [...(cierre.panaderos_primer_turno||[]),...(cierre.panaderos_segundo_turno||[])]; }
-function firmaCaja(fecha: string, cajeraId: string, dotacionId: string, turnos: Turno[], gastos: Linea[], totalVentas: number, efectivo: number, tarjetas: number, esFestivo: boolean, observacion: string, septimosManuales: Record<string, number>) {
+function firmaCaja(fecha: string, cajeraId: string, dotacionId: string, turnos: Turno[], gastos: Linea[], boletasNulas: BoletaNula[], totalVentas: number, efectivo: number, tarjetas: number, esFestivo: boolean, observacion: string, septimosManuales: Record<string, number>) {
   return JSON.stringify({
     fecha,
     cajeraId,
@@ -141,6 +144,7 @@ function firmaCaja(fecha: string, cajeraId: string, dotacionId: string, turnos: 
       })),
     })),
     gastos: gastos.map((gasto) => ({ id: gasto.id, nombre: gasto.nombre, monto: numero(gasto.monto) })),
+    boletasNulas: boletasNulas.map((boleta) => ({ id: boleta.id, folio: boleta.folio.trim(), monto: numero(boleta.monto), motivo: boleta.motivo.trim() })),
     totalVentas: numero(totalVentas),
     efectivo: numero(efectivo),
     tarjetas: numero(tarjetas),
@@ -154,9 +158,9 @@ function totalPanaderosGuardado(cierre: Cierre) { return lineasDeCierre(cierre).
 function totalComprasGastosGuardado(cierre: Cierre) { return (cierre.compras_gastos || []).reduce((suma, gasto) => suma + numero(gasto.monto), 0); }
 function totalCuadreGuardado(cierre: Cierre) { return numero(cierre.efectivo) + numero(cierre.tarjetas) + totalPanaderosGuardado(cierre) + totalComprasGastosGuardado(cierre); }
 function diferenciaGuardada(cierre: Cierre) { return numero(cierre.total_ventas) - totalCuadreGuardado(cierre); }
-function tieneMontoFueraDeRango(cierre: Pick<Cierre, 'efectivo' | 'tarjetas' | 'total_ventas' | 'compras_gastos' | 'panaderos_primer_turno' | 'panaderos_segundo_turno' | 'turnos_panaderos'>) {
+function tieneMontoFueraDeRango(cierre: Pick<Cierre, 'efectivo' | 'tarjetas' | 'total_ventas' | 'compras_gastos' | 'boletas_nulas' | 'panaderos_primer_turno' | 'panaderos_segundo_turno' | 'turnos_panaderos'>) {
   const lineas = cierre.turnos_panaderos?.flatMap((turno) => turno.lineas) || [...(cierre.panaderos_primer_turno || []), ...(cierre.panaderos_segundo_turno || [])];
-  const montos = [cierre.efectivo, cierre.tarjetas, cierre.total_ventas, ...(cierre.compras_gastos || []).map((gasto) => gasto.monto), ...lineas.flatMap((linea) => [linea.monto, linea.total_pago, linea.base_demasia, linea.dominical, linea.septimo, ...(linea.bonos || []).map((bono) => bono.monto)])];
+  const montos = [cierre.efectivo, cierre.tarjetas, cierre.total_ventas, ...(cierre.compras_gastos || []).map((gasto) => gasto.monto), ...(cierre.boletas_nulas || []).map((boleta) => boleta.monto), ...lineas.flatMap((linea) => [linea.monto, linea.total_pago, linea.base_demasia, linea.dominical, linea.septimo, ...(linea.bonos || []).map((bono) => bono.monto)])];
   return montos.some((monto) => Math.abs(numero(monto)) > MAX_MONTO_CAJA);
 }
 function dotacionParaFecha(plantillas: Plantilla[], fecha: string) {
@@ -338,7 +342,7 @@ function imprimirHojaDiaria(fecha: string, turnos: Turno[], esFestivo: boolean, 
   ventana.document.close();
 }
 
-function imprimirGastoDeCaja(fecha: string, turnos: Turno[], gastos: Linea[], totalVentas: number, tarjetas: number, efectivo: number, esFestivo: boolean, configPago: ConfigPago, funcionarios: Funcionario[], septimos: Map<string, { monto: number }>) {
+function imprimirGastoDeCaja(fecha: string, turnos: Turno[], gastos: Linea[], boletasNulas: BoletaNula[], totalVentas: number, tarjetas: number, efectivo: number, esFestivo: boolean, configPago: ConfigPago, funcionarios: Funcionario[], septimos: Map<string, { monto: number }>) {
   const ventana = window.open('', '_blank', 'width=1200,height=800');
   if (!ventana) return alert('El navegador bloqueó la ventana de impresión. Permite las ventanas emergentes para este sitio.');
 
@@ -371,12 +375,23 @@ function imprimirGastoDeCaja(fecha: string, turnos: Turno[], gastos: Linea[], to
   const filasGastos = gastosValidos.length
     ? gastosValidos.map((gasto) => `<tr><td>${escaparHtml(gasto.nombre.trim() || 'Gasto sin detalle')}</td><td class="monto">${dinero(gasto.monto)}</td></tr>`).join('')
     : '<tr><td colspan="2" class="vacio">Sin gastos registrados</td></tr>';
+  const boletasValidas = boletasNulas.filter((boleta) => boleta.folio.trim());
+  const totalBoletasNulas = boletasValidas.reduce((suma, boleta) => suma + numero(boleta.monto), 0);
+  const filasBoletasNulas = boletasValidas
+    .map((boleta) => '<tr><td>' + escaparHtml(boleta.folio.trim()) + '</td><td>' + escaparHtml(boleta.motivo.trim() || 'Sin motivo') + '</td><td class="monto">' + dinero(boleta.monto) + '</td></tr>')
+    .join('');
   const totalGastos = totalPanaderos + totalComprasGastos;
   const totalComprobado = tarjetas + totalGastos + efectivo;
   const diferencia = totalVentas - totalComprobado;
   const cuadrada = Math.abs(diferencia) < 0.5;
 
   ventana.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Gasto de caja ${fecha}</title><style>@page{size:A4 landscape;margin:8mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#24150f;margin:0}header{border-bottom:3px solid #9f1d2b;padding-bottom:7px;margin-bottom:8px}h1{font-family:Georgia,serif;font-size:20px;margin:0 0 5px}.datos{display:flex;gap:22px;font-size:11px;font-weight:700}.contenido{display:grid;grid-template-columns:minmax(0,2fr) minmax(250px,1fr);gap:10px;align-items:start}.turno{margin-bottom:8px}.turno:last-child{margin-bottom:0}.turno-titulo{display:flex;justify-content:space-between;padding:5px 7px;background:#fff3df;border:1px solid #d5bfa1;font-size:11px}.gastos{border:1px solid #d5bfa1}.gastos h2{margin:0;padding:7px;background:#2a1710;color:#fff;font-size:11px}.gastos table{border:0}table{width:100%;border-collapse:collapse;font-size:9px}th{background:#2a1710;color:#fff;text-align:left;padding:5px 4px}td{border:1px solid #d5bfa1;padding:5px 4px;height:10mm}.monto{text-align:right;font-weight:700;white-space:nowrap}.total{color:#9f1d2b;font-size:10px;font-weight:800}.vacio{text-align:center;color:#745f51;font-style:italic}.pie{margin-top:10px;border:2px solid #2a1710}.pie h2{margin:0;padding:6px 8px;background:#2a1710;color:#fff;font-size:11px}.resumen{display:grid;grid-template-columns:repeat(5,1fr)}.item{min-height:18mm;padding:6px 8px;border-right:1px solid #d5bfa1}.item:last-child{border-right:0}.etiqueta{font-size:8px;font-weight:800;text-transform:uppercase;color:#745f51}.valor{margin-top:3px;font-size:14px;font-weight:800;text-align:right}.formula{margin:0;padding:6px 8px;border-top:1px solid #d5bfa1;background:#fff9ef;font-size:10px;font-weight:700}.ok{color:#137348}.error{color:#a51f2b}</style></head><body><header><h1>Panadería Maruxa · Gasto diario de Caja</h1><div class="datos"><span>Fecha: ${new Date(`${fecha}T12:00:00`).toLocaleDateString('es-CL')}</span><span>${esFestivo ? 'Día festivo' : 'Día normal'}</span></div></header><main class="contenido"><div>${seccionesTurnos || '<section class="turno"><p class="vacio">Sin panaderos registrados.</p></section>'}</div><aside class="gastos"><h2>GASTOS DEL DÍA</h2><table><thead><tr><th>Detalle</th><th class="monto">Monto</th></tr></thead><tbody>${filasGastos}</tbody><tfoot><tr><td><strong>TOTAL GASTOS</strong></td><td class="monto total">${dinero(totalComprasGastos)}</td></tr></tfoot></table></aside></main><section class="pie"><h2>CUADRE CONTRA VALE TOTAL DE VENTAS</h2><div class="resumen"><div class="item"><p class="etiqueta">Vale total ventas</p><p class="valor">${dinero(totalVentas)}</p></div><div class="item"><p class="etiqueta">Tarjetas</p><p class="valor">${dinero(tarjetas)}</p></div><div class="item"><p class="etiqueta">Gasto panaderos</p><p class="valor">${dinero(totalPanaderos)}</p></div><div class="item"><p class="etiqueta">Otros gastos</p><p class="valor">${dinero(totalComprasGastos)}</p></div><div class="item"><p class="etiqueta">Efectivo</p><p class="valor">${dinero(efectivo)}</p></div></div><p class="formula">Tarjetas ${dinero(tarjetas)} + Gastos ${dinero(totalGastos)} + Efectivo ${dinero(efectivo)} = <strong>${dinero(totalComprobado)}</strong> · Vale total: <strong>${dinero(totalVentas)}</strong> · <span class="${cuadrada ? 'ok' : 'error'}">${cuadrada ? 'CAJA CUADRADA' : `Diferencia ${dinero(diferencia)}`}</span></p></section><script>window.onload=()=>window.print()<\/script></body></html>`);
+  if (boletasValidas.length) {
+    ventana.document.body.insertAdjacentHTML(
+      'beforeend',
+      '<section style="margin-top:10px;border:1px solid #d5bfa1"><h2 style="margin:0;padding:7px;background:#7f1d1d;color:#fff;font-size:11px">BOLETAS NULAS</h2><table><thead><tr><th>Folio</th><th>Motivo</th><th class="monto">Monto</th></tr></thead><tbody>' + filasBoletasNulas + '</tbody><tfoot><tr><td colspan="2"><strong>TOTAL INFORMATIVO</strong></td><td class="monto total">' + dinero(totalBoletasNulas) + '</td></tr></tfoot></table><p style="margin:0;padding:6px 8px;background:#fff9ef;font-size:10px;font-weight:700">Informativas: no modifican el vale ni el cuadre.</p></section>'
+    );
+  }
   ventana.document.close();
 }
 
@@ -414,6 +429,81 @@ function EditorLineas({ titulo, fecha, lineas, onChange, onRemove, panaderos, po
   );
 }
 
+function EditorBoletasNulas({ boletas, onChange }: { boletas: BoletaNula[]; onChange: (boletas: BoletaNula[]) => void }) {
+  const total = boletas.reduce((suma, boleta) => suma + numero(boleta.monto), 0);
+
+  return (
+    <section className="rounded-xl border border-red-200 bg-red-50/45 p-4 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex gap-3">
+          <ReceiptText className="mt-0.5 h-5 w-5 shrink-0 text-red-800" />
+          <div>
+            <h2 className="font-black text-[#2A1710]">Boletas nulas</h2>
+            <p className="mt-1 text-xs font-bold text-[#4B2818]/70">
+              Registra folio, monto y motivo. Son informativas: no modifican el vale ni el cuadre.
+            </p>
+          </div>
+        </div>
+        <span className="rounded-full bg-white px-3 py-1 text-sm font-black text-red-800">
+          {boletas.filter((boleta) => boleta.folio.trim()).length} · {dinero(total)}
+        </span>
+      </div>
+
+      {boletas.length > 0 && (
+        <div className="mt-4 space-y-2">
+          <div className="grid grid-cols-[minmax(90px,.8fr)_minmax(0,1fr)_110px_36px] gap-2 px-1 text-[10px] font-black uppercase text-[#4B2818]/55">
+            <span>Folio</span><span>Motivo</span><span className="text-right">Monto</span><span />
+          </div>
+          {boletas.map((boleta, indice) => (
+            <div key={boleta.id} className="grid grid-cols-[minmax(90px,.8fr)_minmax(0,1fr)_110px_36px] gap-2">
+              <input
+                value={boleta.folio}
+                inputMode="numeric"
+                aria-label="Folio de boleta nula"
+                onChange={(event) => onChange(boletas.map((item, posicion) => posicion === indice ? { ...item, folio: event.target.value } : item))}
+                placeholder="Ej. 001234"
+                className="h-10 min-w-0 rounded-md border border-red-200 bg-white px-3 text-sm font-black"
+              />
+              <input
+                value={boleta.motivo}
+                aria-label="Motivo de boleta nula"
+                onChange={(event) => onChange(boletas.map((item, posicion) => posicion === indice ? { ...item, motivo: event.target.value } : item))}
+                placeholder="Ej. Error de emisión"
+                className="h-10 min-w-0 rounded-md border border-red-200 bg-white px-3 text-sm font-bold"
+              />
+              <input
+                type="text"
+                inputMode="numeric"
+                value={boleta.monto || ''}
+                aria-label="Monto de boleta nula"
+                onChange={(event) => onChange(boletas.map((item, posicion) => posicion === indice ? { ...item, monto: Math.max(0, numero(event.target.value)) } : item))}
+                placeholder="$0"
+                className="h-10 rounded-md border border-red-200 bg-white px-3 text-right text-sm font-black"
+              />
+              <button
+                type="button"
+                aria-label="Eliminar boleta nula"
+                onClick={() => onChange(boletas.filter((_, posicion) => posicion !== indice))}
+                className="grid h-10 place-items-center rounded-md text-red-700 hover:bg-red-100"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={() => onChange([...boletas, nuevaBoletaNula()])}
+        className="mt-4 inline-flex h-10 items-center gap-2 rounded-md border border-red-300 bg-white px-3 text-xs font-black text-red-800 hover:bg-red-100"
+      >
+        <Plus className="h-4 w-4" />Agregar boleta nula
+      </button>
+    </section>
+  );
+}
+
 export default function CajaDiariaPage() {
   const { perfil, esAdmin } = useAdminSession();
   const [fecha, setFecha] = useState(hoy);
@@ -426,6 +516,7 @@ export default function CajaDiariaPage() {
   const [cajeraId, setCajeraId] = useState('');
   const [turnos, setTurnos] = useState<Turno[]>([nuevoTurno(1), nuevoTurno(2)]);
   const [gastos, setGastos] = useState<Linea[]>([nuevaLinea()]);
+  const [boletasNulas, setBoletasNulas] = useState<BoletaNula[]>([]);
   const [totalVentas, setTotalVentas] = useState(0);
   const [efectivo, setEfectivo] = useState(0);
   const [tarjetas, setTarjetas] = useState(0);
@@ -448,8 +539,8 @@ export default function CajaDiariaPage() {
   }, []);
 
   const firmaActual = useMemo(
-    () => firmaCaja(fecha, cajeraId, dotacionId, turnos, gastos, totalVentas, efectivo, tarjetas, esFestivo, observacion, septimosManuales),
-    [fecha, cajeraId, dotacionId, turnos, gastos, totalVentas, efectivo, tarjetas, esFestivo, observacion, septimosManuales]
+    () => firmaCaja(fecha, cajeraId, dotacionId, turnos, gastos, boletasNulas, totalVentas, efectivo, tarjetas, esFestivo, observacion, septimosManuales),
+    [fecha, cajeraId, dotacionId, turnos, gastos, boletasNulas, totalVentas, efectivo, tarjetas, esFestivo, observacion, septimosManuales]
   );
   const hayCambiosSinGuardar = firmaGuardada !== firmaActual;
 
@@ -547,12 +638,19 @@ export default function CajaDiariaPage() {
           { id: crypto.randomUUID(), nombre: '2° turno', qq: 0, lineas: item?.panaderos_segundo_turno?.length ? item.panaderos_segundo_turno : [nuevaLinea(true)] },
         ];
     const gastosCargados = item?.compras_gastos?.length ? item.compras_gastos : [nuevaLinea()];
+    const boletasNulasCargadas = (item?.boletas_nulas || []).map((boleta) => ({
+      id: boleta.id || crypto.randomUUID(),
+      folio: String(boleta.folio || ''),
+      monto: numero(boleta.monto),
+      motivo: String(boleta.motivo || ''),
+    }));
     const cajeraCargada = item?.cajera_id
       || (cajeras.some((cajera) => cajera.id === cajeraId) ? cajeraId : '')
       || (cajeras.some((cajera) => cajera.id === perfil?.funcionario_id) ? perfil?.funcionario_id || '' : cajeras[0]?.id || '');
     setSeptimosManuales(septimosGuardados);
     setTurnos(turnosCargados);
     setGastos(gastosCargados);
+    setBoletasNulas(boletasNulasCargadas);
     setCajeraId(cajeraCargada);
     setTotalVentas(numero(item?.total_ventas));
     setEfectivo(numero(item?.efectivo));
@@ -560,7 +658,7 @@ export default function CajaDiariaPage() {
     setEsFestivo(Boolean(item?.es_festivo));
     setDotacionId(item?.dotacion_id || '');
     setObservacion(item?.observacion || '');
-    setFirmaGuardada(item ? firmaCaja(fecha, cajeraCargada, item.dotacion_id || '', turnosCargados, gastosCargados, numero(item.total_ventas), numero(item.efectivo), numero(item.tarjetas), Boolean(item.es_festivo), item.observacion || '', septimosGuardados) : null);
+    setFirmaGuardada(item ? firmaCaja(fecha, cajeraCargada, item.dotacion_id || '', turnosCargados, gastosCargados, boletasNulasCargadas, numero(item.total_ventas), numero(item.efectivo), numero(item.tarjetas), Boolean(item.es_festivo), item.observacion || '', septimosGuardados) : null);
   }
 
   useEffect(() => { void cargarBase(); }, [perfil]);
@@ -599,6 +697,16 @@ export default function CajaDiariaPage() {
 
   async function guardar(estado: 'borrador' | 'cerrada') {
     if (!perfil || !cajeraId) return alert('Selecciona la cajera responsable.');
+    const boletasInformadas = boletasNulas.filter(
+      (boleta) => boleta.folio.trim() || boleta.motivo.trim() || numero(boleta.monto)
+    );
+    if (boletasInformadas.some((boleta) => !boleta.folio.trim())) {
+      return alert('Completa el folio de cada boleta nula antes de guardar.');
+    }
+    const foliosNulos = boletasInformadas.map((boleta) => boleta.folio.trim());
+    if (new Set(foliosNulos).size !== foliosNulos.length) {
+      return alert('No puedes registrar el mismo folio más de una vez como boleta nula.');
+    }
     if (estado === 'cerrada' && !cuadrada && !observacion.trim()) return alert('Explica la diferencia antes de cerrar la caja.');
     const septimosIncompletos=[...septimos.entries()].filter(([,item])=>item.diasTrabajados<6);
     if(estado==='cerrada'&&septimosIncompletos.length){
@@ -627,6 +735,7 @@ export default function CajaDiariaPage() {
       panaderos_primer_turno: turnosCalculados[0]?.lineas||[],
       panaderos_segundo_turno: turnosCalculados[1]?.lineas||[],
       compras_gastos: gastos.filter((item) => item.nombre.trim() || item.monto),
+      boletas_nulas: boletasInformadas.map((boleta) => ({ ...boleta, folio: boleta.folio.trim(), motivo: boleta.motivo.trim(), monto: numero(boleta.monto) })),
       total_ventas: totalVentas,
       efectivo,
       tarjetas,
@@ -690,6 +799,8 @@ export default function CajaDiariaPage() {
           <EditorLineas titulo="Compras y Gastos" lineas={gastos} onChange={setGastos} />
         </div>
 
+        <EditorBoletasNulas boletas={boletasNulas} onChange={setBoletasNulas} />
+
         {septimos.size>0&&<section className="rounded-xl border border-amber-300 bg-amber-50 p-4 shadow-sm"><div className="flex items-center justify-between gap-3"><div><h2 className="font-black text-[#2A1710]">Pago de 7mo</h2><p className="text-xs font-bold text-[#4B2818]/60">El cálculo es sugerido e incluye los días guardados, incluso si siguen como borrador. Puedes modificar el monto antes de cerrar la caja.</p></div><span className="rounded-full bg-[#2A1710] px-4 py-2 text-sm font-black text-white">{dinero(totalSeptimos)}</span></div><div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">{[...septimos.entries()].map(([id,item])=>{const persona=funcionariosPanaderos.find((funcionario)=>funcionario.id===id);return <div key={id} className={`rounded-lg border bg-white p-3 ${item.diasTrabajados<6?'border-red-300':'border-emerald-200'}`}><div className="flex items-center gap-3"><span className="min-w-0 flex-1 truncate font-black">{persona?nombreBreve(persona):'Panadero'}</span><label className="grid gap-1 text-[10px] font-black uppercase text-[#4B2818]/60"><span>Monto 7mo</span><input type="text" inputMode="numeric" value={Math.round(item.monto)||''} onFocus={(event)=>event.currentTarget.select()} onChange={(event)=>setSeptimosManuales((actuales)=>({...actuales,[id]:Math.max(0,numero(event.target.value))}))} className="h-10 w-32 rounded-lg border-2 border-amber-300 px-3 text-right text-base font-black text-[#A51F2B] outline-none focus:border-[#A51F2B]"/></label></div><p className={`mt-2 text-xs font-black ${item.diasTrabajados<6?'text-red-700':'text-emerald-700'}`}>{item.diasTrabajados} de 6 dias trabajados{item.diasTrabajados<6?' · requiere confirmacion':''}</p><p className="mt-1 text-[10px] font-bold text-[#4B2818]/70">Base: {dinero(item.suma)} ÷ 6 = {dinero(item.calculado)}</p><p className="mt-1 text-[10px] leading-4 text-[#4B2818]/65">{item.detalle.map((dia)=>`${new Date(`${dia.fecha}T12:00:00`).toLocaleDateString('es-CL',{day:'2-digit',month:'2-digit'})}: ${dinero(dia.monto)}`).join(' · ')}</p></div>})}</div></section>}
 
         <section className="overflow-hidden rounded-xl border border-[#4B2818]/15 bg-white shadow-sm">
@@ -735,7 +846,7 @@ export default function CajaDiariaPage() {
       </section>
 
       <div className="flex flex-wrap justify-end gap-3">
-        <button type="button" onClick={() => intentarImprimir(() => imprimirGastoDeCaja(fecha, turnos, gastos, totalVentas, tarjetas, efectivo, esFestivo, configPago, funcionariosPanaderos, septimos))} className="inline-flex h-11 items-center gap-2 rounded-md border border-[#2A1710] bg-white px-5 text-sm font-black text-[#2A1710] hover:bg-[#FFF3DF]"><Printer className="h-4 w-4" />Imprimir gasto de caja</button>
+        <button type="button" onClick={() => intentarImprimir(() => imprimirGastoDeCaja(fecha, turnos, gastos, boletasNulas, totalVentas, tarjetas, efectivo, esFestivo, configPago, funcionariosPanaderos, septimos))} className="inline-flex h-11 items-center gap-2 rounded-md border border-[#2A1710] bg-white px-5 text-sm font-black text-[#2A1710] hover:bg-[#FFF3DF]"><Printer className="h-4 w-4" />Imprimir gasto de caja</button>
         {bloqueada && esAdmin && <button type="button" onClick={() => { setEditandoCierre(true); setFirmaGuardada(null); }} className="inline-flex h-11 items-center gap-2 rounded-md border border-[#A51F2B] bg-white px-5 text-sm font-black text-[#A51F2B]"><Pencil className="h-4 w-4" />Editar caja</button>}
         {!bloqueada && <>{!editandoCierre && <button type="button" disabled={guardando || cargandoFecha} onClick={() => void guardar('borrador')} className="inline-flex h-11 items-center gap-2 rounded-md border border-[#A51F2B] bg-white px-5 text-sm font-black text-[#A51F2B]"><Save className="h-4 w-4" />Guardar caja</button>}<button type="button" disabled={guardando || cargandoFecha} onClick={() => void guardar('cerrada')} className="inline-flex h-11 items-center gap-2 rounded-md bg-[#A51F2B] px-6 text-sm font-black text-white"><CheckCircle2 className="h-4 w-4" />{editandoCierre ? 'Guardar cambios y cerrar caja' : 'Guardar y cerrar caja'}</button></>}
         {bloqueada && <span className="rounded-full bg-emerald-100 px-4 py-2 text-sm font-black text-emerald-800">Cierre bloqueado</span>}

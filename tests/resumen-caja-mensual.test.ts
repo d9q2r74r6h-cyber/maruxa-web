@@ -68,3 +68,18 @@ test('puede incluir borradores solo para previsualización mensual', () => {
   assert.equal(resumen.totalVentas, 300);
   assert.equal(resumen.cuadre, 300);
 });
+
+test('conserva las boletas nulas como información sin alterar el cuadre', () => {
+  const resumen = resumirCajaMensual([
+    {
+      ...cierres[0],
+      boletas_nulas: [
+        { folio: '001234', monto: 8500, motivo: 'Error de emisión' },
+      ],
+    },
+  ]);
+
+  assert.equal(resumen.totalVentas, 100);
+  assert.equal(resumen.cuadre, 100);
+  assert.equal(resumen.diferencia, 0);
+});
