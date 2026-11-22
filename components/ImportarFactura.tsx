@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import FacturasRecibidas from '@/components/FacturasRecibidas';
 import { supabase } from '@/lib/supabase';
 import { obtenerEmpresaActual } from '@/lib/empresa';
 import { configuracionPorGrupo, configuracionProductosPredeterminada, type ConfiguracionProducto } from '@/lib/configuracion-productos';
 import { leerXmlFactura, normalizarRut, problemasFactura, type FacturaLectura, type LineaFactura } from '@/lib/importar-factura';
+import { UMBRAL_ALERTA_VARIACION_COSTO } from '@/lib/variacion-costos';
+import { resumirRevisionImportacion } from '@/lib/revision-importacion-factura';
 
 export type ProductoFactura = {
   id: number; nombre: string; codigo: string | null; tipo_producto: string;
@@ -192,6 +194,28 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
     .find((unidad) => unidad.activo && unidad.codigo === 'UN')?.codigo
     || configuracionPorGrupo(configuracionesProducto, 'unidad').find((unidad) => unidad.activo)?.codigo
     || 'UN';
+  const resumenRevision = useMemo(() => {
+    if (!factura) return null;
+    return resumirRevisionImportacion(factura.lineas.map((lineaFactura, lineaIndice) => {
+      const producto = productos[lineaFactura.productoId];
+      const unidadesNueva = Number(unidadesCajaNuevas[lineaIndice]);
+      const unidadesPorCaja = producto?.undxcaja || (Number.isInteger(unidadesNueva) && unidadesNueva > 1 ? unidadesNueva : 0);
+      return {
+        nombre: lineaFactura.nombre,
+        cantidad: lineaFactura.cantidad,
+        montoNeto: lineaFactura.montoNeto,
+        producto: producto ? {
+          id: producto.id,
+          nombre: producto.nombre,
+          costo_unitario: producto.costo_unitario,
+        } : undefined,
+        tipoNuevo: tiposProductoNuevo[lineaIndice],
+        compraPorCaja: Boolean(comprasPorCaja[lineaIndice]),
+        unidadesPorCaja,
+        asociadaPorCodigo: Boolean(asociadosPorCodigo[`${indice}:${lineaIndice}`]),
+      };
+    }));
+  }, [asociadosPorCodigo, comprasPorCaja, factura, indice, productos, tiposProductoNuevo, unidadesCajaNuevas]);
   useEffect(() => () => { imagenes.forEach(url => URL.revokeObjectURL(url)); }, [imagenes]);
   useEffect(() => () => {
     operacion.current++;
@@ -580,8 +604,15 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
         }}>{documentos.map((f, i) => <option key={i} value={i}>{f.proveedor} · Folio {f.folio} · {pesos(f.total)}</option>)}</select></label>}
         {factura.avisos.map((a, i) => <p key={i} className="rounded-lg bg-amber-50 p-3 text-sm">{a}</p>)}
         <section className="rounded-xl border border-[#D9C4A7] bg-[#FFF8ED] p-4">
-          <p className="text-[11px] font-black uppercase tracking-wide text-[#A51F2B]">Revisión rápida</p>
-          <h3 className="mt-1 font-black text-[#2A1710]">Solo confirma proveedor y productos</h3>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-wide text-[#A51F2B]">Revisión previa</p>
+              <h3 className="mt-1 font-black text-[#2A1710]">Confirma proveedor, productos y cambios de costo</h3>
+            </div>
+            <span className={`rounded-full px-3 py-1 text-xs font-black ${resumenRevision?.pendientes ? 'bg-amber-200 text-amber-950' : 'bg-emerald-100 text-emerald-800'}`}>
+              {resumenRevision?.pendientes ? `${resumenRevision.pendientes} línea(s) pendiente(s)` : 'Lista para confirmar'}
+            </span>
+          </div>
           <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
             <p><span className="font-bold">Folio:</span> {factura.folio || 'Sin leer'}</p>
             <p><span className="font-bold">Fecha:</span> {factura.fecha || 'Sin leer'}</p>
@@ -594,6 +625,32 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
             }} />
           </label>
           <p className="mt-2 text-xs text-[#5F4030]">Si el RUT coincide, el proveedor se selecciona automáticamente. Con proveedor y código registrados, las líneas también se asocian solas.</p>
+          {resumenRevision && <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className={`rounded-lg border p-3 text-sm ${proveedor && normalizarRut(proveedor.rut || '') === normalizarRut(factura.rutEmisor) ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+              <p className="text-xs font-bold text-[#5F4030]">Proveedor</p>
+              <p className="mt-1 font-black">{proveedor && normalizarRut(proveedor.rut || '') === normalizarRut(factura.rutEmisor) ? '✓ RUT validado' : 'Pendiente de validar'}</p>
+            </div>
+            <div className="rounded-lg border border-[#D9C4A7] bg-white p-3 text-sm">
+              <p className="text-xs font-bold text-[#5F4030]">Catálogo</p>
+              <p className="mt-1 font-black">{resumenRevision.asociadas} asociada(s){resumenRevision.asociadasPorCodigo ? ` · ${resumenRevision.asociadasPorCodigo} por código` : ''}</p>
+            </div>
+            <div className={`rounded-lg border p-3 text-sm ${resumenRevision.pendientes ? 'border-amber-200 bg-amber-50' : 'border-[#D9C4A7] bg-white'}`}>
+              <p className="text-xs font-bold text-[#5F4030]">Por crear o resolver</p>
+              <p className="mt-1 font-black">{resumenRevision.porCrear} por crear · {resumenRevision.pendientes} pendiente(s)</p>
+            </div>
+            <div className="rounded-lg border border-[#D9C4A7] bg-white p-3 text-sm">
+              <p className="text-xs font-bold text-[#5F4030]">Inventario previsto</p>
+              <p className="mt-1 font-black">{resumenRevision.unidadesInventario.toLocaleString('es-CL')} unidades{resumenRevision.lineasPorCaja ? ` · ${resumenRevision.lineasPorCaja} por caja` : ''}</p>
+            </div>
+          </div>}
+          {resumenRevision?.variacionesAnormales.length ? <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+            <p className="font-black">Revisa {resumenRevision.variacionesAnormales.length} cambio(s) de costo de {UMBRAL_ALERTA_VARIACION_COSTO}% o más</p>
+            <ul className="mt-1 list-disc pl-5 text-xs">
+              {resumenRevision.variacionesAnormales.slice(0, 3).map(variacion => <li key={variacion.indice}>{variacion.producto}: {pesos(variacion.costoAnterior)} → {pesos(variacion.costoFactura)} por unidad ({variacion.variacionPorcentaje > 0 ? '+' : ''}{variacion.variacionPorcentaje.toLocaleString('es-CL', { maximumFractionDigits: 1 })}%)</li>)}
+            </ul>
+            {resumenRevision.variacionesAnormales.length > 3 && <p className="mt-1 text-xs">Y {resumenRevision.variacionesAnormales.length - 3} cambio(s) más en las líneas de abajo.</p>}
+          </div> : null}
+          <p className="mt-3 text-xs font-bold text-[#5F4030]">Esta revisión no modifica catálogo, costos ni stock. Esos cambios se aplican sólo después de llevarla a la factura y usar “Registrar factura”.</p>
         </section>
         <details><summary className="cursor-pointer font-bold">Ver original y texto leído</summary>
           <div className="flex flex-wrap gap-3">{imagenes.map((url, i) => <a key={url} href={url} target="_blank" rel="noreferrer"><img src={url} alt={`Factura, página ${i + 1}`} className="max-h-96 max-w-full object-contain" /></a>)}</div>
@@ -628,6 +685,7 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
           const contenidoNuevo = contenidosPorUnidadNuevos[i] ?? (sugerenciaContenido ? String(sugerenciaContenido.cantidad) : '');
           const unidadContenidoNueva = unidadesContenidoNuevas[i] || sugerenciaContenido?.unidad || unidadesContenidoConfiguradas[0]?.codigo || 'GR';
           const nombreNuevo = nombresNuevos[i] || '';
+          const variacionCosto = resumenRevision?.variaciones.find(variacion => variacion.indice === i);
           return <div key={i} className="grid gap-3 rounded-xl border p-3 md:grid-cols-[minmax(220px,1fr)_minmax(260px,1.4fr)]">
             <div>
               <p className="font-black text-[#2A1710]">{l.nombre || `Línea ${i + 1}`}</p>
@@ -637,6 +695,7 @@ export default function ImportarFactura({ onApply }: { onApply: (carga: CargaFac
             <div>
               <p className="text-sm font-bold">{productoAsociado ? `✓ ${productoAsociado.nombre}` : 'Buscar producto del catálogo'}</p>
               {asociadosPorCodigo[`${indice}:${i}`] && <p className="mt-1 text-xs font-bold text-emerald-700">Asociado automáticamente por código de proveedor.</p>}
+              {variacionCosto && <p className={`mt-1 text-xs font-bold ${variacionCosto.esAnormal ? 'text-amber-800' : 'text-[#5F4030]'}`}>Costo por unidad: {pesos(variacionCosto.costoAnterior)} → {pesos(variacionCosto.costoFactura)} ({variacionCosto.variacionPorcentaje > 0 ? '+' : ''}{variacionCosto.variacionPorcentaje.toLocaleString('es-CL', { maximumFractionDigits: 1 })}%)</p>}
               <Buscador tabla="productos" empresaId={empresa?.id || ''} textoInicial={nombreNuevo} onTextoChange={texto => {
                 const nombre = texto.trim();
                 setNombresNuevos(actual => nombre ? { ...actual, [i]: texto } : Object.fromEntries(Object.entries(actual).filter(([clave]) => Number(clave) !== i)) as Record<number, string>);
