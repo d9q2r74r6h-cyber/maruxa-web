@@ -39,6 +39,10 @@ type Cierre = {
 
 const hoy = new Date().toISOString().slice(0, 10);
 const MAX_MONTO_CAJA = 10_000_000;
+function faltaColumnaBoletasNulas(error: { code?: string; message?: string } | null | undefined) {
+  const detalle = `${error?.code || ''} ${error?.message || ''}`.toLocaleLowerCase('es-CL');
+  return detalle.includes('boletas_nulas') && (detalle.includes('column') || detalle.includes('schema cache') || error?.code === 'PGRST204');
+}
 const nuevaLinea = (panadero = false): Linea => ({ id: crypto.randomUUID(), nombre: '', monto: 0, ...(panadero ? { origen: 'casa' as Origen, funcion: 'oficial' as Funcion, participa_demasia: true } : {}) });
 const nuevaBoletaNula = (): BoletaNula => ({ id: crypto.randomUUID(), folio: '', monto: 0, motivo: '' });
 const nuevoTurno = (numeroTurno: number): Turno => ({
@@ -429,7 +433,7 @@ function EditorLineas({ titulo, fecha, lineas, onChange, onRemove, panaderos, po
   );
 }
 
-function EditorBoletasNulas({ boletas, onChange }: { boletas: BoletaNula[]; onChange: (boletas: BoletaNula[]) => void }) {
+function EditorBoletasNulas({ boletas, onChange, disponible = true }: { boletas: BoletaNula[]; onChange: (boletas: BoletaNula[]) => void; disponible?: boolean }) {
   const total = boletas.reduce((suma, boleta) => suma + numero(boleta.monto), 0);
 
   return (
@@ -449,7 +453,11 @@ function EditorBoletasNulas({ boletas, onChange }: { boletas: BoletaNula[]; onCh
         </span>
       </div>
 
-      {boletas.length > 0 && (
+      {!disponible && <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm font-bold text-amber-950">
+        El registro de boletas nulas se activará cuando termine la actualización de Caja. Puedes guardar normalmente el resto de esta caja; no ingreses boletas aquí hasta que este aviso desaparezca.
+      </div>}
+
+      {disponible && boletas.length > 0 && (
         <div className="mt-4 space-y-2">
           <div className="grid grid-cols-[minmax(90px,.8fr)_minmax(0,1fr)_110px_36px] gap-2 px-1 text-[10px] font-black uppercase text-[#4B2818]/55">
             <span>Folio</span><span>Motivo</span><span className="text-right">Monto</span><span />
@@ -495,8 +503,9 @@ function EditorBoletasNulas({ boletas, onChange }: { boletas: BoletaNula[]; onCh
 
       <button
         type="button"
+        disabled={!disponible}
         onClick={() => onChange([...boletas, nuevaBoletaNula()])}
-        className="mt-4 inline-flex h-10 items-center gap-2 rounded-md border border-red-300 bg-white px-3 text-xs font-black text-red-800 hover:bg-red-100"
+        className="mt-4 inline-flex h-10 items-center gap-2 rounded-md border border-red-300 bg-white px-3 text-xs font-black text-red-800 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <Plus className="h-4 w-4" />Agregar boleta nula
       </button>
@@ -517,6 +526,7 @@ export default function CajaDiariaPage() {
   const [turnos, setTurnos] = useState<Turno[]>([nuevoTurno(1), nuevoTurno(2)]);
   const [gastos, setGastos] = useState<Linea[]>([nuevaLinea()]);
   const [boletasNulas, setBoletasNulas] = useState<BoletaNula[]>([]);
+  const [boletasNulasDisponibles, setBoletasNulasDisponibles] = useState<boolean | null>(null);
   const [totalVentas, setTotalVentas] = useState(0);
   const [efectivo, setEfectivo] = useState(0);
   const [tarjetas, setTarjetas] = useState(0);
@@ -597,11 +607,12 @@ export default function CajaDiariaPage() {
 
   async function cargarBase() {
     if (!perfil) return;
-    const [{ data: funcionarios }, { data: cierres }, respuestaDotaciones, { data: bonos }] = await Promise.all([
+    const [{ data: funcionarios }, { data: cierres }, respuestaDotaciones, { data: bonos }, respuestaBoletasNulas] = await Promise.all([
       supabase.from('funcionarios').select('id,nombre_completo,nombre_corto,dia_descanso,cargo,recibe_dominical,ciclo_dominical,funcionario_cargos(cargos_empresa(nombre))').eq('empresa_id', perfil.empresa_id).eq('activo', true).order('nombre_completo'),
       supabase.from('caja_cierres').select('*').eq('empresa_id', perfil.empresa_id).order('fecha', { ascending: false }).limit(31),
       supabase.from('caja_dotaciones_semanales').select('*').eq('empresa_id', perfil.empresa_id).order('created_at'),
       supabase.from('caja_conceptos_bono').select('id,nombre,monto,activo').eq('empresa_id', perfil.empresa_id).eq('activo', true).order('nombre'),
+      supabase.from('caja_cierres').select('boletas_nulas').eq('empresa_id', perfil.empresa_id).limit(1),
     ]);
     const { data: dotaciones, error: errorDotacion } = respuestaDotaciones;
     const lista = (funcionarios || []) as unknown as Funcionario[];
@@ -609,6 +620,7 @@ export default function CajaDiariaPage() {
     setCajeras(listaCajeras);
     setFuncionariosPanaderos(lista.filter(esFuncionarioPanadero));
     setConceptosBono((bonos || []) as ConceptoBono[]);
+    setBoletasNulasDisponibles(faltaColumnaBoletasNulas(respuestaBoletasNulas.error) ? false : true);
     setHistorial((cierres || []) as Cierre[]);
     setPlantillas(((dotaciones || []) as PlantillaDb[]).map(normalizarPlantilla));
     setErrorDotaciones(errorDotacion?.message || '');
@@ -726,7 +738,7 @@ export default function CajaDiariaPage() {
         return {...item,base_demasia:baseDemasia,septimo,septimo_manual:Boolean(item.funcionario_id && Object.prototype.hasOwnProperty.call(septimosManuales,item.funcionario_id)),total_pago:numero(item.total_pago)+septimo};
       }),
     }));
-    const datos = {
+    const datosBase = {
       empresa_id: perfil.empresa_id,
       fecha,
       cajera_id: cajeraId,
@@ -735,7 +747,6 @@ export default function CajaDiariaPage() {
       panaderos_primer_turno: turnosCalculados[0]?.lineas||[],
       panaderos_segundo_turno: turnosCalculados[1]?.lineas||[],
       compras_gastos: gastos.filter((item) => item.nombre.trim() || item.monto),
-      boletas_nulas: boletasInformadas.map((boleta) => ({ ...boleta, folio: boleta.folio.trim(), motivo: boleta.motivo.trim(), monto: numero(boleta.monto) })),
       total_ventas: totalVentas,
       efectivo,
       tarjetas,
@@ -745,22 +756,40 @@ export default function CajaDiariaPage() {
       dotacion_id: dotacionId || null,
       cerrado_en: estado === 'cerrada' ? new Date().toISOString() : null,
     };
+    const boletasNormalizadas = boletasInformadas.map((boleta) => ({ ...boleta, folio: boleta.folio.trim(), motivo: boleta.motivo.trim(), monto: numero(boleta.monto) }));
+    const datos = boletasNulasDisponibles === false ? datosBase : { ...datosBase, boletas_nulas: boletasNormalizadas };
     if (tieneMontoFueraDeRango(datos)) {
       setGuardando(false);
       return alert('No se puede guardar una caja con montos fuera de rango. Revisa los valores ingresados antes de continuar.');
     }
-    const { error } = await supabase.from('caja_cierres').upsert(datos, { onConflict: 'empresa_id,fecha' });
+    let { error } = await supabase.from('caja_cierres').upsert(datos, { onConflict: 'empresa_id,fecha' });
+    let boletasPendientesDeActualizar = false;
+    if (error && faltaColumnaBoletasNulas(error)) {
+      setBoletasNulasDisponibles(false);
+      boletasPendientesDeActualizar = boletasNormalizadas.length > 0;
+      ({ error } = await supabase.from('caja_cierres').upsert(datosBase, { onConflict: 'empresa_id,fecha' }));
+    }
     setGuardando(false);
     if (error) return alert(error.message);
-    setCierre({ ...datos, id: cierre?.id || '' });
+    const boletasGuardadas = boletasPendientesDeActualizar || boletasNulasDisponibles === false ? [] : boletasNormalizadas;
+    if (boletasPendientesDeActualizar) setBoletasNulas([]);
+    setCierre({ ...datosBase, boletas_nulas: boletasGuardadas, id: cierre?.id || '' });
     setEditandoCierre(false);
-    setFirmaGuardada(firmaActual);
+    setFirmaGuardada(
+      boletasPendientesDeActualizar
+        ? firmaCaja(fecha, cajeraId, dotacionId, turnos, gastos, [], totalVentas, efectivo, tarjetas, esFestivo, observacion, septimosManuales)
+        : firmaActual
+    );
     if(estado==='cerrada'&&septimosIncompletos.length){
       const token=(await supabase.auth.getSession()).data.session?.access_token;
       const aviso=await fetch('/api/admin/alerta-septimo',{method:'POST',headers:{'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})},body:JSON.stringify({fecha,cajera:cajera?.nombre_completo||perfil.nombre_visible,trabajadores:septimosIncompletos.map(([id,item])=>({nombre:funcionariosPanaderos.find((persona)=>persona.id===id)?.nombre_completo||id,dias_trabajados:item.diasTrabajados,fechas:item.fechas,monto:item.monto}))})});
       if(!aviso.ok)alert('La caja se cerro, pero no fue posible enviar el correo de alerta del 7mo. Revisa el email de notificaciones del perfil.');
     }
     await cargarBase();
+    if (boletasPendientesDeActualizar) {
+      alert('Caja guardada, pero las boletas nulas no pudieron registrarse porque falta la actualización de la base de datos. No se alteró el vale ni el cuadre.');
+      return;
+    }
     alert(estado === 'cerrada' ? 'Caja cerrada.' : 'Caja guardada.');
   }
 
@@ -799,7 +828,7 @@ export default function CajaDiariaPage() {
           <EditorLineas titulo="Compras y Gastos" lineas={gastos} onChange={setGastos} />
         </div>
 
-        <EditorBoletasNulas boletas={boletasNulas} onChange={setBoletasNulas} />
+        <EditorBoletasNulas boletas={boletasNulas} onChange={setBoletasNulas} disponible={boletasNulasDisponibles !== false} />
 
         {septimos.size>0&&<section className="rounded-xl border border-amber-300 bg-amber-50 p-4 shadow-sm"><div className="flex items-center justify-between gap-3"><div><h2 className="font-black text-[#2A1710]">Pago de 7mo</h2><p className="text-xs font-bold text-[#4B2818]/60">El cálculo es sugerido e incluye los días guardados, incluso si siguen como borrador. Puedes modificar el monto antes de cerrar la caja.</p></div><span className="rounded-full bg-[#2A1710] px-4 py-2 text-sm font-black text-white">{dinero(totalSeptimos)}</span></div><div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">{[...septimos.entries()].map(([id,item])=>{const persona=funcionariosPanaderos.find((funcionario)=>funcionario.id===id);return <div key={id} className={`rounded-lg border bg-white p-3 ${item.diasTrabajados<6?'border-red-300':'border-emerald-200'}`}><div className="flex items-center gap-3"><span className="min-w-0 flex-1 truncate font-black">{persona?nombreBreve(persona):'Panadero'}</span><label className="grid gap-1 text-[10px] font-black uppercase text-[#4B2818]/60"><span>Monto 7mo</span><input type="text" inputMode="numeric" value={Math.round(item.monto)||''} onFocus={(event)=>event.currentTarget.select()} onChange={(event)=>setSeptimosManuales((actuales)=>({...actuales,[id]:Math.max(0,numero(event.target.value))}))} className="h-10 w-32 rounded-lg border-2 border-amber-300 px-3 text-right text-base font-black text-[#A51F2B] outline-none focus:border-[#A51F2B]"/></label></div><p className={`mt-2 text-xs font-black ${item.diasTrabajados<6?'text-red-700':'text-emerald-700'}`}>{item.diasTrabajados} de 6 dias trabajados{item.diasTrabajados<6?' · requiere confirmacion':''}</p><p className="mt-1 text-[10px] font-bold text-[#4B2818]/70">Base: {dinero(item.suma)} ÷ 6 = {dinero(item.calculado)}</p><p className="mt-1 text-[10px] leading-4 text-[#4B2818]/65">{item.detalle.map((dia)=>`${new Date(`${dia.fecha}T12:00:00`).toLocaleDateString('es-CL',{day:'2-digit',month:'2-digit'})}: ${dinero(dia.monto)}`).join(' · ')}</p></div>})}</div></section>}
 
