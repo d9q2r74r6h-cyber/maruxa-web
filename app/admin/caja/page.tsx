@@ -285,8 +285,11 @@ function navegarGrillaCaja(event: KeyboardEvent<HTMLElement>) {
 }
 
 function escaparHtml(valor: string) { return valor.replace(/[&<>"']/g, (caracter) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[caracter] || caracter); }
+function nombreParaImprimir(linea: Linea) {
+  return linea.nombre.trim() || (linea.tipo_eventual === 'externo' ? 'EXTERNO' : '');
+}
 function imprimirHojaTurno(titulo: string, fecha: string, qq: number, lineas: Linea[], esFestivo: boolean, configPago: ConfigPago, funcionarios: Funcionario[], septimos: Map<string, { monto: number }>, septimosPrevios: Set<string>, posicionTurno = 0) {
-  const calculadas = lineasCalculadas({ id: '', nombre: titulo, qq, lineas }, esFestivo, configPago, fecha, funcionarios).filter((linea) => linea.nombre.trim());
+  const calculadas = lineasCalculadas({ id: '', nombre: titulo, qq, lineas }, esFestivo, configPago, fecha, funcionarios).filter(nombreParaImprimir);
   if (!calculadas.length) return alert('Agrega al menos un panadero antes de imprimir la hoja.');
   const ventana = window.open('', '_blank', 'width=1000,height=750');
   if (!ventana) return alert('El navegador bloqueó la ventana de impresión. Permite las ventanas emergentes para este sitio.');
@@ -304,7 +307,7 @@ function imprimirHojaTurno(titulo: string, fecha: string, qq: number, lineas: Li
     if (linea.funcionario_id) septimosImpresos.add(linea.funcionario_id);
     const total = numero(linea.total_pago ?? linea.monto) + septimo;
     const detalleBonos = (linea.bonos || []).map((bono) => escaparHtml(`${bono.nombre} ${dinero(bono.monto)}`)).join('<br>');
-    return `<tr><td>${escaparHtml(linea.nombre)}</td><td>${escaparHtml((linea.funcion || '').toUpperCase())}</td><td class="monto">${dinero(base)}</td><td class="signo">+</td><td class="monto">${dinero(demasia)}</td><td class="signo">+</td><td class="monto bonos">${dinero(bonos)}${detalleBonos ? `<small>${detalleBonos}</small>` : ''}</td><td class="signo">+</td><td class="monto">${dinero(linea.dominical||0)}</td><td class="signo">+</td><td class="monto">${dinero(septimo)}</td><td class="signo">=</td><td class="monto total-fila">${dinero(total)}</td><td class="firma"></td></tr>`;
+    return `<tr><td>${escaparHtml(nombreParaImprimir(linea))}</td><td>${escaparHtml((linea.funcion || '').toUpperCase())}</td><td class="monto">${dinero(base)}</td><td class="signo">+</td><td class="monto">${dinero(demasia)}</td><td class="signo">+</td><td class="monto bonos">${dinero(bonos)}${detalleBonos ? `<small>${detalleBonos}</small>` : ''}</td><td class="signo">+</td><td class="monto">${dinero(linea.dominical||0)}</td><td class="signo">+</td><td class="monto">${dinero(septimo)}</td><td class="signo">=</td><td class="monto total-fila">${dinero(total)}</td><td class="firma"></td></tr>`;
   }).join('');
   const total = calculadas.reduce((suma, linea) => {
     const septimo = linea.funcionario_id && !septimosPrevios.has(linea.funcionario_id)
@@ -323,7 +326,7 @@ function imprimirHojaTurno(titulo: string, fecha: string, qq: number, lineas: Li
 }
 
 function imprimirHojaDiaria(fecha: string, turnos: Turno[], esFestivo: boolean, configPago: ConfigPago, funcionarios: Funcionario[], septimos: Map<string,{monto:number}>) {
-  const conPanaderos=turnos.map((turno)=>({...turno,lineas:lineasCalculadas(turno,esFestivo,configPago,fecha,funcionarios).filter((linea)=>linea.nombre.trim())})).filter((turno)=>turno.lineas.length);
+  const conPanaderos=turnos.map((turno)=>({...turno,lineas:lineasCalculadas(turno,esFestivo,configPago,fecha,funcionarios).filter(nombreParaImprimir)})).filter((turno)=>turno.lineas.length);
   if(!conPanaderos.length)return alert('Agrega al menos un panadero antes de imprimir la hoja.');
   const ventana=window.open('','_blank','width=1000,height=750');
   if(!ventana)return alert('El navegador bloqueo la ventana de impresion. Permite las ventanas emergentes para este sitio.');
@@ -337,7 +340,7 @@ function imprimirHojaDiaria(fecha: string, turnos: Turno[], esFestivo: boolean, 
       const septimo=linea.funcionario_id&&!septimosUsados.has(linea.funcionario_id)?numero(septimos.get(linea.funcionario_id)?.monto):0;
       if(septimo&&linea.funcionario_id)septimosUsados.add(linea.funcionario_id);
       const total=numero(linea.total_pago)+septimo;
-      return `<tr><td>${escaparHtml(linea.nombre)}</td><td>${escaparHtml((linea.funcion||'').toUpperCase())}</td><td class="monto">${dinero(linea.monto)}</td><td class="monto">${dinero(demasia)}</td><td class="monto">${dinero(totalBonos(linea))}</td><td class="monto">${dinero(linea.dominical||0)}</td><td class="monto">${dinero(septimo)}</td><td class="monto total">${dinero(total)}</td><td class="firma"></td></tr>`;
+      return `<tr><td>${escaparHtml(nombreParaImprimir(linea))}</td><td>${escaparHtml((linea.funcion||'').toUpperCase())}</td><td class="monto">${dinero(linea.monto)}</td><td class="monto">${dinero(demasia)}</td><td class="monto">${dinero(totalBonos(linea))}</td><td class="monto">${dinero(linea.dominical||0)}</td><td class="monto">${dinero(septimo)}</td><td class="monto total">${dinero(total)}</td><td class="firma"></td></tr>`;
     }).join('');
     return `<section class="turno"><div class="turno-titulo"><strong>Panaderos · ${escaparHtml(turno.nombre)}</strong><span>QQ: ${String(turno.qq||0).replace('.',',')}</span></div><table><thead><tr><th>Panadero</th><th>Funcion</th><th>Base</th><th>Demasia</th><th>Bonos</th><th>Dominical</th><th>7mo</th><th>Total</th><th>Firma</th></tr></thead><tbody>${filas}</tbody></table></section>`;
   });
@@ -355,7 +358,7 @@ function imprimirGastoDeCaja(fecha: string, turnos: Turno[], gastos: Linea[], bo
   let totalPanaderos = 0;
   const seccionesTurnos = turnos.map((turno, indice) => {
     const lineas = lineasCalculadas(turno, esFestivo, configPago, fecha, funcionarios)
-      .filter((linea) => linea.nombre.trim());
+      .filter(nombreParaImprimir);
     if (!lineas.length) return '';
     const participantes = lineas.filter(recibeDemasia).length;
     const demasiaTotal = numeroDecimal(turno.qq) * (esFestivo ? configPago.demasia_festivo_qq : configPago.demasia_normal_qq);
@@ -369,7 +372,7 @@ function imprimirGastoDeCaja(fecha: string, turnos: Turno[], gastos: Linea[], bo
       const total = numero(linea.total_pago) + septimo;
       totalPanaderos += total;
       const demasia = recibeDemasia(linea) ? demasiaIndividual : 0;
-      return `<tr><td>${escaparHtml(linea.nombre)}</td><td>${escaparHtml((linea.funcion || '').toUpperCase())}</td><td class="monto">${dinero(linea.monto)}</td><td class="monto">${dinero(demasia)}</td><td class="monto">${dinero(totalBonos(linea))}</td><td class="monto">${dinero(linea.dominical || 0)}</td><td class="monto">${dinero(septimo)}</td><td class="monto total">${dinero(total)}</td></tr>`;
+      return `<tr><td>${escaparHtml(nombreParaImprimir(linea))}</td><td>${escaparHtml((linea.funcion || '').toUpperCase())}</td><td class="monto">${dinero(linea.monto)}</td><td class="monto">${dinero(demasia)}</td><td class="monto">${dinero(totalBonos(linea))}</td><td class="monto">${dinero(linea.dominical || 0)}</td><td class="monto">${dinero(septimo)}</td><td class="monto total">${dinero(total)}</td></tr>`;
     }).join('');
     const nombreTurno = indice === 0 ? '1RA' : indice === 1 ? '2DA' : turno.nombre.toUpperCase();
     return `<section class="turno"><div class="turno-titulo"><strong>PANADEROS ${escaparHtml(nombreTurno)}</strong><span>QQ: ${String(turno.qq || 0).replace('.', ',')}</span></div><table><thead><tr><th>Panadero</th><th>Función</th><th>Base</th><th>Demasía</th><th>Bonos</th><th>Dominical</th><th>7mo</th><th>Total</th></tr></thead><tbody>${filas}</tbody></table></section>`;
