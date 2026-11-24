@@ -7,6 +7,7 @@ import { useAdminSession } from '@/components/AdminSession';
 import { GridKeyboardNavigation } from '@/components/GridKeyboardNavigation';
 
 const modulosPorRuta = [
+  ['/admin/informes/ventas-fepan', 'usuarios'],
   ['/admin/vehiculos', 'vehiculos'],
   ['/admin/informes/rendimiento-vehiculos', 'rendimiento_vehiculos'],
   ['/admin/informes/caja-panaderos', 'caja_diaria'],

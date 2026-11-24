@@ -78,7 +78,7 @@ const grupos: {
       { label: 'Costos', future: true },
       { label: 'Rentabilidad', future: true },
       { label: 'Stock crítico', href: '/admin/informes/stock-critico', modulo: 'productos' },
-      { label: 'Ventas por periodo', future: true },
+      { label: 'Ventas FEPAN', href: '/admin/informes/ventas-fepan', modulo: 'usuarios' },
     ],
   },
   {
